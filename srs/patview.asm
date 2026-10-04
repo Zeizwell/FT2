@@ -735,33 +735,31 @@ Place_Scroll
         ld a,l
 .tx     ld (Thumb_X),a
 
-        ld hl,Scroll_Map            ; колонка дорожки -> HScroll: (i*Max + (Tw-1)/2)/(Tw-1)
-        ld (Map_Ptr),hl
-        xor a
-        ld (Map_I),a
-.mp     ld a,(Max_Scroll)
-        ld e,a
-        ld a,(Map_I)
-        call Mul8
+        ; колонка дорожки -> HScroll = i*Max/(Tw-1) с округлением. Без умножений:
+        ; накопитель как у отрезка Брезенхэма - на колонку одно сложение
         ld a,(Track_W)
         dec a
-        ld c,a
+        ld c,a                      ; C - Tw-1
         srl a
-        ld e,a
-        ld d,0
-        add hl,de
-        call Div16_8
-        ld a,l
-        ld hl,(Map_Ptr)
+        ld e,a                      ; E - накопитель (с половиной - округление)
+        ld a,(Max_Scroll)
+        ld d,a                      ; D - шаг
+        ld hl,Scroll_Map
+        ld a,(Track_W)
+        ld b,a                      ; B - колонок
+        ld ixl,0                    ; IXL - значение
+.mp     ld a,ixl
         ld (hl),a
         inc hl
-        ld (Map_Ptr),hl
-        ld a,(Map_I)
-        inc a
-        ld (Map_I),a
-        ld hl,Track_W
-        cp (hl)
-        jr c,.mp
+        ld a,e
+        add a,d
+.w      cp c
+        jr c,.n
+        sub c
+        inc ixl
+        jr .w
+.n      ld e,a
+        djnz .mp
         ret
 
 Track_W         db 0
