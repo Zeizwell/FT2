@@ -290,6 +290,23 @@ char K_INPUT::readdevices()
           msy /= (1 << -conf.input.mousescale);
       }
 
+      // FT2: the absolute DirectInput position can be anything on the first read
+      // (and after the mouse was released and captured again). Without this the
+      // port jumps from the start value (31/85) to it in one frame and the driver
+      // throws the cursor into a screen corner.
+      // So the port keeps going from the value the program has already read:
+      // remember the offset once and add it to every next position.
+      static bool mouse_synced = false;
+      static int mouse_offx, mouse_offy;
+      if (!mouse_synced)
+      {
+          mouse_offx = msx_prev - msx;      // msx_prev = value before this read
+          mouse_offy = msy_prev - msy;
+          mouse_synced = true;
+      }
+      msx += mouse_offx;
+      msy += mouse_offy;
+
       if (md.rgbButtons[0])
       {
           mbuttons &= ~1;
