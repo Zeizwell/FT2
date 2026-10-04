@@ -193,7 +193,7 @@ Draw_Order
         jr nc,.buttons              ; за концом списка - только кнопки
         ld e,ORD_COL
 
-        ld a,(THEME_ATTR+CLR_ROW_BEAT)
+        ld a,(THEME_ATTR+CLR_LOOP)
         ld c,a
         ld a,(Loop_Pos)             ; маркер повтора
         cp b
@@ -202,6 +202,8 @@ Draw_Order
         ld a,'r'
         call PutCh
 
+        ld a,(THEME_ATTR+CLR_ORD_CUR)
+        ld c,a
         ld a,(Cur_Pos)              ; левая стрелка
         cp b
         ld a,' '
@@ -209,7 +211,7 @@ Draw_Order
         ld a,ARROW_R
         call PutCh
 
-        ld a,(THEME_ATTR+CLR_NOTE)  ; номер паттерна
+        ld a,(THEME_ATTR+CLR_PATNUM)    ; номер паттерна
         ld c,a
         ld a,b
         add a,low Test_Order
@@ -220,7 +222,7 @@ Draw_Order
         ld a,(hl)
         call PutHex2
 
-        ld a,(THEME_ATTR+CLR_ROW_BEAT)  ; правая стрелка
+        ld a,(THEME_ATTR+CLR_ORD_CUR)   ; правая стрелка
         ld c,a
         ld a,(Cur_Pos)
         cp b
@@ -241,7 +243,7 @@ Draw_Order
         adc a,high Order_Buttons
         sub l
         ld h,a
-        ld a,(THEME_ATTR+CLR_CMD)
+        ld a,(THEME_ATTR+CLR_BUTTON)
         ld c,a
         ld a,(hl)
         call PutCh
@@ -309,7 +311,7 @@ Draw_Row
         ld a,2
         call PutDashN
         jr .ns_done
-.ns     ld a,(THEME_ATTR+CLR_PARAM)
+.ns     ld a,(THEME_ATTR+CLR_NOISE)
         ld c,a
         ld a,(hl)
         call PutHex2
@@ -336,14 +338,18 @@ Put_Channel
         ld a,(hl)                   ; сэмпл
         call Put_Sym
         inc l
-        ld a,(THEME_ATTR+CLR_PARAM)
+        ld a,(THEME_ATTR+CLR_ENVSHAPE)
         ld c,a
         ld a,(hl)                   ; огибающая
         call Put_Hex1
         inc l
+        ld a,(THEME_ATTR+CLR_ORNAMENT)
+        ld c,a
         ld a,(hl)                   ; орнамент 1..16
         call Put_Sym
         inc l
+        ld a,(THEME_ATTR+CLR_VOLUME)
+        ld c,a
         ld a,(hl)                   ; громкость
         call Put_Hex1
         call PutSpace
@@ -358,7 +364,7 @@ Put_EnvPer
         dec l
         ld a,4
         jp PutDashN
-.val    ld a,(THEME_ATTR+CLR_PARAM)
+.val    ld a,(THEME_ATTR+CLR_ENVPER)
         ld c,a
         ld a,(hl)                   ; старший
         call PutHex2
