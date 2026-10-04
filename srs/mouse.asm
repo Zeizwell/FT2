@@ -223,7 +223,8 @@ Mouse_Scale:
                 jr z,.mouse_ac2
                 add hl, hl              ;умножаем на
                 rl c                    ;делаем 24 бита число
-                jr .mouse_ac1
+                jr nc,.mouse_ac1
+                ld c,#ff                ;вылезли за 24 бита - насыщаем, дальше обрежется до MOUSE_MAXPIX
 
 .mouse_ac2      ld a,c                  ;старший байт 24битного результата
                 ld (.mouse_ac3+1),a
@@ -236,8 +237,11 @@ Mouse_Scale:
                 ld b,(ix)
                 inc ix
                 add hl,bc               ;в HL сумма скорости+акселератор
-                jr nc,.mouse_ac4
-                ld hl,MOUSE_MAXPIX*256  ;ограничиваем макс пиксель спид в кадр
+                jr c,.mouse_clamp
+                ld a,h
+                cp MOUSE_MAXPIX         ;целая часть >= MOUSE_MAXPIX?
+                jr c,.mouse_ac4
+.mouse_clamp    ld hl,MOUSE_MAXPIX*256  ;ограничиваем макс пиксель спид в кадр
 .mouse_ac4
                                 
                 ld (ix-1),H             ;обновляем MOUSE_TABLE
@@ -272,7 +276,7 @@ MOUSE:
                 
                 cp MOUSE_MAXSPEED
                 jr c,.mx1
-                ld a,MOUSE_MAXSPEED
+                ld a,MOUSE_MAXSPEED-1   ;последний индекс MOUSE_TABLE
 
 .mx1            add a,a
                 ld  e,a
@@ -332,7 +336,7 @@ MOUSE:
                 
                 cp MOUSE_MAXSPEED
                 jr c,.mx4
-                ld a,MOUSE_MAXSPEED
+                ld a,MOUSE_MAXSPEED-1   ;последний индекс MOUSE_TABLE
 
 .mx4            add a,a
                 ld  e,a
