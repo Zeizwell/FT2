@@ -273,6 +273,9 @@ Test_Fill
         inc l
         pop bc
         djnz .ch
+        ld a,l                      ; хвостовой резерв чипа
+        add a,CHIP_SIZE-CHIP_CH_A-3*CH_SIZE
+        ld l,a
         pop bc
         djnz .chip
         inc h
