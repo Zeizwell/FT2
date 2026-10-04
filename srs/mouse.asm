@@ -7,9 +7,7 @@ Init_Mouse_Sprite
         ld (CUR_MX+1),HL        ;+1 потому что в целую часть
         ex de,hl
         ld (CUR_MY+1),HL
-        ld bc,PAGE3         ; копируем в page_sprite спрайт
-        ld a,PAGE_SPRITE    ; Спрайты 
-        out (c),a
+        SETPAGE3 PAGE_SPRITE    ; копируем в page_sprite спрайт
         ld bc,#FBDF
         in a,(c)
         ld (MOUSE_dX),a
@@ -37,7 +35,9 @@ Init_Mouse_Sprite
         ld hl, Sprite_init_table
         call set_ports
         ld hl, Cursor_dma_table
-        jp set_ports
+        call set_ports
+        RESTPAGE3
+        ret
 
 
 

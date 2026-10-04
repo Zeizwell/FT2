@@ -49,6 +49,19 @@ Pause
         halt
         jp Pause
 
+;-------- Вызов тулзы: страница тулзы в окно 1, старт с #4000
+; in: A - пейдж тулзы
+; Тулза сама SETPAGE2/3 под свои данные и RESTPAGE перед ret.
+; После возврата окно 1 восстановлено. Портит A, BC.
+Call_Tool
+        SETPAGE1 a
+        call #4000
+        RESTPAGE1
+        ret
+
+;-------- Тени страниц окон 0..3 (Page0/1 не читаются из порта)
+CUR_PAGES   db PAGE_CORE0, PAGE_CORE1, PAGE_CORE2, PAGE_CORE3
+
 
 ;--------пуш в порты, 1 байт старший байт порта #xxAF, нект байт данные, конец таблицы #FF  
     IFUSED set_ports    
