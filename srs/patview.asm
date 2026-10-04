@@ -201,9 +201,106 @@ Timing          db 1
 Need_Layout     db 1
 
 ; =========================================================================
-; ТЕСТОВЫЙ ПАТТЕРН: 2 чипа, ноты, инструменты, команды, огибающая, шум
+; ТЕСТОВЫЙ ПАТТЕРН "ПО МАКСИМУМУ": все 64 строки, оба чипа, все каналы, все
+; поля непустые (худший случай для вывода). Значения меняются по строкам и
+; каналам, чтобы было видно, что выводится правильное.
 ; =========================================================================
 Test_Fill
+        ld h,PAT_BASE_H
+        ld c,0                      ; C - строка
+.row    ld l,PAT_SLOT
+        ld b,CHIPS_MAX
+.chip   push bc
+        ld a,c                      ; заголовок чипа: период огибающей #01xx
+        inc a
+        ld (hl),a
+        inc l
+        ld (hl),#01
+        inc l
+        ld a,c                      ; шум 1..32
+        and #1F
+        inc a
+        ld (hl),a
+        inc l
+        call .cmd                   ; команда огибающей (4 байта)
+        ld (hl),0                   ; резерв
+        inc l
+        ld b,3                      ; 3 канала
+.ch     push bc
+        ld a,b                      ; нота: (строка + канал*11) mod 96 + 1
+        add a,a
+        add a,a
+        add a,a
+        add a,b
+        add a,b
+        add a,b
+        add a,c
+        cp NOTE_COUNT
+        jr c,$+4
+        sub NOTE_COUNT
+        inc a
+        ld (hl),a
+        inc l
+        ld a,c                      ; сэмпл 1..32
+        add a,b
+        and #1F
+        inc a
+        ld (hl),a
+        inc l
+        ld a,c                      ; огибающая 1..15
+        and #0E
+        inc a
+        ld (hl),a
+        inc l
+        ld a,c                      ; орнамент 1..16
+        add a,b
+        and #0F
+        inc a
+        ld (hl),a
+        inc l
+        ld a,c                      ; громкость 8..15
+        and 7
+        add a,8
+        ld (hl),a
+        inc l
+        ld (hl),0                   ; резерв
+        inc l
+        call .cmd                   ; команда 1
+        call .cmd                   ; команда 2
+        ld (hl),0                   ; резерв
+        inc l
+        ld (hl),0
+        inc l
+        pop bc
+        djnz .ch
+        pop bc
+        djnz .chip
+        inc h
+        inc c
+        ld a,c
+        cp PAT_ROWS_MAX
+        jr c,.row
+        ret
+
+.cmd    ld a,c                      ; команда: код 1..16, задержка 0..15, параметр
+        and #0F
+        inc a
+        ld (hl),a
+        inc l
+        ld a,c
+        and #0F
+        ld (hl),a
+        inc l
+        ld (hl),c                   ; параметр, младший
+        inc l
+        ld a,c
+        add a,#10
+        ld (hl),a                   ; старший
+        inc l
+        ret
+
+;-------- Разреженный тестовый паттерн (ноты через строки, пустые клетки)
+Test_Fill_Sparse
         ld h,PAT_BASE_H             ; очистка: 64 полосы по PAT_WIDTH байт
         ld b,PAT_ROWS_MAX
 .clr    ld l,PAT_SLOT
