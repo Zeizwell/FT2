@@ -77,10 +77,10 @@ void AtmVideoController::PrepareFrameATM2(int VideoMode)
     {
         if ( VideoMode == 6 )
         {
-            // text videomode offsets
+            // смещения в текстовом видеорежиме
             Scanlines[y].Offset = 64*(y/8);
         } else {
-            // raster videomode offsets
+            // смещения в растровом видеорежиме
             Scanlines[y].Offset = (y<56) ? 0 : 40*(y-56);
         }
         Scanlines[y].VideoMode = VideoMode;
@@ -786,7 +786,7 @@ void init_frame()
 
    switch (conf.ray_paint_mode) {
    case RAYDRAW_CLEAR:
-       for (auto i = 0; i < sizeof_vbuf; i++) vbuf[vid.buf][i] = 0xFF000000;
+       memset(vbuf[vid.buf], 0xFF000000, sizeof(u32)*sizeof_vbuf);          // alpha fix (doubt if it's really need)
        break;
 
    case RAYDRAW_DIM:

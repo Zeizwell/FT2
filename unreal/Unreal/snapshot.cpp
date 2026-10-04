@@ -795,7 +795,7 @@ void ConvPal8ToBgr24(u8 *dst, u8 *scrbuf, int dx)
           ds[2] = pal0[src[y]].peRed;
           ds += 3;
        }
-       ds = (PBYTE)(ULONG_PTR(ds + 3) & ~ULONG_PTR(3)); // РєР°Р¶РґР°СЏ СЃС‚СЂРѕРєР° РІС‹СЂР°РІРЅРµРЅР° РЅР° 4
+       ds = (PBYTE)(ULONG_PTR(ds + 3) & ~ULONG_PTR(3)); // каждая строка выравнена на 4
     }
 }
 
@@ -815,7 +815,7 @@ void ConvRgb15ToBgr24(u8 *dst, u8 *scrbuf, int dx)
           ds[2] = (xx & 0x7C00)>>7;
           ds += 3;
        }
-       ds = (PBYTE)(ULONG_PTR(ds + 3) & ~ULONG_PTR(3)); // РєР°Р¶РґР°СЏ СЃС‚СЂРѕРєР° РІС‹СЂР°РІРЅРµРЅР° РЅР° 4
+       ds = (PBYTE)(ULONG_PTR(ds + 3) & ~ULONG_PTR(3)); // каждая строка выравнена на 4
     }
 }
 
@@ -835,7 +835,7 @@ void ConvRgb16ToBgr24(u8 *dst, u8 *scrbuf, int dx)
           ds[2] = (xx&0xF800)>>8;
           ds += 3;
        }
-       ds = (PBYTE)(ULONG_PTR(ds + 3) & ~ULONG_PTR(3)); // РєР°Р¶РґР°СЏ СЃС‚СЂРѕРєР° РІС‹СЂР°РІРЅРµРЅР° РЅР° 4
+       ds = (PBYTE)(ULONG_PTR(ds + 3) & ~ULONG_PTR(3)); // каждая строка выравнена на 4
     }
 }
 
@@ -863,7 +863,7 @@ void ConvYuy2ToBgr24(u8 *dst, u8 *scrbuf, int dx)
             ds[2] = r;
             ds += 3;
         }
-        ds = (PBYTE)(ULONG_PTR(ds + 3) & ~ULONG_PTR(3)); // РєР°Р¶РґР°СЏ СЃС‚СЂРѕРєР° РІС‹СЂР°РІРЅРµРЅР° РЅР° 4
+        ds = (PBYTE)(ULONG_PTR(ds + 3) & ~ULONG_PTR(3)); // каждая строка выравнена на 4
     }
 }
 
@@ -881,7 +881,7 @@ void ConvBgr32ToBgr24(u8 *dst, u8 *scrbuf, int dx)
           src += 4;
           ds += 3;
        }
-       ds = (PBYTE)(ULONG_PTR(ds + 3) & ~ULONG_PTR(3)); // РєР°Р¶РґР°СЏ СЃС‚СЂРѕРєР° РІС‹СЂР°РІРЅРµРЅР° РЅР° 4
+       ds = (PBYTE)(ULONG_PTR(ds + 3) & ~ULONG_PTR(3)); // каждая строка выравнена на 4
     }
 }
 
@@ -959,18 +959,15 @@ bool CopyScreenshotToClipboard() {
 
 char* SaveScreenshot(const char* prefix, unsigned counter)
 {
-   DWORD attr = GetFileAttributes(conf.scrshot_path);
-   if (attr == INVALID_FILE_ATTRIBUTES || !(attr & FILE_ATTRIBUTE_DIRECTORY))
+   if (!(GetFileAttributes(conf.scrshot_path) & FILE_ATTRIBUTE_DIRECTORY))
    {
        return 0;
    }
 
    static char fname[FILENAME_MAX];
-   strncpy(fname, conf.scrshot_path, sizeof(fname)-1);
-   fname[sizeof(fname)-1] = 0;
+   strcpy(fname, conf.scrshot_path);
 
-   _snprintf(fname + strlen(fname), sizeof(fname) - strlen(fname), "\\%s%06u.%s", prefix, counter, SSHOT_EXT[conf.scrshot]);
-   fname[sizeof(fname)-1] = 0;
+   sprintf(fname + strlen(fname), "\\%s%06u.%s", prefix, counter, SSHOT_EXT[conf.scrshot]);
 
    FILE* fileShot = 0;
    if (conf.scrshot == SS_SCR || conf.scrshot == SS_BMP)

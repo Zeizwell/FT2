@@ -355,12 +355,6 @@ void load_config(const char *fname)
    // TS VDAC2 (FT812)
    comp.ts.vdac2 = GetPrivateProfileInt(misc, "TS_VDAC2", 0, ininame);
 
-   // ZiFi32 (ESP32)
-   GetPrivateProfileString(misc, "TS_ZIFI32", nil, line, sizeof line, ininame);
-   comp.ts.zifi32 = 0;
-   if (!strnicmp(line, "EMUL", 4)) comp.ts.zifi32 = 1;
-   if (!strnicmp(line, "USB", 3)) comp.ts.zifi32 = 2;
-
    // Cache
    conf.cache = GetPrivateProfileInt(misc, "Cache", 0, ininame);
    if (conf.cache && conf.cache!=16 && conf.cache!=32) conf.cache = 0;
@@ -481,7 +475,7 @@ void load_config(const char *fname)
          if (!strnicmp(ptr, renders[i].nick, sl) && !isalnum(ptr[sl]))
          {
             ptr += sl;
-            memmove(&renders[i], &renders[i+1], (sizeof *renders) * (max-i));
+            memcpy(&renders[i], &renders[i+1], (sizeof *renders) * (max-i));
             break;
          }
       }
@@ -643,7 +637,6 @@ void load_config(const char *fname)
 //~
    conf.input.joymouse = GetPrivateProfileInt(input, "JoyMouse", 0, ininame);
    conf.input.mousescale = GetPrivateProfileInt(input, "MouseScale", 0, ininame);
-   conf.input.mousediv = GetPrivateProfileInt(input, "MouseDiv", 0, ininame);
    conf.input.mouseswap = GetPrivateProfileInt(input, "SwapMouse", 0, ininame);
    conf.input.kjoy = GetPrivateProfileInt(input, "KJoystick", 1, ininame);
    conf.input.keymatrix = GetPrivateProfileInt(input, "Matrix", 1, ininame);
@@ -1121,7 +1114,7 @@ void load_arch(const char *fname)
       char *y = strchr(x, '=');
       if (!y) {
 ignore_line:
-         memmove(x, newx, sizeof arcbuffer - (newx-arcbuffer));
+         memcpy(x, newx, sizeof arcbuffer - (newx-arcbuffer));
       } else {
          *y = 0; if (!stricmp(x, "SkipFiles")) goto ignore_line;
          x = newx;

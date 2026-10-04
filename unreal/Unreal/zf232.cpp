@@ -124,26 +124,6 @@ Address     Mode    Name    Description
 #define ZF_GETVER       0xFF
 #define ZF_GETVER_MASK  0xFF
 
-static void CloseHandleSafe(HANDLE& Handle)
-{
- if (Handle && Handle != INVALID_HANDLE_VALUE)
-  CloseHandle(Handle);
- Handle = INVALID_HANDLE_VALUE;
-}
-
-static void CloseEventSafe(HANDLE& Handle)
-{
- if (Handle)
-  CloseHandle(Handle);
- Handle = 0;
-}
-
-static void CloseOverlappedEvents(OVERLAPPED& OvW, OVERLAPPED& OvR)
-{
- CloseEventSafe(OvW.hEvent);
- CloseEventSafe(OvR.hEvent);
-}
-
 
 //------------------------------------------------------------------------------
 
@@ -154,15 +134,12 @@ void ZF232::rs_open(int port)
  rs_whead = rs_wtail = rs_rhead = rs_rtail = 0;
  if (rs_hPort && rs_hPort != INVALID_HANDLE_VALUE)
  {
-  CloseHandleSafe(rs_hPort);
-  CloseOverlappedEvents(rs_OvW, rs_OvR);
+  CloseHandle(rs_hPort);
+  CloseHandle(rs_OvW.hEvent);
+  CloseHandle(rs_OvR.hEvent);
  }
  if (port < 1 || port > 255)
- {
-  rs_open_port = 0;
-  open_port = zf_open_port;
   return;
- }
  rs_open_port = port;
  open_port = rs_open_port | zf_open_port;
 
@@ -191,16 +168,6 @@ void ZF232::rs_open(int port)
  memset(&rs_OvR, 0, sizeof(rs_OvR));
  rs_OvW.hEvent = CreateEvent(0, TRUE, TRUE, 0);
  rs_OvR.hEvent = CreateEvent(0, TRUE, TRUE, 0);
- if (!rs_OvW.hEvent || !rs_OvR.hEvent)
- {
-  errmsg("can't create modem events on %s", portName);
-  err_win32();
-  CloseHandleSafe(rs_hPort);
-  CloseOverlappedEvents(rs_OvW, rs_OvR);
-  conf.modem_port = rs_open_port = 0;
-  open_port = zf_open_port;
-  return;
- }
 
 #if 0
  DCB dcb;
@@ -233,15 +200,12 @@ void ZF232::zf_open(int port)
  result_code = 0xFF;
  if (zf_hPort && zf_hPort != INVALID_HANDLE_VALUE)
  {
-  CloseHandleSafe(zf_hPort);
-  CloseOverlappedEvents(zf_OvW, zf_OvR);
+  CloseHandle(zf_hPort);
+  CloseHandle(zf_OvW.hEvent);
+  CloseHandle(zf_OvR.hEvent);
  }
  if (port < 1 || port > 255)
- {
-  zf_open_port = 0;
-  open_port = rs_open_port;
   return;
- }
  conf.zifi_port = zf_open_port = port;
  open_port = rs_open_port | zf_open_port;
 
@@ -263,7 +227,7 @@ void ZF232::zf_open(int port)
  {
   errmsg("GetCommState() on %s", portName);
   err_win32();
-  CloseHandleSafe(zf_hPort);
+  CloseHandle(zf_hPort);
   zf_open_port = 0;
   open_port = rs_open_port;
   return;
@@ -289,7 +253,7 @@ void ZF232::zf_open(int port)
  {
   errmsg("SetCommState() on %s", portName);
   err_win32();
-  CloseHandleSafe(zf_hPort);
+  CloseHandle(zf_hPort);
   zf_open_port = 0;
   open_port = rs_open_port;
   return;
@@ -307,16 +271,6 @@ void ZF232::zf_open(int port)
  memset(&zf_OvR, 0, sizeof(zf_OvR));
  zf_OvW.hEvent = CreateEvent(0, TRUE, TRUE, 0);
  zf_OvR.hEvent = CreateEvent(0, TRUE, TRUE, 0);
- if (!zf_OvW.hEvent || !zf_OvR.hEvent)
- {
-  errmsg("can't create %s events", portName);
-  err_win32();
-  CloseHandleSafe(zf_hPort);
-  CloseOverlappedEvents(zf_OvW, zf_OvR);
-  zf_open_port = 0;
-  open_port = rs_open_port;
-  return;
- }
 
  return;
 }
@@ -327,10 +281,12 @@ void ZF232::rs_close()
 {
  if (!rs_hPort || rs_hPort == INVALID_HANDLE_VALUE)
   return;
- CloseHandleSafe(rs_hPort);
+ CloseHandle(rs_hPort);
+ rs_hPort = INVALID_HANDLE_VALUE;
  rs_open_port = 0;
  open_port = zf_open_port;
- CloseOverlappedEvents(rs_OvW, rs_OvR);
+ CloseHandle(rs_OvW.hEvent);
+ CloseHandle(rs_OvR.hEvent);
 }
 
 //------------------------------------------------------------------------------
@@ -339,10 +295,12 @@ void ZF232::zf_close()
 {
  if (!zf_hPort || zf_hPort == INVALID_HANDLE_VALUE)
   return;
- CloseHandleSafe(zf_hPort);
+ CloseHandle(zf_hPort);
+ zf_hPort = INVALID_HANDLE_VALUE;
  zf_open_port = 0;
  open_port = rs_open_port;
- CloseOverlappedEvents(zf_OvW, zf_OvR);
+ CloseHandle(zf_OvW.hEvent);
+ CloseHandle(zf_OvR.hEvent);
 }
 
 //------------------------------------------------------------------------------

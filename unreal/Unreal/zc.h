@@ -17,9 +17,6 @@ public:
     void Close() { SdCard.Close(); }
     void Wr(u32 Port, u8 Val);
     u8 Rd(u32 Port);
-    void DmaRdStart(u32);
-    void DmaWrStart();
-    void DmaWrEnd();
 };
 
 extern TZc Zc;

@@ -48,32 +48,25 @@ void savesnddialog()
          fwrite(wavhdr, 1, sizeof wavhdr, savesnd);
          MessageBox(wnd, "WAV save done", "Save sound", MB_ICONINFORMATION);
       } else { // vtx
+         savesndtype = 0;
          u8 *newb = (u8*)malloc(vtxbuffilled);
-         FILE *ff = 0;
-         STARTUPINFO si = { sizeof si };
-         PROCESS_INFORMATION pi;
-         char Parh[] = "lha a vtx.lzh vtx.tmp";
-         int nrec;
-         size_t packed;
-
-         if (!newb && vtxbuffilled)
-            goto vtx_done;
-
          for (/*unsigned*/ end = 0; end < (int)vtxbuffilled && silence(end); end += 14);
-         vtxbuffilled -= end; memmove(vtxbuf, vtxbuf+end, vtxbuffilled);
+         vtxbuffilled -= end; memcpy(vtxbuf, vtxbuf+end, vtxbuffilled);
          for (end = vtxbuffilled; end && silence(end-14); end -= 14);
          vtxbuffilled = end;
-         nrec = vtxbuffilled/14;
+         int nrec = vtxbuffilled/14;
          for (int i = 0; i < nrec; i++)
             for (int j = 0; j < 14; j++)
                newb[j*nrec+i] = vtxbuf[i*14+j];
-
-         ff = fopen("vtx.tmp", "wb");
-         if (!ff) goto vtx_done;
+         free(vtxbuf);
+         FILE *ff = fopen("vtx.tmp", "wb");
+         if (!ff) return;
          fwrite(newb, 1, vtxbuffilled, ff);
-         fclose(ff); ff = 0;
-
+         fclose(ff);
+         STARTUPINFO si = { sizeof si };
          si.dwFlags = STARTF_USESHOWWINDOW; si.wShowWindow = SW_HIDE;
+         PROCESS_INFORMATION pi;
+         char Parh[] = "lha a vtx.lzh vtx.tmp";
          if (CreateProcess(0, Parh, 0, 0, 0, 0, 0, 0, &si, &pi))
          {
             WaitForSingleObject(pi.hProcess, 5000);
@@ -85,18 +78,12 @@ void savesnddialog()
          {
             DeleteFile("vtx.tmp");
             MessageBox(wnd, "LHA.EXE not found in %PATH%", 0, MB_ICONERROR);
-            goto vtx_done;
+            return;
          }
-
-         ff = fopen("vtx.lzh", "rb");
-         if (!ff) goto vtx_done;
+         ff = fopen("vtx.lzh", "rb"); if (!ff) return;
          fseek(ff, 0x22, SEEK_SET);
-         packed = fread(newb, 1, vtxbuffilled, ff);
-         fclose(ff); ff = 0;
-         DeleteFile("vtx.lzh");
-         if (!packed) goto vtx_done;
-         packed--;
-
+         unsigned packed = fread(newb, 1, vtxbuffilled, ff)-1;
+         fclose(ff); DeleteFile("vtx.lzh");
          DialogBox(hIn, MAKEINTRESOURCE(IDD_VTX), wnd, VtxDlg);
          vtxheader.sig = (vtxchip & 1) ? WORD2('y','m') : WORD2('a','y');
          static u8 ste[] = { 1, 2, 0 };
@@ -112,14 +99,8 @@ void savesnddialog()
          fwrite(vtxtracker, 1, strlen(vtxtracker)+1, savesnd);
          fwrite(vtxcomm, 1, strlen(vtxcomm)+1, savesnd);
          fwrite(newb, 1, packed, savesnd);
-
-      vtx_done:
-         if (ff) fclose(ff);
-         free(newb);
-         free(vtxbuf); vtxbuf = 0;
-         vtxbuffilled = 0;
       }
-      fclose(savesnd); savesnd = 0;
+      fclose(savesnd);
       savesndtype = 0;
    } else {
       OPENFILENAME ofn = { 0 };
@@ -143,7 +124,6 @@ void savesnddialog()
          else if (ofn.nFilterIndex == 2) { // vtx
             savesndtype = 2;
             vtxbuf = 0;
-            vtxbuffilled = 0;
          } else { // wave. all params, except fq are fixed: 16bit,stereo
             *(unsigned*)(wavhdr+0x18) = conf.sound.fq; // fq
             *(unsigned*)(wavhdr+0x1C) = conf.sound.fq*4; // bitrate

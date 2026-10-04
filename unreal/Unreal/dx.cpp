@@ -35,7 +35,6 @@ static const DWORD SCU_LOCK_MOUSE = 0x50;
 #define SLEEP_DELAY 2
 
 static HMODULE D3d9Dll = nullptr;
-static HMODULE DsoundDll = nullptr;
 static IDirect3D9 *D3d9 = nullptr;
 static IDirect3DDevice9 *D3dDev = nullptr;
 static IDirect3DSurface9 *SurfTexture = nullptr;
@@ -325,131 +324,6 @@ void do_sound_wave()
 
 // directsound part
 // begin
-static WAVEFORMATEX get_sound_format()
-{
-   WAVEFORMATEX wf = { 0 };
-   wf.wFormatTag = WAVE_FORMAT_PCM;
-   wf.nSamplesPerSec = conf.sound.fq;
-   wf.nChannels = 2;
-   wf.wBitsPerSample = 16;
-   wf.nBlockAlign = 4;
-   wf.nAvgBytesPerSec = wf.nSamplesPerSec * wf.nBlockAlign;
-   return wf;
-}
-
-static void done_sound_ds()
-{
-   if (dsbf) dsbf->Release(); dsbf = nullptr;
-   if (ds) ds->Release(); ds = nullptr;
-}
-
-static bool init_sound_ds()
-{
-   if (!DsoundDll)
-      DsoundDll = LoadLibrary("dsound.dll");
-   if (!DsoundDll)
-      return false;
-
-   typedef HRESULT(WINAPI * DIRECTSOUNDCREATE) (LPGUID, LPDIRECTSOUND *, LPUNKNOWN);
-   DIRECTSOUNDCREATE DirectSoundCreate = (DIRECTSOUNDCREATE)GetProcAddress(DsoundDll, "DirectSoundCreate");
-   if (!DirectSoundCreate)
-      return false;
-
-   HRESULT r = DirectSoundCreate(nullptr, &ds, nullptr);
-   if (r != DS_OK)
-   {
-      printrds("DirectSoundCreate()", r);
-      return false;
-   }
-
-   r = DSERR_UNINITIALIZED;
-   if (conf.sound.dsprimary)
-      r = ds->SetCooperativeLevel(wnd, DSSCL_WRITEPRIMARY);
-   if (r != DS_OK)
-   {
-      r = ds->SetCooperativeLevel(wnd, DSSCL_NORMAL);
-      conf.sound.dsprimary = 0;
-   }
-   if (r != DS_OK)
-   {
-      printrds("IDirectSound::SetCooperativeLevel()", r);
-      done_sound_ds();
-      return false;
-   }
-
-   WAVEFORMATEX wf = get_sound_format();
-   DSBUFFERDESC dsdesc = { sizeof dsdesc };
-   r = DSERR_UNINITIALIZED;
-
-   if (conf.sound.dsprimary)
-   {
-      dsdesc.dwFlags = DSBCAPS_GETCURRENTPOSITION2 | DSBCAPS_PRIMARYBUFFER;
-      dsdesc.dwBufferBytes = 0;
-      dsdesc.lpwfxFormat = nullptr;
-      r = ds->CreateSoundBuffer(&dsdesc, &dsbf, nullptr);
-      if (r == DS_OK)
-      {
-         r = dsbf->SetFormat(&wf);
-         if (r != DS_OK)
-         {
-            printrds("IDirectSoundBuffer::SetFormat()", r);
-            done_sound_ds();
-            return false;
-         }
-
-         DSBCAPS caps = { sizeof caps };
-         r = dsbf->GetCaps(&caps);
-         if (r != DS_OK)
-         {
-            printrds("IDirectSoundBuffer::GetCaps()", r);
-            done_sound_ds();
-            return false;
-         }
-         dsbuffer = caps.dwBufferBytes;
-      }
-      else
-      {
-         printrds("IDirectSound::CreateSoundBuffer() [primary]", r);
-      }
-   }
-
-   if (r != DS_OK)
-   {
-      dsdesc = { sizeof dsdesc };
-      dsdesc.lpwfxFormat = &wf;
-      dsdesc.dwFlags = DSBCAPS_GETCURRENTPOSITION2 | DSBCAPS_GLOBALFOCUS;
-      dsbuffer = dsdesc.dwBufferBytes = DSBUFFER;
-      r = ds->CreateSoundBuffer(&dsdesc, &dsbf, nullptr);
-      if (r != DS_OK)
-      {
-         printrds("IDirectSound::CreateSoundBuffer()", r);
-         done_sound_ds();
-         return false;
-      }
-
-      conf.sound.dsprimary = 0;
-   }
-
-   dsoffset = dsbuffer / 4;
-   return true;
-}
-
-static void recover_sound_ds(const char *operation, HRESULT r)
-{
-   printrds(operation, r);
-   done_sound_ds();
-
-   if (init_sound_ds())
-   {
-      sound_play();
-      return;
-   }
-
-   color(CONSCLR_WARNING);
-   printf("warning: DirectSound reinitialization failed; sound disabled\n");
-   conf.sound.do_sound = do_sound_none;
-}
-
 void restore_sound_buffer()
 {
 //   for (;;) {
@@ -494,8 +368,14 @@ void do_sound_ds()
       int play, write;
       if ((r = dsbf->GetCurrentPosition((DWORD*)&play, (DWORD*)&write)) != DS_OK)
       {
-         recover_sound_ds("IDirectSoundBuffer::GetCurrentPosition()", r);
-         return;
+         if (r == DSERR_BUFFERLOST)
+         {
+             restore_sound_buffer();
+             return;
+         }
+
+         printrds("IDirectSoundBuffer::GetCurrentPosition()", r);
+         exit();
       }
 
       int gap = write - play;
@@ -521,8 +401,8 @@ void do_sound_ds()
 
       if ((r = dsbf->Play(0,0, DSBPLAY_LOOPING)) != DS_OK)
       {
-          recover_sound_ds("IDirectSoundBuffer::Play()", r);
-          return;
+          printrds("IDirectSoundBuffer::Play()", r);
+          exit();
       }
 
       if (conf.sleepidle)
@@ -545,8 +425,8 @@ void do_sound_ds()
    {
 //       __debugbreak();
        printf("dsbuffer=%d, dsoffset=%d, spbsize=%d\n", dsbuffer, dsoffset, spbsize);
-       recover_sound_ds("IDirectSoundBuffer::Lock()", r);
-       return;
+       printrds("IDirectSoundBuffer::Lock()", r);
+       exit();
    }
    memcpy(ptr1, sndplaybuf, sz1);
    if (ptr2)
@@ -663,10 +543,7 @@ static void SetVideoModeD3d();
 
 static INT_PTR CALLBACK WndProc(HWND hwnd,UINT uMessage,WPARAM wparam,LPARAM lparam)
 {
-   static bool dragging_caption = false;
-   static bool caption_was_maximized = false;
-   static POINT caption_start;
-   static RECT caption_rect;
+   static bool moving = false;
    // printf("WM_x = %04X\n", uMessage);
    
    if ((uMessage == WM_QUIT) || (uMessage == WM_NCDESTROY))
@@ -704,72 +581,6 @@ static INT_PTR CALLBACK WndProc(HWND hwnd,UINT uMessage,WPARAM wparam,LPARAM lpa
       adjust_mouse_cursor();
    }
 
-   if (uMessage == WM_NCLBUTTONDOWN && wparam == HTCAPTION)
-   {
-      GetCursorPos(&caption_start);
-      GetWindowRect(hwnd, &caption_rect);
-      caption_was_maximized = IsZoomed(hwnd) != FALSE;
-      dragging_caption = true;
-      SetCapture(hwnd);
-      return 0;
-   }
-
-   if (dragging_caption && (uMessage == WM_MOUSEMOVE || uMessage == WM_NCMOUSEMOVE))
-   {
-      POINT cursor;
-      GetCursorPos(&cursor);
-
-      if (caption_was_maximized)
-      {
-         if (cursor.x == caption_start.x && cursor.y == caption_start.y)
-            return 0;
-
-         int old_width = caption_rect.right - caption_rect.left;
-         int caption_x = caption_start.x - caption_rect.left;
-         int caption_y = caption_start.y - caption_rect.top;
-
-         ShowWindow(hwnd, SW_RESTORE);
-         GetWindowRect(hwnd, &caption_rect);
-
-         int width = caption_rect.right - caption_rect.left;
-         int height = caption_rect.bottom - caption_rect.top;
-         if (old_width > 0)
-            caption_x = caption_x * width / old_width;
-         if (caption_y >= height)
-            caption_y = GetSystemMetrics(SM_CYCAPTION) + GetSystemMetrics(SM_CYFRAME);
-
-         caption_rect.left = cursor.x - caption_x;
-         caption_rect.top = cursor.y - caption_y;
-         caption_rect.right = caption_rect.left + width;
-         caption_rect.bottom = caption_rect.top + height;
-         caption_start = cursor;
-         caption_was_maximized = false;
-      }
-
-      SetWindowPos(hwnd, 0,
-         caption_rect.left + cursor.x - caption_start.x,
-         caption_rect.top + cursor.y - caption_start.y,
-         0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
-      return 0;
-   }
-
-   if (dragging_caption &&
-       (uMessage == WM_LBUTTONUP || uMessage == WM_NCLBUTTONUP || uMessage == WM_CANCELMODE))
-   {
-      dragging_caption = false;
-      caption_was_maximized = false;
-      if (GetCapture() == hwnd)
-         ReleaseCapture();
-      return 0;
-   }
-
-   if (dragging_caption && uMessage == WM_CAPTURECHANGED)
-   {
-      dragging_caption = false;
-      caption_was_maximized = false;
-      return 0;
-   }
-
    if (conf.input.joymouse)
    {
       if (uMessage == WM_LBUTTONDOWN || uMessage == WM_LBUTTONUP)
@@ -796,6 +607,16 @@ static INT_PTR CALLBACK WndProc(HWND hwnd,UINT uMessage,WPARAM wparam,LPARAM lpa
 //       printf("%s\n", __FUNCTION__);
        input.nomouse = 20;
        main_mouse();
+   }
+
+   if (uMessage == WM_ENTERSIZEMOVE)
+   {
+       sound_stop();
+   }
+
+   if (uMessage == WM_EXITSIZEMOVE)
+   {
+       sound_play();
    }
 
    if (uMessage == WM_SIZE || uMessage == WM_MOVE || uMessage == WM_USER)
@@ -982,16 +803,15 @@ void readdevice(VOID *md, DWORD sz, LPDIRECTINPUTDEVICE dev)
 {
    if (!active || !dev)
        return;
-
    HRESULT r = dev->GetDeviceState(sz, md);
    if (r == DIERR_INPUTLOST || r == DIERR_NOTACQUIRED)
    {
       r = dev->Acquire();
-      if (r == DIERR_INPUTLOST || r == DIERR_NOTACQUIRED || r == DIERR_OTHERAPPHASPRIO)
-      {
-         memset(md, 0, sz);
-         return;
-      }
+      while (r == DIERR_INPUTLOST)
+          r = dev->Acquire();
+
+      if (r == DIERR_OTHERAPPHASPRIO) // Приложение находится в background
+          return;
 
       if (r != DI_OK)
       {
@@ -1000,19 +820,13 @@ void readdevice(VOID *md, DWORD sz, LPDIRECTINPUTDEVICE dev)
       }
       r = dev->GetDeviceState(sz, md);
    }
-
-   if (r == DIERR_INPUTLOST || r == DIERR_NOTACQUIRED || r == DIERR_OTHERAPPHASPRIO)
-   {
-      memset(md, 0, sz);
-      return;
-   }
-
    if (r != DI_OK)
    {
        printrdi("IDirectInputDevice::GetDeviceState()", r);
        exit();
    }
 }
+
 void readmouse(DIMOUSESTATE *md)
 {
    memset(md, 0, sizeof *md);
@@ -1641,15 +1455,15 @@ void start_dx()
    AdjustWindowRect(&Client, WS_VISIBLE | WS_OVERLAPPEDWINDOW, 0);
    cx = Client.right - Client.left;
    cy = Client.bottom - Client.top;
-   int winx = rect1.left + (rect1.right - rect1.left - cx);  // /2 to center
-   int winy = rect1.top + (rect1.bottom - rect1.top - cy);   // /2 to center
+   int winx = rect1.left + (rect1.right - rect1.left - cx) / 2;
+   int winy = rect1.top + (rect1.bottom - rect1.top - cy) / 2;
    winx = winx < 0 ? 0 : winx;
    winy = winy < 0 ? 0 : winy;
 
    main_menu = LoadMenu(hIn, MAKEINTRESOURCE(IDR_MAINMENU));
    wnd = CreateWindow("EMUL_WND", "UnrealSpeccy", WS_VISIBLE|WS_OVERLAPPEDWINDOW,
-                    // winx, winy, cx, cy, nullptr, main_menu, hIn, NULL);
-                    winx, 0, cx, cy, nullptr, main_menu, hIn, NULL);
+                    winx, winy, cx, cy, nullptr, main_menu, hIn, NULL);
+//                    winx, winy, cx, cy, 0, 0, hIn, NULL);
 
    DragAcceptFiles(wnd, 1);
 
@@ -1720,15 +1534,69 @@ void start_dx()
    max_modes = 0;
    dd->EnumDisplayModes(DDEDM_REFRESHRATES | DDEDM_STANDARDVGAMODES, nullptr, nullptr, callb);
 
-   WAVEFORMATEX wf = get_sound_format();
+   WAVEFORMATEX wf = { 0 };
+   wf.wFormatTag = WAVE_FORMAT_PCM;
+   wf.nSamplesPerSec = conf.sound.fq;
+   wf.nChannels = 2;
+   wf.wBitsPerSample = 16;
+   wf.nBlockAlign = 4;
+   wf.nAvgBytesPerSec = wf.nSamplesPerSec * wf.nBlockAlign;
 
    if (conf.sound.do_sound == do_sound_wave) {
       if ((r = waveOutOpen(&hwo, WAVE_MAPPER, &wf, 0, 0, CALLBACK_NULL)) != MMSYSERR_NOERROR)
       { printrmm("waveOutOpen()", r); hwo = nullptr; goto sfail; }
       wqhead = 0, wqtail = 0;
    } else if (conf.sound.do_sound == do_sound_ds) {
-      if (!init_sound_ds())
-         goto sfail;
+
+      HMODULE hDdraw = LoadLibrary("dsound.dll");
+      if (hDdraw)
+      {
+          typedef HRESULT(WINAPI * DIRECTSOUNDCREATE) (LPGUID, LPDIRECTSOUND *, LPUNKNOWN);
+          DIRECTSOUNDCREATE DirectSoundCreate = (DIRECTSOUNDCREATE)GetProcAddress(hDdraw, "DirectSoundCreate");
+          if (DirectSoundCreate) r = DirectSoundCreate(nullptr, &ds, nullptr);
+      }
+
+      if (r != DD_OK)
+      { printrds("DirectSoundCreate()", r); goto sfail; }
+
+      r = -1;
+      if (conf.sound.dsprimary) r = ds->SetCooperativeLevel(wnd, DSSCL_WRITEPRIMARY);
+      if (r != DS_OK) r = ds->SetCooperativeLevel(wnd, DSSCL_NORMAL), conf.sound.dsprimary = 0;
+      if (r != DS_OK) { printrds("IDirectSound::SetCooperativeLevel()", r); goto sfail; }
+
+      DSBUFFERDESC dsdesc = { sizeof(DSBUFFERDESC) }; r = -1;
+
+      if (conf.sound.dsprimary) {
+
+         dsdesc.dwFlags = DSBCAPS_GETCURRENTPOSITION2 | DSBCAPS_PRIMARYBUFFER;
+         dsdesc.dwBufferBytes = 0;
+         dsdesc.lpwfxFormat = nullptr;
+         r = ds->CreateSoundBuffer(&dsdesc, &dsbf, nullptr);
+
+         if (r != DS_OK) { printrds("IDirectSound::CreateSoundBuffer() [primary]", r); }
+         else {
+            r = dsbf->SetFormat(&wf);
+            if (r != DS_OK) { printrds("IDirectSoundBuffer::SetFormat()", r); goto sfail; }
+            DSBCAPS caps; caps.dwSize = sizeof caps; dsbf->GetCaps(&caps);
+            dsbuffer = caps.dwBufferBytes;
+         }
+      }
+
+      if (r != DS_OK)
+      {
+         dsdesc.lpwfxFormat = &wf;
+         dsdesc.dwFlags = DSBCAPS_GETCURRENTPOSITION2 | DSBCAPS_GLOBALFOCUS;
+         dsbuffer = dsdesc.dwBufferBytes = DSBUFFER;
+         if ((r = ds->CreateSoundBuffer(&dsdesc, &dsbf, nullptr)) != DS_OK)
+         {
+             printrds("IDirectSound::CreateSoundBuffer()", r);
+             goto sfail;
+         }
+
+         conf.sound.dsprimary = 0;
+      }
+
+      dsoffset = dsbuffer/4;
 
    } else {
    sfail:
@@ -1851,8 +1719,8 @@ void done_dx()
    if (dimouse) dimouse->Unacquire(), dimouse->Release(); dimouse = nullptr;
    if (dijoyst) dijoyst->Unacquire(), dijoyst->Release(); dijoyst = nullptr;
    if (hwo) { waveOutReset(hwo); /* waveOutUnprepareHeader()'s ? */ waveOutClose(hwo); }
-   done_sound_ds();
-   if (DsoundDll) FreeLibrary(DsoundDll); DsoundDll = nullptr;
+   if (dsbf) dsbf->Release(); dsbf = nullptr;
+   if (ds) ds->Release(); ds = nullptr;
    if (hbm) DeleteObject(hbm); hbm = nullptr;
    if (temp.gdidc) ReleaseDC(wnd, temp.gdidc); temp.gdidc = nullptr;
    DoneD3d();

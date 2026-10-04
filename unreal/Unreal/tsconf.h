@@ -294,7 +294,6 @@ typedef struct
   u8 pwr_up;
   u8 vdac;
   u8 vdac2;
-  u8 zifi32;
 
 // -- video --
   u8 vpage;
@@ -500,7 +499,7 @@ typedef struct
     u32 asize;      // align size
     u16 data;       // data (used by transactions based on state)
     u8 dstate;  // state of data (0 - empty, 1 - have data, 2 - have blitted data)
-    DMA_STATE state;       // state of dma transaction
+    u8 state;       // state of dma transaction
   } dma;
 
   // saved state

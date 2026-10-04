@@ -34,9 +34,7 @@ void CHEATDLG::Search()
    if (nFound == -1) searchSize = conf.ramsize*1024;
    searchSize = min(searchSize, conf.ramsize*1024);
 
-   u8 *new_bitmask = (u8*)realloc(bitmask, searchSize/8);
-   if (!new_bitmask) return;
-   bitmask = new_bitmask;
+   bitmask = (u8*)realloc(bitmask, searchSize/8);
    if (nFound == -1) memset(bitmask, 0xFF, searchSize/8);
 
    unsigned i;
@@ -103,9 +101,7 @@ void CHEATDLG::Search()
       }
    }
 
-   u8 *new_lastsnap = (u8*)realloc(lastsnap, searchSize);
-   if (!new_lastsnap) return;
-   lastsnap = new_lastsnap;
+   lastsnap = (u8*)realloc(lastsnap, searchSize);
    memcpy(lastsnap, memory, searchSize);
    ShowResults();
 }
