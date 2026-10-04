@@ -1,9 +1,9 @@
 # =========================================================================
 # ПУТИ К ИНСТРУМЕНТАМ (СТРОГО ПО ТВОЕЙ СТРУКТУРЕ)
 # =========================================================================
-SJASMPLUS := sjasmplus/sjasmplus.exe
-SPGBLD    := spgbld/spgbld.exe
-ROBIMG    := tools/robimg.exe
+SJASMPLUS := sjasmplus.exe
+SPGBLD    := spgbld.exe
+ROBIMG    := robimg.exe
 EMULATOR  := tools/unreal/Unreal.exe
 IMAGE     := tools/unreal/wc.img
 
