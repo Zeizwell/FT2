@@ -105,16 +105,21 @@ Main_Loop
         ld a,(Screen_Pending)
         or a
         call nz,Prepare_Screen
+        ld a,(Rows_Pending)         ; строки - только если что-то поменялось
+        or a
+        jr z,.norows
+        dec a
+        ld (Rows_Pending),a
         ld a,2                      ; красный - строки паттерна
         call Timing_Phase
         call Draw_Blank_Runs
         call Draw_Rows
-        ld a,3                      ; зелёный - ордер-лист, подсветка
+        call Highlight_Edit_Row
+.norows ld a,3                      ; зелёный - ордер-лист
         call Timing_Phase
         ld a,(Order_Pending)
         or a
         call nz,Draw_Order
-        call Highlight_Edit_Row
         xor a                       ; конец - обычный фон
         call Timing_Phase
         ld a,1
@@ -126,6 +131,7 @@ Back            db PAGE_TEXT2       ; в который рисуем (сразу
 Frame_Ready     db 0
 Screen_Pending  db 0                ; статику нарисовать ещё в стольких буферах
 Order_Pending   db 0
+Rows_Pending    db 0                ; строки паттерна - тоже по разу в каждый буфер
 
 ;-------- Второй буфер: копия экрана (макет сверху) и шрифта первого
 Init_Double_Buffer
@@ -390,9 +396,10 @@ Relayout
 .fit    call Place_Fit
 .placed call Gen_Code
         call Calc_Blank_Region
-        ld a,2                      ; статику и ордер-лист - в оба буфера
+        ld a,2                      ; статику, ордер-лист и строки - в оба буфера
         ld (Screen_Pending),a
         ld (Order_Pending),a
+        ld (Rows_Pending),a
         ret
 
 ;-------- Статика в текущий буфер (Back)
@@ -1740,6 +1747,9 @@ Row_Wrap
         ld a,(hl)
         and PAT_ROWS_MAX-1
         ld (hl),a
+Rows_Dirty
+        ld a,2                      ; строки сменились - перерисовать в оба буфера
+        ld (Rows_Pending),a
         ret
 K_ChLeft
         ld a,(Cur_Chan)
@@ -1778,7 +1788,8 @@ K_ScRight
         inc a
         ld (HScroll),a
         jr Dirty
-K_Wrap  ld hl,View_Wrap
+K_Wrap  call Rows_Dirty
+        ld hl,View_Wrap
         jr Toggle
 K_Play  ld hl,Playing
         jr Toggle
@@ -1799,6 +1810,7 @@ Handle_Mouse
         sub b
         and PAT_ROWS_MAX-1
         ld (Cur_Row),a
+        call Rows_Dirty
 .nowheel
         ld a,(SV_MOUSE_BUT)         ; бит 0 = 0 - левая нажата
         cpl
