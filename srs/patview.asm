@@ -185,7 +185,8 @@ Apply_Layout
 ; --- состояние вида
 View_Mode       db MODE_COMPACT
 View_Chips      db 2
-View_Adapt      db 1
+Chan_Level      db MODE_COMPACT,MODE_COMPACT,MODE_COMPACT ; уровень каждого канала:
+                db MODE_COMPACT,MODE_COMPACT,MODE_COMPACT ; вид задаёт всем, +/- - одному
 View_Wrap       db 1                ; 1 - по кругу (сверху конец паттерна), 0 - пусто
 Cur_Chan        db 0                ; канал под курсором 0..5
 Cursor_Moved    db 0
@@ -239,8 +240,8 @@ Test_Fill
         cp 4
         jr nz,.no_ac
         ld l,PAT_SLOT+CHIP_CH_A+CH_CMD
-        ld (hl),1
-        inc l
+        ld (hl),1                   ; код 1, задержка 0, параметр #0010
+        ld l,PAT_SLOT+CHIP_CH_A+CH_CMD+CMD_PARAM
         ld (hl),#10
 .no_ac  ld a,c                      ; B: G-3 каждые 8 со сдвигом 2
         and 7
@@ -257,16 +258,18 @@ Test_Fill
         cp 6
         jr nz,.no_bc
         ld l,PAT_SLOT+CHIP_CH_B+CH_CMD
-        ld (hl),3
-        inc l
+        ld (hl),3                   ; команда 1: код 3, параметр #0102
+        ld l,PAT_SLOT+CHIP_CH_B+CH_CMD+CMD_PARAM
         ld (hl),#02
         inc l
         ld (hl),#01
+        ld l,PAT_SLOT+CHIP_CH_B+CH_CMD+CMD_SIZE
+        ld (hl),5                   ; команда 2: код 5, задержка 2, параметр #00FF
         inc l
-        ld (hl),5
+        ld (hl),2
         inc l
         ld (hl),#FF
-.no_bc  ld a,c                      ; C: C-2 каждые 16, команда 3 каждые 32
+.no_bc  ld a,c                      ; C: C-2 каждые 16, команда 2 каждые 32
         and 15
         jr nz,.no_c
         ld l,PAT_SLOT+CHIP_CH_C+CH_NOTE
@@ -280,9 +283,9 @@ Test_Fill
         ld a,c
         and 31
         jr nz,.no_c
-        ld l,PAT_SLOT+CHIP_CH_C+CH_CMD+6
-        ld (hl),10
-        inc l
+        ld l,PAT_SLOT+CHIP_CH_C+CH_CMD+CMD_SIZE
+        ld (hl),10                  ; код A, параметр #1234
+        ld l,PAT_SLOT+CHIP_CH_C+CH_CMD+CMD_SIZE+CMD_PARAM
         ld (hl),#34
         inc l
         ld (hl),#12
@@ -297,8 +300,8 @@ Test_Fill
         ld l,PAT_SLOT+CHIP_SIZE+CHIP_CH_A+CH_VOLUME
         ld (hl),10
         ld l,PAT_SLOT+CHIP_SIZE+CHIP_CH_A+CH_CMD
-        ld (hl),7
-        inc l
+        ld (hl),7                   ; код 7, параметр #0001
+        ld l,PAT_SLOT+CHIP_SIZE+CHIP_CH_A+CH_CMD+CMD_PARAM
         ld (hl),#01
 .no_d   ld a,c                      ; E: E-5 каждые 8
         and 7
@@ -323,7 +326,7 @@ Test_Fill
         ld (hl),#01
         ld l,PAT_SLOT+CHIP_ENVCMD   ; команда огибающей 2 #0080
         ld (hl),2
-        inc l
+        ld l,PAT_SLOT+CHIP_ENVCMD+CMD_PARAM
         ld (hl),#80
         ld l,PAT_SLOT+CHIP_NOISE
         ld (hl),#0A
@@ -361,7 +364,7 @@ GF_Ch1          db TY_NOTE,CH_NOTE,0, TY_SAMPLE,CH_SAMPLE,1, TY_ENV,CH_ENVSHAPE,
                 db TY_ORN,CH_ORNAMENT,0, TY_VOL,CH_VOLUME,0, TY_CMD,CH_CMD,1, #FF
 GF_Ch2          db TY_NOTE,CH_NOTE,0, TY_SAMPLE,CH_SAMPLE,1, TY_ENV,CH_ENVSHAPE,0
                 db TY_ORN,CH_ORNAMENT,0, TY_VOL,CH_VOLUME,0, TY_CMD,CH_CMD,1
-                db TY_CMD,CH_CMD+CMD_SIZE,1, TY_CMD,CH_CMD+2*CMD_SIZE,1, #FF
+                db TY_CMD,CH_CMD+CMD_SIZE,1, #FF
 GF_Chip_Tab     dw GF_Chip0,GF_Chip1,GF_Chip2
 GF_Ch_Tab       dw GF_Ch0,GF_Ch1,GF_Ch2
 
@@ -696,20 +699,8 @@ Build_Layout
         add a,b
         add a,c                     ; номер канала 0..5
         ld (EG_Num),a
-        ld b,a
-        ld a,(View_Mode)            ; уровень, с адаптивом - на 1 шире у курсора
-        ld e,a
-        ld a,(View_Adapt)
-        or a
-        jr z,.lv
-        ld a,(Cur_Chan)
-        cp b
-        jr nz,.lv
-        ld a,e
-        cp MODE_FULL
-        jr nc,.lv
-        inc e
-.lv     ld a,e
+        ld hl,Chan_Level            ; уровень канала: вид, поправленный +/- канала
+        call Arr_Get
         ld hl,GF_Ch_Tab
         call Get_List
         ld a,(BL_Chip)              ; смещение канала: чип*64 + CHIP_CH_A + канал*16
@@ -1468,6 +1459,7 @@ T_CMD                               ; команда: код (символ 1..W)
         ld a,(hl)
         ld (de),a
         inc e
+        inc c                       ; код, задержка, параметр (младший, старший)
         inc c
         inc c
         ld a,(bc)                   ; параметр, старший
@@ -1734,13 +1726,39 @@ Draw_Titles
         call Arr_Get
         add a,'A'
         ld (Txt_Ch_L),a
-        ld hl,Txt_Ch
+        ld a,b                      ; у канала - кнопки +- вплотную к правому краю
+        ld hl,Grp_End
+        call Arr_Get
+        ld hl,Off
+        sub (hl)
+        sub 2                       ; x "+" в окне
+        jr c,.nobtn
+        ld l,a
+        inc a
+        inc a
+        push hl
+        ld hl,WinC
+        cp (hl)
+        pop hl
+        jr nc,.nobtn                ; правее окна
+        ld a,(Win_X)
+        add a,l
+        push de
+        ld e,a
+        ld a,(THEME_ATTR+CLR_BUTTON)
+        ld c,a
+        ld a,'+'
+        call PutCh
+        ld a,'-'
+        call PutCh
+        pop de
+.nobtn  ld hl,Txt_Ch
 .put    ld a,(THEME_ATTR+CLR_HEADER)
         ld c,a
         call PutStr
 .skip   pop bc
         inc b
-        jr .g
+        jp .g
 
 Txt_Order       db "Order ",0
 Txt_Rw          db " Rw ",0
@@ -1796,8 +1814,10 @@ Key_Tab db #F7,%00001
         dw K_Mode1                  ; 2
         db #F7,%00100
         dw K_Mode2                  ; 3
-        db #F7,%01000
-        dw K_Adapt                  ; 4
+        db #FE,%00100
+        dw K_Expand                 ; X - раскрыть канал под курсором
+        db #FE,%00010
+        dw K_Collapse               ; Z - свернуть
         db #F7,%10000
         dw K_Chips                  ; 5
         db #FB,%00001
@@ -1819,7 +1839,7 @@ Key_Tab db #F7,%00001
         db #FB,%10000
         dw K_Timing                 ; T
         db 0
-KEYS_N          equ 14
+KEYS_N          equ 15
 Keys_Prev       ds KEYS_N
 
 Handle_Keys
@@ -1860,16 +1880,47 @@ K_Mode1 ld a,MODE_NORMAL
 K_Mode2 ld a,MODE_FULL
 Set_Mode
         ld (View_Mode),a
+        ld hl,Chan_Level            ; вид - уровень всем каналам
+        ld b,6
+.l      ld (hl),a
+        inc hl
+        djnz .l
         xor a
         ld (HScroll),a
 Dirty   ld a,1
         ld (Need_Layout),a
         ret
-K_Adapt ld hl,View_Adapt
+
+;-------- +/- канала: A - канал. Раскрыть / свернуть на уровень
+K_Expand
+        ld a,(Cur_Chan)
+Chan_Expand
+        ld hl,Chan_Level
+        call Arr_Ptr
         ld a,(hl)
-        xor 1
-        ld (hl),a
+        cp MODE_FULL
+        ret nc
+        inc (hl)
         jr Dirty
+K_Collapse
+        ld a,(Cur_Chan)
+Chan_Collapse
+        ld hl,Chan_Level
+        call Arr_Ptr
+        ld a,(hl)
+        or a
+        ret z
+        dec (hl)
+        jr Dirty
+
+; HL - массив, A - индекс -> HL = адрес элемента
+Arr_Ptr
+        add a,l
+        ld l,a
+        adc a,h
+        sub l
+        ld h,a
+        ret
 K_Chips ld hl,View_Chips
         ld a,(hl)
         xor 3                       ; 1 <-> 2
@@ -1922,7 +1973,7 @@ K_ScLeft
         ret z
         dec a
         ld (HScroll),a
-        jr Dirty
+        jp Dirty
 K_ScRight
         ld a,(HScroll)
         ld hl,Max_Scroll
@@ -1930,7 +1981,7 @@ K_ScRight
         ret nc
         inc a
         ld (HScroll),a
-        jr Dirty
+        jp Dirty
 K_Wrap  ld hl,View_Wrap
         jr Toggle
 K_Play  ld hl,Playing
@@ -1985,12 +2036,14 @@ Handle_Mouse
         ld (hl),a
         or a
         ret z
+        ld a,(SV_MOUSE_ROW)         ; знакоместа - готовые, из прерывания мыши
+        cp VIEW_LINE
+        jr z,Mouse_Header
+        cp BOTTOM_LINE
+        ret nz
         ld a,(Scroll_Mode)
         or a
         ret z
-        ld a,(SV_MOUSE_ROW)         ; знакоместа - готовые, из прерывания мыши
-        cp BOTTOM_LINE
-        ret nz
         ld a,(SV_MOUSE_COL)
         ld hl,Win_X
         sub (hl)
@@ -2019,6 +2072,47 @@ Handle_Mouse
         or a
         ret nz
         jp K_ScRight
+
+;-------- Нажатие в строке заголовка: + / - канала (на нажатие, не на удержание)
+Mouse_Header
+        ld a,c
+        or a
+        ret nz
+        ld a,(SV_MOUSE_COL)         ; x в раскладке = колонка - Win_X + Off
+        ld hl,Win_X
+        sub (hl)
+        ret c
+        ld hl,Off
+        add a,(hl)
+        ld e,a
+        ld b,0                      ; ищем канал, у которого здесь + или -
+.g      ld a,(Grp_N)
+        cp b
+        ret z
+        ld a,b
+        ld hl,Grp_Kind
+        call Arr_Get
+        or a
+        jr z,.n                     ; чип - без кнопок
+        ld a,b
+        ld hl,Grp_End
+        call Arr_Get
+        sub 2
+        cp e
+        jr z,.plus
+        inc a
+        cp e
+        jr z,.minus
+.n      inc b
+        jr .g
+.plus   ld a,b
+        ld hl,Grp_Num
+        call Arr_Get
+        jp Chan_Expand
+.minus  ld a,b
+        ld hl,Grp_Num
+        call Arr_Get
+        jp Chan_Collapse
 
 Mouse_Prev      db 0
 

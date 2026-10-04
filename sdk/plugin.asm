@@ -323,24 +323,27 @@ SONG_EDITSTATE_SIZE equ #400        ; режим вида...) - ТОЛЬКО т�
 
 PAT_ROWS_MAX    equ 64
 
+; Порядок полей в памяти = порядок на экране, всё словами: вывод читает строку
+; паттерна подряд через pop.
+
 ; --- канал, 16 байт
 CH_NOTE         equ 0           ; 0 - пусто, 1..96 ноты, NOTE_CMD.. команды ноты
 CH_SAMPLE       equ 1
 CH_ENVSHAPE     equ 2
 CH_ORNAMENT     equ 3
 CH_VOLUME       equ 4
-                                ; +5 резерв
-CH_CMD          equ 6           ; 3 команды по CMD_SIZE: +6 +9 +12
-CH_CMDS         equ 3
-                                ; +15 резерв
+                                ; +5 резерв (нота..резерв - ровно 3 слова)
+CH_CMD          equ 6           ; 2 команды по CMD_SIZE: +6 +10
+CH_CMDS         equ 2
+                                ; +14..+15 резерв
 CH_SIZE         equ 16
 
-; --- команда, 3 байта: [код] [параметр, 16 бит, младший байт первым]
-; код 0 - пусто, 1..255 - команды. Параметр - как нужно команде
-; (например задержка 4 бита + 12 бит значения, или 16 бит целиком).
+; --- команда, 4 байта: [код] [задержка] [параметр, 16 бит, младший байт первым]
+; код 0 - пусто, 1..255 - команды. Задержка - как в Vortex/MXTracker.
 CMD_CODE        equ 0
-CMD_PARAM       equ 1
-CMD_SIZE        equ 3
+CMD_DELAY       equ 1
+CMD_PARAM       equ 2
+CMD_SIZE        equ 4
 
     ASSERT CH_CMD+CH_CMDS*CMD_SIZE <= CH_SIZE
 
@@ -353,9 +356,10 @@ NOTE_OFF        equ NOTE_CMD
 
 ; --- строка чипа: заголовок 8 байт + 3 канала
 CHIP_ENVPER     equ 0           ; 2 период огибающей
-CHIP_ENVCMD     equ 2           ; 3 команда огибающей, формат как у CMD_*
-CHIP_NOISE      equ 5           ; 1 шум
-                                ; +6..+7 резерв
+CHIP_NOISE      equ 2           ; 1 шум
+CHIP_ENVCMD     equ 3           ; 4 команда огибающей, формат как у CMD_*
+                                ; +7 резерв
+    ASSERT CHIP_ENVCMD+CMD_SIZE <= 8
 CHIP_HDR_SIZE   equ 8
 CHIP_CH_A       equ CHIP_HDR_SIZE
 CHIP_CH_B       equ CHIP_CH_A+CH_SIZE
