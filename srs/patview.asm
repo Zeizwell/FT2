@@ -17,6 +17,9 @@ ORD_COL         equ 0
 ORD_W           equ 7               ; "r►05◄N|": повтор, стрелки у текущей, паттерн, кнопка
 ARROW_R         equ #10             ; ► в шрифте 866
 ARROW_L         equ #11             ; ◄
+BOX_V           equ #B3             ; │
+BOX_H           equ #C4             ; ─
+BOX_UP          equ #C1             ; ┴
 PAT_VIEW_W      equ 49              ; ширина вывода паттерна (L1, 1 чип, с пробелами у линий);
                                     ; потом будет считаться по карте колонок, и пробелы
                                     ; будут убираться, если не влезает
@@ -36,6 +39,7 @@ PluginMain
         call Draw_Header
         call Draw_Order
         call Draw_Rows
+        call Draw_Bottom
         RESTPAGE3
         RESTPAGE2
         xor a                       ; ERR_OK
@@ -154,8 +158,9 @@ PutStr
         inc hl
         jr .l
 
-Order_Header    db "Order |",0
-Header_Text     db "| Rw | Env  Ns | Ch:A     | Ch:B     | Ch:C     |",0
+Order_Header    db "Order ",BOX_V,0
+Header_Text     db BOX_V," Rw ",BOX_V," Env  Ns ",BOX_V," Ch:A     ",BOX_V
+                db " Ch:B     ",BOX_V," Ch:C     ",BOX_V,0
     ASSERT $-Header_Text-1 == PAT_VIEW_W
     ASSERT VIEW_COL+PAT_VIEW_W <= SCR_COLS
 
@@ -469,9 +474,40 @@ PutBar
         push bc
         ld a,(THEME_ATTR+CLR_TITLE)
         ld c,a
-        ld a,'|'
+        ld a,BOX_V
         call PutCh
         pop bc
+        ret
+
+;-------- Нижняя граница под ордер-листом и паттерном: ─, а под каждой │ - ┴
+BOTTOM_LINE     equ VIEW_LINE+VIEW_ROWS+1
+Draw_Bottom
+        ld d,SCR_BASE_H+BOTTOM_LINE
+        ld e,0
+.l      ld a,e                      ; внутри ордер-листа или блока паттерна?
+        cp ORD_W
+        jr c,.in
+        cp VIEW_COL
+        jr c,.out
+        cp VIEW_COL+PAT_VIEW_W
+        jr nc,.out
+.in     ld a,(THEME_ATTR+CLR_TITLE)
+        ld c,a
+        dec d                       ; что над нами в последней строке?
+        ld a,(de)
+        inc d
+        cp BOX_V
+        ld a,BOX_H
+        jr nz,$+4
+        ld a,BOX_UP
+        jr .put
+.out    ld a,(THEME_ATTR+CLR_BG)
+        ld c,a
+        ld a,' '
+.put    call PutCh
+        ld a,e
+        cp SCR_COLS
+        jr c,.l
         ret
 
 PutSpace
