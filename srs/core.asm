@@ -54,6 +54,10 @@ Core_Start
         ld de,100
         call Init_Mouse_Sprite
 
+        xor a                   ; шрифт 0 и значки поверх
+        call Set_Font
+        call Apply_UI_Glyphs
+
         ld a,PAGE_TOOL_PATVIEW  ; пока просто показываем тестовый паттерн
         call Call_Tool
 
@@ -72,6 +76,68 @@ Call_Tool
         RESTPAGE1
         ret
 
+
+;-------- Шрифты. Банк PAGE_FONTS: шрифты по слотам FONT_SIZE, в слоте UI_GLYPH_SLOT -
+; значки интерфейса. Выбранный шрифт копируется в PAGE_FONT (его видит текстовый
+; режим), потом поверх кладутся значки - Apply_UI_Glyphs.
+; Set_Font: in A - номер шрифта. Портят AF,BC,DE,HL.
+Set_Font
+        ld (SV_FONT),a
+        ld e,a
+        SETPAGE2 PAGE_FONTS
+        SETPAGE3 PAGE_FONT
+        ld a,e
+        add a,a                 ; номер*8 = старший байт смещения слота (по 2К)
+        add a,a
+        add a,a
+        add a,#80               ; банк - в окне 2
+        ld h,a
+        ld l,0
+        ld de,#C000             ; шрифт - в окне 3
+        ld bc,FONT_SIZE
+        ldir
+        RESTPAGE3
+        RESTPAGE2
+        ret
+
+Apply_UI_Glyphs
+        SETPAGE2 PAGE_FONTS
+        SETPAGE3 PAGE_FONT
+        ld hl,UI_Glyph_Codes
+.l      ld a,(hl)
+        cp #FF
+        jr z,.done
+        inc hl
+        push hl
+        add a,a                 ; код*8, коды меньше 32 - влезает в байт
+        add a,a
+        add a,a
+        ld l,a
+        ld e,a
+        ld h,#80+UI_GLYPH_SLOT*FONT_SIZE/256
+        ld d,#C0
+        ld bc,8
+        ldir
+        pop hl
+        jr .l
+.done   RESTPAGE3
+        RESTPAGE2
+        ret
+
+; Какие коды берутся из значков (остальное - из шрифта). Кнопка - код и код+1.
+UI_Glyph_Codes
+        db GLYPH_CHK_OFF, GLYPH_CHK_ON
+        db GLYPH_BTN_PLUS,  GLYPH_BTN_PLUS+1
+        db GLYPH_BTN_MINUS, GLYPH_BTN_MINUS+1
+        db GLYPH_BTN_NEW,   GLYPH_BTN_NEW+1
+        db GLYPH_BTN_PLAY,  GLYPH_BTN_PLAY+1
+        db GLYPH_BTN_STOP,  GLYPH_BTN_STOP+1
+        db GLYPH_BTN_REC,   GLYPH_BTN_REC+1
+        db GLYPH_BTN_RES1,  GLYPH_BTN_RES1+1
+        db GLYPH_BTN_RES2,  GLYPH_BTN_RES2+1
+        db GLYPH_BTN_RES3,  GLYPH_BTN_RES3+1
+        db GLYPH_BTN_RES4,  GLYPH_BTN_RES4+1
+        db #FF
 
 ;--------пуш в порты, 1 байт старший байт порта #xxAF, нект байт данные, конец таблицы #FF
 ; DMA одна на всех: прерывание (мышь, плеер) тоже её дёргает. Поэтому:
