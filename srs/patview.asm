@@ -59,6 +59,27 @@ MODE_FULL       equ 2
 
 TEST_ORD_LAST   equ 3
 
+; Полоса времени: на каждый шаг фон своим цветом, высота цвета = время шага (T)
+BAND_BG         equ 0               ; ничего не делаем
+BAND_COPY       equ 1               ; IM1: DMA строк из кэша           - красный
+BAND_BLANK      equ 2               ; IM1: DMA пустых строк            - жёлтый
+BAND_HILITE     equ 3               ; IM1: подсветка строки            - зелёный
+BAND_INPUT      equ 4               ; ввод, мышь, шаг проигрывания     - синий
+BAND_RELAYOUT   equ 5               ; перестройка вида, рендер в кэш   - фиолетовый
+BAND_APPLY      equ 6               ; рамки, подписи, смена кэша       - голубой
+BAND_ORDER      equ 7               ; ордер-лист                       - белый
+
+    MACRO BAND_I n                  ; из IM1
+        ld a,(Timing)
+        or a
+        ld a,n
+        call nz,Band_Int
+    ENDM
+    MACRO BAND_M n                  ; из основного цикла
+        ld a,n
+        call Band_Main
+    ENDM
+
     PLUGIN_HEADER PLG_TOOL,"   ","Pattern view"
 
 PluginMain
@@ -69,6 +90,7 @@ PluginMain
         SETPAGE3 a
         call Test_Fill
         call Build_Attr_Tables
+        call Int_Line_Set
         ld hl,Compose               ; сборка экрана - в IM1, каждый кадр
         ld (SV_FRAME_HOOK),hl
         ld a,1
@@ -77,19 +99,29 @@ PluginMain
 ; Экран собирает IM1 (Compose): DMA видимых строк из кэша + подсветка. Основной
 ; цикл только реагирует на ввод и, при смене вида, готовит второй кэш.
 Main_Loop
+        BAND_M BAND_BG
         halt
         ld a,(Apply_Pending)        ; сразу после INT, пока луч в гашении:
         or a                        ; рамки нового вида и смена кэша
-        call nz,Apply_Layout
+        jr z,.noapply
+        BAND_M BAND_APPLY
+        call Apply_Layout
+.noapply
         ld a,(Order_Pending)
         or a
-        call nz,Draw_Order
+        jr z,.noorder
+        BAND_M BAND_ORDER
+        call Draw_Order
+.noorder
+        BAND_M BAND_INPUT
         call Handle_Keys
         call Handle_Mouse
         call Play_Step
         ld a,(Need_Layout)
         or a
-        call nz,Relayout
+        jr z,Main_Loop
+        BAND_M BAND_RELAYOUT
+        call Relayout
         jr Main_Loop
 
 Order_Pending   db 0
@@ -452,10 +484,6 @@ Compose
         ld a,(Cache_Ready)
         or a
         ret z
-        ld a,(Timing)               ; полоса времени - на время сборки
-        or a
-        ld a,2
-        call nz,Band_Int
         ld a,(Cur_Row)
         sub VIEW_CENTER
         ld (CP_Row),a               ; первая видимая строка ("отрицательная" - выше нуля)
@@ -480,6 +508,7 @@ Compose
         jr .cnt
 .after  ld a,(CP_Left)
 .cnt    call Min_Left
+        BAND_I BAND_BLANK
         call Blank_N
         jr .next
 .wrap   ld a,b
@@ -489,6 +518,7 @@ Compose
         ld a,PAT_ROWS_MAX
         sub b
         call Min_Left
+        BAND_I BAND_COPY
         call Copy_N
 .next   ld hl,CP_Row                ; продвинулись на CP_N строк
         ld a,(CP_N)
@@ -506,7 +536,8 @@ Compose
         ld (hl),a
         jr .loop
 
-.done   ld a,(SV_DRAW_PAGE)         ; подсветка строки редактирования: фон, ink свой
+.done   BAND_I BAND_HILITE
+        ld a,(SV_DRAW_PAGE)         ; подсветка строки редактирования: фон, ink свой
         SETPAGE3 a
         ld a,(THEME_ATTR+CLR_EDIT_ROW)
         and #F0
@@ -523,7 +554,10 @@ Compose
         inc l
         djnz .hl
         RESTPAGE3
-        xor a
+        ld a,(Timing)               ; вернуть цвет, который был у основного цикла
+        or a
+        ret z
+        ld a,(Band_Cur)
         jp Band_Int
 
 ; A = min(A, CP_Left) -> CP_N
@@ -1880,6 +1914,30 @@ K_Play  ld hl,Playing
         jr Toggle
 K_Timing
         ld hl,Timing
+        ld a,(hl)
+        xor 1
+        ld (hl),a
+        jr nz,Int_Line_Set
+        ld (hl),1                   ; выключили - вернуть обычный фон
+        xor a
+        call Band_Main
+        xor a
+        ld (Timing),a
+
+; С полосой времени INT - на первой видимой строке растра, иначе цвета IM1
+; уходят в гашение (строки 0..31) и их не видно. Без полосы - на месте (0).
+INT_LINE_VISIBLE equ 32
+Int_Line_Set
+        ld a,(Timing)
+        or a
+        jr z,$+4
+        ld a,INT_LINE_VISIBLE
+        ld bc,VSINTL
+        out (c),a
+        xor a
+        ld bc,VSINTH
+        out (c),a
+        ret
 Toggle  ld a,(hl)
         xor 1
         ld (hl),a
@@ -1956,9 +2014,11 @@ Play_Step
         inc (hl)
         jp Row_Wrap
 
-;-------- Полоса времени: фон (палитра PALET_NUM, цвет 0) на время сборки экрана в IM1.
-; A - цвет: 0 обычный фон, 1 синий, 2 красный, 3 зелёный. Вызывать из IM1
+;-------- Полоса времени: на каждый шаг фон (палитра PALET_NUM, цвет 0) своим цветом.
+; Высота цвета на экране = время шага. T - вкл/выкл.
 BAND_W          equ PALET_NUM*16    ; слово CRAM
+
+; A - цвет. Из IM1 (своя таблица DMA)
 Band_Int
         add a,a
         add a,low (Band_Colors-#4000)
@@ -1969,16 +2029,42 @@ Band_Int
         ld hl,Band_T
         jp set_ports_int
 
+; A - цвет. Из основного цикла: запоминаем, IM1 в конце вернёт его
+Band_Main
+        ld (Band_Cur),a
+        ld b,a
+        ld a,(Timing)
+        or a
+        ret z
+        ld a,b
+        add a,a
+        add a,low (Band_Colors-#4000)
+        ld (Band_TM+1),a
+        ld a,high (Band_Colors-#4000)
+        adc a,0
+        ld (Band_TM+3),a
+        ld hl,Band_TM
+        jp set_ports
+
+Band_Cur        db 0
+
 Band_T  db high DMASADDRL,0, high DMASADDRH,0, high DMASADDRX,PAGE_TOOL_PATVIEW
+        db high DMADADDRL,(BAND_W&127)*2, high DMADADDRH,BAND_W>>7, high DMADADDRX,0
+        db high DMALEN,0, high DMANUM,0, high DMACTR,DMA_RAM_CRAM, #FF
+Band_TM db high DMASADDRL,0, high DMASADDRH,0, high DMASADDRX,PAGE_TOOL_PATVIEW
         db high DMADADDRL,(BAND_W&127)*2, high DMADADDRH,BAND_W>>7, high DMADADDRX,0
         db high DMALEN,0, high DMANUM,0, high DMACTR,DMA_RAM_CRAM, #FF
 
         ALIGN 2                     ; цвет: младший gggBBbbb, старший 0RRrrrGG
 Band_Colors
 Band_Bg         dw 0                ; 0 - обычный фон (копия из палитры)
-                db %00011000, %00000000     ; 1 синий
-                db %00000000, %01100000     ; 2 красный
+                db %00000000, %01100000     ; 1 красный
+                db %00000000, %01100011     ; 2 жёлтый
                 db %00000000, %00000011     ; 3 зелёный
+                db %00011000, %00000000     ; 4 синий
+                db %00011000, %01100000     ; 5 фиолетовый
+                db %00011000, %00000011     ; 6 голубой
+                db %00011000, %01100011     ; 7 белый
 
 ;-------- Плоскости атрибутов из темы: значение 0 - "пусто", остальное - цвет поля
 Build_Attr_Tables
