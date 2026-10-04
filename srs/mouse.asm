@@ -128,7 +128,7 @@ Read_Mouse:
         ; ВЫБРОС В DMA БЛИТТЕР ПЛИС
         
         ld hl,Cursor_dma_table
-        jp set_ports
+        jp set_ports_int        ; мы в прерывании
 
 
 

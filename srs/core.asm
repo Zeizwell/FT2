@@ -63,36 +63,35 @@ Call_Tool
 CUR_PAGES   db PAGE_CORE0, PAGE_CORE1, PAGE_CORE2, PAGE_CORE3
 
 
-;--------пуш в порты, 1 байт старший байт порта #xxAF, нект байт данные, конец таблицы #FF  
-    IFUSED set_ports    
-set_ports	ld c,#AF
-.m1		ld b,(hl) 
-		inc hl
-		inc b
-		jr z,dma_stats
-		outi
-		jr .m1
-	ENDIF
-	
-	IFUSED set_ports_nowait
+;--------пуш в порты, 1 байт старший байт порта #xxAF, нект байт данные, конец таблицы #FF
+; DMA одна на всех: прерывание (мышь, плеер) тоже её дёргает. Поэтому:
+;  - перед записью ждём конца текущей транзакции, чужие регистры не трогаем;
+;  - из основной программы пишем порты при DI, чтобы IM1 не влез посередине.
+; set_ports      - из основной программы (di ... ei)
+; set_ports_int  - из прерывания (там прерывания и так запрещены)
+; Окончания своей DMA не ждут. Если надо (будем менять источник) - dma_wait.
+; Портят AF, BC, HL.
+set_ports
+		di
+		call set_ports_int
+		ei
+		ret
 
-;------запуск DMA    
-set_ports_nowait
+set_ports_int
+		call dma_wait
 		ld c,#AF
-.m2		ld b,(hl) 
+.m1		ld b,(hl)
 		inc hl
 		inc b
 		ret z
 		outi
-		jr .m2
-	ENDIF
-	IFUSED dma_stats
-dma_stats	ld b,high DMASTATUS
-		in a,(c)
-		AND #80
-		jr nz,$-4
+		jr .m1
+
+dma_wait	ld bc,DMASTATUS
+.w		in a,(c)
+		and #80
+		jr nz,.w
 		ret
-	ENDIF
 
 
     include "srs/mouse.asm"
