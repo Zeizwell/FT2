@@ -272,7 +272,14 @@ char K_INPUT::readdevices()
           md.rgbButtons[1] = t;
       }
       msx = md.lX; msy = -md.lY;
-      if (conf.input.mousescale >= 0)
+      if (conf.input.mousediv > 1)
+      {
+          // FT2: modern mice give 800-1600 counts per inch, ZX Evo PS/2 mouse ~100.
+          // Divide the absolute position (not the per-frame delta) - no lost fractions.
+          msx /= (int)conf.input.mousediv;
+          msy /= (int)conf.input.mousediv;
+      }
+      else if (conf.input.mousescale >= 0)
       {
           msx *= (1 << conf.input.mousescale);
           msy *= (1 << conf.input.mousescale);
@@ -333,7 +340,7 @@ char K_INPUT::readdevices()
 
 	  ReadKeyboard(kbdpc);
 
-      if (!dbgbreak && input.buffer.Enabled()) // TODO: нажатие и отжатие ESC попадает в буфер
+      if (!dbgbreak && input.buffer.Enabled()) // TODO: пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ ESC пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ
       {
          for (int i = 0; i < sizeof(kbdpc); i++)
          {
