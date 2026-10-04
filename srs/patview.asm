@@ -41,9 +41,10 @@ PluginMain
         SETPAGE3 a
         call Test_Fill
         call Clear_View
-        call Draw_Header
         call Draw_Order
         call Draw_Rows
+        call Draw_Top               ; сначала замыкаем рамку,
+        call Draw_Header            ; потом поверх верхней линии - подписи на плашке
         call Draw_Bottom
         RESTPAGE3
         RESTPAGE2
@@ -146,15 +147,24 @@ Clear_View
         djnz .ln
         ret
 
-;-------- Заголовки ордер-листа и колонок паттерна (на плашке CLR_HEADER)
+;-------- Подписи на плашке поверх верхней линии рамки
+; Таблица: колонка, текст, 0; конец - #FF. Подписи стоят между стыками ┬,
+; сами стыки и углы не перекрывают.
 Draw_Header
         ld a,(THEME_ATTR+CLR_HEADER)
         ld c,a
-        ld de,(SCR_BASE_H+VIEW_LINE)*256+ORD_COL
-        ld hl,Order_Header
+        ld d,SCR_BASE_H+VIEW_LINE
+        ld hl,Header_Items
+.item   ld a,(hl)
+        cp #FF
+        ret z
+        ld e,a
+        inc hl
         call PutStr
-        ld e,VIEW_COL
-        ld hl,Header_Text
+        inc hl                      ; пропустить 0
+        jr .item
+
+;-------- Строка HL (до 0) атрибутом C в DE. На выходе HL на нуле
 PutStr
 .l      ld a,(hl)
         or a
@@ -163,10 +173,14 @@ PutStr
         inc hl
         jr .l
 
-; Плашка заголовка сплошная - она верхняя граница, вертикали строк упираются в неё
-Order_Header    db "Order  ",0
-Header_Text     db "  Rw   Env  Ns   Ch:A       Ch:B       Ch:C      ",0
-    ASSERT $-Header_Text-1 == PAT_VIEW_W
+; Колонки - как в строке паттерна: │ 00 │ 012D 0A │ C-4 1--F │ ...
+Header_Items    db ORD_COL,     "Order ",0
+                db VIEW_COL+1,  " Rw ",0
+                db VIEW_COL+6,  " Env  Ns ",0
+                db VIEW_COL+16, " Ch:A ",0
+                db VIEW_COL+27, " Ch:B ",0
+                db VIEW_COL+38, " Ch:C ",0
+                db #FF
     ASSERT VIEW_COL+PAT_VIEW_W <= SCR_COLS
 
 ;-------- Ордер-лист слева: только номера паттернов.
@@ -484,9 +498,19 @@ PutBar
         pop bc
         ret
 
-;-------- Рамка снизу: замыкает вертикали ордер-листа и паттерна
-; (сверху их замыкает плашка заголовка)
+;-------- Рамка: замыкает вертикали ордер-листа и паттерна сверху и снизу
 BOTTOM_LINE     equ VIEW_LINE+VIEW_ROWS+1
+
+Draw_Top                            ; ┌──┬──┐ по строке заголовка, над первой строкой
+        ld a,BOX_TL
+        ld (HL_CornerL),a
+        ld a,BOX_TR
+        ld (HL_CornerR),a
+        ld a,BOX_DOWN
+        ld (HL_Junction),a
+        ld d,SCR_BASE_H+VIEW_LINE
+        ld h,SCR_BASE_H+VIEW_LINE+1
+        jr Draw_HLine
 
 Draw_Bottom                         ; └──┴──┘ под последней строкой
         ld a,BOX_BL
