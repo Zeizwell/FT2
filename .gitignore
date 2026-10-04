@@ -9,3 +9,9 @@
 /TMPFT/
 /srs/*.bin
 /srs/ft2.spg
+
+# Unreal: build outputs (sources in unreal/ are tracked)
+/unreal/Unreal/bin/
+/unreal/Unreal/tmp/
+/unreal/.vs/
+*.user
