@@ -33,8 +33,12 @@
 IM1_Handler
 
     call Read_Mouse
-
-    ret
+    ; (здесь будет плеер)
+    ld hl,(SV_FRAME_HOOK)       ; сборка экрана активного редактора - каждый кадр
+    ld a,h
+    or l
+    ret z
+    jp (hl)
 
     
 
@@ -48,6 +52,8 @@ Core_Start
         ld (SV_API_VERSION),a
         ld a,PAGE_TEXT
         ld (SV_DRAW_PAGE),a
+        ld hl,0                 ; сборки экрана пока нет
+        ld (SV_FRAME_HOOK),hl
         ld hl,Theme_Default
         ld de,THEME_ATTR
         ld bc,Theme_Default_end-Theme_Default

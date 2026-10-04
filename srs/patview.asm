@@ -67,92 +67,84 @@ PluginMain
         SETPAGE2 PAT_PAGE
         ld a,(SV_DRAW_PAGE)
         SETPAGE3 a
-        call Init_Double_Buffer
         call Test_Fill
         call Build_Attr_Tables
+        ld hl,Compose               ; сборка экрана - в IM1, каждый кадр
+        ld (SV_FRAME_HOOK),hl
         ld a,1
         ld (Need_Layout),a
 
-; Двойной буфер: рисуем в невидимый Back, в начале кадра показываем его (VPage)
-; и меняем местами. Статика (рамки, ордер-лист) должна быть в обоих буферах -
-; поэтому её рисуем Screen_Pending / Order_Pending = 2 раза, по разу в каждый.
+; Экран собирает IM1 (Compose): DMA видимых строк из кэша + подсветка. Основной
+; цикл только реагирует на ввод и, при смене вида, готовит второй кэш.
 Main_Loop
         halt
-        ld a,(Frame_Ready)
+        ld a,(Apply_Pending)        ; сразу после INT, пока луч в гашении:
+        or a                        ; рамки нового вида и смена кэша
+        call nz,Apply_Layout
+        ld a,(Order_Pending)
         or a
-        jr z,.noflip
-        ld a,(Back)                 ; показать нарисованный кадр
-        ld bc,VPAGE
-        out (c),a
-        ld hl,(Front)               ; Front <-> Back (два байта подряд)
-        ld a,l
-        ld l,h
-        ld h,a
-        ld (Front),hl
-.noflip ld a,(Back)                 ; рисуем в невидимый
-        ld (SV_DRAW_PAGE),a
-        ld (SV_PAGES+3),a
-        ld bc,PAGE3
-        out (c),a
-        ld a,1                      ; синий - ввод и перестройка вида
-        call Timing_Phase
+        call nz,Draw_Order
         call Handle_Keys
         call Handle_Mouse
         call Play_Step
         ld a,(Need_Layout)
         or a
         call nz,Relayout
-        ld a,(Screen_Pending)
-        or a
-        call nz,Prepare_Screen
-        ld a,(Rows_Pending)         ; строки - только если что-то поменялось
-        or a
-        jr z,.norows
-        dec a
-        ld (Rows_Pending),a
-        ld a,2                      ; красный - строки паттерна
-        call Timing_Phase
-        call Draw_Blank_Runs
-        call Draw_Rows
-        call Highlight_Edit_Row
-.norows ld a,3                      ; зелёный - ордер-лист
-        call Timing_Phase
-        ld a,(Order_Pending)
-        or a
-        call nz,Draw_Order
-        xor a                       ; конец - обычный фон
-        call Timing_Phase
-        ld a,1
-        ld (Frame_Ready),a
         jr Main_Loop
 
-Front           db PAGE_TEXT        ; показываемый буфер
-Back            db PAGE_TEXT2       ; в который рисуем (сразу за Front - меняются словом)
-Frame_Ready     db 0
-Screen_Pending  db 0                ; статику нарисовать ещё в стольких буферах
 Order_Pending   db 0
-Rows_Pending    db 0                ; строки паттерна - тоже по разу в каждый буфер
+Apply_Pending   db 0
+Cache_Ready     db 0                ; 0 - IM1 экран не трогает
+Cache_Show      db PAGE_RCACHE      ; кэш, который показывает IM1
+Cache_Build     db PAGE_RCACHE+1    ; кэш, который готовит перестройка вида
+Tpl_Show        db 62               ; строки-шаблоны (невидимые строки экрана)
+Tpl_Build       db 63
+Show_Col        db 0                ; область блока для IM1: начало (чётное)
+Show_Len        db 0                ; длина в словах-1
+Show_HlL        db 0                ; подсветка: первый атрибут
+Show_HlN        db 0                ; сколько
 
-;-------- Второй буфер: копия экрана (макет сверху) и шрифта первого
-Init_Double_Buffer
-        ld a,PAGE_TEXT
-        ld (Dma_T+5),a
-        ld a,PAGE_TEXT2
-        ld (Dma_T+11),a
-        xor a                       ; вся страница: 64 строки по 256
-        ld e,a
-        ld c,63
-        ld b,DMA_RAM|DMA_SALGN|DMA_DALGN
-        call Dma_Lines_Pages
-        ld a,PAGE_FONT
-        ld (Dma_T+5),a
-        ld a,PAGE_FONT2
-        ld (Dma_T+11),a
-        xor a                       ; шрифт: 8 строк по 256
-        ld e,a
-        ld c,7
-        ld b,DMA_RAM|DMA_SALGN|DMA_DALGN
-        jp Dma_Lines_Pages
+;-------- Сразу после INT: экран под новый вид, смена кэша, строки - в этом же кадре
+Apply_Layout
+        xor a
+        ld (Apply_Pending),a
+        ld (Cache_Ready),a          ; IM1 пока не трогает экран
+        call Fill_Screen_Rows
+        call Draw_Top
+        call Draw_Titles
+        call Draw_Bottom
+        call Draw_Scrollbar
+        ld hl,Cache_Show            ; новый кэш и шаблон - показываем
+        ld a,(Cache_Build)
+        ld b,(hl)
+        ld (hl),a
+        ld a,b
+        ld (Cache_Build),a
+        ld hl,Tpl_Show
+        ld a,(Tpl_Build)
+        ld b,(hl)
+        ld (hl),a
+        ld a,b
+        ld (Tpl_Build),a
+        ld a,(Bl_Col)               ; геометрия для IM1 - вместе с кэшем
+        ld (Show_Col),a
+        ld a,(Bl_Len)
+        ld (Show_Len),a
+        ld a,(Blk_X0)
+        ld b,a
+        add a,SCR_ATTR
+        ld (Show_HlL),a
+        ld a,(Blk_End)
+        sub b
+        inc a
+        ld (Show_HlN),a
+        ld a,1
+        ld (Order_Pending),a
+        ld (Cache_Ready),a
+        di                          ; Compose рассчитан на IM1 - DMA без DI внутри
+        call Compose
+        ei
+        ret
 
 ; --- состояние вида
 View_Mode       db MODE_COMPACT
@@ -396,22 +388,242 @@ Relayout
 .fit    call Place_Fit
 .placed call Gen_Code
         call Calc_Blank_Region
-        ld a,2                      ; статику, ордер-лист и строки - в оба буфера
-        ld (Screen_Pending),a
-        ld (Order_Pending),a
-        ld (Rows_Pending),a
+        call Build_Template
+        call Render_Cache
+        ld a,1                      ; показать - сразу после следующего INT
+        ld (Apply_Pending),a
         ret
 
-;-------- Статика в текущий буфер (Back)
-Prepare_Screen
-        ld hl,Screen_Pending
-        dec (hl)
-        call Build_Template
-        call Fill_Rows
-        call Draw_Top
-        call Draw_Titles
-        call Draw_Bottom
-        jp Draw_Scrollbar
+;-------- Все 64 строки паттерна - в кэш Cache_Build (IM1 пока показывает старый)
+; Строка кэша N = готовая строка паттерна N: шаблон (рамки, пробелы) + данные
+Render_Cache
+        ld a,(SV_DRAW_PAGE)         ; шаблон (строка экрана) -> строка 0 кэша
+        ld (Dma_T+5),a
+        ld a,(Cache_Build)
+        ld (Dma_T+11),a
+        ld a,(Tpl_Build)
+        ld e,0
+        ld c,0
+        ld b,DMA_RAM
+        call Dma_Lines_Pages
+        ld a,(Cache_Build)          ; строка 0 -> 1..63, с перекрытием
+        ld (Dma_T+5),a
+        xor a
+        ld e,1
+        ld c,PAT_ROWS_MAX-2
+        ld b,DMA_RAM|DMA_SALGN|DMA_DALGN
+        call Dma_Lines_Pages
+
+        ld a,(Cache_Build)          ; данные - кодом строки, кэш в окне 3
+        SETPAGE3 a
+        ld d,SCR_BASE_H
+        ld a,PAT_BASE_H
+.r      ld b,a
+        push af
+        call Row_Code
+        pop af
+        inc d
+        inc a
+        cp PAT_BASE_H+PAT_ROWS_MAX
+        jr c,.r
+        RESTPAGE3
+        ret
+
+;-------- Экран: строки области паттерна - из шаблона целиком (под новый вид)
+Fill_Screen_Rows
+        ld a,(Tpl_Build)
+        ld e,VIEW_LINE+1
+        ld c,0
+        ld b,DMA_RAM
+        call Dma_Lines
+        ld a,VIEW_LINE+1
+        ld e,VIEW_LINE+2
+        ld c,VIEW_ROWS-2
+        ld b,DMA_RAM|DMA_SALGN|DMA_DALGN
+        jp Dma_Lines
+
+; =========================================================================
+; IM1, КАЖДЫЙ КАДР: сборка экрана - видимые строки из кэша DMA + подсветка.
+; Процессор ничего не форматирует. Строки кэша идут подряд, поэтому это
+; 2 транзакции на участок (символы и атрибуты): 1 участок, 2 при "по кругу",
+; до 3 с пустыми строками.
+; =========================================================================
+Compose
+        ld a,(Cache_Ready)
+        or a
+        ret z
+        ld a,(Timing)               ; полоса времени - на время сборки
+        or a
+        ld a,2
+        call nz,Band_Int
+        ld a,(Cur_Row)
+        sub VIEW_CENTER
+        ld (CP_Row),a               ; первая видимая строка ("отрицательная" - выше нуля)
+        ld a,VIEW_LINE+1
+        ld (CP_Line),a
+        ld a,VIEW_ROWS
+        ld (CP_Left),a
+.loop   ld a,(CP_Left)
+        or a
+        jr z,.done
+        ld a,(CP_Row)
+        cp PAT_ROWS_MAX
+        jr c,.inside
+        ld b,a
+        ld a,(View_Wrap)
+        or a
+        jr nz,.wrap
+        ld a,b                      ; пусто: выше нуля - до строки 0, ниже конца - до низа
+        bit 7,a
+        jr z,.after
+        neg
+        jr .cnt
+.after  ld a,(CP_Left)
+.cnt    call Min_Left
+        call Blank_N
+        jr .next
+.wrap   ld a,b
+        and PAT_ROWS_MAX-1
+        ld (CP_Row),a
+.inside ld b,a                      ; участок до конца паттерна
+        ld a,PAT_ROWS_MAX
+        sub b
+        call Min_Left
+        call Copy_N
+.next   ld hl,CP_Row                ; продвинулись на CP_N строк
+        ld a,(CP_N)
+        ld b,a
+        ld a,(hl)
+        add a,b
+        ld (hl),a
+        ld hl,CP_Line
+        ld a,(hl)
+        add a,b
+        ld (hl),a
+        ld hl,CP_Left
+        ld a,(hl)
+        sub b
+        ld (hl),a
+        jr .loop
+
+.done   ld a,(SV_DRAW_PAGE)         ; подсветка строки редактирования: фон, ink свой
+        SETPAGE3 a
+        ld a,(THEME_ATTR+CLR_EDIT_ROW)
+        and #F0
+        ld c,a
+        ld h,SCR_BASE_H+EDIT_LINE
+        ld a,(Show_HlL)
+        ld l,a
+        ld a,(Show_HlN)
+        ld b,a
+.hl     ld a,(hl)
+        and #0F
+        or c
+        ld (hl),a
+        inc l
+        djnz .hl
+        RESTPAGE3
+        xor a
+        jp Band_Int
+
+; A = min(A, CP_Left) -> CP_N
+Min_Left
+        ld hl,CP_Left
+        cp (hl)
+        jr c,$+3
+        ld a,(hl)
+        ld (CP_N),a
+        ret
+
+; CP_N строк кэша с CP_Row -> экран с CP_Line: символы и атрибуты блока
+Copy_N
+        ld a,(Cache_Show)
+        ld (I_SrcX),a
+        ld a,(CP_Row)
+        ld (I_SrcLine),a
+        ld a,(CP_N)
+        dec a
+        ld (I_Num),a
+        ld a,DMA_RAM|DMA_SALGN|DMA_DALGN
+        ld (I_Ctrl),a
+        ld a,(Show_Col)
+        call .one
+        ld a,(Show_Col)
+        add a,SCR_ATTR
+.one    ld (I_Col),a
+        ld a,(CP_Line)
+        ld (I_DstLine),a
+        jp Dma_Int
+
+; CP_N пустых строк с CP_Line: шаблон -> первая, потом с перекрытием вниз
+Blank_N
+        ld a,(Show_Col)
+        call .one
+        ld a,(Show_Col)
+        add a,SCR_ATTR
+.one    ld (I_Col),a
+        ld a,(SV_DRAW_PAGE)
+        ld (I_SrcX),a
+        ld a,(Tpl_Show)
+        ld (I_SrcLine),a
+        ld a,(CP_Line)
+        ld (I_DstLine),a
+        xor a
+        ld (I_Num),a
+        ld a,DMA_RAM
+        ld (I_Ctrl),a
+        call Dma_Int
+        ld a,(CP_N)
+        sub 2
+        ret c
+        ld (I_Num),a
+        ld a,(CP_Line)
+        ld (I_SrcLine),a
+        inc a
+        ld (I_DstLine),a
+        ld a,DMA_RAM|DMA_SALGN|DMA_DALGN
+        ld (I_Ctrl),a
+        jp Dma_Int
+
+CP_Row          db 0
+CP_Line         db 0
+CP_Left         db 0
+CP_N            db 0
+
+;-------- DMA из IM1: своя таблица (основной код может как раз заполнять Dma_T)
+; Приёмник - экран. Источник - I_SrcX / I_SrcLine, колонка I_Col, длина Show_Len
+Dma_Int
+        ld a,(I_SrcX)
+        ld (Dma_I+5),a
+        ld a,(I_SrcLine)
+        ld (Dma_I+3),a
+        ld a,(I_Col)
+        ld (Dma_I+1),a
+        ld (Dma_I+7),a
+        ld a,(I_DstLine)
+        ld (Dma_I+9),a
+        ld a,(SV_DRAW_PAGE)
+        ld (Dma_I+11),a
+        ld a,(Show_Len)
+        ld (Dma_I+13),a
+        ld a,(I_Num)
+        ld (Dma_I+15),a
+        ld a,(I_Ctrl)
+        ld (Dma_I+17),a
+        ld hl,Dma_I
+        call set_ports_int
+        jp dma_wait
+
+I_SrcX          db 0
+I_SrcLine       db 0
+I_Col           db 0
+I_DstLine       db 0
+I_Num           db 0
+I_Ctrl          db 0
+
+Dma_I   db high DMASADDRL,0, high DMASADDRH,0, high DMASADDRX,0
+        db high DMADADDRL,0, high DMADADDRH,0, high DMADADDRX,0
+        db high DMALEN,0, high DMANUM,0, high DMACTR,0, #FF
 
 ;-------- Раскладка всех групп: чип, 3 канала, [чип, 3 канала]
 Build_Layout
@@ -914,9 +1126,12 @@ TT      dw T_ROWNUM
         dw T_CMD
         db T_CMD_E-T_CMD
 
-;-------- Строка-шаблон (статика) в невидимой строке TEMPLATE_LINE
+;-------- Строка-шаблон (статика) в невидимой строке экрана Tpl_Build
 Build_Template
-        ld h,SCR_BASE_H+TEMPLATE_LINE
+        ld a,(Tpl_Build)
+        add a,SCR_BASE_H
+        ld (BT_H),a
+        ld h,a
         ld l,0
         ld b,SCR_COLS
         ld a,' '
@@ -976,7 +1191,8 @@ Build_Template
 .outer  call PutBar
 .n      ld de,4
         add iy,de
-        ld d,SCR_BASE_H+TEMPLATE_LINE
+        ld a,(BT_H)
+        ld d,a
         djnz .e
 
         ld a,(Scroll_Mode)          ; при скролле - правая рамка у края экрана
@@ -986,18 +1202,7 @@ Build_Template
         ld e,a
         jp PutBar
 
-;-------- Шаблон -> все строки паттерна: DMA в первую, потом с перекрытием N -> N+1
-Fill_Rows
-        ld a,TEMPLATE_LINE
-        ld e,VIEW_LINE+1
-        ld c,0
-        ld b,DMA_RAM
-        call Dma_Lines
-        ld a,VIEW_LINE+1
-        ld e,VIEW_LINE+2
-        ld c,VIEW_ROWS-2
-        ld b,DMA_RAM|DMA_SALGN|DMA_DALGN
-        jp Dma_Lines
+BT_H            db 0
 
 ;-------- Область пустых строк: от первой клетки данных до правой рамки, по словам
 Calc_Blank_Region
@@ -1017,68 +1222,6 @@ Calc_Blank_Region
 
 Bl_Col          db 0
 Bl_Len          db 0
-
-;-------- Строки над / под паттерном - пусто (если не по кругу). Каждый кадр
-Draw_Blank_Runs
-        ld a,(View_Wrap)
-        or a
-        ret nz
-        ld a,(Cur_Row)              ; сверху: VIEW_CENTER - Cur_Row строк
-        ld b,a
-        ld a,VIEW_CENTER
-        sub b
-        jr c,.bot
-        jr z,.bot
-        ld e,VIEW_LINE+1
-        call Blank_Run
-.bot    ld a,(Cur_Row)              ; снизу: последняя видимая строка - 63
-        add a,VIEW_ROWS-1-VIEW_CENTER
-        sub PAT_ROWS_MAX-1
-        ret c
-        ret z
-        ld b,a
-        ld a,VIEW_LINE+1+VIEW_ROWS
-        sub b
-        ld e,a
-        ld a,b
-
-; A - строк, E - первая строка экрана. Символы и атрибуты области блока:
-; шаблон -> первая строка, потом с перекрытием вниз. Ордер-лист не трогаем
-Blank_Run
-        ld (BR_N),a
-        ld a,e
-        ld (BR_Line),a
-        ld a,(Bl_Len)
-        ld (Dma_Len),a
-        ld a,(Bl_Col)
-        call .part
-        ld a,(Bl_Col)
-        add a,SCR_ATTR
-        call .part
-        xor a                       ; по умолчанию - строка целиком
-        ld (Dma_Col),a
-        ld a,127
-        ld (Dma_Len),a
-        ret
-.part   ld (Dma_Col),a
-        ld a,(BR_Line)
-        ld e,a
-        ld a,TEMPLATE_LINE
-        ld c,0
-        ld b,DMA_RAM
-        call Dma_Lines
-        ld a,(BR_N)
-        sub 2
-        ret c
-        ld c,a
-        ld a,(BR_Line)
-        ld e,a
-        inc e
-        ld b,DMA_RAM|DMA_SALGN|DMA_DALGN
-        jp Dma_Lines
-
-BR_N            db 0
-BR_Line         db 0
 
 ;-------- DMA строк текстовой страницы SV_DRAW_PAGE
 ; A - строка-источник, E - строка-приёмник, C - блоков-1, B - DMACtrl.
@@ -1321,42 +1464,10 @@ T_CMD                               ; команда: код (символ 1..W)
         ld (de),a
 T_CMD_E
 
-; =========================================================================
-; КАЖДЫЙ КАДР
-; =========================================================================
-Draw_Rows
-        ld a,(Cur_Row)
-        sub VIEW_CENTER
-        ld (Row_Iter),a
-        ld d,SCR_BASE_H+VIEW_LINE+1
-        ld a,VIEW_ROWS
-.l      push af
-        push de
-        ld a,(Row_Iter)
-        cp PAT_ROWS_MAX
-        jr c,.ok
-        ld hl,View_Wrap             ; вне паттерна: по кругу, иначе пусто
-        bit 0,(hl)                  ; (пустые заливает Draw_Blank_Runs)
-        jr z,.next
-        and PAT_ROWS_MAX-1
-.ok     add a,PAT_BASE_H
-        ld b,a
-        call Row_Code
-.next   pop de
-        ld hl,Row_Iter
-        inc (hl)
-        inc d
-        pop af
-        dec a
-        jr nz,.l
-        ret
-
-Row_Iter        db 0
-
-;-------- Ордер-лист слева. Только при изменении (Order_Pending - по разу в буфер)
+;-------- Ордер-лист слева. Только при изменении позиции и после смены вида
 Draw_Order
-        ld hl,Order_Pending
-        dec (hl)
+        xor a
+        ld (Order_Pending),a
         ld d,SCR_BASE_H+VIEW_LINE+1
         ld a,(Cur_Pos)
         sub VIEW_CENTER
@@ -1439,30 +1550,6 @@ Draw_Order
 
 Order_Buttons   db "N+-"
 
-;-------- Подсветка строки редактирования: фон из CLR_EDIT_ROW, ink свой
-Highlight_Edit_Row
-        ld a,(THEME_ATTR+CLR_EDIT_ROW)
-        and #F0
-        ld c,a
-        ld a,(Blk_X0)
-        ld b,a
-        ld a,(Blk_End)
-        sub b
-        inc a
-        ld e,a                      ; сколько колонок
-        ld a,b
-        add a,SCR_ATTR
-        ld l,a
-        ld h,SCR_BASE_H+EDIT_LINE
-        ld b,e
-.l      ld a,(hl)
-        and #0F
-        or c
-        ld (hl),a
-        inc l
-        djnz .l
-        ret
-
 ; =========================================================================
 ; РАМКИ, ЗАГОЛОВКИ, СКРОЛЛБАР - при смене вида
 ; =========================================================================
@@ -1476,8 +1563,7 @@ Draw_Top                            ; ┌──┬──┐ по строке з
         ld a,BOX_DOWN2
         ld (HL_Junction2),a
         ld d,SCR_BASE_H+VIEW_LINE
-        ld h,SCR_BASE_H+VIEW_LINE+1
-        jr Draw_HLine
+        jr Draw_HLine_Tpl
 
 Draw_Bottom                         ; └──┴──┘ под последней строкой
         ld a,BOX_BL
@@ -1489,7 +1575,10 @@ Draw_Bottom                         ; └──┴──┘ под послед�
         ld a,BOX_UP2
         ld (HL_Junction2),a
         ld d,SCR_BASE_H+BOTTOM_LINE
-        ld h,SCR_BASE_H+TEMPLATE_LINE   ; вертикали - как в шаблоне строки
+Draw_HLine_Tpl                      ; вертикали - как в шаблоне нового вида
+        ld a,(Tpl_Build)
+        add a,SCR_BASE_H
+        ld h,a
 
 ; D - строка, где рисуем; H - строка, где смотрим вертикали
 Draw_HLine
@@ -1747,9 +1836,6 @@ Row_Wrap
         ld a,(hl)
         and PAT_ROWS_MAX-1
         ld (hl),a
-Rows_Dirty
-        ld a,2                      ; строки сменились - перерисовать в оба буфера
-        ld (Rows_Pending),a
         ret
 K_ChLeft
         ld a,(Cur_Chan)
@@ -1788,8 +1874,7 @@ K_ScRight
         inc a
         ld (HScroll),a
         jr Dirty
-K_Wrap  call Rows_Dirty
-        ld hl,View_Wrap
+K_Wrap  ld hl,View_Wrap
         jr Toggle
 K_Play  ld hl,Playing
         jr Toggle
@@ -1810,7 +1895,6 @@ Handle_Mouse
         sub b
         and PAT_ROWS_MAX-1
         ld (Cur_Row),a
-        call Rows_Dirty
 .nowheel
         ld a,(SV_MOUSE_BUT)         ; бит 0 = 0 - левая нажата
         cpl
@@ -1872,25 +1956,18 @@ Play_Step
         inc (hl)
         jp Row_Wrap
 
-;-------- Полоса времени: фон (палитра PALET_NUM, цвет 0) по этапам кадра.
-; A - этап: 0 обычный фон, 1 синий, 2 красный, 3 зелёный. T - вкл/выкл
+;-------- Полоса времени: фон (палитра PALET_NUM, цвет 0) на время сборки экрана в IM1.
+; A - цвет: 0 обычный фон, 1 синий, 2 красный, 3 зелёный. Вызывать из IM1
 BAND_W          equ PALET_NUM*16    ; слово CRAM
-Timing_Phase
-        or a
-        jr z,.set                   ; обычный фон - всегда
-        ld b,a
-        ld a,(Timing)
-        or a
-        ret z
-        ld a,b
-.set    add a,a
+Band_Int
+        add a,a
         add a,low (Band_Colors-#4000)
         ld (Band_T+1),a
         ld a,high (Band_Colors-#4000)
         adc a,0
         ld (Band_T+3),a
         ld hl,Band_T
-        jp set_ports
+        jp set_ports_int
 
 Band_T  db high DMASADDRL,0, high DMASADDRH,0, high DMASADDRX,PAGE_TOOL_PATVIEW
         db high DMADADDRL,(BAND_W&127)*2, high DMADADDRH,BAND_W>>7, high DMADADDRX,0
