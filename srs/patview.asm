@@ -47,7 +47,11 @@ BOX_TL          equ #DA             ; ┌
 BOX_TR          equ #BF             ; ┐
 BOX_BL          equ #C0             ; └
 BOX_BR          equ #D9             ; ┘
-BOX_THUMB       equ #CD             ; ═ ползунок скроллбара
+BOX_V2          equ #BA             ; ║ разделитель между чипами
+BOX_DOWN2       equ #D2             ; ╥
+BOX_UP2         equ #D0             ; ╨
+SB_TRACK        equ #B1             ; ▒ дорожка скроллбара (как в Turbo Vision)
+SB_THUMB        equ #FE             ; ■ ползунок
 
 MODE_COMPACT    equ 0
 MODE_NORMAL     equ 1
@@ -63,13 +67,33 @@ PluginMain
         SETPAGE2 PAT_PAGE
         ld a,(SV_DRAW_PAGE)
         SETPAGE3 a
+        call Init_Double_Buffer
         call Test_Fill
         call Build_Attr_Tables
         ld a,1
         ld (Need_Layout),a
 
+; Двойной буфер: рисуем в невидимый Back, в начале кадра показываем его (VPage)
+; и меняем местами. Статика (рамки, ордер-лист) должна быть в обоих буферах -
+; поэтому её рисуем Screen_Pending / Order_Pending = 2 раза, по разу в каждый.
 Main_Loop
         halt
+        ld a,(Frame_Ready)
+        or a
+        jr z,.noflip
+        ld a,(Back)                 ; показать нарисованный кадр
+        ld bc,VPAGE
+        out (c),a
+        ld hl,(Front)               ; Front <-> Back (два байта подряд)
+        ld a,l
+        ld l,h
+        ld h,a
+        ld (Front),hl
+.noflip ld a,(Back)                 ; рисуем в невидимый
+        ld (SV_DRAW_PAGE),a
+        ld (SV_PAGES+3),a
+        ld bc,PAGE3
+        out (c),a
         call Timing_On
         call Handle_Keys
         call Handle_Mouse
@@ -77,17 +101,52 @@ Main_Loop
         ld a,(Need_Layout)
         or a
         call nz,Relayout
+        ld a,(Screen_Pending)
+        or a
+        call nz,Prepare_Screen
+        call Draw_Blank_Runs
         call Draw_Rows
-        call Draw_Order
+        ld a,(Order_Pending)
+        or a
+        call nz,Draw_Order
         call Highlight_Edit_Row
         call Timing_Off
+        ld a,1
+        ld (Frame_Ready),a
         jr Main_Loop
+
+Front           db PAGE_TEXT        ; показываемый буфер
+Back            db PAGE_TEXT2       ; в который рисуем (сразу за Front - меняются словом)
+Frame_Ready     db 0
+Screen_Pending  db 0                ; статику нарисовать ещё в стольких буферах
+Order_Pending   db 0
+
+;-------- Второй буфер: копия экрана (макет сверху) и шрифта первого
+Init_Double_Buffer
+        ld a,PAGE_TEXT
+        ld (Dma_T+5),a
+        ld a,PAGE_TEXT2
+        ld (Dma_T+11),a
+        xor a                       ; вся страница: 64 строки по 256
+        ld e,a
+        ld c,63
+        ld b,DMA_RAM|DMA_SALGN|DMA_DALGN
+        call Dma_Lines_Pages
+        ld a,PAGE_FONT
+        ld (Dma_T+5),a
+        ld a,PAGE_FONT2
+        ld (Dma_T+11),a
+        xor a                       ; шрифт: 8 строк по 256
+        ld e,a
+        ld c,7
+        ld b,DMA_RAM|DMA_SALGN|DMA_DALGN
+        jp Dma_Lines_Pages
 
 ; --- состояние вида
 View_Mode       db MODE_COMPACT
 View_Chips      db 2
 View_Adapt      db 1
-View_Wrap       db 0                ; 0 - над/под паттерном пусто, 1 - по кругу
+View_Wrap       db 1                ; 1 - по кругу (сверху конец паттерна), 0 - пусто
 Cur_Chan        db 0                ; канал под курсором 0..5
 Cursor_Moved    db 0
 HScroll         db 0                ; первое видимое поле (при скролле)
@@ -247,7 +306,8 @@ TY_VOL          equ 5
 TY_NOISE        equ 6
 TY_ENVPER       equ 7
 TY_CMD          equ 8
-TY_BAR          equ #80
+TY_BAR          equ #80             ; бит 7 - разделитель, не поле
+TY_BAR2         equ #81             ; ║ между чипами
 
 Type_W          db 2,3,1,1,1,1,2,4,5    ; ширина поля на экране по типу
 
@@ -282,6 +342,7 @@ Grp_Num         ds GRP_MAX          ; номер чипа / канала
 Grp_N           db 0
 Trail_Pad       db 1                ; пробел перед │ в конце группы
 EG_Base         db 0
+EG_Bar          db TY_BAR
 EG_Kind         db 0
 EG_Num          db 0
 BL_Chip         db 0
@@ -322,6 +383,16 @@ Relayout
         jr .placed
 .fit    call Place_Fit
 .placed call Gen_Code
+        call Calc_Blank_Region
+        ld a,2                      ; статику и ордер-лист - в оба буфера
+        ld (Screen_Pending),a
+        ld (Order_Pending),a
+        ret
+
+;-------- Статика в текущий буфер (Back)
+Prepare_Screen
+        ld hl,Screen_Pending
+        dec (hl)
         call Build_Template
         call Fill_Rows
         call Draw_Top
@@ -392,7 +463,23 @@ Build_Layout
         ld (EG_Base),a
         ld a,1
         ld (EG_Kind),a
+        ld a,c                      ; последний канал первого из двух чипов - ║
+        cp 2
+        ld a,TY_BAR
+        jr nz,.bar
+        ld a,(BL_Chip)
+        or a
+        ld a,TY_BAR
+        jr nz,.bar
+        ld a,(View_Chips)
+        cp 2
+        ld a,TY_BAR
+        jr nz,.bar
+        ld a,TY_BAR2
+.bar    ld (EG_Bar),a
         call Emit_Group
+        ld a,TY_BAR
+        ld (EG_Bar),a
         pop bc
         inc c
         ld a,c
@@ -402,7 +489,8 @@ Build_Layout
         pop bc
         ld a,(BL_Chip)
         inc a
-        djnz .chip
+        dec b
+        jp nz,.chip
         ld a,(Lay_X)
         ld (Lay_W),a
         ret
@@ -513,11 +601,12 @@ Emit_Group
         ld (Lay_N),a
         jr .f
 
-.end    ld a,(Trail_Pad)            ; [пробел] и │
+.end    ld a,(EG_Bar)               ; [пробел] и │ (или ║ между чипами)
+        ld (ix+0),a
+        ld a,(Trail_Pad)
         ld c,a
         ld a,(Lay_X)
         add a,c
-        ld (ix+0),TY_BAR
         ld (ix+1),a
         ld (ix+2),1
         ld (ix+3),0
@@ -559,17 +648,18 @@ Place_Fit
         ld (Blk_End),a
         ret
 
-;-------- Не влезает: окно до правого края, скролл по полям
+;-------- Не влезает: номер строки вплотную к ордер-листу (общая │), окно до
+; правого края, скролл по полям
 Place_Scroll
         ld a,1
         ld (Scroll_Mode),a
-        ld a,ORD_W+1
+        ld a,ORD_W-1
         ld (Blk_X0),a
         add a,ROWCOL_W
         ld (Win_X),a
         ld a,SCR_COLS-1
         ld (Blk_End),a
-        ld a,SCR_COLS-1-(ORD_W+1+ROWCOL_W)
+        ld a,SCR_COLS-1-(ORD_W-1+ROWCOL_W)
         ld (WinC),a
 
         ld hl,FieldX                ; Max_Scroll: первое поле, с которого остаток влезает
@@ -625,25 +715,17 @@ Place_Scroll
         call Calc_Off
         ld (Off),a
 
-        ld a,(WinC)                 ; ползунок: ширина = WinC*WinC/W, не меньше 2
-        ld e,a
-        call Mul8
-        ld a,(Lay_W)
-        ld c,a
-        call Div16_8
-        ld a,l
-        cp 2
-        jr nc,$+4
-        ld a,2
-        ld (Thumb_W),a
-        ld a,(Max_Scroll)           ; позиция = HScroll*(WinC-Thumb_W)/Max
+        ; Скроллбар как в Turbo Vision: ◄ ▒▒▒■▒▒▒ ►. Дорожка - между стрелками,
+        ; ползунок - один символ. Track_W = WinC-2.
+        ld a,(WinC)
+        sub 2
+        ld (Track_W),a
+        ld a,(Max_Scroll)           ; позиция = HScroll*(Track_W-1)/Max
         or a
         jr z,.tx
         ld c,a
-        ld a,(Thumb_W)
-        ld b,a
-        ld a,(WinC)
-        sub b
+        ld a,(Track_W)
+        dec a
         ld e,a
         ld a,(HScroll)
         push bc
@@ -653,7 +735,7 @@ Place_Scroll
         ld a,l
 .tx     ld (Thumb_X),a
 
-        ld hl,Scroll_Map            ; колонка в окне -> HScroll: (i*Max + (WinC-1)/2)/(WinC-1)
+        ld hl,Scroll_Map            ; колонка дорожки -> HScroll: (i*Max + (Tw-1)/2)/(Tw-1)
         ld (Map_Ptr),hl
         xor a
         ld (Map_I),a
@@ -661,7 +743,7 @@ Place_Scroll
         ld e,a
         ld a,(Map_I)
         call Mul8
-        ld a,(WinC)
+        ld a,(Track_W)
         dec a
         ld c,a
         srl a
@@ -677,10 +759,12 @@ Place_Scroll
         ld a,(Map_I)
         inc a
         ld (Map_I),a
-        ld hl,WinC
+        ld hl,Track_W
         cp (hl)
         jr c,.mp
         ret
+
+Track_W         db 0
 
 PS_G            db 0
 
@@ -744,8 +828,8 @@ Gen_Code
         ld b,a
 .e      push bc
         ld a,(iy+0)
-        cp TY_BAR
-        jr z,.next
+        bit 7,a                     ; разделитель - не поле
+        jr nz,.next
         ld (GC_T),a
         ld a,(Off)                  ; видно ли поле: x >= Off и x-Off+w <= WinC
         ld c,a
@@ -836,24 +920,25 @@ Build_Template
         djnz .a
 
         ld d,h
-        ld e,ORD_COL                ; рамки ордер-листа
+        ld e,ORD_COL                ; внешние рамки - CLR_TITLE
         call PutBar
         ld e,ORD_W-1
         call PutBar
-        ld a,(Blk_X0)               ; рамки колонки номера строки
+        ld a,(Blk_X0)
         ld e,a
         call PutBar
-        ld a,(Win_X)
+        ld a,(Win_X)                ; номер строки | каналы - мягкий разделитель
         dec a
         ld e,a
-        call PutBar
+        ld a,BOX_V
+        call PutSep
 
-        ld iy,Lay                   ; видимые │ групп
+        ld iy,Lay                   ; видимые разделители групп
         ld a,(Lay_N)
         ld b,a
 .e      ld a,(iy+0)
-        cp TY_BAR
-        jr nz,.n
+        bit 7,a
+        jr z,.n
         ld a,(Off)
         ld c,a
         ld a,(iy+1)
@@ -867,7 +952,17 @@ Build_Template
         ld a,(Win_X)
         add a,c
         ld e,a
-        call PutBar
+        ld a,(Blk_End)              ; правый край блока - внешняя рамка
+        cp e
+        jr z,.outer
+        ld a,(iy+0)
+        cp TY_BAR2
+        ld a,BOX_V
+        jr nz,$+4
+        ld a,BOX_V2                 ; между чипами - двойной
+        call PutSep
+        jr .n
+.outer  call PutBar
 .n      ld de,4
         add iy,de
         ld d,SCR_BASE_H+TEMPLATE_LINE
@@ -893,18 +988,97 @@ Fill_Rows
         ld b,DMA_RAM|DMA_SALGN|DMA_DALGN
         jp Dma_Lines
 
-;-------- Строка экрана D - из шаблона (строка вне паттерна)
-Blank_Line
-        ld a,d
-        sub SCR_BASE_H
+;-------- Область пустых строк: от первой клетки данных до правой рамки, по словам
+Calc_Blank_Region
+        ld a,(Blk_X0)
+        inc a
+        and #FE                     ; DMA работает словами - начало чётное
+        ld (Bl_Col),a
+        ld b,a
+        ld a,(Blk_End)
+        inc a
+        sub b                       ; байт
+        inc a
+        srl a                       ; слов (с округлением вверх)
+        dec a
+        ld (Bl_Len),a
+        ret
+
+Bl_Col          db 0
+Bl_Len          db 0
+
+;-------- Строки над / под паттерном - пусто (если не по кругу). Каждый кадр
+Draw_Blank_Runs
+        ld a,(View_Wrap)
+        or a
+        ret nz
+        ld a,(Cur_Row)              ; сверху: VIEW_CENTER - Cur_Row строк
+        ld b,a
+        ld a,VIEW_CENTER
+        sub b
+        jr c,.bot
+        jr z,.bot
+        ld e,VIEW_LINE+1
+        call Blank_Run
+.bot    ld a,(Cur_Row)              ; снизу: последняя видимая строка - 63
+        add a,VIEW_ROWS-1-VIEW_CENTER
+        sub PAT_ROWS_MAX-1
+        ret c
+        ret z
+        ld b,a
+        ld a,VIEW_LINE+1+VIEW_ROWS
+        sub b
+        ld e,a
+        ld a,b
+
+; A - строк, E - первая строка экрана. Символы и атрибуты области блока:
+; шаблон -> первая строка, потом с перекрытием вниз. Ордер-лист не трогаем
+Blank_Run
+        ld (BR_N),a
+        ld a,e
+        ld (BR_Line),a
+        ld a,(Bl_Len)
+        ld (Dma_Len),a
+        ld a,(Bl_Col)
+        call .part
+        ld a,(Bl_Col)
+        add a,SCR_ATTR
+        call .part
+        xor a                       ; по умолчанию - строка целиком
+        ld (Dma_Col),a
+        ld a,127
+        ld (Dma_Len),a
+        ret
+.part   ld (Dma_Col),a
+        ld a,(BR_Line)
         ld e,a
         ld a,TEMPLATE_LINE
         ld c,0
         ld b,DMA_RAM
+        call Dma_Lines
+        ld a,(BR_N)
+        sub 2
+        ret c
+        ld c,a
+        ld a,(BR_Line)
+        ld e,a
+        inc e
+        ld b,DMA_RAM|DMA_SALGN|DMA_DALGN
+        jp Dma_Lines
 
-;-------- DMA строк текстовой страницы целиком (256 байт)
-; A - строка-источник, E - строка-приёмник, C - блоков-1, B - DMACtrl
+BR_N            db 0
+BR_Line         db 0
+
+;-------- DMA строк текстовой страницы SV_DRAW_PAGE
+; A - строка-источник, E - строка-приёмник, C - блоков-1, B - DMACtrl.
+; Колонка и длина в словах-1 - Dma_Col / Dma_Len (по умолчанию строка целиком)
 Dma_Lines
+        push af
+        ld a,(SV_DRAW_PAGE)
+        ld (Dma_T+5),a
+        ld (Dma_T+11),a
+        pop af
+Dma_Lines_Pages                     ; то же, страницы уже записаны в Dma_T
         ld (Dma_T+3),a
         ld a,e
         ld (Dma_T+9),a
@@ -912,12 +1086,17 @@ Dma_Lines
         ld (Dma_T+15),a
         ld a,b
         ld (Dma_T+17),a
-        ld a,(SV_DRAW_PAGE)
-        ld (Dma_T+5),a
-        ld (Dma_T+11),a
+        ld a,(Dma_Col)
+        ld (Dma_T+1),a
+        ld (Dma_T+7),a
+        ld a,(Dma_Len)
+        ld (Dma_T+13),a
         ld hl,Dma_T
         call set_ports
         jp dma_wait
+
+Dma_Col         db 0
+Dma_Len         db 127
 
 Dma_T   db high DMASADDRL,0, high DMASADDRH,0, high DMASADDRX,0
         db high DMADADDRL,0, high DMADADDRH,0, high DMADADDRX,0
@@ -1145,15 +1324,13 @@ Draw_Rows
         ld a,(Row_Iter)
         cp PAT_ROWS_MAX
         jr c,.ok
-        ld hl,View_Wrap             ; вне паттерна: по кругу или пусто
-        bit 0,(hl)
-        jr z,.blank
+        ld hl,View_Wrap             ; вне паттерна: по кругу, иначе пусто
+        bit 0,(hl)                  ; (пустые заливает Draw_Blank_Runs)
+        jr z,.next
         and PAT_ROWS_MAX-1
 .ok     add a,PAT_BASE_H
         ld b,a
         call Row_Code
-        jr .next
-.blank  call Blank_Line
 .next   pop de
         ld hl,Row_Iter
         inc (hl)
@@ -1165,8 +1342,10 @@ Draw_Rows
 
 Row_Iter        db 0
 
-;-------- Ордер-лист слева. Все клетки пишутся каждый кадр (список едет)
+;-------- Ордер-лист слева. Только при изменении (Order_Pending - по разу в буфер)
 Draw_Order
+        ld hl,Order_Pending
+        dec (hl)
         ld d,SCR_BASE_H+VIEW_LINE+1
         ld a,(Cur_Pos)
         sub VIEW_CENTER
@@ -1283,6 +1462,8 @@ Draw_Top                            ; ┌──┬──┐ по строке з
         ld (HL_CornerR),a
         ld a,BOX_DOWN
         ld (HL_Junction),a
+        ld a,BOX_DOWN2
+        ld (HL_Junction2),a
         ld d,SCR_BASE_H+VIEW_LINE
         ld h,SCR_BASE_H+VIEW_LINE+1
         jr Draw_HLine
@@ -1294,6 +1475,8 @@ Draw_Bottom                         ; └──┴──┘ под послед�
         ld (HL_CornerR),a
         ld a,BOX_UP
         ld (HL_Junction),a
+        ld a,BOX_UP2
+        ld (HL_Junction2),a
         ld d,SCR_BASE_H+BOTTOM_LINE
         ld h,SCR_BASE_H+TEMPLATE_LINE   ; вертикали - как в шаблоне строки
 
@@ -1315,21 +1498,29 @@ Draw_HLine
         ld c,a
         ld l,e
         ld a,(hl)
+        cp BOX_V2
+        jr z,.j2                    ; ║ - двойной стык
         cp BOX_V
         ld a,BOX_H
         jr nz,.put
         ld a,e                      ; вертикаль: угол или стык
         cp ORD_COL
         jr z,.cl
-        cp ORD_W-1
-        jr z,.cr
         ld a,(Blk_X0)
         cp e
-        jr z,.cl
+        jr nz,.nb
+        cp ORD_W-1                  ; номер строки вплотную к ордер-листу - общая │
+        jr z,.jn
+        jr .cl
+.nb     ld a,e
+        cp ORD_W-1
+        jr z,.cr
         ld a,(Blk_End)
         cp e
         jr z,.cr
-        ld a,(HL_Junction)
+.jn     ld a,(HL_Junction)
+        jr .put
+.j2     ld a,(HL_Junction2)
         jr .put
 .cl     ld a,(HL_CornerL)
         jr .put
@@ -1347,6 +1538,7 @@ Draw_HLine
 HL_CornerL      db 0
 HL_CornerR      db 0
 HL_Junction     db 0
+HL_Junction2    db 0
 
 ;-------- Подписи на верхней линии: Order, Rw, у каждой видимой группы - имя
 Draw_Titles
@@ -1405,25 +1597,37 @@ Txt_Env         db " Env ",0
 Txt_Ch          db " Ch:"
 Txt_Ch_L        db "A ",0
 
-;-------- Скроллбар в нижней рамке: ═ ползунок (только при скролле)
+;-------- Скроллбар в нижней рамке (только при скролле): ◄ ▒▒▒■▒▒▒ ►
 Draw_Scrollbar
         ld a,(Scroll_Mode)
         or a
         ret z
-        ld a,(THEME_ATTR+CLR_BUTTON)
-        ld c,a
         ld d,SCR_BASE_H+BOTTOM_LINE
         ld a,(Win_X)
+        ld e,a
+        ld a,(THEME_ATTR+CLR_BUTTON)
+        ld c,a
+        ld a,ARROW_L
+        call PutCh
+        ld a,(THEME_ATTR+CLR_SEP)   ; дорожка
+        ld c,a
+        ld a,(Track_W)
+        ld b,a
+.t      ld a,SB_TRACK
+        call PutCh
+        djnz .t
+        ld a,(THEME_ATTR+CLR_BUTTON)
+        ld c,a
+        ld a,ARROW_R
+        call PutCh
+        ld a,(Win_X)                ; ползунок
+        inc a
         ld b,a
         ld a,(Thumb_X)
         add a,b
         ld e,a
-        ld a,(Thumb_W)
-        ld b,a
-.l      ld a,BOX_THUMB
-        call PutCh
-        djnz .l
-        ret
+        ld a,SB_THUMB
+        jp PutCh
 
 ; =========================================================================
 ; ВВОД
@@ -1592,12 +1796,17 @@ Handle_Mouse
         and PAT_ROWS_MAX-1
         ld (Cur_Row),a
 .nowheel
+        ld a,(MOUSE_BUT)            ; бит 0 = 0 - левая нажата
+        cpl
+        and 1
+        ld hl,Mouse_Prev
+        ld c,(hl)                   ; C - была нажата в прошлом кадре
+        ld (hl),a
+        or a
+        ret z
         ld a,(Scroll_Mode)
         or a
         ret z
-        ld a,(MOUSE_BUT)
-        rrca
-        ret c                       ; бит 0 = 1 - левая не нажата
         ld hl,(CUR_MY+1)            ; строка = Y/8
         srl h
         rr l
@@ -1620,6 +1829,12 @@ Handle_Mouse
         ld hl,WinC
         cp (hl)
         ret nc
+        or a                        ; ◄ - на нажатие
+        jr z,.left
+        inc a
+        cp (hl)
+        jr z,.right                 ; ► - последняя колонка окна
+        sub 2                       ; дорожка: колонка 0..Track_W-1
         ld hl,Scroll_Map
         call Arr_Get
         ld hl,HScroll
@@ -1627,6 +1842,16 @@ Handle_Mouse
         ret z
         ld (hl),a
         jp Dirty
+.left   ld a,c
+        or a
+        ret nz                      ; держат - не повторяем
+        jp K_ScLeft
+.right  ld a,c
+        or a
+        ret nz
+        jp K_ScRight
+
+Mouse_Prev      db 0
 
 ;-------- Имитация проигрывания: строка каждые 3 кадра
 Play_Step
@@ -1748,6 +1973,17 @@ PutBar
         ld a,(THEME_ATTR+CLR_TITLE)
         ld c,a
         ld a,BOX_V
+        call PutCh
+        pop bc
+        ret
+
+; Внутренний разделитель: A - символ (│ или ║), цвет CLR_SEP
+PutSep
+        push bc
+        ld b,a
+        ld a,(THEME_ATTR+CLR_SEP)
+        ld c,a
+        ld a,b
         call PutCh
         pop bc
         ret

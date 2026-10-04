@@ -42,6 +42,9 @@ PAGE_SPRITE equ #08         ; Спрайты
 PAGE_TEXT   EQU #10         ; Текст режим, 128 символов+128 атр на строку
 PAGE_FONT   EQU #11         ; Шрифт текст режима = PAGE_TEXT XOR 1 (так берёт ПЛИС)
     ASSERT PAGE_FONT == (PAGE_TEXT ^ 1)
+PAGE_TEXT2  EQU #12         ; второй экран - двойной буфер
+PAGE_FONT2  EQU #13
+    ASSERT PAGE_FONT2 == (PAGE_TEXT2 ^ 1)
 PAGE_FONTS  EQU #06         ; банк шрифтов: слоты по FONT_SIZE
 PAGE_FAT_CODE EQU #14       ; FAT32: код, таблица входов с #4000 (окно 1)
 PAGE_FAT_WORK EQU #15       ; FAT32: рабочая память (на время вызова - в окне 0)

@@ -40,6 +40,7 @@ Theme_Default
             db #0A      ; CLR_LOOP      маркер повтора
             db #0A      ; CLR_ORD_CUR   стрелки текущей позиции
             db #0B      ; CLR_PATNUM    номера паттернов в ордер-листе
-            db #20      ; CLR_EDIT_ROW  фон #2 - выделенный фон дорожки
+            db #10      ; CLR_EDIT_ROW  фон #1 - чуть светлее основного фона
+            db #04      ; CLR_SEP       графит - внутренние разделители
 Theme_Default_end
     ASSERT Theme_Default_end-Theme_Default <= THEME_ROLES_MAX
