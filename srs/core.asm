@@ -39,11 +39,24 @@ IM1_Handler
     
 
 Core_Start
+        ; системные переменные для плагинов (sdk/plugin.asm)
+        ld a,FT2_API_VERSION
+        ld (SV_API_VERSION),a
+        ld a,PAGE_TEXT
+        ld (SV_DRAW_PAGE),a
+        ld hl,Theme_Default
+        ld de,THEME_ATTR
+        ld bc,Theme_Default_end-Theme_Default
+        ldir
+
         im 1
         ld hl,100
         ld de,100
         call Init_Mouse_Sprite
-        
+
+        ld a,PAGE_TOOL_PATVIEW  ; пока просто показываем тестовый паттерн
+        call Call_Tool
+
 Pause
         ei
         halt
@@ -58,9 +71,6 @@ Call_Tool
         call #4000
         RESTPAGE1
         ret
-
-;-------- Тени страниц окон 0..3 (Page0/1 не читаются из порта)
-CUR_PAGES   db PAGE_CORE0, PAGE_CORE1, PAGE_CORE2, PAGE_CORE3
 
 
 ;--------пуш в порты, 1 байт старший байт порта #xxAF, нект байт данные, конец таблицы #FF
