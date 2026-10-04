@@ -1794,7 +1794,7 @@ Handle_Mouse
         and PAT_ROWS_MAX-1
         ld (Cur_Row),a
 .nowheel
-        ld a,(MOUSE_BUT)            ; бит 0 = 0 - левая нажата
+        ld a,(SV_MOUSE_BUT)         ; бит 0 = 0 - левая нажата
         cpl
         and 1
         ld hl,Mouse_Prev
@@ -1805,22 +1805,10 @@ Handle_Mouse
         ld a,(Scroll_Mode)
         or a
         ret z
-        ld hl,(CUR_MY+1)            ; строка = Y/8
-        srl h
-        rr l
-        srl h
-        rr l
-        srl h
-        rr l
-        ld a,l
+        ld a,(SV_MOUSE_ROW)         ; знакоместа - готовые, из прерывания мыши
         cp BOTTOM_LINE
         ret nz
-        ld hl,(CUR_MX+1)            ; колонка = X/4
-        srl h
-        rr l
-        srl h
-        rr l
-        ld a,l
+        ld a,(SV_MOUSE_COL)
         ld hl,Win_X
         sub (hl)
         ret c

@@ -14,6 +14,8 @@ Init_Mouse_Sprite
         ld bc,#FFDF
         in a,(c)
         ld (MOUSE_dY),a
+        ld a,7                  ; кнопки отпущены
+        ld (MOUSE_BUT),a
         ld bc,#FADF             ; колесо: запоминаем стартовое значение счётчика
         in a,(c)
         and #F0
@@ -114,7 +116,23 @@ Cursor_dma_table
 Read_Mouse:
 
         call MOUSE
-        
+
+        ; ЗНАКОМЕСТА для работы (пиксели - только для спрайта): X/4, Y/8.
+        ; Координата 9 бит: старший бит через перенос, дальше 8-битные сдвиги
+        ld a,(CUR_MX+2)
+        rra
+        ld a,(CUR_MX+1)
+        rra                     ; X/2 - влезает в байт
+        srl a                   ; X/4 = колонка 0..89
+        ld (SV_MOUSE_COL),a
+        ld a,(CUR_MY+2)
+        rra
+        ld a,(CUR_MY+1)
+        rra                     ; Y/2
+        srl a
+        srl a                   ; Y/8 = строка 0..35
+        ld (SV_MOUSE_ROW),a
+
         ; РАСКИДЫВАЕМ ГОТОВЫЕ ПИКСЕЛИ В БУФЕР DMA СПРАЙТА
         
         ld a, (CUR_MY+1)
@@ -168,7 +186,7 @@ CUR_MX          db 0            ;дробная часть 16.8
 CUR_MY          db 0            ;дробная часть 16.8
                 DW 100          ; Y 
                                 ; 24 битная координата
-MOUSE_BUT       DB 7            ; Кнопки
+MOUSE_BUT       equ SV_MOUSE_BUT    ; Кнопки - на фиксированном адресе, видны плагинам
 MOUSE_WHEEL_PORT DB #F0         ; прошлое значение счётчика колеса (#FADF, биты 7..4)
 MOUSE_WHEEL     DB 0            ; накопленная дельта колеса со знаком, забирает Mouse_Get_Wheel
 
