@@ -15,7 +15,7 @@ VIEW_ROWS       equ 27              ; видимых строк паттерна
 ; Экран во всю ширину: ордер-лист прижат слева, паттерн центруется в остатке.
 ORD_COL         equ 0
 ORD_W           equ 7               ; "00 00 |" - позиция, паттерн
-PAT_VIEW_W      equ 47              ; ширина вывода паттерна (L1, 1 чип, с пробелами у линий);
+PAT_VIEW_W      equ 49              ; ширина вывода паттерна (L1, 1 чип, с пробелами у линий);
                                     ; потом будет считаться по карте колонок, и пробелы
                                     ; будут убираться, если не влезает
 VIEW_COL        equ ORD_W+(SCR_COLS-ORD_W-PAT_VIEW_W)/2
@@ -152,7 +152,7 @@ PutStr
         jr .l
 
 Order_Header    db "Ps Pt |",0
-Header_Text     db "Rw | Env  Ns | Ch:A     | Ch:B     | Ch:C     |",0
+Header_Text     db "| Rw | Env  Ns | Ch:A     | Ch:B     | Ch:C     |",0
     ASSERT $-Header_Text-1 == PAT_VIEW_W
     ASSERT VIEW_COL+PAT_VIEW_W <= SCR_COLS
 
@@ -219,6 +219,8 @@ Draw_Rows
 
 ;-------- Одна строка: B - строка паттерна, DE - экран
 Draw_Row
+        call PutBar                 ; левая рамка блока паттерна
+        call PutSpace
         ld a,b                      ; номер строки, каждая 4-я выделена
         and 3
         ld a,(THEME_ATTR+CLR_ROW_NUM)
