@@ -17,7 +17,8 @@ VIEW_CENTER     equ VIEW_ROWS/2     ; текущая строка паттерн
 
 ; Экран во всю ширину: ордер-лист прижат слева, паттерн центруется в остатке.
 ORD_COL         equ 0
-ORD_W           equ 7               ; "r►05◄N|": повтор, стрелки у текущей, паттерн, кнопка
+ORD_W           equ 8               ; "│r►05◄N│": рамка, повтор, стрелки у текущей,
+                                    ; паттерн, кнопка, рамка
 ARROW_R         equ #10             ; ► в шрифте 866
 ARROW_L         equ #11             ; ◄
 BOX_V           equ #B3             ; │
@@ -187,7 +188,7 @@ PutStr
 
 ; Колонки - как в строке паттерна: │ 00 │ 012D 0A │ C-4 1--F │ ...
 ; В заголовке канала справа - кнопки +- (раскрыть / свернуть канал).
-Header_Items    db ORD_COL,     CLR_HEADER, "Order ",0
+Header_Items    db ORD_COL+1,   CLR_HEADER, "Order ",0
                 db VIEW_COL+1,  CLR_HEADER, " Rw ",0
                 db VIEW_COL+6,  CLR_HEADER, " Env  Ns ",0
                 db VIEW_COL+16, CLR_HEADER, " Ch:A ",0
@@ -208,10 +209,11 @@ Draw_Order
         ld b,a                      ; B - позиция (выше начала списка - "отрицательная")
         ld a,VIEW_ROWS
 .l      push af
+        ld e,ORD_COL                ; левая рамка
+        call PutBar
         ld a,b
         cp TEST_ORD_LAST+1
         jr nc,.buttons              ; за концом списка - только кнопки
-        ld e,ORD_COL
 
         ld a,(THEME_ATTR+CLR_LOOP)
         ld c,a
@@ -252,7 +254,7 @@ Draw_Order
         call PutCh
 
 .buttons
-        ld e,ORD_COL+5
+        ld e,ORD_COL+6
         ld a,(Cur_Pos)              ; A = позиция - текущая
         neg
         add a,b
@@ -604,6 +606,8 @@ Draw_HLine
         ld a,BOX_H
         jr nz,.put
         ld a,e                      ; вертикаль: угол или стык
+        cp ORD_COL
+        jr z,.cl
         cp VIEW_COL
         jr z,.cl
         cp ORD_W-1
