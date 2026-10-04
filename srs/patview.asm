@@ -189,11 +189,11 @@ Header_Items    db ORD_COL,     CLR_HEADER, "Order ",0
                 db VIEW_COL+1,  CLR_HEADER, " Rw ",0
                 db VIEW_COL+6,  CLR_HEADER, " Env  Ns ",0
                 db VIEW_COL+16, CLR_HEADER, " Ch:A ",0
-                db VIEW_COL+23, CLR_BUTTON, "+-",0
+                db VIEW_COL+24, CLR_BUTTON, "+-",0      ; вплотную к правому стыку
                 db VIEW_COL+27, CLR_HEADER, " Ch:B ",0
-                db VIEW_COL+34, CLR_BUTTON, "+-",0
+                db VIEW_COL+35, CLR_BUTTON, "+-",0
                 db VIEW_COL+38, CLR_HEADER, " Ch:C ",0
-                db VIEW_COL+45, CLR_BUTTON, "+-",0
+                db VIEW_COL+46, CLR_BUTTON, "+-",0
                 db #FF
     ASSERT VIEW_COL+PAT_VIEW_W <= SCR_COLS
 
