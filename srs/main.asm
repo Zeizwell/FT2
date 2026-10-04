@@ -1,4 +1,8 @@
     DEVICE ZXSPECTRUM128
+
+    include     "includes/tsconfig.asm"
+    include     "mem_defs.asm"      ; макросы страниц должны быть объявлены до использования
+
     org #8000
     
 Start:
@@ -35,19 +39,16 @@ Start:
     
     ld bc, PAGE0
     ld a,PAGE_CORE0
-    out (c),a
-    
-    ld bc, PAGE1
-    ld a,PAGE_CORE1
-    out (c),a
-    ;ld bc, PAGE2       ;типа исполняется и так в пейдж2 страница 2
-    ;ld a,PAGE_CORE2
-    ;out (c),a
+    out (c),a               ; коре в окне 0 - теперь доступна CUR_PAGES
 
-    ld bc, PAGE3
-    ld a,PAGE_CORE3
-    out (c),a
-    
+    ; заполняем тени страниц (окно 2 - мы тут исполняемся, страница та же)
+    MAPPAGE 0,PAGE_CORE0
+    MAPPAGE 1,PAGE_CORE1
+    MAPPAGE 2,PAGE_CORE2
+    MAPPAGE 3,PAGE_CORE3
+
+    ld sp,STACK_TOP         ; стек в коре, до этого жили на #7FFF
+
     ld bc, INTMASK
     ld a, %00000001         ; Бит 0 = 1 (Разрешить Frame INT от видеоконтроллера)
     out (c), a
@@ -59,9 +60,7 @@ Start:
   
     
 
-    include     "includes/tsconfig.asm"
     include     "video.asm"
-    include     "mem_defs.asm"
     SAVEBIN     "srs/ft2.bin",Start,$-Start
     
     org #0000
@@ -69,6 +68,7 @@ Start:
 core_start
     include     "core.asm"
 core_end
+    ASSERT core_end <= STACK_TOP-STACK_SIZE     ; коре налезло на стек
     ;ENT             ; закрываем disp
     SAVEBIN     "srs/core.bin",core_start,core_end-core_start
     display     "core size",/d,core_end-core_start," bytes"
