@@ -14,7 +14,9 @@ VIEW_ROWS       equ 27              ; видимых строк паттерна
 
 ; Экран во всю ширину: ордер-лист прижат слева, паттерн центруется в остатке.
 ORD_COL         equ 0
-ORD_W           equ 7               ; "00 00 |" - позиция, паттерн
+ORD_W           equ 7               ; "r►05◄N|": повтор, стрелки у текущей, паттерн, кнопка
+ARROW_R         equ #10             ; ► в шрифте 866
+ARROW_L         equ #11             ; ◄
 PAT_VIEW_W      equ 49              ; ширина вывода паттерна (L1, 1 чип, с пробелами у линий);
                                     ; потом будет считаться по карте колонок, и пробелы
                                     ; будут убираться, если не влезает
@@ -41,6 +43,7 @@ PluginMain
 
 View_Top        db 0                ; первая видимая строка паттерна
 Cur_Pos         db 0                ; текущая позиция ордер-листа
+Loop_Pos        db 0                ; позиция повтора
 Test_Order      db 0,0,0,0          ; номера паттернов по позициям
 
 ;-------- Тестовый паттерн в слоте PAT_SLOT
@@ -151,29 +154,38 @@ PutStr
         inc hl
         jr .l
 
-Order_Header    db "Ps Pt |",0
+Order_Header    db "Order |",0
 Header_Text     db "| Rw | Env  Ns | Ch:A     | Ch:B     | Ch:C     |",0
     ASSERT $-Header_Text-1 == PAT_VIEW_W
     ASSERT VIEW_COL+PAT_VIEW_W <= SCR_COLS
 
-;-------- Ордер-лист слева: позиция и номер паттерна, текущая позиция выделена
+;-------- Ордер-лист слева: только номера паттернов.
+; r - позиция повтора, ►NN◄ - текущая, справа от текущей и двух под ней - кнопки N + -
 Draw_Order
         ld d,SCR_BASE_H+VIEW_LINE+1
         ld b,0                      ; B - позиция
 .l      ld a,b
         cp TEST_ORD_LAST+1
-        jr nc,.empty
+        jr nc,.buttons              ; за концом списка - только кнопки
         ld e,ORD_COL
-        ld a,(Cur_Pos)
-        cp b
-        ld a,(THEME_ATTR+CLR_ROW_NUM)
-        jr nz,$+5
+
         ld a,(THEME_ATTR+CLR_ROW_BEAT)
         ld c,a
-        ld a,b
-        call PutHex2
-        call PutSpace
-        ld a,(THEME_ATTR+CLR_NOTE)
+        ld a,(Loop_Pos)             ; маркер повтора
+        cp b
+        ld a,' '
+        jr nz,$+4
+        ld a,'r'
+        call PutCh
+
+        ld a,(Cur_Pos)              ; левая стрелка
+        cp b
+        ld a,' '
+        jr nz,$+4
+        ld a,ARROW_R
+        call PutCh
+
+        ld a,(THEME_ATTR+CLR_NOTE)  ; номер паттерна
         ld c,a
         ld a,b
         add a,low Test_Order
@@ -183,16 +195,42 @@ Draw_Order
         ld h,a
         ld a,(hl)
         call PutHex2
-        call PutSpace
-        jr .bar
-.empty  ld e,ORD_W-1
-.bar    call PutBar
+
+        ld a,(THEME_ATTR+CLR_ROW_BEAT)  ; правая стрелка
+        ld c,a
+        ld a,(Cur_Pos)
+        cp b
+        ld a,' '
+        jr nz,$+4
+        ld a,ARROW_L
+        call PutCh
+
+.buttons
+        ld e,ORD_COL+5
+        ld a,(Cur_Pos)              ; A = позиция - текущая
+        neg
+        add a,b
+        cp 3
+        jr nc,.bar                  ; кнопки только у текущей и двух под ней
+        add a,low Order_Buttons
+        ld l,a
+        adc a,high Order_Buttons
+        sub l
+        ld h,a
+        ld a,(THEME_ATTR+CLR_CMD)
+        ld c,a
+        ld a,(hl)
+        call PutCh
+.bar    ld e,ORD_W-1
+        call PutBar
         inc d
         inc b
         ld a,b
         cp VIEW_ROWS
         jr c,.l
         ret
+
+Order_Buttons   db "N+-"            ; новый паттерн, следующий номер, предыдущий
 
 ;-------- Видимые строки паттерна
 Draw_Rows
