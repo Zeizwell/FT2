@@ -307,6 +307,15 @@ char K_INPUT::readdevices()
       msx += mouse_offx;
       msy += mouse_offy;
 
+      // The Kempston port is an 8-bit counter, programs take the difference of two
+      // reads as a SIGNED byte. A step over 127 per frame would flip the sign -
+      // clamp it and drop the rest (shift the offset by what was dropped).
+      int dx = msx - msx_prev, dy = msy - msy_prev;
+      if (dx > 127)  { mouse_offx -= dx - 127;  msx = msx_prev + 127; }
+      if (dx < -127) { mouse_offx -= dx + 127;  msx = msx_prev - 127; }
+      if (dy > 127)  { mouse_offy -= dy - 127;  msy = msy_prev + 127; }
+      if (dy < -127) { mouse_offy -= dy + 127;  msy = msy_prev - 127; }
+
       if (md.rgbButtons[0])
       {
           mbuttons &= ~1;
