@@ -14,9 +14,10 @@ VIEW_ROWS       equ 27              ; видимых строк паттерна
 
 ; Экран во всю ширину: ордер-лист прижат слева, паттерн центруется в остатке.
 ORD_COL         equ 0
-ORD_W           equ 6               ; "00 00|" - позиция, паттерн
-PAT_VIEW_W      equ 38              ; ширина вывода паттерна (L1, 1 чип);
-                                    ; потом будет считаться по карте колонок
+ORD_W           equ 7               ; "00 00 |" - позиция, паттерн
+PAT_VIEW_W      equ 47              ; ширина вывода паттерна (L1, 1 чип, с пробелами у линий);
+                                    ; потом будет считаться по карте колонок, и пробелы
+                                    ; будут убираться, если не влезает
 VIEW_COL        equ ORD_W+(SCR_COLS-ORD_W-PAT_VIEW_W)/2
 
 ; Тестовый ордер-лист (пока нет страницы трека)
@@ -150,8 +151,8 @@ PutStr
         inc hl
         jr .l
 
-Order_Header    db "Ps Pt|",0
-Header_Text     db "Rw|Env  Ns|Ch:A    |Ch:B    |Ch:C    |",0
+Order_Header    db "Ps Pt |",0
+Header_Text     db "Rw | Env  Ns | Ch:A     | Ch:B     | Ch:C     |",0
     ASSERT $-Header_Text-1 == PAT_VIEW_W
     ASSERT VIEW_COL+PAT_VIEW_W <= SCR_COLS
 
@@ -182,6 +183,7 @@ Draw_Order
         ld h,a
         ld a,(hl)
         call PutHex2
+        call PutSpace
         jr .bar
 .empty  ld e,ORD_W-1
 .bar    call PutBar
@@ -225,12 +227,14 @@ Draw_Row
         ld c,a
         ld a,b
         call PutHex2
+        call PutSpace
         call PutBar
 
         ld a,b
         add a,PAT_BASE_H
         ld h,a                      ; H - строка паттерна
 
+        call PutSpace
         ld l,PAT_SLOT+CHIP_ENVPER   ; заголовок чипа (C0): огибающая и шум
         call Put_EnvPer
         call PutSpace
@@ -246,6 +250,7 @@ Draw_Row
         ld a,(hl)
         call PutHex2
 .ns_done
+        call PutSpace
         call PutBar
 
         ld l,PAT_SLOT+CHIP_CH_A
@@ -257,6 +262,7 @@ Draw_Row
 
 ;-------- Канал L1: нота + поле инструмента. HL - начало канала
 Put_Channel
+        call PutSpace
         ld a,(hl)
         call Put_Note
         call PutSpace
@@ -276,6 +282,7 @@ Put_Channel
         inc l
         ld a,(hl)                   ; громкость
         call Put_Hex1
+        call PutSpace
         jp PutBar
 
 ;-------- Период огибающей (2 байта по HL), 0 - "----"
