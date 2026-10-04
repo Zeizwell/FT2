@@ -386,16 +386,25 @@ u8 K_INPUT::aymouse_rd()
    return 0xC0 | (coord & 0x0F) | (mbuttons << 4);
 }
 
+// FT2: position inside the frame = prev + delta * t / frame.
+// The original (t*msx + (frame-t)*msx_prev) overflowed int: msx is the absolute
+// (accumulated) mouse position and t is up to frame tacts (more at 14 MHz),
+// so the port returned garbage and the cursor jumped to the screen edges.
+static int mouse_lerp(int cur, int prev)
+{
+   long long t = cpu.t;
+   if (t > (long long)conf.frame) t = conf.frame;
+   return prev + (int)(((long long)(cur - prev) * t) / (long long)conf.frame);
+}
+
 u8 K_INPUT::kempston_mx()
 {
-   int x = (cpu.t*msx + (conf.frame - cpu.t)*msx_prev) / conf.frame;
-   return (u8)x;
+   return (u8)mouse_lerp(msx, msx_prev);
 }
 
 u8 K_INPUT::kempston_my()
 {
-   int y = (cpu.t*msy + (conf.frame - cpu.t)*msy_prev) / conf.frame;
-   return (u8)y;
+   return (u8)mouse_lerp(msy, msy_prev);
 }
 
 u8 K_INPUT::read(u8 scan)
