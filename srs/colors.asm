@@ -42,5 +42,7 @@ Theme_Default
             db #0B      ; CLR_PATNUM    номера паттернов в ордер-листе
             db #10      ; CLR_EDIT_ROW  фон #1 - чуть светлее основного фона
             db #04      ; CLR_SEP       графит - внутренние разделители
+            db #04      ; CLR_SB_TRACK  графит - дорожка скроллбара
+            db #09      ; CLR_SB_THUMB  стальной - ползунок
 Theme_Default_end
     ASSERT Theme_Default_end-Theme_Default <= THEME_ROLES_MAX

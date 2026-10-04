@@ -50,7 +50,7 @@ BOX_BR          equ #D9             ; ┘
 BOX_V2          equ #BA             ; ║ разделитель между чипами
 BOX_DOWN2       equ #D2             ; ╥
 BOX_UP2         equ #D0             ; ╨
-SB_TRACK        equ #B0             ; ░ дорожка скроллбара - точечки (как в Far / NC)
+SB_TRACK        equ #B1             ; ▒ дорожка скроллбара - средняя штриховка
 SB_THUMB        equ #B2             ; ▓ ползунок - плотная штриховка, длина - доля видимой части
 
 MODE_COMPACT    equ 0
@@ -1760,7 +1760,7 @@ Draw_Scrollbar
         ld c,a
         ld a,ARROW_L
         call PutCh
-        ld a,(THEME_ATTR+CLR_SEP)   ; дорожка
+        ld a,(THEME_ATTR+CLR_SB_TRACK)  ; дорожка
         ld c,a
         ld a,(Track_W)
         ld b,a
@@ -1771,7 +1771,7 @@ Draw_Scrollbar
         ld c,a
         ld a,ARROW_R
         call PutCh
-        ld a,(THEME_ATTR+CLR_TITLE) ; ползунок - пропорциональной длины, цвет рамки
+        ld a,(THEME_ATTR+CLR_SB_THUMB)  ; ползунок - пропорциональной длины
         ld c,a
         ld a,(Win_X)
         inc a
