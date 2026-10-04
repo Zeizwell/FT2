@@ -272,7 +272,14 @@ char K_INPUT::readdevices()
           md.rgbButtons[1] = t;
       }
       msx = md.lX; msy = -md.lY;
-      if (conf.input.mousescale >= 0)
+      if (conf.input.mousediv > 1)
+      {
+          // FT2: modern mice give 800-1600 counts per inch, ZX Evo PS/2 mouse ~100.
+          // Divide the absolute position (not the per-frame delta) - no lost fractions.
+          msx /= (int)conf.input.mousediv;
+          msy /= (int)conf.input.mousediv;
+      }
+      else if (conf.input.mousescale >= 0)
       {
           msx *= (1 << conf.input.mousescale);
           msy *= (1 << conf.input.mousescale);
@@ -282,6 +289,29 @@ char K_INPUT::readdevices()
           msx /= (1 << -conf.input.mousescale);
           msy /= (1 << -conf.input.mousescale);
       }
+
+      // FT2: the absolute DirectInput position can be anything on the first read.
+      // Keep the port going from the value the program has already read (start
+      // 31/85): remember the offset once and add it to every next position.
+      static bool mouse_synced = false;
+      static int mouse_offx, mouse_offy;
+      if (!mouse_synced)
+      {
+          mouse_offx = msx_prev - msx;      // msx_prev = value before this read
+          mouse_offy = msy_prev - msy;
+          mouse_synced = true;
+      }
+      msx += mouse_offx;
+      msy += mouse_offy;
+
+      // The Kempston port is an 8-bit counter, programs take the difference of two
+      // reads as a SIGNED byte. A step over 127 per frame would flip the sign -
+      // clamp it and drop the rest (shift the offset by what was dropped).
+      int dx = msx - msx_prev, dy = msy - msy_prev;
+      if (dx > 127)  { mouse_offx -= dx - 127;  msx = msx_prev + 127; }
+      if (dx < -127) { mouse_offx -= dx + 127;  msx = msx_prev - 127; }
+      if (dy > 127)  { mouse_offy -= dy - 127;  msy = msy_prev + 127; }
+      if (dy < -127) { mouse_offy -= dy + 127;  msy = msy_prev - 127; }
 
       if (md.rgbButtons[0])
       {
@@ -333,7 +363,7 @@ char K_INPUT::readdevices()
 
 	  ReadKeyboard(kbdpc);
 
-      if (!dbgbreak && input.buffer.Enabled()) // TODO: нажатие и отжатие ESC попадает в буфер
+      if (!dbgbreak && input.buffer.Enabled()) // TODO: пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ ESC пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ
       {
          for (int i = 0; i < sizeof(kbdpc); i++)
          {
@@ -379,16 +409,25 @@ u8 K_INPUT::aymouse_rd()
    return 0xC0 | (coord & 0x0F) | (mbuttons << 4);
 }
 
+// FT2: position inside the frame = prev + delta * t / frame, signed, 64 bit.
+// The original (t*msx + (frame-t)*msx_prev)/frame was computed in UNSIGNED
+// (cpu.t is unsigned): a negative position (mouse moved left/down from the start)
+// or a big one turned into garbage, and the cursor flew.
+static int mouse_lerp(int cur, int prev)
+{
+   long long t = cpu.t;
+   if (t > (long long)conf.frame) t = conf.frame;
+   return prev + (int)(((long long)(cur - prev) * t) / (long long)conf.frame);
+}
+
 u8 K_INPUT::kempston_mx()
 {
-   int x = (cpu.t*msx + (conf.frame - cpu.t)*msx_prev) / conf.frame;
-   return (u8)x;
+   return (u8)mouse_lerp(msx, msx_prev);
 }
 
 u8 K_INPUT::kempston_my()
 {
-   int y = (cpu.t*msy + (conf.frame - cpu.t)*msy_prev) / conf.frame;
-   return (u8)y;
+   return (u8)mouse_lerp(msy, msy_prev);
 }
 
 u8 K_INPUT::read(u8 scan)

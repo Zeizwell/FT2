@@ -637,6 +637,7 @@ void load_config(const char *fname)
 //~
    conf.input.joymouse = GetPrivateProfileInt(input, "JoyMouse", 0, ininame);
    conf.input.mousescale = GetPrivateProfileInt(input, "MouseScale", 0, ininame);
+   conf.input.mousediv = GetPrivateProfileInt(input, "MouseDiv", 0, ininame);
    conf.input.mouseswap = GetPrivateProfileInt(input, "SwapMouse", 0, ininame);
    conf.input.kjoy = GetPrivateProfileInt(input, "KJoystick", 1, ininame);
    conf.input.keymatrix = GetPrivateProfileInt(input, "Matrix", 1, ininame);
