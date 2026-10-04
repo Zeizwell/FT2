@@ -68,6 +68,7 @@ BAND_INPUT      equ 4               ; ввод, мышь, шаг проигры�
 BAND_RELAYOUT   equ 5               ; перестройка вида, рендер в кэш   - фиолетовый
 BAND_APPLY      equ 6               ; рамки, подписи, смена кэша       - голубой
 BAND_ORDER      equ 7               ; ордер-лист                       - белый
+BAND_DMATEST    equ 8               ; замер: DMA-заливка 4К            - оранжевый
 
     MACRO BAND_I n                  ; из IM1
         ld a,(Timing)
@@ -101,6 +102,9 @@ PluginMain
 Main_Loop
         BAND_M BAND_BG
         halt
+        ld a,(Timing)               ; замер: DMA-заливка 4К (оранжевый)
+        or a
+        call nz,Bench_Dma_Fill
         ld a,(Apply_Pending)        ; сразу после INT, пока луч в гашении:
         or a                        ; рамки нового вида и смена кэша
         jr z,.noapply
@@ -2035,6 +2039,25 @@ Play_Step
 ; Высота цвета на экране = время шага. T - вкл/выкл.
 BAND_W          equ PALET_NUM*16    ; слово CRAM
 
+;-------- Замер: DMA FILL 4К (16 строк по 256) в свободную страницу, фон оранжевый.
+; Высота оранжевой полосы = время. 1 строка знакомест = 8 строк растра = 512 мкс
+BENCH_PAGE      equ #BF             ; последняя страница пула - не используется
+Bench_Dma_Fill
+        BAND_M BAND_DMATEST
+        ld hl,Bench_T
+        call set_ports
+        call dma_wait
+        BAND_M BAND_BG
+        ret
+
+Bench_T db high DMASADDRL,(Bench_Zero-#4000)&255, high DMASADDRH,(Bench_Zero-#4000)>>8
+        db high DMASADDRX,PAGE_TOOL_PATVIEW
+        db high DMADADDRL,0, high DMADADDRH,0, high DMADADDRX,BENCH_PAGE
+        db high DMALEN,127, high DMANUM,15, high DMACTR,DMA_FILL|DMA_DALGN, #FF
+
+        ALIGN 2
+Bench_Zero      dw 0
+
 ; A - цвет. Из IM1 (своя таблица DMA)
 Band_Int
         add a,a
@@ -2082,6 +2105,7 @@ Band_Bg         dw 0                ; 0 - обычный фон (копия из
                 db %00011000, %01100000     ; 5 фиолетовый
                 db %00011000, %00000011     ; 6 голубой
                 db %00011000, %01100011     ; 7 белый
+                db %00000000, %01100001     ; 8 оранжевый - замер DMA
 
 ;-------- Плоскости атрибутов из темы: значение 0 - "пусто", остальное - цвет поля
 Build_Attr_Tables
