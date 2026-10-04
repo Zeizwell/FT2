@@ -57,14 +57,11 @@ PAGE_FILEBUF  EQU #28       ; буфер файла трека
 PAGES_FILEBUF EQU 32
 PAGE_COMPBUF  EQU PAGE_FILEBUF+PAGES_FILEBUF    ; буфер откомпилированного трека
 PAGES_COMPBUF EQU 4
-PAGE_RCACHE   EQU PAGE_COMPBUF+PAGES_COMPBUF    ; кэш отрисованных строк паттерна, 2 страницы:
-                                                ; одну показывает IM1, вторую готовит редактор
-PAGE_POOL     EQU PAGE_RCACHE+2                 ; пул: паттерны, инструменты обоих треков
+PAGE_POOL     EQU PAGE_COMPBUF+PAGES_COMPBUF    ; пул: паттерны, инструменты обоих треков
 PAGE_POOL_END EQU #C0                           ; дальше - система
 
 PAGES_PER_SONG EQU PATTERNS_MAX/(256/PAT_WIDTH)+8   ; полный трек: паттерны + инструменты
-    ASSERT PAGE_RCACHE == #4C
-    ASSERT PAGE_POOL == #4E
+    ASSERT PAGE_POOL == #4C
     ASSERT PAGES_COMPBUF*16384 >= COMPILED_MAX      ; откомпилированный влезает
     ASSERT PAGE_POOL_END-PAGE_POOL >= SONGS_MAX*PAGES_PER_SONG  ; два полных трека влезают
 
