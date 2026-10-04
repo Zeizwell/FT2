@@ -149,12 +149,10 @@ Clear_View
         djnz .ln
         ret
 
-;-------- Подписи на плашке поверх верхней линии рамки
-; Таблица: колонка, текст, 0; конец - #FF. Подписи стоят между стыками ┬,
+;-------- Подписи и кнопки поверх верхней линии рамки
+; Таблица: колонка, роль цвета, текст, 0; конец - #FF. Стоят между стыками ┬,
 ; сами стыки и углы не перекрывают.
 Draw_Header
-        ld a,(THEME_ATTR+CLR_HEADER)
-        ld c,a
         ld d,SCR_BASE_H+VIEW_LINE
         ld hl,Header_Items
 .item   ld a,(hl)
@@ -162,6 +160,16 @@ Draw_Header
         ret z
         ld e,a
         inc hl
+        ld a,(hl)                   ; роль -> атрибут из темы
+        inc hl
+        push hl
+        add a,low THEME_ATTR
+        ld l,a
+        adc a,high THEME_ATTR
+        sub l
+        ld h,a
+        ld c,(hl)
+        pop hl
         call PutStr
         inc hl                      ; пропустить 0
         jr .item
@@ -176,12 +184,16 @@ PutStr
         jr .l
 
 ; Колонки - как в строке паттерна: │ 00 │ 012D 0A │ C-4 1--F │ ...
-Header_Items    db ORD_COL,     "Order ",0
-                db VIEW_COL+1,  " Rw ",0
-                db VIEW_COL+6,  " Env  Ns ",0
-                db VIEW_COL+16, " Ch:A ",0
-                db VIEW_COL+27, " Ch:B ",0
-                db VIEW_COL+38, " Ch:C ",0
+; В заголовке канала справа - кнопки +- (раскрыть / свернуть канал).
+Header_Items    db ORD_COL,     CLR_HEADER, "Order ",0
+                db VIEW_COL+1,  CLR_HEADER, " Rw ",0
+                db VIEW_COL+6,  CLR_HEADER, " Env  Ns ",0
+                db VIEW_COL+16, CLR_HEADER, " Ch:A ",0
+                db VIEW_COL+23, CLR_BUTTON, "+-",0
+                db VIEW_COL+27, CLR_HEADER, " Ch:B ",0
+                db VIEW_COL+34, CLR_BUTTON, "+-",0
+                db VIEW_COL+38, CLR_HEADER, " Ch:C ",0
+                db VIEW_COL+45, CLR_BUTTON, "+-",0
                 db #FF
     ASSERT VIEW_COL+PAT_VIEW_W <= SCR_COLS
 
