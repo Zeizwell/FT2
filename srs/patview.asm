@@ -94,7 +94,8 @@ Main_Loop
         ld (SV_PAGES+3),a
         ld bc,PAGE3
         out (c),a
-        call Timing_On
+        ld a,1                      ; синий - ввод и перестройка вида
+        call Timing_Phase
         call Handle_Keys
         call Handle_Mouse
         call Play_Step
@@ -104,13 +105,18 @@ Main_Loop
         ld a,(Screen_Pending)
         or a
         call nz,Prepare_Screen
+        ld a,2                      ; красный - строки паттерна
+        call Timing_Phase
         call Draw_Blank_Runs
         call Draw_Rows
+        ld a,3                      ; зелёный - ордер-лист, подсветка
+        call Timing_Phase
         ld a,(Order_Pending)
         or a
         call nz,Draw_Order
         call Highlight_Edit_Row
-        call Timing_Off
+        xor a                       ; конец - обычный фон
+        call Timing_Phase
         ld a,1
         ld (Frame_Ready),a
         jr Main_Loop
@@ -1854,32 +1860,36 @@ Play_Step
         inc (hl)
         jp Row_Wrap
 
-;-------- Полоса времени: фон (палитра PALET_NUM, цвет 0) на время отрисовки
+;-------- Полоса времени: фон (палитра PALET_NUM, цвет 0) по этапам кадра.
+; A - этап: 0 обычный фон, 1 синий, 2 красный, 3 зелёный. T - вкл/выкл
 BAND_W          equ PALET_NUM*16    ; слово CRAM
-Timing_On
+Timing_Phase
+        or a
+        jr z,.set                   ; обычный фон - всегда
+        ld b,a
         ld a,(Timing)
         or a
         ret z
-        ld hl,Band_On_T
-        jp set_ports
-Timing_Off
-        ld hl,Band_Off_T
+        ld a,b
+.set    add a,a
+        add a,low (Band_Colors-#4000)
+        ld (Band_T+1),a
+        ld a,high (Band_Colors-#4000)
+        adc a,0
+        ld (Band_T+3),a
+        ld hl,Band_T
         jp set_ports
 
-Band_On_T
-        db high DMASADDRL,(Band_Red-#4000)&255, high DMASADDRH,(Band_Red-#4000)>>8
-        db high DMASADDRX,PAGE_TOOL_PATVIEW
-        db high DMADADDRL,(BAND_W&127)*2, high DMADADDRH,BAND_W>>7, high DMADADDRX,0
-        db high DMALEN,0, high DMANUM,0, high DMACTR,DMA_RAM_CRAM, #FF
-Band_Off_T
-        db high DMASADDRL,(Band_Bg-#4000)&255, high DMASADDRH,(Band_Bg-#4000)>>8
-        db high DMASADDRX,PAGE_TOOL_PATVIEW
+Band_T  db high DMASADDRL,0, high DMASADDRH,0, high DMASADDRX,PAGE_TOOL_PATVIEW
         db high DMADADDRL,(BAND_W&127)*2, high DMADADDRH,BAND_W>>7, high DMADADDRX,0
         db high DMALEN,0, high DMANUM,0, high DMACTR,DMA_RAM_CRAM, #FF
 
-        ALIGN 2
-Band_Red        db %00000000, %01100000     ; красный (0RRrrrGG / gggBBbbb)
-Band_Bg         dw 0
+        ALIGN 2                     ; цвет: младший gggBBbbb, старший 0RRrrrGG
+Band_Colors
+Band_Bg         dw 0                ; 0 - обычный фон (копия из палитры)
+                db %00011000, %00000000     ; 1 синий
+                db %00000000, %01100000     ; 2 красный
+                db %00000000, %00000011     ; 3 зелёный
 
 ;-------- Плоскости атрибутов из темы: значение 0 - "пусто", остальное - цвет поля
 Build_Attr_Tables

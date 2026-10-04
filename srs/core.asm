@@ -39,6 +39,10 @@ IM1_Handler
     
 
 Core_Start
+        ld bc,CACHECONF         ; кэш окон 0,1 - без него 14 МГц ждёт DRAM на каждом чтении
+        ld a,CACHE_WIN
+        out (c),a
+
         ; системные переменные для плагинов (sdk/plugin.asm)
         ld a,FT2_API_VERSION
         ld (SV_API_VERSION),a
