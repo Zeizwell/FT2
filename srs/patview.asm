@@ -44,7 +44,6 @@ PluginMain
         call Draw_Header
         call Draw_Order
         call Draw_Rows
-        call Draw_Top
         call Draw_Bottom
         RESTPAGE3
         RESTPAGE2
@@ -164,9 +163,9 @@ PutStr
         inc hl
         jr .l
 
-Order_Header    db "Order ",BOX_V,0
-Header_Text     db BOX_V," Rw ",BOX_V," Env  Ns ",BOX_V," Ch:A     ",BOX_V
-                db " Ch:B     ",BOX_V," Ch:C     ",BOX_V,0
+; Плашка заголовка сплошная - она верхняя граница, вертикали строк упираются в неё
+Order_Header    db "Order  ",0
+Header_Text     db "  Rw   Env  Ns   Ch:A       Ch:B       Ch:C      ",0
     ASSERT $-Header_Text-1 == PAT_VIEW_W
     ASSERT VIEW_COL+PAT_VIEW_W <= SCR_COLS
 
@@ -485,20 +484,9 @@ PutBar
         pop bc
         ret
 
-;-------- Рамки сверху и снизу: замыкают вертикали ордер-листа и паттерна
-TOP_LINE        equ VIEW_LINE-1
+;-------- Рамка снизу: замыкает вертикали ордер-листа и паттерна
+; (сверху их замыкает плашка заголовка)
 BOTTOM_LINE     equ VIEW_LINE+VIEW_ROWS+1
-
-Draw_Top                            ; ┌──┬──┐ над заголовком
-        ld a,BOX_TL
-        ld (HL_CornerL),a
-        ld a,BOX_TR
-        ld (HL_CornerR),a
-        ld a,BOX_DOWN
-        ld (HL_Junction),a
-        ld d,SCR_BASE_H+TOP_LINE
-        ld h,SCR_BASE_H+VIEW_LINE
-        jr Draw_HLine
 
 Draw_Bottom                         ; └──┴──┘ под последней строкой
         ld a,BOX_BL
