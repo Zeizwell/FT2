@@ -11,6 +11,8 @@ PAT_BASE_H      equ #80             ; страница паттернов - в �
 SCR_BASE_H      equ #C0             ; экран - в окне 3
 VIEW_LINE       equ 7               ; строка экрана с заголовком
 VIEW_ROWS       equ 27              ; видимых строк паттерна (экран 8..34)
+VIEW_CENTER     equ VIEW_ROWS/2     ; текущая строка паттерна и позиция ордера - по центру,
+                                    ; при проигрывании всё уезжает вверх
 
 ; Экран во всю ширину: ордер-лист прижат слева, паттерн центруется в остатке.
 ORD_COL         equ 0
@@ -51,7 +53,7 @@ PluginMain
         xor a                       ; ERR_OK
         ret
 
-View_Top        db 0                ; первая видимая строка паттерна
+Cur_Row         db 0                ; текущая строка паттерна (по центру экрана)
 Cur_Pos         db 0                ; текущая позиция ордер-листа
 Loop_Pos        db 0                ; позиция повтора
 Test_Order      db 0,0,0,0          ; номера паттернов по позициям
@@ -187,8 +189,12 @@ Header_Items    db ORD_COL,     "Order ",0
 ; r - позиция повтора, ►NN◄ - текущая, справа от текущей и двух под ней - кнопки N + -
 Draw_Order
         ld d,SCR_BASE_H+VIEW_LINE+1
-        ld b,0                      ; B - позиция
-.l      ld a,b
+        ld a,(Cur_Pos)              ; текущая позиция - на центральной строке
+        sub VIEW_CENTER
+        ld b,a                      ; B - позиция (выше начала списка - "отрицательная")
+        ld a,VIEW_ROWS
+.l      push af
+        ld a,b
         cp TEST_ORD_LAST+1
         jr nc,.buttons              ; за концом списка - только кнопки
         ld e,ORD_COL
@@ -251,35 +257,53 @@ Draw_Order
         call PutBar
         inc d
         inc b
-        ld a,b
-        cp VIEW_ROWS
-        jr c,.l
+        pop af
+        dec a
+        jr nz,.l
         ret
 
 Order_Buttons   db "N+-"            ; новый паттерн, следующий номер, предыдущий
 
-;-------- Видимые строки паттерна
+;-------- Видимые строки паттерна, текущая - по центру
 Draw_Rows
-        ld a,(View_Top)
-        ld b,a                      ; B - строка паттерна
+        ld a,(Cur_Row)
+        sub VIEW_CENTER
+        ld b,a                      ; B - строка паттерна (выше нуля - "отрицательная")
         ld d,SCR_BASE_H+VIEW_LINE+1 ; D - строка экрана
         ld a,VIEW_ROWS
 .l      push af
-        ld a,b
-        cp PAT_ROWS_MAX
-        jr nc,.skip                 ; за концом паттерна - пусто (уже очищено)
         push bc
         push de
         ld e,VIEW_COL
+        ld a,b
+        cp PAT_ROWS_MAX             ; вне паттерна (и "отрицательные" тоже) - пустая строка
+        jr nc,.empty
         call Draw_Row
-        pop de
+        jr .next
+.empty  call Draw_Empty_Row
+.next   pop de
         pop bc
-.skip   inc b
+        inc b
         inc d
         pop af
         dec a
         jr nz,.l
         ret
+
+;-------- Пустая строка вне паттерна: только вертикали рамки
+Draw_Empty_Row
+        ld hl,Bar_Cols
+.l      ld a,(hl)
+        cp #FF
+        ret z
+        add a,VIEW_COL
+        ld e,a
+        call PutBar
+        inc hl
+        jr .l
+
+; Где в строке паттерна стоят │ (от VIEW_COL): │ 00 │ 012D 0A │ C-4 1--F │ ...
+Bar_Cols        db 0,5,15,26,37,48,#FF
 
 ;-------- Одна строка: B - строка паттерна, DE - экран
 Draw_Row
