@@ -2,6 +2,12 @@
 ; ПРОСМОТР ПАТТЕРНА - тулза (окно 1, #4000)
 ; Пока: заполняет тестовый паттерн и выводит его в минимальном виде
 ; (нота + поле инструмента), 1 чип, 3 канала.
+;
+; Вывод в два этапа:
+;  - Prepare_View: статика (фон, рамки, ордер-лист, заголовок) - при смене вида;
+;  - Draw_Rows: только данные. Каждое поле - таблицы-плоскости на границе 256:
+;    значение в L, плоскость в H, следующий символ - inc h, последняя плоскость -
+;    атрибут. Без сравнений, переходов и call на символ.
 ; =========================================================================
     MODULE patview
 
@@ -30,8 +36,7 @@ BOX_TR          equ #BF             ; ┐
 BOX_BL          equ #C0             ; └
 BOX_BR          equ #D9             ; ┘
 PAT_VIEW_W      equ 49              ; ширина вывода паттерна (L1, 1 чип, с пробелами у линий);
-                                    ; потом будет считаться по карте колонок, и пробелы
-                                    ; будут убираться, если не влезает
+                                    ; потом будет считаться по карте колонок
 VIEW_COL        equ ORD_W+(SCR_COLS-ORD_W-PAT_VIEW_W)/2
 
 ; Тестовый ордер-лист (пока нет страницы трека)
@@ -44,13 +49,10 @@ PluginMain
         ld a,(SV_DRAW_PAGE)
         SETPAGE3 a
         call Test_Fill
-        call Clear_View
-        call Draw_Order
+        call Build_Attr_Tables
+        call Prepare_View
         call Draw_Rows
         call Highlight_Edit_Row
-        call Draw_Top               ; сначала замыкаем рамку,
-        call Draw_Header            ; потом поверх верхней линии - подписи на плашке
-        call Draw_Bottom
         RESTPAGE3
         RESTPAGE2
         xor a                       ; ERR_OK
@@ -136,6 +138,17 @@ Test_Fill
         ld (hl),NOTE_OFF
         ret
 
+; =========================================================================
+; СТАТИКА - рисуется при смене вида
+; =========================================================================
+Prepare_View
+        call Clear_View
+        call Draw_Frame_Rows
+        call Draw_Order
+        call Draw_Top               ; сначала замыкаем рамку,
+        call Draw_Header            ; потом поверх верхней линии - подписи на плашке
+        jp Draw_Bottom
+
 ;-------- Очистка области вывода (во всю ширину)
 Clear_View
         ld a,(THEME_ATTR+CLR_BG)
@@ -151,6 +164,30 @@ Clear_View
         inc d
         djnz .ln
         ret
+
+;-------- Вертикали блока паттерна во всех строках
+Draw_Frame_Rows
+        ld d,SCR_BASE_H+VIEW_LINE+1
+        ld b,VIEW_ROWS
+.l      call Draw_Empty_Row
+        inc d
+        djnz .l
+        ret
+
+; Вертикали строки: только │ на местах из Bar_Cols. Портит A,E,HL
+Draw_Empty_Row
+        ld hl,Bar_Cols
+.l      ld a,(hl)
+        cp #FF
+        ret z
+        add a,VIEW_COL
+        ld e,a
+        call PutBar
+        inc hl
+        jr .l
+
+; Где в строке паттерна стоят │ (от VIEW_COL): │ 00 │ 012D 0A │ C-4 1--F │ ...
+Bar_Cols        db 0,5,15,26,37,48,#FF
 
 ;-------- Подписи и кнопки поверх верхней линии рамки
 ; Таблица: колонка, роль цвета, текст, 0; конец - #FF. Стоят между стыками ┬,
@@ -280,288 +317,6 @@ Draw_Order
 
 Order_Buttons   db "N+-"            ; новый паттерн, следующий номер, предыдущий
 
-;-------- Видимые строки паттерна, текущая - по центру
-Draw_Rows
-        ld a,(Cur_Row)
-        sub VIEW_CENTER
-        ld b,a                      ; B - строка паттерна (выше нуля - "отрицательная")
-        ld d,SCR_BASE_H+VIEW_LINE+1 ; D - строка экрана
-        ld a,VIEW_ROWS
-.l      push af
-        push bc
-        push de
-        ld e,VIEW_COL
-        ld a,b
-        cp PAT_ROWS_MAX             ; вне паттерна (и "отрицательные" тоже) - пустая строка
-        jr nc,.empty
-        call Draw_Row
-        jr .next
-.empty  call Draw_Empty_Row
-.next   pop de
-        pop bc
-        inc b
-        inc d
-        pop af
-        dec a
-        jr nz,.l
-        ret
-
-;-------- Подсветка строки редактирования (центральной): фон из CLR_EDIT_ROW,
-; цвет символов (ink) у каждого поля остаётся свой
-EDIT_LINE       equ VIEW_LINE+1+VIEW_CENTER
-Highlight_Edit_Row
-        ld a,(THEME_ATTR+CLR_EDIT_ROW)
-        and #F0
-        ld c,a                      ; C - новый фон
-        ld h,SCR_BASE_H+EDIT_LINE
-        ld l,VIEW_COL+SCR_ATTR      ; атрибуты - на +128 в строке
-        ld b,PAT_VIEW_W
-.l      ld a,(hl)
-        and #0F                     ; оставляем ink
-        or c
-        ld (hl),a
-        inc l
-        djnz .l
-        ret
-
-;-------- Пустая строка вне паттерна: только вертикали рамки
-Draw_Empty_Row
-        ld hl,Bar_Cols
-.l      ld a,(hl)
-        cp #FF
-        ret z
-        add a,VIEW_COL
-        ld e,a
-        call PutBar
-        inc hl
-        jr .l
-
-; Где в строке паттерна стоят │ (от VIEW_COL): │ 00 │ 012D 0A │ C-4 1--F │ ...
-Bar_Cols        db 0,5,15,26,37,48,#FF
-
-;-------- Одна строка: B - строка паттерна, DE - экран
-Draw_Row
-        call PutBar                 ; левая рамка блока паттерна
-        call PutSpace
-        ld a,b                      ; номер строки, каждая 4-я выделена
-        and 3
-        ld a,(THEME_ATTR+CLR_ROW_NUM)
-        jr nz,$+5
-        ld a,(THEME_ATTR+CLR_ROW_BEAT)
-        ld c,a
-        ld a,b
-        call PutHex2
-        call PutSpace
-        call PutBar
-
-        ld a,b
-        add a,PAT_BASE_H
-        ld h,a                      ; H - строка паттерна
-
-        call PutSpace
-        ld l,PAT_SLOT+CHIP_ENVPER   ; заголовок чипа (C0): огибающая и шум
-        call Put_EnvPer
-        call PutSpace
-        ld l,PAT_SLOT+CHIP_NOISE
-        ld a,(hl)
-        or a
-        jr nz,.ns
-        ld a,2
-        call PutDashN
-        jr .ns_done
-.ns     ld a,(THEME_ATTR+CLR_NOISE)
-        ld c,a
-        ld a,(hl)
-        call PutHex2
-.ns_done
-        call PutSpace
-        call PutBar
-
-        ld l,PAT_SLOT+CHIP_CH_A
-        call Put_Channel
-        ld l,PAT_SLOT+CHIP_CH_B
-        call Put_Channel
-        ld l,PAT_SLOT+CHIP_CH_C
-        jp Put_Channel
-
-;-------- Канал L1: нота + поле инструмента. HL - начало канала
-Put_Channel
-        call PutSpace
-        ld a,(hl)
-        call Put_Note
-        call PutSpace
-        inc l
-        ld a,(THEME_ATTR+CLR_INSTR)
-        ld c,a
-        ld a,(hl)                   ; сэмпл
-        call Put_Sym
-        inc l
-        ld a,(THEME_ATTR+CLR_ENVSHAPE)
-        ld c,a
-        ld a,(hl)                   ; огибающая
-        call Put_Hex1
-        inc l
-        ld a,(THEME_ATTR+CLR_ORNAMENT)
-        ld c,a
-        ld a,(hl)                   ; орнамент 1..16
-        call Put_Sym
-        inc l
-        ld a,(THEME_ATTR+CLR_VOLUME)
-        ld c,a
-        ld a,(hl)                   ; громкость
-        call Put_Hex1
-        call PutSpace
-        jp PutBar
-
-;-------- Период огибающей (2 байта по HL), 0 - "----"
-Put_EnvPer
-        ld a,(hl)
-        inc l
-        or (hl)
-        jr nz,.val
-        dec l
-        ld a,4
-        jp PutDashN
-.val    ld a,(THEME_ATTR+CLR_ENVPER)
-        ld c,a
-        ld a,(hl)                   ; старший
-        call PutHex2
-        dec l
-        ld a,(hl)                   ; младший
-        jp PutHex2
-
-;-------- Нота: A. 0 "---", 1..96 "C-4", NOTE_OFF "OFF", остальное "???"
-Put_Note
-        or a
-        jr nz,.n
-        ld a,3
-        jp PutDashN
-.n      cp NOTE_LAST+1
-        jr nc,.cmd
-        push hl
-        push bc
-        dec a
-        ld b,0                      ; B - октава
-.oct    sub 12
-        jr c,.got
-        inc b
-        jr .oct
-.got    add a,12                    ; полутон 0..11
-        add a,a
-        add a,low Note_Names
-        ld l,a
-        adc a,high Note_Names
-        sub l
-        ld h,a
-        ld a,(THEME_ATTR+CLR_NOTE)
-        ld c,a
-        ld a,(hl)
-        call PutCh
-        inc hl
-        ld a,(hl)
-        call PutCh
-        ld a,b
-        add a,'0'
-        call PutCh
-        pop bc
-        pop hl
-        ret
-.cmd    push bc
-        cp NOTE_OFF
-        jr nz,.unk
-        ld a,(THEME_ATTR+CLR_NOTE)
-        ld c,a
-        ld a,'O'
-        call PutCh
-        ld a,'F'
-        call PutCh
-        ld a,'F'
-        call PutCh
-        pop bc
-        ret
-.unk    ld a,(THEME_ATTR+CLR_ERROR)
-        ld c,a
-        ld a,'?'
-        call PutCh
-        ld a,'?'
-        call PutCh
-        ld a,'?'
-        call PutCh
-        pop bc
-        ret
-
-Note_Names      db "C-C#D-D#E-F-F#G-G#A-A#B-"
-
-;-------- Символ 1..32: 1..9, A..W. 0 - "-"
-Put_Sym
-        or a
-        jr z,Put_Empty1
-        cp 10
-        jr c,.dig
-        cp 33
-        jr nc,.bad
-        add a,'A'-10
-        jp PutCh
-.dig    add a,'0'
-        jp PutCh
-.bad    ld a,'?'
-        jp PutCh
-
-;-------- Hex-цифра (младшая тетрада). 0 - "-"
-Put_Hex1
-        or a
-        jr z,Put_Empty1
-        and #0F
-        call HexDigit
-        jp PutCh
-
-Put_Empty1
-        ld a,1
-        jp PutDashN
-
-;-------- A - число, выводит 2 hex-цифры атрибутом C
-PutHex2
-        push af
-        rrca
-        rrca
-        rrca
-        rrca
-        and #0F
-        call HexDigit
-        call PutCh
-        pop af
-        and #0F
-        call HexDigit
-        jp PutCh
-
-HexDigit
-        cp 10
-        jr c,.d
-        add a,7
-.d      add a,'0'
-        ret
-
-;-------- A штук "-" цветом пустого поля. Сохраняет BC
-PutDashN
-        push bc
-        ld b,a
-        ld a,(THEME_ATTR+CLR_EMPTY)
-        ld c,a
-.l      ld a,'-'
-        call PutCh
-        djnz .l
-        pop bc
-        ret
-
-PutBar
-        push bc
-        ld a,(THEME_ATTR+CLR_TITLE)
-        ld c,a
-        ld a,BOX_V
-        call PutCh
-        pop bc
-        ret
-
 ;-------- Рамка: замыкает вертикали ордер-листа и паттерна сверху и снизу
 BOTTOM_LINE     equ VIEW_LINE+VIEW_ROWS+1
 
@@ -633,6 +388,289 @@ HL_CornerL      db 0
 HL_CornerR      db 0
 HL_Junction     db 0
 
+; =========================================================================
+; ДАННЫЕ - быстрый вывод строк
+; =========================================================================
+
+;-------- Видимые строки паттерна, текущая - по центру
+Draw_Rows
+        ld a,(Cur_Row)
+        sub VIEW_CENTER
+        ld (Row_Iter),a             ; строка паттерна (выше нуля - "отрицательная")
+        ld d,SCR_BASE_H+VIEW_LINE+1 ; D - строка экрана
+        ld a,VIEW_ROWS
+.l      push af
+        ld a,(Row_Iter)
+        cp PAT_ROWS_MAX             ; вне паттерна (и "отрицательные" тоже) - пусто
+        jr nc,.empty
+        call Draw_Row
+        jr .next
+.empty  call Blank_Row
+.next   ld hl,Row_Iter
+        inc (hl)
+        inc d
+        pop af
+        dec a
+        jr nz,.l
+        ret
+
+Row_Iter        db 0
+
+; Символ из плоскости H по значению L в (DE), E++, H++ - следующая плоскость
+    MACRO PUT_PLANE
+        ld a,(hl)
+        ld (de),a
+        inc e
+        inc h
+    ENDM
+
+; Нота: 3 символа + атрибут
+    MACRO F_NOTE col,fld
+        ld c,PAT_SLOT+fld
+        ld a,(bc)
+        ld l,a
+        ld h,high Note_T
+        ld e,col
+        PUT_PLANE
+        PUT_PLANE
+        PUT_PLANE                   ; H - плоскость атрибута
+        ld a,(hl)
+        dec e
+        set 7,e                     ; атрибуты - на +128
+        ld (de),a
+        dec e
+        ld (de),a
+        dec e
+        ld (de),a
+    ENDM
+
+; Однознаковое поле: символ из tab, атрибут из плоскости tab+attr
+    MACRO F_ONE col,fld,tab,attr
+        ld c,PAT_SLOT+fld
+        ld a,(bc)
+        ld l,a
+        ld h,high tab
+        ld e,col
+        ld a,(hl)
+        ld (de),a
+        ld h,(high tab)+attr
+        ld a,(hl)
+        set 7,e
+        ld (de),a
+    ENDM
+
+; Два hex-знака, 0 = "--": символы и атрибут из HexD_T
+    MACRO F_HEXD col,fld
+        ld c,PAT_SLOT+fld
+        ld a,(bc)
+        ld l,a
+        ld h,high HexD_T
+        ld e,col
+        PUT_PLANE
+        PUT_PLANE                   ; H - плоскость атрибута
+        ld a,(hl)
+        dec e
+        set 7,e
+        ld (de),a
+        dec e
+        ld (de),a
+    ENDM
+
+; Канал L1: " C-4 1F0E " от base (base - пробел после │)
+    MACRO CHAN_L1 base,ch
+        F_NOTE base+1, ch+CH_NOTE
+        F_ONE  base+5, ch+CH_SAMPLE,   Sym_T, 1
+        F_ONE  base+6, ch+CH_ENVSHAPE, Hx1_T, 1
+        F_ONE  base+7, ch+CH_ORNAMENT, Sym_T, 2
+        F_ONE  base+8, ch+CH_VOLUME,   Hx1_T, 2
+    ENDM
+
+;-------- Одна строка: A - строка паттерна (0..63), D - строка экрана. D не портит
+Draw_Row
+        ld l,a
+        add a,PAT_BASE_H
+        ld b,a                      ; BC - указатель в паттерн, B - строка
+
+        ld h,high Hex_T             ; номер строки, цвет - по номеру (каждая 4-я)
+        ld e,VIEW_COL+2
+        PUT_PLANE
+        ld a,(hl)
+        ld (de),a
+        ld h,high Row_A
+        ld a,(hl)
+        set 7,e
+        ld (de),a
+        dec e
+        ld (de),a
+
+        ld c,PAT_SLOT+CHIP_ENVPER   ; период огибающей: 0 - "----"
+        ld a,(bc)
+        inc c
+        ld e,a                      ; E - младший байт (на время)
+        ld a,(bc)
+        ld l,a                      ; L - старший
+        or e
+        ld a,e
+        ld e,VIEW_COL+7
+        jr z,.env_empty
+        push af                     ; младший
+        ld h,high Hex_T
+        PUT_PLANE
+        ld a,(hl)
+        ld (de),a
+        inc e
+        pop af
+        ld l,a
+        ld h,high Hex_T
+        PUT_PLANE
+        ld a,(hl)
+        ld (de),a
+        ld a,(THEME_ATTR+CLR_ENVPER)
+        jr .env_attr
+.env_empty
+        ld a,'-'
+        ld (de),a
+        inc e
+        ld (de),a
+        inc e
+        ld (de),a
+        inc e
+        ld (de),a
+        ld a,(THEME_ATTR+CLR_EMPTY)
+.env_attr
+        set 7,e
+        ld (de),a
+        dec e
+        ld (de),a
+        dec e
+        ld (de),a
+        dec e
+        ld (de),a
+
+        F_HEXD VIEW_COL+12, CHIP_NOISE
+
+        CHAN_L1 VIEW_COL+16, CHIP_CH_A
+        CHAN_L1 VIEW_COL+27, CHIP_CH_B
+        CHAN_L1 VIEW_COL+38, CHIP_CH_C
+        ret
+
+;-------- Строка вне паттерна: пробелы в клетках данных (между вертикалями)
+Blank_Row
+        ld a,(THEME_ATTR+CLR_BG)
+        ld c,a
+        ld hl,Bar_Cols
+.seg    ld a,(hl)                   ; левая вертикаль
+        inc hl
+        add a,VIEW_COL+1
+        ld e,a
+        ld a,(hl)                   ; правая
+        cp #FF
+        ret z
+        add a,VIEW_COL
+        sub e                       ; сколько клеток между ними
+        jr z,.seg
+        ld b,a
+.f      ld a,' '
+        call PutCh
+        djnz .f
+        jr .seg
+
+;-------- Подсветка строки редактирования (центральной): фон из CLR_EDIT_ROW,
+; цвет символов (ink) у каждого поля остаётся свой
+EDIT_LINE       equ VIEW_LINE+1+VIEW_CENTER
+Highlight_Edit_Row
+        ld a,(THEME_ATTR+CLR_EDIT_ROW)
+        and #F0
+        ld c,a                      ; C - новый фон
+        ld h,SCR_BASE_H+EDIT_LINE
+        ld l,VIEW_COL+SCR_ATTR      ; атрибуты - на +128 в строке
+        ld b,PAT_VIEW_W
+.l      ld a,(hl)
+        and #0F                     ; оставляем ink
+        or c
+        ld (hl),a
+        inc l
+        djnz .l
+        ret
+
+;-------- Плоскости атрибутов из темы: значение 0 - "пусто", остальное - цвет поля
+Build_Attr_Tables
+        ld a,(THEME_ATTR+CLR_NOTE)
+        ld h,(high Note_T)+3
+        call Fill_Attr_Plane
+        ld a,(THEME_ATTR+CLR_NOISE)
+        ld h,(high HexD_T)+2
+        call Fill_Attr_Plane
+        ld a,(THEME_ATTR+CLR_INSTR)
+        ld h,(high Sym_T)+1
+        call Fill_Attr_Plane
+        ld a,(THEME_ATTR+CLR_ORNAMENT)
+        ld h,(high Sym_T)+2
+        call Fill_Attr_Plane
+        ld a,(THEME_ATTR+CLR_ENVSHAPE)
+        ld h,(high Hx1_T)+1
+        call Fill_Attr_Plane
+        ld a,(THEME_ATTR+CLR_VOLUME)
+        ld h,(high Hx1_T)+2
+        call Fill_Attr_Plane
+
+        ld h,high Row_A             ; номер строки: каждая 4-я выделена
+        ld l,0
+.r      ld a,l
+        and 3
+        ld a,(THEME_ATTR+CLR_ROW_NUM)
+        jr nz,$+5
+        ld a,(THEME_ATTR+CLR_ROW_BEAT)
+        ld (hl),a
+        inc l
+        jr nz,.r
+        ret
+
+; H - плоскость, A - атрибут: все значения = A, значение 0 = CLR_EMPTY
+Fill_Attr_Plane
+        ld l,0
+.f      ld (hl),a
+        inc l
+        jr nz,.f
+        ld a,(THEME_ATTR+CLR_EMPTY)
+        ld (hl),a
+        ret
+
+; =========================================================================
+; Простой вывод (статика, ордер-лист)
+; =========================================================================
+
+;-------- A - число, выводит 2 hex-цифры атрибутом C
+PutHex2
+        push af
+        rrca
+        rrca
+        rrca
+        rrca
+        and #0F
+        call HexDigit
+        call PutCh
+        pop af
+        and #0F
+        call HexDigit
+        jp PutCh
+
+HexDigit
+        cp 10
+        jr c,.d
+        add a,7
+.d      add a,'0'
+        ret
+
+PutBar
+        push bc
+        ld a,(THEME_ATTR+CLR_TITLE)
+        ld c,a
+        ld a,BOX_V
+        call PutCh
+        pop bc
+        ret
+
 PutSpace
         push bc
         ld a,(THEME_ATTR+CLR_BG)
@@ -652,5 +690,86 @@ PutCh
         res 7,e
         inc e
         ret
+
+; =========================================================================
+; ТАБЛИЦЫ-ПЛОСКОСТИ (каждая 256 байт на границе 256, индекс - само значение)
+; =========================================================================
+; hex-цифра d -> символ: '0'+d+((d+6)>>4)*7 (для d>=10 прибавляется 7: 'A'..'F')
+
+        ALIGN 256
+; Нота: 0 "---", 1..96 "C-0".."B-7", 97 "OFF", 98..255 "???" (команды ноты - потом)
+Note_T  db '-'
+        DUP 8
+        db "CCDDEFFGGAAB"
+        EDUP
+        db 'O'
+        ds 256-98,'?'
+        db '-'                      ; плоскость 1
+        DUP 8
+        db "-#-#--#-#-#-"
+        EDUP
+        db 'F'
+        ds 256-98,'?'
+        db '-'                      ; плоскость 2: октава
+        DUP 8,O
+        DUP 12
+        db '0'+O
+        EDUP
+        EDUP
+        db 'F'
+        ds 256-98,'?'
+        ds 256                      ; плоскость 3: атрибут (Build_Attr_Tables)
+
+; Два hex-знака всегда (номер строки, период огибающей)
+Hex_T   DUP 256,N
+        db '0'+(N>>4)+(((N>>4)+6)>>4)*7
+        EDUP
+        DUP 256,N
+        db '0'+(N&15)+(((N&15)+6)>>4)*7
+        EDUP
+
+; Два hex-знака, 0 = "--" (шум)
+HexD_T  db '-'
+        DUP 255,N
+        db '0'+((N+1)>>4)+((((N+1)>>4)+6)>>4)*7
+        EDUP
+        db '-'
+        DUP 255,N
+        db '0'+((N+1)&15)+((((N+1)&15)+6)>>4)*7
+        EDUP
+        ds 256                      ; плоскость 2: атрибут шума
+
+; Атрибут номера строки по номеру
+Row_A   ds 256
+
+; Символ 1..32: 0 "-", 1..9, A..W, дальше "?" (сэмпл, орнамент)
+Sym_T   db '-'
+        DUP 9,I
+        db '1'+I
+        EDUP
+        DUP 23,I
+        db 'A'+I
+        EDUP
+        ds 256-33,'?'
+        ds 256                      ; плоскость 1: атрибут сэмпла
+        ds 256                      ; плоскость 2: атрибут орнамента
+
+; Hex-цифра: 0 "-", 1..F, дальше "?" (огибающая, громкость)
+Hx1_T   db '-'
+        DUP 15,I
+        db '0'+(I+1)+(((I+1)+6)>>4)*7
+        EDUP
+        ds 256-16,'?'
+        ds 256                      ; плоскость 1: атрибут огибающей
+        ds 256                      ; плоскость 2: атрибут громкости
+Tables_End
+
+    ASSERT (Note_T & 255) == 0
+    ASSERT Hex_T == Note_T+4*256
+    ASSERT HexD_T == Hex_T+2*256
+    ASSERT Row_A == HexD_T+3*256
+    ASSERT Sym_T == Row_A+256
+    ASSERT Hx1_T == Sym_T+3*256
+    ASSERT Tables_End == Hx1_T+3*256
 
     ENDMODULE
