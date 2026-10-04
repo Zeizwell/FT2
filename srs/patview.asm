@@ -20,6 +20,11 @@ ARROW_L         equ #11             ; ◄
 BOX_V           equ #B3             ; │
 BOX_H           equ #C4             ; ─
 BOX_UP          equ #C1             ; ┴
+BOX_DOWN        equ #C2             ; ┬
+BOX_TL          equ #DA             ; ┌
+BOX_TR          equ #BF             ; ┐
+BOX_BL          equ #C0             ; └
+BOX_BR          equ #D9             ; ┘
 PAT_VIEW_W      equ 49              ; ширина вывода паттерна (L1, 1 чип, с пробелами у линий);
                                     ; потом будет считаться по карте колонок, и пробелы
                                     ; будут убираться, если не влезает
@@ -39,6 +44,7 @@ PluginMain
         call Draw_Header
         call Draw_Order
         call Draw_Rows
+        call Draw_Top
         call Draw_Bottom
         RESTPAGE3
         RESTPAGE2
@@ -141,9 +147,9 @@ Clear_View
         djnz .ln
         ret
 
-;-------- Заголовки ордер-листа и колонок паттерна
+;-------- Заголовки ордер-листа и колонок паттерна (на плашке CLR_HEADER)
 Draw_Header
-        ld a,(THEME_ATTR+CLR_TITLE)
+        ld a,(THEME_ATTR+CLR_HEADER)
         ld c,a
         ld de,(SCR_BASE_H+VIEW_LINE)*256+ORD_COL
         ld hl,Order_Header
@@ -479,10 +485,35 @@ PutBar
         pop bc
         ret
 
-;-------- Нижняя граница под ордер-листом и паттерном: ─, а под каждой │ - ┴
+;-------- Рамки сверху и снизу: замыкают вертикали ордер-листа и паттерна
+TOP_LINE        equ VIEW_LINE-1
 BOTTOM_LINE     equ VIEW_LINE+VIEW_ROWS+1
-Draw_Bottom
+
+Draw_Top                            ; ┌──┬──┐ над заголовком
+        ld a,BOX_TL
+        ld (HL_CornerL),a
+        ld a,BOX_TR
+        ld (HL_CornerR),a
+        ld a,BOX_DOWN
+        ld (HL_Junction),a
+        ld d,SCR_BASE_H+TOP_LINE
+        ld h,SCR_BASE_H+VIEW_LINE
+        jr Draw_HLine
+
+Draw_Bottom                         ; └──┴──┘ под последней строкой
+        ld a,BOX_BL
+        ld (HL_CornerL),a
+        ld a,BOX_BR
+        ld (HL_CornerR),a
+        ld a,BOX_UP
+        ld (HL_Junction),a
         ld d,SCR_BASE_H+BOTTOM_LINE
+        ld h,SCR_BASE_H+BOTTOM_LINE-1
+
+;-------- Горизонтальная линия во всю ширину экрана
+; D - строка, где рисуем; H - соседняя строка, где смотрим вертикали.
+; Над/под │: на левом краю блока - угол L, на правом - угол R, внутри - стык.
+Draw_HLine
         ld e,0
 .l      ld a,e                      ; внутри ордер-листа или блока паттерна?
         cp ORD_W
@@ -493,13 +524,23 @@ Draw_Bottom
         jr nc,.out
 .in     ld a,(THEME_ATTR+CLR_TITLE)
         ld c,a
-        dec d                       ; что над нами в последней строке?
-        ld a,(de)
-        inc d
+        ld l,e
+        ld a,(hl)                   ; символ в соседней строке
         cp BOX_V
         ld a,BOX_H
-        jr nz,$+4
-        ld a,BOX_UP
+        jr nz,.put
+        ld a,e                      ; вертикаль: угол или стык
+        cp VIEW_COL
+        jr z,.cl
+        cp ORD_W-1
+        jr z,.cr
+        cp VIEW_COL+PAT_VIEW_W-1
+        jr z,.cr
+        ld a,(HL_Junction)
+        jr .put
+.cl     ld a,(HL_CornerL)
+        jr .put
+.cr     ld a,(HL_CornerR)
         jr .put
 .out    ld a,(THEME_ATTR+CLR_BG)
         ld c,a
@@ -509,6 +550,10 @@ Draw_Bottom
         cp SCR_COLS
         jr c,.l
         ret
+
+HL_CornerL      db 0
+HL_CornerR      db 0
+HL_Junction     db 0
 
 PutSpace
         push bc
