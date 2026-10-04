@@ -251,6 +251,8 @@ char K_INPUT::readdevices()
    mbuttons = 0xFF;
    msx_prev = msx, msy_prev = msy;
    kbdpc[VK_LMB] = kbdpc[VK_RMB] = kbdpc[VK_MMB] = kbdpc[VK_MWU] = kbdpc[VK_MWD] = 0;
+   static unsigned mouse_call = 0;      // FT2: frame number of this input read
+   mouse_call++;
    if ((conf.fullscr || conf.lockmouse) && !nomouse)
    {
       unsigned cl1, cl2;
@@ -271,47 +273,65 @@ char K_INPUT::readdevices()
           md.rgbButtons[0] = md.rgbButtons[1];
           md.rgbButtons[1] = t;
       }
-      msx = md.lX; msy = -md.lY;
+      // FT2: movement comes from the WINDOWS CURSOR, not from DirectInput axes.
+      // On some systems (remote desktop, VM, tablet, some mouse drivers) the mouse
+      // is an "absolute" device: DirectInput lX/lY are a position >= 0 even in
+      // relative mode, never a signed step - the cursor only ran down-right.
+      // As Xpeccy does: every frame take how far the Windows cursor went from the
+      // window centre and put it back. DirectInput stays for buttons and wheel.
+      //  - step is scaled with the remainder kept (no lost fractions)
+      //  - step per frame is at most +-127: programs take the difference of two
+      //    reads of the 8-bit port as a signed byte
+      static unsigned mouse_last_call = (unsigned)-2;
+      static int mouse_fracx, mouse_fracy;
+      // The step is taken from where the cursor REALLY stood after the last
+      // SetCursorPos (mouse_ref), not from the centre we asked for: with Windows
+      // display scaling (125%, 150%) the cursor lands 1 pixel off, and a step
+      // from the centre would drift every frame.
+      static POINT mouse_ref;
+      RECT rc; GetClientRect(wnd, &rc);
+      POINT c = { (rc.left + rc.right) / 2, (rc.top + rc.bottom) / 2 };
+      ClientToScreen(wnd, &c);
+      POINT p; GetCursorPos(&p);
+      int sx = p.x - mouse_ref.x, sy = -(p.y - mouse_ref.y);    // ZX: Y grows up
+      SetCursorPos(c.x, c.y);
+      GetCursorPos(&mouse_ref);                 // where it really is now
+      if (mouse_last_call != mouse_call - 1)
+      {
+          // capture (re)started: the cursor was anywhere - just centre it
+          sx = sy = 0;
+          mouse_fracx = mouse_fracy = 0;
+      }
+      mouse_last_call = mouse_call;
+
+      int mul = 1, div = 1;                     // scale: MouseDiv or 2^MouseScale
+      if (conf.input.mousediv > 1)
+          div = (int)conf.input.mousediv;
+      else if (conf.input.mousescale >= 0)
+          mul = 1 << conf.input.mousescale;
+      else
+          div = 1 << -conf.input.mousescale;
+
+      mouse_fracx += sx * mul;  sx = mouse_fracx / div;  mouse_fracx -= sx * div;
+      mouse_fracy += sy * mul;  sy = mouse_fracy / div;  mouse_fracy -= sy * div;
+
+      if (sx > 127) sx = 127;  if (sx < -127) sx = -127;
+      if (sy > 127) sy = 127;  if (sy < -127) sy = -127;
+      msx = msx_prev + sx;
+      msy = msy_prev + sy;
+
+      // FT2 diag: raw DirectInput step, step to the port, port values (statusline)
       if (conf.input.mousediv > 1)
       {
-          // FT2: modern mice give 800-1600 counts per inch, ZX Evo PS/2 mouse ~100.
-          // Divide the absolute position (not the per-frame delta) - no lost fractions.
-          msx /= (int)conf.input.mousediv;
-          msy /= (int)conf.input.mousediv;
+          // to the window title: big and readable (the statusline is dim)
+          static int max_sx, max_sy;
+          if (abs(sx) > abs(max_sx)) max_sx = sx;
+          if (abs(sy) > abs(max_sy)) max_sy = sy;
+          char t[128];
+          sprintf(t, "STEP MAX %+d %+d | PORT X %02X Y %02X",
+              max_sx, max_sy, (u8)msx, (u8)msy);
+          SetWindowTextA(wnd, t);
       }
-      else if (conf.input.mousescale >= 0)
-      {
-          msx *= (1 << conf.input.mousescale);
-          msy *= (1 << conf.input.mousescale);
-      }
-      else
-      {
-          msx /= (1 << -conf.input.mousescale);
-          msy /= (1 << -conf.input.mousescale);
-      }
-
-      // FT2: the absolute DirectInput position can be anything on the first read.
-      // Keep the port going from the value the program has already read (start
-      // 31/85): remember the offset once and add it to every next position.
-      static bool mouse_synced = false;
-      static int mouse_offx, mouse_offy;
-      if (!mouse_synced)
-      {
-          mouse_offx = msx_prev - msx;      // msx_prev = value before this read
-          mouse_offy = msy_prev - msy;
-          mouse_synced = true;
-      }
-      msx += mouse_offx;
-      msy += mouse_offy;
-
-      // The Kempston port is an 8-bit counter, programs take the difference of two
-      // reads as a SIGNED byte. A step over 127 per frame would flip the sign -
-      // clamp it and drop the rest (shift the offset by what was dropped).
-      int dx = msx - msx_prev, dy = msy - msy_prev;
-      if (dx > 127)  { mouse_offx -= dx - 127;  msx = msx_prev + 127; }
-      if (dx < -127) { mouse_offx -= dx + 127;  msx = msx_prev - 127; }
-      if (dy > 127)  { mouse_offy -= dy - 127;  msy = msy_prev + 127; }
-      if (dy < -127) { mouse_offy -= dy + 127;  msy = msy_prev - 127; }
 
       if (md.rgbButtons[0])
       {
