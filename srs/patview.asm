@@ -11,7 +11,16 @@ PAT_BASE_H      equ #80             ; страница паттернов - в �
 SCR_BASE_H      equ #C0             ; экран - в окне 3
 VIEW_LINE       equ 7               ; строка экрана с заголовком
 VIEW_ROWS       equ 27              ; видимых строк паттерна (экран 8..34)
-VIEW_COL        equ 7               ; первая колонка вывода (слева ордер-лист макета)
+
+; Экран во всю ширину: ордер-лист прижат слева, паттерн центруется в остатке.
+ORD_COL         equ 0
+ORD_W           equ 6               ; "00 00|" - позиция, паттерн
+PAT_VIEW_W      equ 38              ; ширина вывода паттерна (L1, 1 чип);
+                                    ; потом будет считаться по карте колонок
+VIEW_COL        equ ORD_W+(SCR_COLS-ORD_W-PAT_VIEW_W)/2
+
+; Тестовый ордер-лист (пока нет страницы трека)
+TEST_ORD_LAST   equ 3
 
     PLUGIN_HEADER PLG_TOOL,"   ","Pattern view"
 
@@ -22,6 +31,7 @@ PluginMain
         call Test_Fill
         call Clear_View
         call Draw_Header
+        call Draw_Order
         call Draw_Rows
         RESTPAGE3
         RESTPAGE2
@@ -29,6 +39,8 @@ PluginMain
         ret
 
 View_Top        db 0                ; первая видимая строка паттерна
+Cur_Pos         db 0                ; текущая позиция ордер-листа
+Test_Order      db 0,0,0,0          ; номера паттернов по позициям
 
 ;-------- Тестовый паттерн в слоте PAT_SLOT
 Test_Fill
@@ -105,13 +117,13 @@ Test_Fill
         ld (hl),NOTE_OFF
         ret
 
-;-------- Очистка области вывода
+;-------- Очистка области вывода (во всю ширину)
 Clear_View
         ld a,(THEME_ATTR+CLR_BG)
         ld c,a
         ld d,SCR_BASE_H+VIEW_LINE
         ld b,VIEW_ROWS+1
-.ln     ld e,VIEW_COL
+.ln     ld e,0
 .ch     ld a,' '
         call PutCh
         ld a,e
@@ -121,12 +133,16 @@ Clear_View
         djnz .ln
         ret
 
-;-------- Заголовок колонок
+;-------- Заголовки ордер-листа и колонок паттерна
 Draw_Header
         ld a,(THEME_ATTR+CLR_TITLE)
         ld c,a
-        ld de,(SCR_BASE_H+VIEW_LINE)*256+VIEW_COL
+        ld de,(SCR_BASE_H+VIEW_LINE)*256+ORD_COL
+        ld hl,Order_Header
+        call PutStr
+        ld e,VIEW_COL
         ld hl,Header_Text
+PutStr
 .l      ld a,(hl)
         or a
         ret z
@@ -134,7 +150,47 @@ Draw_Header
         inc hl
         jr .l
 
+Order_Header    db "Ps Pt|",0
 Header_Text     db "Rw|Env  Ns|Ch:A    |Ch:B    |Ch:C    |",0
+    ASSERT $-Header_Text-1 == PAT_VIEW_W
+    ASSERT VIEW_COL+PAT_VIEW_W <= SCR_COLS
+
+;-------- Ордер-лист слева: позиция и номер паттерна, текущая позиция выделена
+Draw_Order
+        ld d,SCR_BASE_H+VIEW_LINE+1
+        ld b,0                      ; B - позиция
+.l      ld a,b
+        cp TEST_ORD_LAST+1
+        jr nc,.empty
+        ld e,ORD_COL
+        ld a,(Cur_Pos)
+        cp b
+        ld a,(THEME_ATTR+CLR_ROW_NUM)
+        jr nz,$+5
+        ld a,(THEME_ATTR+CLR_ROW_BEAT)
+        ld c,a
+        ld a,b
+        call PutHex2
+        call PutSpace
+        ld a,(THEME_ATTR+CLR_NOTE)
+        ld c,a
+        ld a,b
+        add a,low Test_Order
+        ld l,a
+        adc a,high Test_Order
+        sub l
+        ld h,a
+        ld a,(hl)
+        call PutHex2
+        jr .bar
+.empty  ld e,ORD_W-1
+.bar    call PutBar
+        inc d
+        inc b
+        ld a,b
+        cp VIEW_ROWS
+        jr c,.l
+        ret
 
 ;-------- Видимые строки паттерна
 Draw_Rows
