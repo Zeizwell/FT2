@@ -50,8 +50,8 @@ BOX_BR          equ #D9             ; ┘
 BOX_V2          equ #BA             ; ║ разделитель между чипами
 BOX_DOWN2       equ #D2             ; ╥
 BOX_UP2         equ #D0             ; ╨
-SB_TRACK        equ #B1             ; ▒ дорожка скроллбара (как в Turbo Vision)
-SB_THUMB        equ #FE             ; ■ ползунок
+SB_TRACK        equ #B0             ; ░ дорожка скроллбара - точечки (как в Far / NC)
+SB_THUMB        equ #DB             ; █ ползунок, длина - доля видимой части
 
 MODE_COMPACT    equ 0
 MODE_NORMAL     equ 1
@@ -979,12 +979,25 @@ Place_Scroll
         ld a,(WinC)
         sub 2
         ld (Track_W),a
-        ld a,(Max_Scroll)           ; позиция = HScroll*(Track_W-1)/Max
+        ld e,a                      ; длина ползунка = Track_W*WinC/Lay_W, не меньше 2
+        ld a,(WinC)
+        call Mul8
+        ld a,(Lay_W)
+        ld c,a
+        call Div16_8
+        ld a,l
+        cp 2
+        jr nc,$+4
+        ld a,2
+        ld (Thumb_W),a
+        ld a,(Max_Scroll)           ; позиция = HScroll*(Track_W-Thumb_W)/Max
         or a
         jr z,.tx
         ld c,a
+        ld a,(Thumb_W)
+        ld b,a
         ld a,(Track_W)
-        dec a
+        sub b
         ld e,a
         ld a,(HScroll)
         push bc
@@ -1754,14 +1767,18 @@ Draw_Scrollbar
         ld c,a
         ld a,ARROW_R
         call PutCh
-        ld a,(Win_X)                ; ползунок
+        ld a,(Win_X)                ; ползунок - пропорциональной длины
         inc a
         ld b,a
         ld a,(Thumb_X)
         add a,b
         ld e,a
-        ld a,SB_THUMB
-        jp PutCh
+        ld a,(Thumb_W)
+        ld b,a
+.th     ld a,SB_THUMB
+        call PutCh
+        djnz .th
+        ret
 
 ; =========================================================================
 ; ВВОД
