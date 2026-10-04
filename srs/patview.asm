@@ -46,6 +46,7 @@ PluginMain
         call Clear_View
         call Draw_Order
         call Draw_Rows
+        call Highlight_Edit_Row
         call Draw_Top               ; сначала замыкаем рамку,
         call Draw_Header            ; потом поверх верхней линии - подписи на плашке
         call Draw_Bottom
@@ -301,6 +302,24 @@ Draw_Rows
         pop af
         dec a
         jr nz,.l
+        ret
+
+;-------- Подсветка строки редактирования (центральной): фон из CLR_EDIT_ROW,
+; цвет символов (ink) у каждого поля остаётся свой
+EDIT_LINE       equ VIEW_LINE+1+VIEW_CENTER
+Highlight_Edit_Row
+        ld a,(THEME_ATTR+CLR_EDIT_ROW)
+        and #F0
+        ld c,a                      ; C - новый фон
+        ld h,SCR_BASE_H+EDIT_LINE
+        ld l,VIEW_COL+SCR_ATTR      ; атрибуты - на +128 в строке
+        ld b,PAT_VIEW_W
+.l      ld a,(hl)
+        and #0F                     ; оставляем ink
+        or c
+        ld (hl),a
+        inc l
+        djnz .l
         ret
 
 ;-------- Пустая строка вне паттерна: только вертикали рамки
