@@ -1,0 +1,18 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Сборка проекта",
+            "type": "shell",
+            "command": "cmd.exe",
+            "args": [
+                "/c",
+                "build.bat"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
+    ]
+}

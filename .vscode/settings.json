@@ -1,0 +1,11 @@
+{
+    "z80-asm.compiler": "tools/sjasmplus.exe",
+    "z80-asm.compilerArgs": [
+        "srs/main.asm"
+    ],
+    "z80-asm.postAutomatedCommands": [
+        "tools/robimg.exe -p=tools/unreal/wc.img -a=1 -f=1 srs/ft2.spg"
+    ],
+    "z80-asm.emulator": "tools/unreal/Unreal.exe",
+    "cmake.sourceDirectory": "D:/_Work/Speccy/FT2/pentevo/esp32/src"
+}

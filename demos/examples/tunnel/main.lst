@@ -1,0 +1,1814 @@
+# file opened: main.asm
+  1   0000
+  2   0000                  output "main.bin"
+  3   0000                  include "tsconfig.asm"
+# file opened: tsconfig.asm
+  1+  0000
+  2+  0000              ; ------- definitions
+  3+  0000
+  4+  0000              ; -- TS-config port regs
+  5+  0000
+  6+  0000              VCONFIG         equ $00AF
+  7+  0000              STATUS          equ $00AF
+  8+  0000              VPAGE           equ $01AF
+  9+  0000              GXOFFSL         equ $02AF
+ 10+  0000              GXOFFSH         equ $03AF
+ 11+  0000              GYOFFSL         equ $04AF
+ 12+  0000              GYOFFSH         equ $05AF
+ 13+  0000              TSCONFIG        equ $06AF
+ 14+  0000              PALSEL          equ $07AF
+ 15+  0000              BORDER          equ $0FAF
+ 16+  0000              PAGE0           equ $10AF
+ 17+  0000              PAGE1           equ $11AF
+ 18+  0000              PAGE2           equ $12AF
+ 19+  0000              PAGE3           equ $13AF
+ 20+  0000              FMADDR          equ $15AF
+ 21+  0000              TMPAGE          equ $16AF
+ 22+  0000              T0GPAGE         equ $17AF
+ 23+  0000              T1GPAGE         equ $18AF
+ 24+  0000              SGPAGE          equ $19AF
+ 25+  0000              DMASADDRL       equ $1AAF
+ 26+  0000              DMASADDRH       equ $1BAF
+ 27+  0000              DMASADDRX       equ $1CAF
+ 28+  0000              DMADADDRL       equ $1DAF
+ 29+  0000              DMADADDRH       equ $1EAF
+ 30+  0000              DMADADDRX       equ $1FAF
+ 31+  0000              SYSCONFIG       equ $20AF
+ 32+  0000              MEMCONFIG       equ $21AF
+ 33+  0000              HSINT           equ $22AF
+ 34+  0000              VSINTL          equ $23AF
+ 35+  0000              VSINTH          equ $24AF
+ 36+  0000              DMALEN          equ $26AF
+ 37+  0000              DMACTR          equ $27AF
+ 38+  0000              DMASTATUS       equ $27AF
+ 39+  0000              DMANUM          equ $28AF
+ 40+  0000              FDDVIRT         equ $29AF
+ 41+  0000              INTMASK         equ $2AAF
+ 42+  0000              T0XOFFSL        equ $40AF
+ 43+  0000              T0XOFFSH        equ $41AF
+ 44+  0000              T0YOFFSL        equ $42AF
+ 45+  0000              T0YOFFSH        equ $43AF
+ 46+  0000              T1XOFFSL        equ $44AF
+ 47+  0000              T1XOFFSH        equ $45AF
+ 48+  0000              T1YOFFSL        equ $46AF
+ 49+  0000              T1YOFFSH        equ $47AF
+ 50+  0000
+ 51+  0000              ; TS parameters
+ 52+  0000              FM_EN           equ $10
+ 53+  0000
+ 54+  0000              ; FPGA arrays
+ 55+  0000              FM_CRAM         equ $0000
+ 56+  0000              FM_SFILE        equ #0200
+ 57+  0000
+ 58+  0000              ; VIDEO
+ 59+  0000              VID_256X192     equ $00
+ 60+  0000              VID_320X200     equ $40
+ 61+  0000              VID_320X240     equ $80
+ 62+  0000              VID_360X288     equ $C0
+ 63+  0000              VID_RASTER_BS   equ 6
+ 64+  0000
+ 65+  0000              VID_ZX          equ $00
+ 66+  0000              VID_16C         equ $01
+ 67+  0000              VID_256C        equ $02
+ 68+  0000              VID_TEXT        equ $03
+ 69+  0000              VID_FT812       equ $04
+ 70+  0000              VID_NOGFX       equ $20
+ 71+  0000              VID_MODE_BS     equ 0
+ 72+  0000
+ 73+  0000              ; PALSEL
+ 74+  0000              PAL_GPAL_MASK   equ $0F
+ 75+  0000              PAL_GPAL_BS     equ 0
+ 76+  0000              PAL_T0PAL_MASK  equ $30
+ 77+  0000              PAL_T0PAL_BS    equ 4
+ 78+  0000              PAL_T1PAL_MASK  equ $C0
+ 79+  0000              PAL_T1PAL_BS    equ 6
+ 80+  0000
+ 81+  0000              ; TSU
+ 82+  0000              TSU_T0ZEN     equ $04
+ 83+  0000              TSU_T1ZEN     equ $08
+ 84+  0000              TSU_T0EN      equ $20
+ 85+  0000              TSU_T1EN      equ $40
+ 86+  0000              TSU_SEN       equ $80
+ 87+  0000
+ 88+  0000              ; SYSTEM
+ 89+  0000              SYS_ZCLK3_5   equ $00
+ 90+  0000              SYS_ZCLK7     equ $01
+ 91+  0000              SYS_ZCLK14    equ $02
+ 92+  0000              SYS_ZCLK_BS   equ 0
+ 93+  0000
+ 94+  0000              SYS_CACHEEN   equ $04
+ 95+  0000
+ 96+  0000              ; MEMORY
+ 97+  0000              MEM_ROM128    equ $01
+ 98+  0000              MEM_W0WE      equ $02
+ 99+  0000              MEM_W0MAP_N   equ $04
+100+  0000              MEM_W0RAM     equ $08
+101+  0000
+102+  0000              MEM_LCK512    equ $00
+103+  0000              MEM_LCK128    equ $40
+104+  0000              MEM_LCKAUTO   equ $80
+105+  0000              MEM_LCK1024   equ $C0
+106+  0000              MEM_LCK_BS    equ 6
+107+  0000
+108+  0000              ; INT
+109+  0000              INT_VEC_FRAME   equ $FF
+110+  0000              INT_VEC_LINE    equ $FD
+111+  0000              INT_VEC_DMA     equ $FB
+112+  0000
+113+  0000              INT_MSK_FRAME   equ $01
+114+  0000              INT_MSK_LINE    equ $02
+115+  0000              INT_MSK_DMA     equ $04
+116+  0000
+117+  0000              ; DMA
+118+  0000              DMA_WNR         equ $80
+119+  0000              DMA_SALGN       equ $20
+120+  0000              DMA_DALGN       equ $10
+121+  0000              DMA_ASZ         equ $08
+122+  0000
+123+  0000              DMA_RAM         equ $01
+124+  0000              DMA_BLT         equ $81
+125+  0000              DMA_FILL        equ $04
+126+  0000              DMA_SPI_RAM     equ $02
+127+  0000              DMA_RAM_SPI     equ $82
+128+  0000              DMA_IDE_RAM     equ $03
+129+  0000              DMA_RAM_IDE     equ $83
+130+  0000              DMA_RAM_CRAM    equ $84
+131+  0000              DMA_RAM_SFILE   equ $85
+132+  0000
+133+  0000              ; SPRITES
+134+  0000              SP_XF       equ $80
+135+  0000              SP_YF       equ $80
+136+  0000              SP_LEAP     equ $40
+137+  0000              SP_ACT      equ $20
+138+  0000
+139+  0000              SP_SIZE8    equ $00
+140+  0000              SP_SIZE16   equ $02
+141+  0000              SP_SIZE24   equ $04
+142+  0000              SP_SIZE32   equ $06
+143+  0000              SP_SIZE40   equ $08
+144+  0000              SP_SIZE48   equ $0A
+145+  0000              SP_SIZE56   equ $0C
+146+  0000              SP_SIZE64   equ $0E
+147+  0000              SP_SIZE_BS  equ 1
+148+  0000
+149+  0000              SP_PAL_MASK     equ $F0
+150+  0000
+151+  0000              SP_XF_W         equ $8000
+152+  0000              SP_YF_W         equ $8000
+153+  0000              SP_LEAP_W       equ $4000
+154+  0000              SP_ACT_W        equ $2000
+155+  0000
+156+  0000              SP_SIZE8_W      equ $0000
+157+  0000              SP_SIZE16_W     equ $0200
+158+  0000              SP_SIZE24_W     equ $0400
+159+  0000              SP_SIZE32_W     equ $0600
+160+  0000              SP_SIZE40_W     equ $0800
+161+  0000              SP_SIZE48_W     equ $0A00
+162+  0000              SP_SIZE56_W     equ $0C00
+163+  0000              SP_SIZE64_W     equ $0E00
+164+  0000              SP_SIZE_BS_W    equ 9
+165+  0000
+166+  0000              SP_X_MASK_W     equ $01FF
+167+  0000              SP_Y_MASK_W     equ $01FF
+168+  0000              SP_TNUM_MASK_W  equ $0FFF
+169+  0000              SP_PAL_MASK_W   equ $F000
+170+  0000
+171+  0000              ; TILES
+172+  0000              TL_XF         equ $40
+173+  0000              TL_YF         equ $80
+174+  0000              TL_PAL_MASK   equ $30
+175+  0000              TL_PAL_BS     equ 4
+176+  0000
+177+  0000              TL_XF_W       equ $4000
+178+  0000              TL_YF_W       equ $8000
+179+  0000
+180+  0000              TL_TNUM_MASK_W  equ $0FFF
+181+  0000              TL_PAL_MASK_W   equ $3000
+182+  0000              TL_PAL_BS_W     equ 12
+183+  0000
+# file closed: tsconfig.asm
+  4   0000                  include "tsfuncs.asm"
+# file opened: tsfuncs.asm
+  1+  0000
+# file closed: tsfuncs.asm
+  5   0000
+  6   0000              BSIZE equ 264
+  7   0000              BNUM  equ 16
+  8   0000              PNUM  equ 10
+  9   0000              XNUM  equ 9
+ 10   0000              YNUM  equ 9
+ 11   0000
+ 12   0000                  org $6000
+ 13   6000 C3 F8 62         jp main
+ 14   6003                  include "ft_func.asm"
+# file opened: ft_func.asm
+  1+  6003
+  2+  6003                include "ft81x.asm"
+# file opened: ft81x.asm
+  1++ 6003
+  2++ 6003              ; -- Ports
+  3++ 6003              SPI_CTRL  equ 0x77
+  4++ 6003              SPI_DATA  equ 0x57
+  5++ 6003
+  6++ 6003              SPI_FT_CS_OFF equ 3
+  7++ 6003              SPI_FT_CS_ON  equ 7
+  8++ 6003
+  9++ 6003              ; -- Memory addresses
+ 10++ 6003              FT_RAM_G           equ 0x000000   ; Main graphics RAM
+ 11++ 6003              FT_ROM_CHIPID      equ 0x0C0000   ; Chip ID and revision
+ 12++ 6003              FT_ROM_FONT        equ 0x1E0000   ; Fonts
+ 13++ 6003              FT_ROM_FONT_ADDR   equ 0x2FFFFC   ; Font table pointer address
+ 14++ 6003              FT_RAM_DL          equ 0x300000   ; Display list RAM
+ 15++ 6003              FT_RAM_REG         equ 0x302000   ; Registers
+ 16++ 6003              FT_RAM_CMD         equ 0x308000   ; Coprocessor command buffer
+ 17++ 6003
+ 18++ 6003              ; -- Commands
+ 19++ 6003              FT_CMD_ACTIVE      equ 0x00   ; cc 00 00
+ 20++ 6003              FT_CMD_STANDBY     equ 0x41   ; cc 00 00
+ 21++ 6003              FT_CMD_SLEEP       equ 0x42   ; cc 00 00
+ 22++ 6003              FT_CMD_PWRDOWN     equ 0x43   ; cc 00 00
+ 23++ 6003              FT_CMD_CLKEXT      equ 0x44   ; cc 00 00
+ 24++ 6003              FT_CMD_CLKINT      equ 0x48   ; cc 00 00
+ 25++ 6003              FT_CMD_PDROMS      equ 0x49   ; cc xx 00
+ 26++ 6003              FT_CMD_CLKSEL      equ 0x61   ; cc xx 00 -> [5:0] - mul, [7:6] - PLL range (0 for mul=0..3, 1 for mul=4..5)
+ 27++ 6003              FT_CMD_RST_PULSE   equ 0x68   ; cc 00 00
+ 28++ 6003
+ 29++ 6003              ; -- Registers
+ 30++ 6003              FT_REG_ID                 equ 0x302000
+ 31++ 6003              FT_REG_FRAMES             equ 0x302004
+ 32++ 6003              FT_REG_CLOCK              equ 0x302008
+ 33++ 6003              FT_REG_FREQUENCY          equ 0x30200C
+ 34++ 6003              FT_REG_RENDERMODE         equ 0x302010
+ 35++ 6003              FT_REG_SNAPY              equ 0x302014
+ 36++ 6003              FT_REG_SNAPSHOT           equ 0x302018
+ 37++ 6003              FT_REG_SNAPFORMAT         equ 0x30201C
+ 38++ 6003              FT_REG_CPURESET           equ 0x302020
+ 39++ 6003              FT_REG_TAP_CRC            equ 0x302024
+ 40++ 6003              FT_REG_TAP_MASK           equ 0x302028
+ 41++ 6003              FT_REG_HCYCLE             equ 0x30202C
+ 42++ 6003              FT_REG_HOFFSET            equ 0x302030
+ 43++ 6003              FT_REG_HSIZE              equ 0x302034
+ 44++ 6003              FT_REG_HSYNC0             equ 0x302038
+ 45++ 6003              FT_REG_HSYNC1             equ 0x30203C
+ 46++ 6003              FT_REG_VCYCLE             equ 0x302040
+ 47++ 6003              FT_REG_VOFFSET            equ 0x302044
+ 48++ 6003              FT_REG_VSIZE              equ 0x302048
+ 49++ 6003              FT_REG_VSYNC0             equ 0x30204C
+ 50++ 6003              FT_REG_VSYNC1             equ 0x302050
+ 51++ 6003              FT_REG_DLSWAP             equ 0x302054
+ 52++ 6003              FT_REG_ROTATE             equ 0x302058
+ 53++ 6003              FT_REG_OUTBITS            equ 0x30205C
+ 54++ 6003              FT_REG_DITHER             equ 0x302060
+ 55++ 6003              FT_REG_SWIZZLE            equ 0x302064
+ 56++ 6003              FT_REG_CSPREAD            equ 0x302068
+ 57++ 6003              FT_REG_PCLK_POL           equ 0x30206C
+ 58++ 6003              FT_REG_PCLK               equ 0x302070
+ 59++ 6003              FT_REG_TAG_X              equ 0x302074
+ 60++ 6003              FT_REG_TAG_Y              equ 0x302078
+ 61++ 6003              FT_REG_TAG                equ 0x30207C
+ 62++ 6003              FT_REG_VOL_PB             equ 0x302080
+ 63++ 6003              FT_REG_VOL_SOUND          equ 0x302084
+ 64++ 6003              FT_REG_SOUND              equ 0x302088
+ 65++ 6003              FT_REG_PLAY               equ 0x30208C
+ 66++ 6003              FT_REG_GPIO_DIR           equ 0x302090
+ 67++ 6003              FT_REG_GPIO               equ 0x302094
+ 68++ 6003              FT_REG_GPIOX_DIR          equ 0x302098
+ 69++ 6003              FT_REG_GPIOX              equ 0x30209C
+ 70++ 6003
+ 71++ 6003              FT_REG_INT_FLAGS          equ 0x3020A8
+ 72++ 6003              FT_REG_INT_EN             equ 0x3020AC
+ 73++ 6003              FT_REG_INT_MASK           equ 0x3020B0
+ 74++ 6003              FT_REG_PLAYBACK_START     equ 0x3020B4
+ 75++ 6003              FT_REG_PLAYBACK_LENGTH    equ 0x3020B8
+ 76++ 6003              FT_REG_PLAYBACK_READPTR   equ 0x3020BC
+ 77++ 6003              FT_REG_PLAYBACK_FREQ      equ 0x3020C0
+ 78++ 6003              FT_REG_PLAYBACK_FORMAT    equ 0x3020C4
+ 79++ 6003              FT_REG_PLAYBACK_LOOP      equ 0x3020C8
+ 80++ 6003              FT_REG_PLAYBACK_PLAY      equ 0x3020CC
+ 81++ 6003              FT_REG_PWM_HZ             equ 0x3020D0
+ 82++ 6003              FT_REG_PWM_DUTY           equ 0x3020D4
+ 83++ 6003              FT_REG_MACRO_0            equ 0x3020D8
+ 84++ 6003              FT_REG_MACRO_1            equ 0x3020DC
+ 85++ 6003
+ 86++ 6003              FT_REG_CMD_READ           equ 0x3020F8
+ 87++ 6003              FT_REG_CMD_WRITE          equ 0x3020FC
+ 88++ 6003              FT_REG_CMD_DL             equ 0x302100
+ 89++ 6003              FT_REG_TOUCH_MODE         equ 0x302104
+ 90++ 6003              FT_REG_TOUCH_ADC_MODE     equ 0x302108
+ 91++ 6003              FT_REG_TOUCH_CHARGE       equ 0x30210C
+ 92++ 6003              FT_REG_TOUCH_SETTLE       equ 0x302110
+ 93++ 6003              FT_REG_TOUCH_OVERSAMPLE   equ 0x302114
+ 94++ 6003              FT_REG_TOUCH_RZTHRESH     equ 0x302118
+ 95++ 6003              FT_REG_TOUCH_RAW_XY       equ 0x30211C
+ 96++ 6003              FT_REG_TOUCH_RZ           equ 0x302120
+ 97++ 6003              FT_REG_TOUCH_SCREEN_XY    equ 0x302124
+ 98++ 6003              FT_REG_TOUCH_TAG_XY       equ 0x302128
+ 99++ 6003              FT_REG_TOUCH_TAG          equ 0x30212C
+100++ 6003              FT_REG_TOUCH_TAG1_XY      equ 0x302130
+101++ 6003              FT_REG_TOUCH_TAG1         equ 0x302134
+102++ 6003              FT_REG_TOUCH_TAG2_XY      equ 0x302138
+103++ 6003              FT_REG_TOUCH_TAG2         equ 0x30213C
+104++ 6003              FT_REG_TOUCH_TAG3_XY      equ 0x302140
+105++ 6003              FT_REG_TOUCH_TAG3         equ 0x302144
+106++ 6003              FT_REG_TOUCH_TAG4_XY      equ 0x302148
+107++ 6003              FT_REG_TOUCH_TAG4         equ 0x30214C
+108++ 6003              FT_REG_TOUCH_TRANSFORM_A  equ 0x302150
+109++ 6003              FT_REG_TOUCH_TRANSFORM_B  equ 0x302154
+110++ 6003              FT_REG_TOUCH_TRANSFORM_C  equ 0x302158
+111++ 6003              FT_REG_TOUCH_TRANSFORM_D  equ 0x30215C
+112++ 6003              FT_REG_TOUCH_TRANSFORM_E  equ 0x302160
+113++ 6003              FT_REG_TOUCH_TRANSFORM_F  equ 0x302164
+114++ 6003              FT_REG_TOUCH_CONFIG       equ 0x302168
+115++ 6003              FT_REG_CTOUCH_TOUCH4_X    equ 0x30216C
+116++ 6003
+117++ 6003              FT_REG_BIST_EN            equ 0x302174
+118++ 6003
+119++ 6003              FT_REG_TRIM               equ 0x302180
+120++ 6003              FT_REG_ANA_COMP           equ 0x302184
+121++ 6003              FT_REG_SPI_WIDTH          equ 0x302188
+122++ 6003              FT_REG_TOUCH_DIRECT_XY    equ 0x30218C
+123++ 6003              FT_REG_TOUCH_DIRECT_Z1Z2  equ 0x302190
+124++ 6003
+125++ 6003              FT_REG_DATESTAMP          equ 0x302564
+126++ 6003
+127++ 6003              FT_REG_CMDB_SPACE         equ 0x302574
+128++ 6003              FT_REG_CMDB_WRITE         equ 0x302578
+129++ 6003
+130++ 6003              FT_REG_TRACKER            equ 0x309000
+131++ 6003              FT_REG_TRACKER_1          equ 0x309004
+132++ 6003              FT_REG_TRACKER_2          equ 0x309008
+133++ 6003              FT_REG_TRACKER_3          equ 0x30900C
+134++ 6003              FT_REG_TRACKER_4          equ 0x309010
+135++ 6003
+136++ 6003              FT_REG_MEDIAFIFO_READ     equ 0x309014
+137++ 6003              FT_REG_MEDIAFIFO_WRITE    equ 0x309018
+138++ 6003
+139++ 6003              ; -- DL macros
+140++ 6003                macro FT_DISPLAY
+141++ 6003 ~                defd (0 << 24)
+142++ 6003                endm
+143++ 6003
+144++ 6003                macro FT_BITMAP_SOURCE addr
+145++ 6003 ~                defd (1 << 24) | (((addr) & 1048575) << 0)
+146++ 6003                endm
+147++ 6003
+148++ 6003                macro FT_CLEAR_COLOR_RGB red, green, blue
+149++ 6003 ~                defd (2 << 24) | (((red) & 255) << 16) | (((green) & 255) << 8) | (((blue) & 255) << 0)
+150++ 6003                endm
+151++ 6003
+152++ 6003                macro FT_TAG s
+153++ 6003 ~                defd (3 << 24) | (((s) & 255) << 0)
+154++ 6003                endm
+155++ 6003
+156++ 6003                macro FT_COLOR_RGB red, green, blue
+157++ 6003 ~                defd (4 << 24) | (((red) & 255) << 16) | (((green) & 255) << 8) | (((blue) & 255) << 0)
+158++ 6003                endm
+159++ 6003
+160++ 6003                macro FT_BITMAP_HANDLE handle
+161++ 6003 ~                defd (5 << 24) | (((handle) & 31) << 0)
+162++ 6003                endm
+163++ 6003
+164++ 6003                macro FT_CELL cell
+165++ 6003 ~                defd (6 << 24) | (((cell) & 127) << 0)
+166++ 6003                endm
+167++ 6003
+168++ 6003                macro FT_BITMAP_LAYOUT format, linestride, height
+169++ 6003 ~                defd (7 << 24) | (((format) & 31) << 19) | (((linestride) & 1023) << 9) | (((height) & 511) << 0)
+170++ 6003                endm
+171++ 6003
+172++ 6003                macro FT_BITMAP_SIZE filter, wrapx, wrapy, width, height
+173++ 6003 ~                defd (8 << 24) | (((filter) & 1) << 20) | (((wrapx) & 1) << 19) | (((wrapy) & 1) << 18) | (((width) & 511) << 9) | (((height) & 511) << 0)
+174++ 6003                endm
+175++ 6003
+176++ 6003                macro FT_ALPHA_FUNC func, ref
+177++ 6003 ~                defd (9 << 24) | (((func) & 7) << 8) | (((ref) & 255) << 0)
+178++ 6003                endm
+179++ 6003
+180++ 6003                macro FT_STENCIL_FUNC func, ref, mask
+181++ 6003 ~                defd (10 << 24) | (((func) & 7) << 16) | (((ref) & 255) << 8) | (((mask) & 255) << 0)
+182++ 6003                endm
+183++ 6003
+184++ 6003                macro FT_BLEND_FUNC src, dst
+185++ 6003 ~                defd (11 << 24) | (((src) & 7) << 3) | (((dst) & 7) << 0)
+186++ 6003                endm
+187++ 6003
+188++ 6003                macro FT_STENCIL_OP sfail, spass
+189++ 6003 ~                defd (12 << 24) | (((sfail) & 7) << 3) | (((spass) & 7) << 0)
+190++ 6003                endm
+191++ 6003
+192++ 6003                macro FT_POINT_SIZE size
+193++ 6003 ~                defd (13 << 24) | (((size) & 8191) << 0)
+194++ 6003                endm
+195++ 6003
+196++ 6003                macro FT_LINE_WIDTH width
+197++ 6003 ~                defd (14 << 24) | (((width) & 4095) << 0)
+198++ 6003                endm
+199++ 6003
+200++ 6003                macro FT_CLEAR_COLOR_A alpha
+201++ 6003 ~                defd (15 << 24) | (((alpha) & 255) << 0)
+202++ 6003                endm
+203++ 6003
+204++ 6003                macro FT_COLOR_A alpha
+205++ 6003 ~                defd (16 << 24) | (((alpha) & 255) << 0)
+206++ 6003                endm
+207++ 6003
+208++ 6003                macro FT_CLEAR_STENCIL s
+209++ 6003 ~                defd (17 << 24) | (((s) & 255) << 0)
+210++ 6003                endm
+211++ 6003
+212++ 6003                macro FT_CLEAR_TAG s
+213++ 6003 ~                defd (18 << 24) | (((s) & 255) << 0)
+214++ 6003                endm
+215++ 6003
+216++ 6003                macro FT_STENCIL_MASK mask
+217++ 6003 ~                defd (19 << 24) | (((mask) & 255) << 0)
+218++ 6003                endm
+219++ 6003
+220++ 6003                macro FT_TAG_MASK mask
+221++ 6003 ~                defd (20 << 24) | (((mask) & 1) << 0)
+222++ 6003                endm
+223++ 6003
+224++ 6003                macro FT_BITMAP_TRANSFORM_A a
+225++ 6003 ~                defd (21 << 24) | (((a) & 131071) << 0)
+226++ 6003                endm
+227++ 6003
+228++ 6003                macro FT_BITMAP_TRANSFORM_B b
+229++ 6003 ~                defd (22 << 24) | (((b) & 131071) << 0)
+230++ 6003                endm
+231++ 6003
+232++ 6003                macro FT_BITMAP_TRANSFORM_C c
+233++ 6003 ~                defd (23 << 24) | (((c) & 16777215) << 0)
+234++ 6003                endm
+235++ 6003
+236++ 6003                macro FT_BITMAP_TRANSFORM_D d
+237++ 6003 ~                defd (24 << 24) | (((d) & 131071) << 0)
+238++ 6003                endm
+239++ 6003
+240++ 6003                macro FT_BITMAP_TRANSFORM_E e
+241++ 6003 ~                defd (25 << 24) | (((e) & 131071) << 0)
+242++ 6003                endm
+243++ 6003
+244++ 6003                macro FT_BITMAP_TRANSFORM_F f
+245++ 6003 ~                defd (26 << 24) | (((f) & 16777215) << 0)
+246++ 6003                endm
+247++ 6003
+248++ 6003                macro FT_SCISSOR_XY x, y
+249++ 6003 ~                defd (27 << 24) | (((x) & 511) << 9) | (((y) & 511) << 0)
+250++ 6003                endm
+251++ 6003
+252++ 6003                macro FT_SCISSOR_SIZE width, height
+253++ 6003 ~                defd (28 << 24) | (((width) & 1023) << 10) | (((height) & 1023) << 0)
+254++ 6003                endm
+255++ 6003
+256++ 6003                macro FT_CALL dest
+257++ 6003 ~                defd (29 << 24) | (((dest) & 65535) << 0)
+258++ 6003                endm
+259++ 6003
+260++ 6003                macro FT_JUMP dest
+261++ 6003 ~                defd (30 << 24) | (((dest) & 65535) << 0)
+262++ 6003                endm
+263++ 6003
+264++ 6003                macro FT_BEGIN prim
+265++ 6003 ~                defd (31 << 24) | (((prim) & 15) << 0)
+266++ 6003                endm
+267++ 6003
+268++ 6003                macro FT_COLOR_MASK r, g, b, a
+269++ 6003 ~                defd (32 << 24) | (((r) & 1) << 3) | (((g) & 1) << 2) | (((b) & 1) << 1) | (((a) & 1) << 0)
+270++ 6003                endm
+271++ 6003
+272++ 6003                macro FT_END
+273++ 6003 ~                defd (33 << 24)
+274++ 6003                endm
+275++ 6003
+276++ 6003                macro FT_SAVE_CONTEXT
+277++ 6003 ~                defd (34 << 24)
+278++ 6003                endm
+279++ 6003
+280++ 6003                macro FT_RESTORE_CONTEXT
+281++ 6003 ~                defd (35 << 24)
+282++ 6003                endm
+283++ 6003
+284++ 6003                macro FT_RETURN
+285++ 6003 ~                defd (36 << 24)
+286++ 6003                endm
+287++ 6003
+288++ 6003                macro FT_MACRO m
+289++ 6003 ~                defd (37 << 24) | (((m) & 1) << 0))
+290++ 6003                endm
+291++ 6003
+292++ 6003                macro FT_CLEAR c, s, t
+293++ 6003 ~                defd (38 << 24) | (((c) & 1) <<2 ) | (((s) & 1) << 1) | (((t) & 1) << 0)
+294++ 6003                endm
+295++ 6003
+296++ 6003                macro FT_VERTEX_FORMAT frac
+297++ 6003 ~                defd (39 << 24) | (frac & 7)
+298++ 6003                endm
+299++ 6003
+300++ 6003                macro FT_BITMAP_LAYOUT_H linestride, height
+301++ 6003 ~                defd (40 << 24) | (((linestride) & 3) << 2) | (((height) & 3) << 0)
+302++ 6003                endm
+303++ 6003
+304++ 6003                macro FT_BITMAP_SIZE_H width, height
+305++ 6003 ~                defd (41 << 24) | (((width) & 3) << 2) | (((height) & 3) << 0)
+306++ 6003                endm
+307++ 6003
+308++ 6003                macro FT_PALETTE_SOURCE addr
+309++ 6003 ~                defd (42 << 24) | (addr & 0x3FFFFF)
+310++ 6003                endm
+311++ 6003
+312++ 6003                macro FT_VERTEX_TRANSLATE_X x
+313++ 6003 ~                defd (43 << 24) | (x & 0x1FFFF)
+314++ 6003                endm
+315++ 6003
+316++ 6003                macro FT_VERTEX_TRANSLATE_Y y
+317++ 6003 ~                defd (44 << 24) | (y & 0x1FFFF)
+318++ 6003                endm
+319++ 6003
+320++ 6003                macro FT_NOP
+321++ 6003 ~                defd (45 << 24)
+322++ 6003                endm
+323++ 6003
+324++ 6003                macro FT_VERTEX2F x, y
+325++ 6003 ~                defd (64 << 24) | (((x) & 32767) << 15) | (((y) & 32767) << 0)
+326++ 6003                endm
+327++ 6003
+328++ 6003                macro FT_VERTEX2II x, y, handle, cell
+329++ 6003 ~                defd (128 << 24) | (((x) & 511) << 21) | (((y) & 511) << 12) | (((handle) & 31) << 7) | (((cell) & 127) << 0)
+330++ 6003                endm
+331++ 6003
+332++ 6003              ; -- Test functions
+333++ 6003              FT_NEVER          equ 0
+334++ 6003              FT_LESS           equ 1
+335++ 6003              FT_LEQUAL         equ 2
+336++ 6003              FT_GREATER        equ 3
+337++ 6003              FT_GEQUAL         equ 4
+338++ 6003              FT_EQUAL          equ 5
+339++ 6003              FT_NOTEQUAL       equ 6
+340++ 6003              FT_ALWAYS         equ 7
+341++ 6003
+342++ 6003              ; -- Primitives
+343++ 6003              FT_BITMAPS        equ 1
+344++ 6003              FT_POINTS         equ 2
+345++ 6003              FT_LINES          equ 3
+346++ 6003              FT_LINE_STRIP     equ 4
+347++ 6003              FT_EDGE_STRIP_R   equ 5
+348++ 6003              FT_EDGE_STRIP_L   equ 6
+349++ 6003              FT_EDGE_STRIP_A   equ 7
+350++ 6003              FT_EDGE_STRIP_B   equ 8
+351++ 6003              FT_RECTS          equ 9
+352++ 6003
+353++ 6003              ; -- Formats
+354++ 6003              FT_ARGB1555          equ 0
+355++ 6003              FT_L1                equ 1
+356++ 6003              FT_L4                equ 2
+357++ 6003              FT_L8                equ 3
+358++ 6003              FT_RGB332            equ 4
+359++ 6003              FT_ARGB2             equ 5
+360++ 6003              FT_ARGB4             equ 6
+361++ 6003              FT_RGB565            equ 7
+362++ 6003              FT_PALETTED          equ 8  ; deprecated???
+363++ 6003              FT_TEXT8X8           equ 9
+364++ 6003              FT_TEXTVGA           equ 10
+365++ 6003              FT_BARGRAPH          equ 11
+366++ 6003              FT_PALETTED565       equ 14
+367++ 6003              FT_PALETTED4444      equ 15
+368++ 6003              FT_PALETTED8         equ 16
+369++ 6003              FT_L2                equ 17
+370++ 6003
+371++ 6003              ; -- Blend functions
+372++ 6003              FT_ZERO                 equ 0
+373++ 6003              FT_ONE                  equ 1
+374++ 6003              FT_SRC_ALPHA            equ 2
+375++ 6003              FT_DST_ALPHA            equ 3
+376++ 6003              FT_ONE_MINUS_SRC_ALPHA  equ 4
+377++ 6003              FT_ONE_MINUS_DST_ALPHA  equ 5
+378++ 6003
+379++ 6003              ; -- Stencil operations
+380++ 6003              FT_KEEP                 equ 1
+381++ 6003              FT_REPLACE              equ 2
+382++ 6003              FT_INCR                 equ 3
+383++ 6003              FT_DECR                 equ 4
+384++ 6003              FT_INVERT               equ 5
+385++ 6003              FT_INCR_WRAP            equ 6 ; undocumented???
+386++ 6003              FT_DECR_WRAP            equ 7 ; undocumented???
+387++ 6003
+388++ 6003              ; -- Bitmap wrap mode
+389++ 6003              FT_REPEAT     equ 1
+390++ 6003              FT_BORDER     equ 0
+391++ 6003
+392++ 6003              ; -- Bitmap filtering mode
+393++ 6003              FT_NEAREST    equ 0
+394++ 6003              FT_BILINEAR   equ 1
+395++ 6003
+396++ 6003              ; -- DL_SWAP modes
+397++ 6003              FT_DLSWAP_DONE          equ 0
+398++ 6003              FT_DLSWAP_LINE          equ 1
+399++ 6003              FT_DLSWAP_FRAME         equ 2
+400++ 6003
+401++ 6003              ; -- INT sources
+402++ 6003              FT_INT_SWAP             equ 1
+403++ 6003              FT_INT_TOUCH            equ 2
+404++ 6003              FT_INT_TAG              equ 4
+405++ 6003              FT_INT_SOUND            equ 8
+406++ 6003              FT_INT_PLAYBACK         equ 16
+407++ 6003              FT_INT_CMDEMPTY         equ 32
+408++ 6003              FT_INT_CMDFLAG          equ 64
+409++ 6003              FT_INT_CONVCOMPLETE     equ 128
+410++ 6003
+411++ 6003              ; -- Playback formats
+412++ 6003              FT_LINEAR_SAMPLES       equ 0
+413++ 6003              FT_ULAW_SAMPLES         equ 1
+414++ 6003              FT_ADPCM_SAMPLES        equ 2
+415++ 6003
+416++ 6003              ; -- Touch ADC modes
+417++ 6003              FT_ADC_SINGLE_ENDED     equ 0
+418++ 6003              FT_ADC_DIFFERENTIAL     equ 1
+419++ 6003
+420++ 6003              ; -- Touch modes
+421++ 6003              FT_TOUCHMODE_OFF        equ 0
+422++ 6003              FT_TOUCHMODE_ONESHOT    equ 1
+423++ 6003              FT_TOUCHMODE_FRAME      equ 2
+424++ 6003              FT_TOUCHMODE_CONTINUOUS equ 3
+425++ 6003
+426++ 6003              ; -- Constants
+427++ 6003              FT_DL_SIZE              equ 8 * 1024  ; 8KB Display List buffer size
+428++ 6003              FT_CMD_FIFO_SIZE        equ 4 * 1024  ; 4KB coprocessor Fifo size
+429++ 6003              FT_CMD_SIZE             equ 4         ; 4 byte per coprocessor command of EVE
+430++ 6003              FT_CMDBUF_SIZE          equ 4096
+431++ 6003              FT_GPU_NUMCHAR_PERFONT  equ 128
+432++ 6003              FT_GPU_FONT_TABLE_SIZE  equ 148
+433++ 6003
+434++ 6003              ; -- Coprocessor commands
+435++ 6003              FT_CMD_APPEND           equ 0xFFFFFF00 + 30
+436++ 6003              FT_CMD_BGCOLOR          equ 0xFFFFFF00 + 9
+437++ 6003              FT_CMD_BITMAP_TRANSFORM equ 0xFFFFFF00 + 33
+438++ 6003              FT_CMD_BUTTON           equ 0xFFFFFF00 + 13
+439++ 6003              FT_CMD_CALIBRATE        equ 0xFFFFFF00 + 21
+440++ 6003              FT_CMD_CLOCK            equ 0xFFFFFF00 + 20
+441++ 6003              FT_CMD_COLDSTART        equ 0xFFFFFF00 + 50
+442++ 6003              FT_CMD_CRC              equ 0xFFFFFF00 + 3
+443++ 6003              FT_CMD_CSKETCH          equ 0xFFFFFF00 + 53 ; Deprecated
+444++ 6003              FT_CMD_DIAL             equ 0xFFFFFF00 + 45
+445++ 6003              FT_CMD_DLSTART          equ 0xFFFFFF00 + 0
+446++ 6003              FT_CMD_EXECUTE          equ 0xFFFFFF00 + 7
+447++ 6003              FT_CMD_FGCOLOR          equ 0xFFFFFF00 + 10
+448++ 6003              FT_CMD_GAUGE            equ 0xFFFFFF00 + 19
+449++ 6003              FT_CMD_GETMATRIX        equ 0xFFFFFF00 + 51
+450++ 6003              FT_CMD_GETPOINT         equ 0xFFFFFF00 + 8
+451++ 6003              FT_CMD_GETPROPS         equ 0xFFFFFF00 + 37
+452++ 6003              FT_CMD_GETPTR           equ 0xFFFFFF00 + 35
+453++ 6003              FT_CMD_GRADCOLOR        equ 0xFFFFFF00 + 52
+454++ 6003              FT_CMD_GRADIENT         equ 0xFFFFFF00 + 11
+455++ 6003              FT_CMD_HAMMERAUX        equ 0xFFFFFF00 + 4
+456++ 6003              FT_CMD_IDCT             equ 0xFFFFFF00 + 6
+457++ 6003              FT_CMD_INFLATE          equ 0xFFFFFF00 + 34
+458++ 6003              FT_CMD_INTERRUPT        equ 0xFFFFFF00 + 2
+459++ 6003              FT_CMD_KEYS             equ 0xFFFFFF00 + 14
+460++ 6003              FT_CMD_LOADIDENTITY     equ 0xFFFFFF00 + 38
+461++ 6003              FT_CMD_LOADIMAGE        equ 0xFFFFFF00 + 36
+462++ 6003              FT_CMD_LOGO             equ 0xFFFFFF00 + 49
+463++ 6003              FT_CMD_MARCH            equ 0xFFFFFF00 + 5
+464++ 6003              FT_CMD_MEDIAFIFO        equ 0xFFFFFF00 + 57
+465++ 6003              FT_CMD_MEMCPY           equ 0xFFFFFF00 + 29
+466++ 6003              FT_CMD_MEMCRC           equ 0xFFFFFF00 + 24
+467++ 6003              FT_CMD_MEMSET           equ 0xFFFFFF00 + 27
+468++ 6003              FT_CMD_MEMWRITE         equ 0xFFFFFF00 + 26
+469++ 6003              FT_CMD_MEMZERO          equ 0xFFFFFF00 + 28
+470++ 6003              FT_CMD_NUMBER           equ 0xFFFFFF00 + 46
+471++ 6003              FT_CMD_PLAYVIDEO        equ 0xFFFFFF00 + 58
+472++ 6003              FT_CMD_PROGRESS         equ 0xFFFFFF00 + 15
+473++ 6003              FT_CMD_REGREAD          equ 0xFFFFFF00 + 25
+474++ 6003              FT_CMD_ROMFONT          equ 0xFFFFFF00 + 63
+475++ 6003              FT_CMD_ROTATE           equ 0xFFFFFF00 + 41
+476++ 6003              FT_CMD_SCALE            equ 0xFFFFFF00 + 40
+477++ 6003              FT_CMD_SCREENSAVER      equ 0xFFFFFF00 + 47
+478++ 6003              FT_CMD_SCROLLBAR        equ 0xFFFFFF00 + 17
+479++ 6003              FT_CMD_SETBASE          equ 0xFFFFFF00 + 56
+480++ 6003              FT_CMD_SETFONT          equ 0xFFFFFF00 + 43
+481++ 6003              FT_CMD_SETFONT2         equ 0xFFFFFF00 + 59
+482++ 6003              FT_CMD_SETMATRIX        equ 0xFFFFFF00 + 42
+483++ 6003              FT_CMD_SETROTATE        equ 0xFFFFFF00 + 54
+484++ 6003              FT_CMD_SETSCRATCH       equ 0xFFFFFF00 + 60
+485++ 6003              FT_CMD_SKETCH           equ 0xFFFFFF00 + 48
+486++ 6003              FT_CMD_SLIDER           equ 0xFFFFFF00 + 16
+487++ 6003              FT_CMD_SNAPSHOT         equ 0xFFFFFF00 + 31
+488++ 6003              FT_CMD_SNAPSHOT2        equ 0xFFFFFF00 + 55
+489++ 6003              FT_CMD_SPINNER          equ 0xFFFFFF00 + 22
+490++ 6003              FT_CMD_STOP             equ 0xFFFFFF00 + 23
+491++ 6003              FT_CMD_SWAP             equ 0xFFFFFF00 + 1
+492++ 6003              FT_CMD_TEXT             equ 0xFFFFFF00 + 12
+493++ 6003              FT_CMD_TOGGLE           equ 0xFFFFFF00 + 18
+494++ 6003              FT_CMD_TOUCH_TRANSFORM  equ 0xFFFFFF00 + 32
+495++ 6003              FT_CMD_TRACK            equ 0xFFFFFF00 + 44
+496++ 6003              FT_CMD_TRANSLATE        equ 0xFFFFFF00 + 39
+497++ 6003              FT_CMD_VIDEOFRAME       equ 0xFFFFFF00 + 65
+498++ 6003              FT_CMD_VIDEOSTART       equ 0xFFFFFF00 + 64
+499++ 6003
+500++ 6003              ; -- Parameter options
+501++ 6003              FT_OPT_3D               equ 0
+502++ 6003              FT_OPT_CENTER           equ 1536
+503++ 6003              FT_OPT_CENTERX          equ 512
+504++ 6003              FT_OPT_CENTERY          equ 1024
+505++ 6003              FT_OPT_FLAT             equ 256
+506++ 6003              FT_OPT_FULLSCREEN       equ 8
+507++ 6003              FT_OPT_MEDIAFIFO        equ 16
+508++ 6003              FT_OPT_MONO             equ 1
+509++ 6003              FT_OPT_NOBACK           equ 4096
+510++ 6003              FT_OPT_NODL             equ 2
+511++ 6003              FT_OPT_NOHANDS          equ 49152
+512++ 6003              FT_OPT_NOHM             equ 16384
+513++ 6003              FT_OPT_NOPOINTER        equ 16384
+514++ 6003              FT_OPT_NOSECS           equ 32768
+515++ 6003              FT_OPT_NOTICKS          equ 8192
+516++ 6003              FT_OPT_NOTEAR           equ 4
+517++ 6003              FT_OPT_RIGHTX           equ 2048
+518++ 6003              FT_OPT_RGB565           equ 0
+519++ 6003              FT_OPT_SIGNED           equ 256
+520++ 6003              FT_OPT_SOUND            equ 32
+521++ 6003
+522++ 6003              ; -- Video mode macros
+523++ 6003                macro ft_mode_tab F_MUL, H_FPORCH, H_SYNC, H_BPORCH, H_VISIBLE, V_FPORCH, V_SYNC, V_BPORCH, V_VISIBLE
+524++ 6003 ~              db F_MUL
+525++ 6003 ~              dw H_FPORCH
+526++ 6003 ~              dw H_FPORCH + H_SYNC
+527++ 6003 ~              dw H_FPORCH + H_SYNC + H_BPORCH
+528++ 6003 ~              dw H_VISIBLE
+529++ 6003 ~              dw H_FPORCH + H_SYNC + H_BPORCH + H_VISIBLE
+530++ 6003 ~              dw V_FPORCH - 1
+531++ 6003 ~              dw V_FPORCH + V_SYNC - 1
+532++ 6003 ~              dw V_FPORCH + V_SYNC + V_BPORCH - 1
+533++ 6003 ~              dw V_VISIBLE
+534++ 6003 ~              dw V_FPORCH + V_SYNC + V_BPORCH + V_VISIBLE
+535++ 6003                endm
+536++ 6003
+537++ 6003              ; -- Video modes
+538++ 6003              ; 640x480@57Hz (24Mhz)
+539++ 6003              F0_MUL     equ 3
+540++ 6003              H0_FPORCH  equ 16
+541++ 6003              H0_SYNC    equ 96
+542++ 6003              H0_BPORCH  equ 48
+543++ 6003              H0_VISIBLE equ 640
+544++ 6003              V0_FPORCH  equ 11
+545++ 6003              V0_SYNC    equ 2
+546++ 6003              V0_BPORCH  equ 31
+547++ 6003              V0_VISIBLE equ 480
+548++ 6003
+549++ 6003              ; 640x480@74Hz (32Mhz)
+550++ 6003              F1_MUL     equ 4
+551++ 6003              H1_FPORCH  equ 24
+552++ 6003              H1_SYNC    equ 40
+553++ 6003              H1_BPORCH  equ 128
+554++ 6003              H1_VISIBLE equ 640
+555++ 6003              V1_FPORCH  equ 9
+556++ 6003              V1_SYNC    equ 3
+557++ 6003              V1_BPORCH  equ 28
+558++ 6003              V1_VISIBLE equ 480
+559++ 6003
+560++ 6003              ; 640x480@76Hz (32Mhz)
+561++ 6003              F2_MUL     equ 4
+562++ 6003              H2_FPORCH  equ 16
+563++ 6003              H2_SYNC    equ 96
+564++ 6003              H2_BPORCH  equ 48
+565++ 6003              H2_VISIBLE equ 640
+566++ 6003              V2_FPORCH  equ 11
+567++ 6003              V2_SYNC    equ 2
+568++ 6003              V2_BPORCH  equ 31
+569++ 6003              V2_VISIBLE equ 480
+570++ 6003
+571++ 6003              ; 800x600@60Hz (40Mhz)
+572++ 6003              F3_MUL     equ 5
+573++ 6003              H3_FPORCH  equ 40
+574++ 6003              H3_SYNC    equ 128
+575++ 6003              H3_BPORCH  equ 88
+576++ 6003              H3_VISIBLE equ 800
+577++ 6003              V3_FPORCH  equ 1
+578++ 6003              V3_SYNC    equ 4
+579++ 6003              V3_BPORCH  equ 23
+580++ 6003              V3_VISIBLE equ 600
+581++ 6003
+582++ 6003              ; 800x600@69Hz (48Mhz)
+583++ 6003              F4_MUL     equ 6
+584++ 6003              H4_FPORCH  equ 56
+585++ 6003              H4_SYNC    equ 120
+586++ 6003              H4_BPORCH  equ 64
+587++ 6003              H4_VISIBLE equ 800
+588++ 6003              V4_FPORCH  equ 37
+589++ 6003              V4_SYNC    equ 6
+590++ 6003              V4_BPORCH  equ 23
+591++ 6003              V4_VISIBLE equ 600
+592++ 6003
+593++ 6003              ; 800x600@85Hz (56Mhz)
+594++ 6003              F5_MUL     equ 7
+595++ 6003              H5_FPORCH  equ 32
+596++ 6003              H5_SYNC    equ 64
+597++ 6003              H5_BPORCH  equ 152
+598++ 6003              H5_VISIBLE equ 800
+599++ 6003              V5_FPORCH  equ 1
+600++ 6003              V5_SYNC    equ 3
+601++ 6003              V5_BPORCH  equ 27
+602++ 6003              V5_VISIBLE equ 600
+603++ 6003
+604++ 6003              ; 1024x768@59Hz (64Mhz)
+605++ 6003              F6_MUL     equ 8
+606++ 6003              H6_FPORCH  equ 24
+607++ 6003              H6_SYNC    equ 136
+608++ 6003              H6_BPORCH  equ 160
+609++ 6003              H6_VISIBLE equ 1024
+610++ 6003              V6_FPORCH  equ 3
+611++ 6003              V6_SYNC    equ 6
+612++ 6003              V6_BPORCH  equ 29
+613++ 6003              V6_VISIBLE equ 768
+614++ 6003
+615++ 6003              ; 1024x768@67Hz (72Mhz)
+616++ 6003              F7_MUL     equ 9
+617++ 6003              H7_FPORCH  equ 24
+618++ 6003              H7_SYNC    equ 136
+619++ 6003              H7_BPORCH  equ 144
+620++ 6003              H7_VISIBLE equ 1024
+621++ 6003              V7_FPORCH  equ 3
+622++ 6003              V7_SYNC    equ 6
+623++ 6003              V7_BPORCH  equ 29
+624++ 6003              V7_VISIBLE equ 768
+625++ 6003
+626++ 6003              ; 1024x768@76Hz (80Mhz)
+627++ 6003              F8_MUL     equ 10
+628++ 6003              H8_FPORCH  equ 16
+629++ 6003              H8_SYNC    equ 96
+630++ 6003              H8_BPORCH  equ 176
+631++ 6003              H8_VISIBLE equ 1024
+632++ 6003              V8_FPORCH  equ 1
+633++ 6003              V8_SYNC    equ 3
+634++ 6003              V8_BPORCH  equ 28
+635++ 6003              V8_VISIBLE equ 768
+636++ 6003
+637++ 6003              ; -- Function macros
+638++ 6003                macro FT_ON
+639++ 6003 ~                ld a, SPI_FT_CS_ON
+640++ 6003 ~                out (SPI_CTRL), a
+641++ 6003                endm
+642++ 6003
+643++ 6003                macro FT_OFF
+644++ 6003 ~                ld a, SPI_FT_CS_OFF
+645++ 6003 ~                out (SPI_CTRL), a
+646++ 6003                endm
+647++ 6003
+648++ 6003                macro FT_ACTIVE
+649++ 6003 ~                FT_ON
+650++ 6003 ~                xor a
+651++ 6003 ~                out (SPI_DATA), a
+652++ 6003 ~                out (SPI_DATA), a
+653++ 6003 ~                out (SPI_DATA), a
+654++ 6003 ~                FT_OFF
+655++ 6003                endm
+656++ 6003
+657++ 6003                macro FT_CMD cmd
+658++ 6003 ~                FT_ON
+659++ 6003 ~                ld a, cmd
+660++ 6003 ~                out (SPI_DATA), a
+661++ 6003 ~                xor a
+662++ 6003 ~                out (SPI_DATA), a
+663++ 6003 ~                xor a
+664++ 6003 ~                out (SPI_DATA), a
+665++ 6003 ~                FT_OFF
+666++ 6003                endm
+667++ 6003
+668++ 6003                macro FT_CMDP cmd, par
+669++ 6003 ~                FT_ON
+670++ 6003 ~                ld a, cmd
+671++ 6003 ~                out (SPI_DATA), a
+672++ 6003 ~                ld a, par
+673++ 6003 ~                out (SPI_DATA), a
+674++ 6003 ~                xor a
+675++ 6003 ~                out (SPI_DATA), a
+676++ 6003 ~                FT_OFF
+677++ 6003                endm
+678++ 6003
+679++ 6003                macro FT_WR8 addr, data
+680++ 6003 ~                FT_ON
+681++ 6003 ~                ld a, (addr >> 16) | 0x80
+682++ 6003 ~                out (SPI_DATA), a
+683++ 6003 ~                ld a, (addr >> 8) & 0xFF
+684++ 6003 ~                out (SPI_DATA), a
+685++ 6003 ~                ld a, addr & 0xFF
+686++ 6003 ~                out (SPI_DATA), a
+687++ 6003 ~                ld a, data
+688++ 6003 ~                out (SPI_DATA), a
+689++ 6003 ~                FT_OFF
+690++ 6003                endm
+691++ 6003
+692++ 6003                macro FT_WR16 addr, data
+693++ 6003 ~                FT_ON
+694++ 6003 ~                ld a, (addr >> 16) | 0x80
+695++ 6003 ~                out (SPI_DATA), a
+696++ 6003 ~                ld a, (addr >> 8) & 0xFF
+697++ 6003 ~                out (SPI_DATA), a
+698++ 6003 ~                ld a, addr & 0xFF
+699++ 6003 ~                out (SPI_DATA), a
+700++ 6003 ~                ld a, data & 0xFF
+701++ 6003 ~                out (SPI_DATA), a
+702++ 6003 ~                ld a, (data >> 8) & 0xFF
+703++ 6003 ~                out (SPI_DATA), a
+704++ 6003 ~                FT_OFF
+705++ 6003                endm
+706++ 6003
+707++ 6003                macro FT_WR32 addr, data
+708++ 6003 ~                FT_ON
+709++ 6003 ~                ld a, (addr >> 16) | 0x80
+710++ 6003 ~                out (SPI_DATA), a
+711++ 6003 ~                ld a, (addr >> 8) & 0xFF
+712++ 6003 ~                out (SPI_DATA), a
+713++ 6003 ~                ld a, addr & 0xFF
+714++ 6003 ~                out (SPI_DATA), a
+715++ 6003 ~                ld a, data & 0xFF
+716++ 6003 ~                out (SPI_DATA), a
+717++ 6003 ~                ld a, (data >> 8) & 0xFF
+718++ 6003 ~                out (SPI_DATA), a
+719++ 6003 ~                ld a, (data >> 16) & 0xFF
+720++ 6003 ~                out (SPI_DATA), a
+721++ 6003 ~                ld a, (data >> 24) & 0xFF
+722++ 6003 ~                out (SPI_DATA), a
+723++ 6003 ~                FT_OFF
+724++ 6003                endm
+725++ 6003
+726++ 6003                macro FL_LOAD_DL addr, num
+727++ 6003 ~                FT_ON
+728++ 6003 ~
+729++ 6003 ~                ld a, (FT_RAM_DL >> 16) | 0x80
+730++ 6003 ~                out (SPI_DATA), a
+731++ 6003 ~                ld a, (FT_RAM_DL >> 8) & 0xFF
+732++ 6003 ~                out (SPI_DATA), a
+733++ 6003 ~                ld a, FT_RAM_DL & 0xFF
+734++ 6003 ~                out (SPI_DATA), a
+735++ 6003 ~
+736++ 6003 ~                ld hl, addr
+737++ 6003 ~                ld a, num
+738++ 6003 ~                ld c, SPI_DATA
+739++ 6003 ~            .l1 outi
+740++ 6003 ~                outi
+741++ 6003 ~                outi
+742++ 6003 ~                outi
+743++ 6003 ~                dec a
+744++ 6003 ~                jr nz, .l1
+745++ 6003 ~
+746++ 6003 ~                FT_OFF
+747++ 6003                endm
+748++ 6003
+749++ 6003                macro FT_DELAY del ; !!! will be deprecated
+750++ 6003 ~                ld bc, del
+751++ 6003 ~            .l1 dec bc
+752++ 6003 ~                ld a, b
+753++ 6003 ~                or c
+754++ 6003 ~                jr nz, .l1
+755++ 6003                endm
+756++ 6003
+# file closed: ft81x.asm
+  3+  6003
+  4+  6003                ifndef MF_SIZE
+  5+  6003                define MF_SIZE 256
+  6+  6003                endif
+  7+  6003
+  8+  6003                ifndef MF_ADDR
+  9+  6003                define MF_ADDR 0
+ 10+  6003                endif
+ 11+  6003
+ 12+  6003              ; --------------------
+ 13+  6003                  macro ft_cmd cmd
+ 14+  6003 ~                ld b, cmd
+ 15+  6003 ~                call ft_commd
+ 16+  6003                  endm
+ 17+  6003
+ 18+  6003              ; --------------------
+ 19+  6003                  macro ft_wr8 addr, val
+ 20+  6003 ~                ld de, addr & 0xFFFF
+ 21+  6003 ~                ld a, val
+ 22+  6003 ~                call ft_wreg8
+ 23+  6003                  endm
+ 24+  6003
+ 25+  6003              ; --------------------
+ 26+  6003                  macro ft_wr16 addr, val
+ 27+  6003 ~                ld de, addr & 0xFFFF
+ 28+  6003 ~                ld bc, val
+ 29+  6003 ~                call ft_wreg16
+ 30+  6003                  endm
+ 31+  6003
+ 32+  6003              ; --------------------
+ 33+  6003                  macro ft_rd8 addr
+ 34+  6003 ~                ld de, addr & 0xFFFF
+ 35+  6003 ~                call ft_rreg8
+ 36+  6003                  endm
+ 37+  6003
+ 38+  6003              ; --------------------
+ 39+  6003                  macro ft_rd16 addr
+ 40+  6003 ~                ld de, addr & 0xFFFF
+ 41+  6003 ~                call ft_rreg16
+ 42+  6003                  endm
+ 43+  6003
+ 44+  6003              ; --------------------
+ 45+  6003                  macro ft_delay del
+ 46+  6003 ~                ld b, del
+ 47+  6003 ~            .c1
+ 48+  6003 ~                halt
+ 49+  6003 ~                djnz .c1
+ 50+  6003                  endm
+ 51+  6003
+ 52+  6003              ; --------------------
+ 53+  6003              ; check FT812
+ 54+  6003              ft_detect
+ 55+  6003                  ; check config version
+ 56+  6003 01 AF 00         ld bc, STATUS
+ 57+  6006 ED 78            in a, (c)
+ 58+  6008 E6 07            and 7
+ 59+  600A FE 07            cp 7
+ 60+  600C                  ; ret nz    ; !!! fix Unreal
+ 61+  600C
+ 62+  600C                  ; check chip presence
+ 63+  600C                  ft_rd8 FT_REG_ID
+ 63+  600C 11 00 20    >    ld de, FT_REG_ID & 0xFFFF
+ 63+  600F CD 1C 61    >    call ft_rreg8
+ 64+  6012 FE 7C            cp 0x7C
+ 65+  6014 C9               ret
+ 66+  6015
+ 67+  6015              ; --------------------
+ 68+  6015              ft_copr_reset
+ 69+  6015                  ft_wr8 FT_REG_CPURESET, 1
+ 69+  6015 11 20 20    >    ld de, FT_REG_CPURESET & 0xFFFF
+ 69+  6018 3E 01       >    ld a, 1
+ 69+  601A CD EC 60    >    call ft_wreg8
+ 70+  601D                  ft_wr16 FT_REG_CMD_READ, 0
+ 70+  601D 11 F8 20    >    ld de, FT_REG_CMD_READ & 0xFFFF
+ 70+  6020 01 00 00    >    ld bc, 0
+ 70+  6023 CD 03 61    >    call ft_wreg16
+ 71+  6026                  ft_wr16 FT_REG_CMD_WRITE, 0
+ 71+  6026 11 FC 20    >    ld de, FT_REG_CMD_WRITE & 0xFFFF
+ 71+  6029 01 00 00    >    ld bc, 0
+ 71+  602C CD 03 61    >    call ft_wreg16
+ 72+  602F                  ft_wr8 FT_REG_CPURESET, 0
+ 72+  602F 11 20 20    >    ld de, FT_REG_CPURESET & 0xFFFF
+ 72+  6032 3E 00       >    ld a, 0
+ 72+  6034 CD EC 60    >    call ft_wreg8
+ 73+  6037 C9               ret
+ 74+  6038
+ 75+  6038              ; --------------------
+ 76+  6038              ; in:
+ 77+  6038              ;    HL - address of video mode structure
+ 78+  6038              ft_init
+ 79+  6038                  ft_cmd FT_CMD_RST_PULSE
+ 79+  6038 06 68       >    ld b, FT_CMD_RST_PULSE
+ 79+  603A CD 27 62    >    call ft_commd
+ 80+  603D                  ft_delay 18
+ 80+  603D 06 12       >    ld b, 18
+ 80+  603F             >.c1
+ 80+  603F 76          >    halt
+ 80+  6040 10 FD       >    djnz .c1
+ 81+  6042                  ft_cmd FT_CMD_CLKEXT
+ 81+  6042 06 44       >    ld b, FT_CMD_CLKEXT
+ 81+  6044 CD 27 62    >    call ft_commd
+ 82+  6047                  ft_delay 6
+ 82+  6047 06 06       >    ld b, 6
+ 82+  6049             >.c1
+ 82+  6049 76          >    halt
+ 82+  604A 10 FD       >    djnz .c1
+ 83+  604C                  ft_cmd FT_CMD_SLEEP
+ 83+  604C 06 42       >    ld b, FT_CMD_SLEEP
+ 83+  604E CD 27 62    >    call ft_commd
+ 84+  6051                  ft_delay 6
+ 84+  6051 06 06       >    ld b, 6
+ 84+  6053             >.c1
+ 84+  6053 76          >    halt
+ 84+  6054 10 FD       >    djnz .c1
+ 85+  6056
+ 86+  6056 06 61            ld b, FT_CMD_CLKSEL
+ 87+  6058 7E               ld a, (hl)
+ 88+  6059 23               inc hl
+ 89+  605A F6 C0            or 192
+ 90+  605C 4F               ld c, a
+ 91+  605D CD 29 62         call ft_cmd_p
+ 92+  6060
+ 93+  6060                  ft_cmd FT_CMD_ACTIVE
+ 93+  6060 06 00       >    ld b, FT_CMD_ACTIVE
+ 93+  6062 CD 27 62    >    call ft_commd
+ 94+  6065                  ft_cmd FT_CMD_ACTIVE
+ 94+  6065 06 00       >    ld b, FT_CMD_ACTIVE
+ 94+  6067 CD 27 62    >    call ft_commd
+ 95+  606A                  ft_delay 6
+ 95+  606A 06 06       >    ld b, 6
+ 95+  606C             >.c1
+ 95+  606C 76          >    halt
+ 95+  606D 10 FD       >    djnz .c1
+ 96+  606F
+ 97+  606F                  ft_wr8 FT_REG_PCLK, 1
+ 97+  606F 11 70 20    >    ld de, FT_REG_PCLK & 0xFFFF
+ 97+  6072 3E 01       >    ld a, 1
+ 97+  6074 CD EC 60    >    call ft_wreg8
+ 98+  6077                  ft_wr8 FT_REG_PCLK_POL, 0
+ 98+  6077 11 6C 20    >    ld de, FT_REG_PCLK_POL & 0xFFFF
+ 98+  607A 3E 00       >    ld a, 0
+ 98+  607C CD EC 60    >    call ft_wreg8
+ 99+  607F                  ft_wr8 FT_REG_CSPREAD, 0            ; This is critical for correct colors display
+ 99+  607F 11 68 20    >    ld de, FT_REG_CSPREAD & 0xFFFF
+ 99+  6082 3E 00       >    ld a, 0
+ 99+  6084 CD EC 60    >    call ft_wreg8
+100+  6087
+101+  6087                  macro ft_tab_load reg
+102+  6087 ~                ld de, reg & 0xFFFF
+103+  6087 ~                ld c, (hl)
+104+  6087 ~                inc hl
+105+  6087 ~                ld b, (hl)
+106+  6087 ~                inc hl
+107+  6087 ~                call ft_wreg16
+108+  6087                  endm
+109+  6087
+110+  6087                  ft_tab_load FT_REG_HSYNC0
+110+  6087 11 38 20    >    ld de, FT_REG_HSYNC0 & 0xFFFF
+110+  608A 4E          >    ld c, (hl)
+110+  608B 23          >    inc hl
+110+  608C 46          >    ld b, (hl)
+110+  608D 23          >    inc hl
+110+  608E CD 03 61    >    call ft_wreg16
+111+  6091                  ft_tab_load FT_REG_HSYNC1
+111+  6091 11 3C 20    >    ld de, FT_REG_HSYNC1 & 0xFFFF
+111+  6094 4E          >    ld c, (hl)
+111+  6095 23          >    inc hl
+111+  6096 46          >    ld b, (hl)
+111+  6097 23          >    inc hl
+111+  6098 CD 03 61    >    call ft_wreg16
+112+  609B                  ft_tab_load FT_REG_HOFFSET
+112+  609B 11 30 20    >    ld de, FT_REG_HOFFSET & 0xFFFF
+112+  609E 4E          >    ld c, (hl)
+112+  609F 23          >    inc hl
+112+  60A0 46          >    ld b, (hl)
+112+  60A1 23          >    inc hl
+112+  60A2 CD 03 61    >    call ft_wreg16
+113+  60A5                  ft_tab_load FT_REG_HSIZE
+113+  60A5 11 34 20    >    ld de, FT_REG_HSIZE & 0xFFFF
+113+  60A8 4E          >    ld c, (hl)
+113+  60A9 23          >    inc hl
+113+  60AA 46          >    ld b, (hl)
+113+  60AB 23          >    inc hl
+113+  60AC CD 03 61    >    call ft_wreg16
+114+  60AF                  ft_tab_load FT_REG_HCYCLE
+114+  60AF 11 2C 20    >    ld de, FT_REG_HCYCLE & 0xFFFF
+114+  60B2 4E          >    ld c, (hl)
+114+  60B3 23          >    inc hl
+114+  60B4 46          >    ld b, (hl)
+114+  60B5 23          >    inc hl
+114+  60B6 CD 03 61    >    call ft_wreg16
+115+  60B9                  ft_tab_load FT_REG_VSYNC0
+115+  60B9 11 4C 20    >    ld de, FT_REG_VSYNC0 & 0xFFFF
+115+  60BC 4E          >    ld c, (hl)
+115+  60BD 23          >    inc hl
+115+  60BE 46          >    ld b, (hl)
+115+  60BF 23          >    inc hl
+115+  60C0 CD 03 61    >    call ft_wreg16
+116+  60C3                  ft_tab_load FT_REG_VSYNC1
+116+  60C3 11 50 20    >    ld de, FT_REG_VSYNC1 & 0xFFFF
+116+  60C6 4E          >    ld c, (hl)
+116+  60C7 23          >    inc hl
+116+  60C8 46          >    ld b, (hl)
+116+  60C9 23          >    inc hl
+116+  60CA CD 03 61    >    call ft_wreg16
+117+  60CD                  ft_tab_load FT_REG_VOFFSET
+117+  60CD 11 44 20    >    ld de, FT_REG_VOFFSET & 0xFFFF
+117+  60D0 4E          >    ld c, (hl)
+117+  60D1 23          >    inc hl
+117+  60D2 46          >    ld b, (hl)
+117+  60D3 23          >    inc hl
+117+  60D4 CD 03 61    >    call ft_wreg16
+118+  60D7                  ft_tab_load FT_REG_VSIZE
+118+  60D7 11 48 20    >    ld de, FT_REG_VSIZE & 0xFFFF
+118+  60DA 4E          >    ld c, (hl)
+118+  60DB 23          >    inc hl
+118+  60DC 46          >    ld b, (hl)
+118+  60DD 23          >    inc hl
+118+  60DE CD 03 61    >    call ft_wreg16
+119+  60E1                  ft_tab_load FT_REG_VCYCLE
+119+  60E1 11 40 20    >    ld de, FT_REG_VCYCLE & 0xFFFF
+119+  60E4 4E          >    ld c, (hl)
+119+  60E5 23          >    inc hl
+119+  60E6 46          >    ld b, (hl)
+119+  60E7 23          >    inc hl
+119+  60E8 CD 03 61    >    call ft_wreg16
+120+  60EB C9               ret
+121+  60EC
+122+  60EC              ; --------------------
+123+  60EC              ; in:
+124+  60EC              ;    DE - reg lower 16 bits
+125+  60EC              ;    A - value
+126+  60EC              ft_wreg8
+127+  60EC F5               push af
+128+  60ED                  FT_ON
+128+  60ED 3E 07       >    ld a, SPI_FT_CS_ON
+128+  60EF D3 77       >    out (SPI_CTRL), a
+129+  60F1
+130+  60F1 3E B0            ld a, (FT_RAM_REG >> 16) | 0x80
+131+  60F3 D3 57            out (SPI_DATA), a
+132+  60F5 7A               ld a, d
+133+  60F6 D3 57            out (SPI_DATA), a
+134+  60F8 7B               ld a, e
+135+  60F9 D3 57            out (SPI_DATA), a
+136+  60FB F1               pop af
+137+  60FC D3 57            out (SPI_DATA), a
+138+  60FE
+139+  60FE                  FT_OFF
+139+  60FE 3E 03       >    ld a, SPI_FT_CS_OFF
+139+  6100 D3 77       >    out (SPI_CTRL), a
+140+  6102 C9               ret
+141+  6103
+142+  6103              ; --------------------
+143+  6103              ; in:
+144+  6103              ;    DE - reg lower 16 bits
+145+  6103              ;    BC - value
+146+  6103              ft_wreg16
+147+  6103                  FT_ON
+147+  6103 3E 07       >    ld a, SPI_FT_CS_ON
+147+  6105 D3 77       >    out (SPI_CTRL), a
+148+  6107
+149+  6107 3E B0            ld a, (FT_RAM_REG >> 16) | 0x80
+150+  6109 D3 57            out (SPI_DATA), a
+151+  610B 7A               ld a, d
+152+  610C D3 57            out (SPI_DATA), a
+153+  610E 7B               ld a, e
+154+  610F D3 57            out (SPI_DATA), a
+155+  6111
+156+  6111 79               ld a, c
+157+  6112 D3 57            out (SPI_DATA), a
+158+  6114 78               ld a, b
+159+  6115 D3 57            out (SPI_DATA), a
+160+  6117
+161+  6117                  FT_OFF
+161+  6117 3E 03       >    ld a, SPI_FT_CS_OFF
+161+  6119 D3 77       >    out (SPI_CTRL), a
+162+  611B C9               ret
+163+  611C
+164+  611C              ; --------------------
+165+  611C              ; in:
+166+  611C              ;    DE - reg lower 16 bits
+167+  611C              ; out:
+168+  611C              ;    A - value
+169+  611C              ft_rreg8
+170+  611C                  FT_ON
+170+  611C 3E 07       >    ld a, SPI_FT_CS_ON
+170+  611E D3 77       >    out (SPI_CTRL), a
+171+  6120
+172+  6120 3E 30            ld a, FT_RAM_REG >> 16
+173+  6122 D3 57            out (SPI_DATA), a
+174+  6124 7A               ld a, d
+175+  6125 D3 57            out (SPI_DATA), a
+176+  6127 7B               ld a, e
+177+  6128 D3 57            out (SPI_DATA), a
+178+  612A D3 57            out (SPI_DATA), a    ; dummy
+179+  612C DB 57            in a, (SPI_DATA)     ; dummy
+180+  612E
+181+  612E DB 57            in a, (SPI_DATA)
+182+  6130
+183+  6130 F5               push af
+184+  6131                  FT_OFF
+184+  6131 3E 03       >    ld a, SPI_FT_CS_OFF
+184+  6133 D3 77       >    out (SPI_CTRL), a
+185+  6135 F1               pop af
+186+  6136 C9               ret
+187+  6137
+188+  6137              ; --------------------
+189+  6137              ; in:
+190+  6137              ;    DE - reg lower 16 bits
+191+  6137              ; out:
+192+  6137              ;    A - value
+193+  6137              ft_rreg16
+194+  6137                  FT_ON
+194+  6137 3E 07       >    ld a, SPI_FT_CS_ON
+194+  6139 D3 77       >    out (SPI_CTRL), a
+195+  613B
+196+  613B 3E 30            ld a, FT_RAM_REG >> 16
+197+  613D D3 57            out (SPI_DATA), a
+198+  613F 7A               ld a, d
+199+  6140 D3 57            out (SPI_DATA), a
+200+  6142 7B               ld a, e
+201+  6143 D3 57            out (SPI_DATA), a
+202+  6145 D3 57            out (SPI_DATA), a    ; dummy
+203+  6147 DB 57            in a, (SPI_DATA)     ; dummy
+204+  6149
+205+  6149 DB 57            in a, (SPI_DATA)
+206+  614B 4F               ld c, a
+207+  614C DB 57            in a, (SPI_DATA)
+208+  614E 47               ld b, a
+209+  614F
+210+  614F                  FT_OFF
+210+  614F 3E 03       >    ld a, SPI_FT_CS_OFF
+210+  6151 D3 77       >    out (SPI_CTRL), a
+211+  6153 C9               ret
+212+  6154
+213+  6154              ; --------------------
+214+  6154              ; in:
+215+  6154              ;    HL - memory address
+216+  6154              ;    ADE - FT812 address
+217+  6154              ;    BC - number of bytes
+218+  6154              ft_read
+219+  6154 F5               push af
+220+  6155                  FT_ON
+220+  6155 3E 07       >    ld a, SPI_FT_CS_ON
+220+  6157 D3 77       >    out (SPI_CTRL), a
+221+  6159 F1               pop af
+222+  615A
+223+  615A D3 57            out (SPI_DATA), a
+224+  615C 7A               ld a, d
+225+  615D D3 57            out (SPI_DATA), a
+226+  615F 7B               ld a, e
+227+  6160 D3 57            out (SPI_DATA), a
+228+  6162 D3 57            out (SPI_DATA), a    ; dummy
+229+  6164 DB 57            in a, (SPI_DATA)     ; dummy
+230+  6166
+231+  6166 78               ld a, b
+232+  6167 41               ld b, c
+233+  6168 0E 57            ld c, SPI_DATA
+234+  616A
+235+  616A              .c1
+236+  616A ED B2            inir
+237+  616C B7               or a
+238+  616D 28 03            jr z, .exit
+239+  616F 3D               dec a
+240+  6170 18 F8            jr .c1
+241+  6172
+242+  6172              .exit
+243+  6172                  FT_OFF
+243+  6172 3E 03       >    ld a, SPI_FT_CS_OFF
+243+  6174 D3 77       >    out (SPI_CTRL), a
+244+  6176 C9               ret
+245+  6177
+246+  6177              ; --------------------
+247+  6177              ; in:
+248+  6177              ;    HL - memory address
+249+  6177              ;    ADE - FT812 address
+250+  6177              ;    BC - number of bytes
+251+  6177              ; out:
+252+  6177              ;    HL - address + number of bytes
+253+  6177              ;    ADE - FT812 address + number of bytes
+254+  6177              ft_write
+255+  6177 F5               push af
+256+  6178                  FT_ON
+256+  6178 3E 07       >    ld a, SPI_FT_CS_ON
+256+  617A D3 77       >    out (SPI_CTRL), a
+257+  617C F1               pop af
+258+  617D
+259+  617D F5               push af
+260+  617E F6 80            or 0x80
+261+  6180 D3 57            out (SPI_DATA), a
+262+  6182 7A               ld a, d
+263+  6183 D3 57            out (SPI_DATA), a
+264+  6185 7B               ld a, e
+265+  6186 D3 57            out (SPI_DATA), a
+266+  6188 F1               pop af
+267+  6189
+268+  6189 EB               ex de, hl
+269+  618A 09               add hl, bc
+270+  618B EB               ex de, hl
+271+  618C CE 00            adc a, 0
+272+  618E F5               push af
+273+  618F
+274+  618F 79               ld a, c
+275+  6190 B7               or a
+276+  6191 78               ld a, b
+277+  6192 41               ld b, c
+278+  6193 0E 57            ld c, SPI_DATA
+279+  6195 28 05            jr z, .c1
+280+  6197 ED B3            otir
+281+  6199 B7               or a
+282+  619A 28 05            jr z, .exit
+283+  619C              .c1
+284+  619C ED B3            otir
+285+  619E 3D               dec a
+286+  619F 20 FB            jr nz, .c1
+287+  61A1
+288+  61A1              .exit
+289+  61A1                  FT_OFF
+289+  61A1 3E 03       >    ld a, SPI_FT_CS_OFF
+289+  61A3 D3 77       >    out (SPI_CTRL), a
+290+  61A5 F1               pop af
+291+  61A6 C9               ret
+292+  61A7
+293+  61A7              ; --------------------
+294+  61A7              ; in:
+295+  61A7              ;    HL - memory address
+296+  61A7              ;    DE - FT812 DL offset
+297+  61A7              ;    BC - number of bytes
+298+  61A7              ; out:
+299+  61A7              ;    DE - FT812 DL offset + number of bytes
+300+  61A7              ft_load_dl
+301+  61A7 3E 30            ld a, FT_RAM_DL >> 16
+302+  61A9 18 CC            jr ft_write
+303+  61AB
+304+  61AB              ; --------------------
+305+  61AB              ; in:
+306+  61AB              ;    HL - memory address
+307+  61AB              ;    BC - number of bytes
+308+  61AB              ft_load_copr
+309+  61AB E5               push hl
+310+  61AC C5               push bc
+311+  61AD
+312+  61AD              .w1
+313+  61AD                  ; read available CMDB buffer space
+314+  61AD                  ft_rd16 FT_REG_CMDB_SPACE
+314+  61AD 11 74 25    >    ld de, FT_REG_CMDB_SPACE & 0xFFFF
+314+  61B0 CD 37 61    >    call ft_rreg16
+315+  61B3 78               ld a, b
+316+  61B4 B1               or c
+317+  61B5 28 F6            jr z, .w1
+318+  61B7
+319+  61B7                  ; size = min(remainder, size)
+320+  61B7 E1               pop hl ; number of bytes
+321+  61B8 B7               or a
+322+  61B9 ED 42            sbc hl, bc
+323+  61BB 30 06            jr nc, .c2
+324+  61BD 09               add hl, bc
+325+  61BE 44               ld b, h
+326+  61BF 4D               ld c, l
+327+  61C0 21 00 00         ld hl, 0
+328+  61C3              .c2
+329+  61C3 E3               ex (sp), hl ; remainder <-> memory address
+330+  61C4 3E 30            ld a, FT_REG_CMDB_WRITE >> 16
+331+  61C6 11 78 25         ld de, FT_REG_CMDB_WRITE & 0xFFFF
+332+  61C9 CD 77 61         call ft_write
+333+  61CC
+334+  61CC C1               pop bc    ; remainder
+335+  61CD 78               ld a, b
+336+  61CE B1               or c
+337+  61CF 20 DA            jr nz, ft_load_copr
+338+  61D1 C9               ret
+339+  61D2
+340+  61D2              ; --------------------
+341+  61D2              ; attention! you should only request integral parts of FIFO size, e.g. half
+342+  61D2              ; in:
+343+  61D2              ;    HL - memory address
+344+  61D2              ;    BC - number of bytes
+345+  61D2              load_mediafifo
+346+  61D2 E5               push hl
+347+  61D3 ED 43 FD 61      ld (.s1 + 1), bc
+348+  61D7
+349+  61D7                  ; check free space
+350+  61D7                  ft_rd16 FT_REG_MEDIAFIFO_WRITE
+350+  61D7 11 18 90    >    ld de, FT_REG_MEDIAFIFO_WRITE & 0xFFFF
+350+  61DA CD 37 61    >    call ft_rreg16
+351+  61DD 60               ld h, b
+352+  61DE 69               ld l, c
+353+  61DF
+354+  61DF              .w1
+355+  61DF E5               push hl
+356+  61E0                  ; check if error happened
+357+  61E0                  ft_rd8 FT_REG_CMD_READ
+357+  61E0 11 F8 20    >    ld de, FT_REG_CMD_READ & 0xFFFF
+357+  61E3 CD 1C 61    >    call ft_rreg8
+358+  61E6 3C               inc a   ; 0x0FFF
+359+  61E7 28 37            jr z, .err
+360+  61E9
+361+  61E9                  ft_rd16 FT_REG_MEDIAFIFO_READ
+361+  61E9 11 14 90    >    ld de, FT_REG_MEDIAFIFO_READ & 0xFFFF
+361+  61EC CD 37 61    >    call ft_rreg16
+362+  61EF                  ; used = (wptr - rptr) mod fsize
+363+  61EF B7               or a
+364+  61F0 ED 42            sbc hl, bc
+365+  61F2 7C               ld a, h
+366+  61F3 E6 00            and (256 - 1) >> 8
+367+  61F5 67               ld h, a
+368+  61F6 EB               ex de, hl
+369+  61F7                  ; free = (fsize - 4) - used
+370+  61F7 21 FC 00         ld hl, 256 - 4
+371+  61FA ED 52            sbc hl, de
+372+  61FC              .s1
+373+  61FC 01 00 00         ld bc, 0
+374+  61FF ED 42            sbc hl, bc
+375+  6201 E1               pop hl
+376+  6202 38 DB            jr c, .w1
+377+  6204
+378+  6204                  ; load data
+379+  6204 3E 00            ld a, 0 >> 16
+380+  6206 11 00 00         ld de, 0 & 0xFFFF
+381+  6209 B7               or a
+382+  620A ED 5A            adc hl, de
+383+  620C EB               ex de, hl
+384+  620D CE 00            adc a, 0
+385+  620F E1               pop hl
+386+  6210 CD 77 61         call ft_write
+387+  6213
+388+  6213                  ; update FIFO write pointer
+389+  6213 4B               ld c, e
+390+  6214 7A               ld a, d
+391+  6215 E6 00            and (256 - 1) >> 8
+392+  6217 47               ld b, a
+393+  6218 11 18 90         ld de, FT_REG_MEDIAFIFO_WRITE & 0xFFFF
+394+  621B CD 03 61         call ft_wreg16
+395+  621E B7               or a
+396+  621F C9               ret
+397+  6220
+398+  6220              .err
+399+  6220 E1               pop hl
+400+  6221 E1               pop hl
+401+  6222 CD 15 60         call ft_copr_reset
+402+  6225 37               scf
+403+  6226 C9               ret
+404+  6227
+405+  6227              ; --------------------
+406+  6227              ; in:
+407+  6227              ;    B - command code
+408+  6227              ;    C - command parameter
+409+  6227              ft_commd
+410+  6227 0E 00            ld c, 0
+411+  6229              ft_cmd_p
+412+  6229                  FT_ON
+412+  6229 3E 07       >    ld a, SPI_FT_CS_ON
+412+  622B D3 77       >    out (SPI_CTRL), a
+413+  622D 78               ld a, b
+414+  622E D3 57            out (SPI_DATA), a
+415+  6230 79               ld a, c
+416+  6231 D3 57            out (SPI_DATA), a
+417+  6233 AF               xor a
+418+  6234 D3 57            out (SPI_DATA), a
+419+  6236                  FT_OFF
+419+  6236 3E 03       >    ld a, SPI_FT_CS_OFF
+419+  6238 D3 77       >    out (SPI_CTRL), a
+420+  623A C9               ret
+421+  623B
+422+  623B              ; --------------------
+423+  623B              ; .rdata
+424+  623B
+425+  623B              ; Vmodes
+426+  623B              vm_640_480_57Hz   ft_mode_tab F0_MUL, H0_FPORCH, H0_SYNC, H0_BPORCH, H0_VISIBLE, V0_FPORCH, V0_SYNC, V0_BPORCH, V0_VISIBLE
+426+  623B 03          >  db F0_MUL
+426+  623C 10 00       >  dw H0_FPORCH
+426+  623E 70 00       >  dw H0_FPORCH + H0_SYNC
+426+  6240 A0 00       >  dw H0_FPORCH + H0_SYNC + H0_BPORCH
+426+  6242 80 02       >  dw H0_VISIBLE
+426+  6244 20 03       >  dw H0_FPORCH + H0_SYNC + H0_BPORCH + H0_VISIBLE
+426+  6246 0A 00       >  dw V0_FPORCH - 1
+426+  6248 0C 00       >  dw V0_FPORCH + V0_SYNC - 1
+426+  624A 2B 00       >  dw V0_FPORCH + V0_SYNC + V0_BPORCH - 1
+426+  624C E0 01       >  dw V0_VISIBLE
+426+  624E 0C 02       >  dw V0_FPORCH + V0_SYNC + V0_BPORCH + V0_VISIBLE
+427+  6250              vm_640_480_74Hz   ft_mode_tab F1_MUL, H1_FPORCH, H1_SYNC, H1_BPORCH, H1_VISIBLE, V1_FPORCH, V1_SYNC, V1_BPORCH, V1_VISIBLE
+427+  6250 04          >  db F1_MUL
+427+  6251 18 00       >  dw H1_FPORCH
+427+  6253 40 00       >  dw H1_FPORCH + H1_SYNC
+427+  6255 C0 00       >  dw H1_FPORCH + H1_SYNC + H1_BPORCH
+427+  6257 80 02       >  dw H1_VISIBLE
+427+  6259 40 03       >  dw H1_FPORCH + H1_SYNC + H1_BPORCH + H1_VISIBLE
+427+  625B 08 00       >  dw V1_FPORCH - 1
+427+  625D 0B 00       >  dw V1_FPORCH + V1_SYNC - 1
+427+  625F 27 00       >  dw V1_FPORCH + V1_SYNC + V1_BPORCH - 1
+427+  6261 E0 01       >  dw V1_VISIBLE
+427+  6263 08 02       >  dw V1_FPORCH + V1_SYNC + V1_BPORCH + V1_VISIBLE
+428+  6265              vm_640_480_76Hz   ft_mode_tab F2_MUL, H2_FPORCH, H2_SYNC, H2_BPORCH, H2_VISIBLE, V2_FPORCH, V2_SYNC, V2_BPORCH, V2_VISIBLE
+428+  6265 04          >  db F2_MUL
+428+  6266 10 00       >  dw H2_FPORCH
+428+  6268 70 00       >  dw H2_FPORCH + H2_SYNC
+428+  626A A0 00       >  dw H2_FPORCH + H2_SYNC + H2_BPORCH
+428+  626C 80 02       >  dw H2_VISIBLE
+428+  626E 20 03       >  dw H2_FPORCH + H2_SYNC + H2_BPORCH + H2_VISIBLE
+428+  6270 0A 00       >  dw V2_FPORCH - 1
+428+  6272 0C 00       >  dw V2_FPORCH + V2_SYNC - 1
+428+  6274 2B 00       >  dw V2_FPORCH + V2_SYNC + V2_BPORCH - 1
+428+  6276 E0 01       >  dw V2_VISIBLE
+428+  6278 0C 02       >  dw V2_FPORCH + V2_SYNC + V2_BPORCH + V2_VISIBLE
+429+  627A              vm_800_600_60Hz   ft_mode_tab F3_MUL, H3_FPORCH, H3_SYNC, H3_BPORCH, H3_VISIBLE, V3_FPORCH, V3_SYNC, V3_BPORCH, V3_VISIBLE
+429+  627A 05          >  db F3_MUL
+429+  627B 28 00       >  dw H3_FPORCH
+429+  627D A8 00       >  dw H3_FPORCH + H3_SYNC
+429+  627F 00 01       >  dw H3_FPORCH + H3_SYNC + H3_BPORCH
+429+  6281 20 03       >  dw H3_VISIBLE
+429+  6283 20 04       >  dw H3_FPORCH + H3_SYNC + H3_BPORCH + H3_VISIBLE
+429+  6285 00 00       >  dw V3_FPORCH - 1
+429+  6287 04 00       >  dw V3_FPORCH + V3_SYNC - 1
+429+  6289 1B 00       >  dw V3_FPORCH + V3_SYNC + V3_BPORCH - 1
+429+  628B 58 02       >  dw V3_VISIBLE
+429+  628D 74 02       >  dw V3_FPORCH + V3_SYNC + V3_BPORCH + V3_VISIBLE
+430+  628F              vm_800_600_69Hz   ft_mode_tab F4_MUL, H4_FPORCH, H4_SYNC, H4_BPORCH, H4_VISIBLE, V4_FPORCH, V4_SYNC, V4_BPORCH, V4_VISIBLE
+430+  628F 06          >  db F4_MUL
+430+  6290 38 00       >  dw H4_FPORCH
+430+  6292 B0 00       >  dw H4_FPORCH + H4_SYNC
+430+  6294 F0 00       >  dw H4_FPORCH + H4_SYNC + H4_BPORCH
+430+  6296 20 03       >  dw H4_VISIBLE
+430+  6298 10 04       >  dw H4_FPORCH + H4_SYNC + H4_BPORCH + H4_VISIBLE
+430+  629A 24 00       >  dw V4_FPORCH - 1
+430+  629C 2A 00       >  dw V4_FPORCH + V4_SYNC - 1
+430+  629E 41 00       >  dw V4_FPORCH + V4_SYNC + V4_BPORCH - 1
+430+  62A0 58 02       >  dw V4_VISIBLE
+430+  62A2 9A 02       >  dw V4_FPORCH + V4_SYNC + V4_BPORCH + V4_VISIBLE
+431+  62A4              vm_800_600_85Hz   ft_mode_tab F5_MUL, H5_FPORCH, H5_SYNC, H5_BPORCH, H5_VISIBLE, V5_FPORCH, V5_SYNC, V5_BPORCH, V5_VISIBLE
+431+  62A4 07          >  db F5_MUL
+431+  62A5 20 00       >  dw H5_FPORCH
+431+  62A7 60 00       >  dw H5_FPORCH + H5_SYNC
+431+  62A9 F8 00       >  dw H5_FPORCH + H5_SYNC + H5_BPORCH
+431+  62AB 20 03       >  dw H5_VISIBLE
+431+  62AD 18 04       >  dw H5_FPORCH + H5_SYNC + H5_BPORCH + H5_VISIBLE
+431+  62AF 00 00       >  dw V5_FPORCH - 1
+431+  62B1 03 00       >  dw V5_FPORCH + V5_SYNC - 1
+431+  62B3 1E 00       >  dw V5_FPORCH + V5_SYNC + V5_BPORCH - 1
+431+  62B5 58 02       >  dw V5_VISIBLE
+431+  62B7 77 02       >  dw V5_FPORCH + V5_SYNC + V5_BPORCH + V5_VISIBLE
+432+  62B9              vm_1024_768_59Hz  ft_mode_tab F6_MUL, H6_FPORCH, H6_SYNC, H6_BPORCH, H6_VISIBLE, V6_FPORCH, V6_SYNC, V6_BPORCH, V6_VISIBLE
+432+  62B9 08          >  db F6_MUL
+432+  62BA 18 00       >  dw H6_FPORCH
+432+  62BC A0 00       >  dw H6_FPORCH + H6_SYNC
+432+  62BE 40 01       >  dw H6_FPORCH + H6_SYNC + H6_BPORCH
+432+  62C0 00 04       >  dw H6_VISIBLE
+432+  62C2 40 05       >  dw H6_FPORCH + H6_SYNC + H6_BPORCH + H6_VISIBLE
+432+  62C4 02 00       >  dw V6_FPORCH - 1
+432+  62C6 08 00       >  dw V6_FPORCH + V6_SYNC - 1
+432+  62C8 25 00       >  dw V6_FPORCH + V6_SYNC + V6_BPORCH - 1
+432+  62CA 00 03       >  dw V6_VISIBLE
+432+  62CC 26 03       >  dw V6_FPORCH + V6_SYNC + V6_BPORCH + V6_VISIBLE
+433+  62CE              vm_1024_768_67Hz  ft_mode_tab F7_MUL, H7_FPORCH, H7_SYNC, H7_BPORCH, H7_VISIBLE, V7_FPORCH, V7_SYNC, V7_BPORCH, V7_VISIBLE
+433+  62CE 09          >  db F7_MUL
+433+  62CF 18 00       >  dw H7_FPORCH
+433+  62D1 A0 00       >  dw H7_FPORCH + H7_SYNC
+433+  62D3 30 01       >  dw H7_FPORCH + H7_SYNC + H7_BPORCH
+433+  62D5 00 04       >  dw H7_VISIBLE
+433+  62D7 30 05       >  dw H7_FPORCH + H7_SYNC + H7_BPORCH + H7_VISIBLE
+433+  62D9 02 00       >  dw V7_FPORCH - 1
+433+  62DB 08 00       >  dw V7_FPORCH + V7_SYNC - 1
+433+  62DD 25 00       >  dw V7_FPORCH + V7_SYNC + V7_BPORCH - 1
+433+  62DF 00 03       >  dw V7_VISIBLE
+433+  62E1 26 03       >  dw V7_FPORCH + V7_SYNC + V7_BPORCH + V7_VISIBLE
+434+  62E3              vm_1024_768_76Hz  ft_mode_tab F8_MUL, H8_FPORCH, H8_SYNC, H8_BPORCH, H8_VISIBLE, V8_FPORCH, V8_SYNC, V8_BPORCH, V8_VISIBLE
+434+  62E3 0A          >  db F8_MUL
+434+  62E4 10 00       >  dw H8_FPORCH
+434+  62E6 70 00       >  dw H8_FPORCH + H8_SYNC
+434+  62E8 20 01       >  dw H8_FPORCH + H8_SYNC + H8_BPORCH
+434+  62EA 00 04       >  dw H8_VISIBLE
+434+  62EC 20 05       >  dw H8_FPORCH + H8_SYNC + H8_BPORCH + H8_VISIBLE
+434+  62EE 00 00       >  dw V8_FPORCH - 1
+434+  62F0 03 00       >  dw V8_FPORCH + V8_SYNC - 1
+434+  62F2 1F 00       >  dw V8_FPORCH + V8_SYNC + V8_BPORCH - 1
+434+  62F4 00 03       >  dw V8_VISIBLE
+434+  62F6 20 03       >  dw V8_FPORCH + V8_SYNC + V8_BPORCH + V8_VISIBLE
+435+  62F8
+# file closed: ft_func.asm
+ 15   62F8
+ 16   62F8              main
+ 17   62F8 3E 04            ld a, 4
+ 18   62FA 32 70 63         ld (offs_x), a
+ 19   62FD 32 71 63         ld (offs_y), a
+ 20   6300
+ 21   6300 01 AF 20         ld bc, SYSCONFIG
+ 22   6303 3E 06            ld a, SYS_ZCLK14 | SYS_CACHEEN
+ 23   6305 ED 79            out (c), a
+ 24   6307
+ 25   6307 FB               ei
+ 26   6308 21 B9 62         ld hl, vm_1024_768_59Hz
+ 27   630B                  ; ld hl, vm_1024_768_67Hz
+ 28   630B                  ; ld hl, vm_1024_768_76Hz
+ 29   630B CD 38 60         call ft_init
+ 30   630E
+ 31   630E                  ft_wr8  FT_REG_INT_MASK,FT_INT_SWAP
+ 31   630E 11 B0 20    >    ld de, FT_REG_INT_MASK & 0xFFFF
+ 31   6311 3E 01       >    ld a, FT_INT_SWAP
+ 31   6313 CD EC 60    >    call ft_wreg8
+ 32   6316                  ft_wr8  FT_REG_INT_EN,1
+ 32   6316 11 AC 20    >    ld de, FT_REG_INT_EN & 0xFFFF
+ 32   6319 3E 01       >    ld a, 1
+ 32   631B CD EC 60    >    call ft_wreg8
+ 33   631E
+ 34   631E 01 AF 00         ld  bc, VCONFIG
+ 35   6321 3E 04            ld  a, VID_FT812
+ 36   6323 ED 79            out (c),a
+ 37   6325
+ 38   6325              loop
+ 39   6325 AF               xor a
+ 40   6326              l2
+ 41   6326 32 6F 63         ld (offs_p), a
+ 42   6329 CD 72 63         call calc_offs
+ 43   632C 79               ld a, c
+ 44   632D 01 AF 1C         ld bc, DMASADDRX
+ 45   6330 ED 79            out (c), a
+ 46   6332 01 AF 1A         ld bc, DMASADDRL
+ 47   6335 ED 59            out (c), e
+ 48   6337 01 AF 1B         ld bc, DMASADDRH
+ 49   633A ED 51            out (c), d
+main.asm(50): error: Unrecognized instruction: dma_len BSIZE, BNUM
+ 50   633C                  dma_len BSIZE, BNUM
+ 51   633C
+ 52   633C 3E 30            ld a, FT_RAM_DL >> 16
+ 53   633E 11 00 00         ld de, FT_RAM_DL & 0xFFFF
+main.asm(54): error: Label not found: ft_w_addr
+ 54   6341 CD 00 00         call ft_w_addr
+ 55   6344 3E 03            ld a, 3
+ 55   6346 D3 FE          out (254), a ; !!!
+main.asm(56): error: Unrecognized instruction: dma_ctr DMA_RAM_SPI
+ 56   6348                  dma_ctr DMA_RAM_SPI
+main.asm(57): error: Unrecognized instruction: dma_wait
+ 57   6348                  dma_wait
+ 58   6348 3E 00            ld a, 0
+ 58   634A D3 FE          out (254), a ; !!!
+ 59   634C                  FT_OFF
+ 59   634C 3E 03       >    ld a, SPI_FT_CS_OFF
+ 59   634E D3 77       >    out (SPI_CTRL), a
+ 60   6350
+ 61   6350                  ft_wr8 FT_REG_DLSWAP, FT_DLSWAP_FRAME
+ 61   6350 11 54 20    >    ld de, FT_REG_DLSWAP & 0xFFFF
+ 61   6353 3E 02       >    ld a, FT_DLSWAP_FRAME
+ 61   6355 CD EC 60    >    call ft_wreg8
+ 62   6358
+ 63   6358              wait_int
+ 64   6358                  ft_rd8  FT_REG_INT_FLAGS
+ 64   6358 11 A8 20    >    ld de, FT_REG_INT_FLAGS & 0xFFFF
+ 64   635B CD 1C 61    >    call ft_rreg8
+ 65   635E E6 01            and FT_INT_SWAP
+ 66   6360 28 F6            jr z, wait_int
+ 67   6362
+ 68   6362 CD B0 63         call keys
+ 69   6365
+ 70   6365 3A 6F 63         ld a, (offs_p)
+ 71   6368 3C               inc a
+ 72   6369 FE 0A            cp PNUM
+ 73   636B 38 B9            jr c, l2
+ 74   636D 18 B6            jr loop
+ 75   636F
+ 76   636F 00           offs_p db 0
+ 77   6370 00           offs_x db 0
+ 78   6371 00           offs_y db 0
+ 79   6372
+ 80   6372              calc_offs
+ 81   6372                  define Y_SET_SIZE (BSIZE * BNUM * PNUM * XNUM)
+ 82   6372                  define X_SET_SIZE (BSIZE * BNUM * PNUM)
+ 83   6372                  define P_SET_SIZE (BSIZE * BNUM)
+ 84   6372
+ 85   6372 DD 21 00 00      ld ix, 0
+ 86   6376 0E 02            ld c, 2   ; starting address for DL is 0x020000
+ 87   6378
+ 88   6378 11 00 CD         ld de, (BSIZE * BNUM * PNUM * XNUM) & 0xFFFF
+ 89   637B 26 05            ld h, ((BSIZE * BNUM * PNUM * XNUM) >> 16) & 0xFF
+ 90   637D 3A 71 63         ld a, (offs_y)
+ 91   6380 CD A5 63         call c_add
+ 92   6383
+ 93   6383 11 00 A5         ld de, (BSIZE * BNUM * PNUM) & 0xFFFF
+ 94   6386 26 00            ld h, ((BSIZE * BNUM * PNUM) >> 16) & 0xFF
+ 95   6388 3A 70 63         ld a, (offs_x)
+ 96   638B CD A5 63         call c_add
+ 97   638E
+ 98   638E 11 80 10         ld de, (BSIZE * BNUM) & 0xFFFF
+ 99   6391 26 00            ld h, ((BSIZE * BNUM) >> 16) & 0xFF
+100   6393 3A 6F 63         ld a, (offs_p)
+101   6396 CD A5 63         call c_add
+102   6399
+103   6399 DD 7C            ld a, xh
+104   639B 17               rla
+105   639C CB 11            rl c
+106   639E 17               rla
+107   639F CB 11            rl c
+108   63A1
+109   63A1 DD E5            push ix
+110   63A3 D1               pop de
+111   63A4 C9               ret
+112   63A5
+113   63A5              ; in/out: C:IX - address
+114   63A5              ; in: H:DE - adder
+115   63A5              ; in: A - number of addings
+116   63A5              c_add
+117   63A5 B7               or a
+118   63A6 C8               ret z
+119   63A7 47               ld b, a
+120   63A8 DD 19        c1  add ix, de
+121   63AA 79               ld a, c
+122   63AB 8C               adc h
+123   63AC 4F               ld c, a
+124   63AD 10 F9            djnz c1
+125   63AF C9               ret
+126   63B0
+127   63B0              keys
+128   63B0 3E EF            ld a, 0xEF
+129   63B2 DB FE            in a, (254)
+130   63B4 1F               rra
+131   63B5 1F               rra
+132   63B6 38 0A            jr c, k1
+133   63B8 3A 71 63         ld a, (offs_y)
+134   63BB B7               or a
+135   63BC C8               ret z
+136   63BD 3D               dec a
+137   63BE 32 71 63         ld (offs_y), a
+138   63C1 C9               ret
+139   63C2
+140   63C2 1F           k1  rra
+141   63C3 38 0B            jr c, k2
+142   63C5 3A 71 63         ld a, (offs_y)
+143   63C8 3C               inc a
+144   63C9 FE 09            cp YNUM
+145   63CB C8               ret z
+146   63CC 32 71 63         ld (offs_y), a
+147   63CF C9               ret
+148   63D0
+149   63D0 1F           k2  rra
+150   63D1 38 0B            jr c, k3
+151   63D3 3A 70 63         ld a, (offs_x)
+152   63D6 3C               inc a
+153   63D7 FE 09            cp XNUM
+154   63D9 C8               ret z
+155   63DA 32 70 63         ld (offs_x), a
+156   63DD C9               ret
+157   63DE
+158   63DE 1F           k3  rra
+159   63DF D8               ret c
+160   63E0 3A 70 63         ld a, (offs_x)
+161   63E3 B7               or a
+162   63E4 C8               ret z
+163   63E5 3D               dec a
+164   63E6 32 70 63         ld (offs_x), a
+165   63E9 C9               ret
+166   63EA
+# file closed: main.asm

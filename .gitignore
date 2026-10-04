@@ -1,0 +1,11 @@
+# Third-party toolchain, emulators and disk images (too large for GitHub)
+/tools/
+/pentevo/
+
+# Build outputs
+/main.lst
+/main.exp
+/temp_build/
+/TMPFT/
+/srs/*.bin
+/srs/ft2.spg
