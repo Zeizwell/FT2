@@ -9,6 +9,7 @@
     push ix
     push iy
     ex af,af'
+    exx                 ; альтернативные BC',DE',HL' - тоже сохраняем
     push af
     push bc
     push de
@@ -18,6 +19,7 @@
     pop de
     pop bc
     pop af
+    exx
     ex af,af'
     pop iy
     pop ix
