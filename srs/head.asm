@@ -395,7 +395,7 @@ Tm_Sec          db 0
 Tm_Min          db 0
 
 Time_Tick
-        ld a,(Playing)
+        ld a,(SV_PLAY_STATE)
         or a
         ret z
         ld hl,Tm_Frm

@@ -172,15 +172,7 @@ PluginMain
         call Build_Row_A
         call Init_RowNum            ; страница номеров роу
         call Test_Song              ; тестовые паттерны (данные + текст) и ордер
-.again  ld a,(SV_PLAY_STATE)        ; играет ли - по плееру (на других вкладках его
-        or a                        ; могли пустить или остановить)
-        ld (Playing),a
-        cp PS_PATTERN               ; полотно: паттерн по кругу или по ордеру
-        ld a,0
-        jr z,$+3
-        inc a
-        ld (Src_Mode),a
-        ld a,(SV_SONG_NEW)          ; трек загрузили (вкладка Disk) - перечитать
+.again  ld a,(SV_SONG_NEW)          ; трек загрузили (вкладка Disk) - перечитать
         or a
         call nz,Song_Reload
         call Head_Load              ; шапка: значения трека
@@ -249,8 +241,6 @@ Open_Item       db 1                ; открытый элемент 0..7, ITEM
 Layout_Pending  db 0
 Layout_Busy     db 0                ; 1 - раскладка меняется, IM1 паттерн не рисует
 Order_Pending   db 0
-Playing         db 0
-Src_Mode        db 1                ; 1 - полотно по ордеру (сонг, стоп), 0 - паттерн по кругу
 Pat_Loops       db 0                ; сколько раз паттерн прокрутился в плее паттерна
 Cur_Row         db 0
 Cur_Pos         db 0
@@ -1421,8 +1411,8 @@ Step_Back
         dec a
         ld (T_Row),a
         ret
-.edge   ld a,(Src_Mode)
-        or a
+.edge   ld a,(SV_PLAY_STATE)        ; паттерн по кругу - или по ордеру (стоп, сонг)
+        cp PS_PATTERN
         jr nz,.song
         ld a,(Pat_Loops)            ; паттерн: проходы до первого - пусто
         ld b,a
@@ -1467,8 +1457,8 @@ Step_Fwd
         ld (T_Row),a
         ld hl,T_Pass                ; другой проход/позиция - не активный
         inc (hl)
-        ld a,(Src_Mode)
-        or a
+        ld a,(SV_PLAY_STATE)
+        cp PS_PATTERN
         ret z                       ; паттерн по кругу
         ld a,(Ord_Last)
         ld b,a
@@ -1917,50 +1907,44 @@ K_PlayStart                         ; сонг с первой позиции
         ld (Cur_Pos),a
         inc a                       ; позиция сменилась - перерисовать ордер
         ld (Order_Pending),a
+; Играет ли и что - только у плеера (SV_PLAY_STATE), своих копий у вида нет
 K_PlaySong                          ; сонг с начала текущей позиции
-        ld a,1
-        ld (Src_Mode),a
+        ld a,PC_SONG
         jr Play_From0
 K_PlayPat                           ; текущий паттерн по кругу с начала
-        xor a
-        ld (Src_Mode),a
+        ld a,PC_PATTERN
 Play_From0
+        ld b,a
         xor a
         ld (Cur_Row),a
+        ld a,b
         jr Play_Go
 K_PlayPatRow                        ; текущий паттерн по кругу с текущей роу
-        xor a
-        ld (Src_Mode),a
+        ld a,PC_PATTERN
+        jr Play_Go
+K_Continue                          ; продолжить сонг с текущего места (для кнопки)
+        ld a,PC_SONG
+; A - команда плееру (PC_SONG / PC_PATTERN), откуда - Cur_Pos, Cur_Row
 Play_Go
+        ld (Play_Cmd),a
         xor a
         ld (Pat_Loops),a
         ld (Play_Tick),a
-        ld a,1
-        ld (Playing),a
         call Time_Reset             ; время игры - с нуля
         ld a,(Cur_Pos)              ; команда плееру: откуда (сначала параметры,
         ld (SV_PLAY_CPOS),a         ; команда - последней: IM1 может влезть)
         ld a,(Cur_Row)
         ld (SV_PLAY_CROW),a
-        ld a,(Src_Mode)
-        or a
-        ld a,PC_SONG
-        jr nz,$+4
-        ld a,PC_PATTERN
+        ld a,(Play_Cmd)
         ld (SV_PLAY_CMD),a
         ret
 K_Stop  xor a                       ; стоп: остаёмся где стоим, полотно - по ордеру
-        ld (Playing),a
         ld (Pat_Loops),a
-        inc a
-        ld (Src_Mode),a
         ld a,PC_STOP
         ld (SV_PLAY_CMD),a
         ret
-K_Continue                          ; продолжить сонг с текущего места (для кнопки)
-        ld a,1
-        ld (Src_Mode),a
-        jr Play_Go
+
+Play_Cmd        db 0
 
 K_Timing
         ld hl,Timing
@@ -2305,7 +2289,7 @@ Build_Layout_Keep
 
 ;-------- Проигрывание: полотно идёт за плеером (SV_PLAY_POS / ROW)
 Play_Step                           ; полотно - за плеером: он на другой роу - шаг вниз
-        ld a,(Playing)
+        ld a,(SV_PLAY_STATE)
         or a
         ret z
         ld a,(SV_PLAY_ROW)
