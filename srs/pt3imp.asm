@@ -768,12 +768,12 @@ Pp_Decode
         jr nz,.nch
         ld a,(Pp_Row)
         ret
-.skip   ld hl,Pc_Skip               ; счётчик - заново
+.skip   ld hl,Pc_Skip               ; счётчик - заново (Pc_Var портит A)
         call Pc_Var
-        ld a,(hl)
+        ld e,(hl)
         ld hl,Pc_Cnt
         call Pc_Var
-        ld (hl),a
+        ld (hl),e
 .nch    ld hl,Pp_Ch
         inc (hl)
         ld a,(hl)
@@ -893,10 +893,11 @@ Pr_Row
 .eoff   call Pr_EnvOff              ; #B0
         jp .cmd
 .skp    call Pt_Get                 ; #B1: пропуск строк
+        ld e,a                      ; (Pc_Var портит A)
         push hl
         ld hl,Pc_Skip
         call Pc_Var
-        ld (hl),a
+        ld (hl),e
         pop hl
         jp .cmd
 .ebx    sub #B1                     ; #B2..#BF: форма x-1, период
