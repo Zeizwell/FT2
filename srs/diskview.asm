@@ -1286,6 +1286,7 @@ Dv_Load
         ld (SV_PLAY_CMD),a
         halt
         halt
+        call Tr_Normal              ; кнопки транспорта - не горят
         xor a                       ; файл - в буфер, по странице
         ld (Ld_Page),a
 .read   ld a,(Ld_Page)

@@ -242,6 +242,7 @@ dma_wait	ld bc,DMASTATUS
     include "srs/fields.asm"
     include "srs/text.asm"
     include "srs/song.asm"
+    include "srs/transport.asm"
     include "srs/diskcall.asm"
     include "srs/instr.asm"
     include "srs/colors.asm"
