@@ -1522,7 +1522,7 @@ K_RIGHT         equ #74+#80
 K_PGUP          equ #7D+#80
 K_PGDN          equ #7A+#80
 K_TAB           equ #0D
-K_SPACE         equ #29
+K_ESC           equ #76
 K_F5            equ #03
 K_F6            equ #0B
 K_F7            equ #7F             ; F7 (#83) коре сводит в #7F
@@ -1546,16 +1546,16 @@ Hotkeys db K_UP,    0
         dw K_ChRight
         db K_TAB,   KM_SHIFT
         dw K_ChLeft
-        db K_F5,    0
-        dw K_PlaySong               ; сонг с начала позиции
+        db K_F5,    0               ; F5..F8, Esc - как в VT
+        dw K_PlaySong               ; сонг с текущей позиции
         db K_F6,    0
-        dw K_PlayPat                ; паттерн по кругу
+        dw K_PlayStart              ; сонг с начала
         db K_F7,    0
-        dw K_Continue               ; продолжить с места
+        dw K_PlayPatRow             ; паттерн с текущей роу
         db K_F8,    0
+        dw K_PlayPat                ; паттерн с начала
+        db K_ESC,   0
         dw K_Stop
-        db K_SPACE, 0
-        dw K_StopCont               ; стоп / продолжить
         db K_E,     KM_CTRL
         dw K_EnvOpen                ; Ctrl+E - открыть Env чипа
         db K_T,     KM_CTRL
@@ -1663,7 +1663,12 @@ K_EnvOpen
         ld (hl),a
         jr Need_Layout
 
-; Плей / стоп - как в других трекерах
+; Плей / стоп - как в VT
+K_PlayStart                         ; сонг с первой позиции
+        xor a
+        ld (Cur_Pos),a
+        inc a                       ; позиция сменилась - перерисовать ордер
+        ld (Order_Pending),a
 K_PlaySong                          ; сонг с начала текущей позиции
         ld a,1
         ld (Src_Mode),a
@@ -1674,6 +1679,12 @@ K_PlayPat                           ; текущий паттерн по кру�
 Play_From0
         xor a
         ld (Cur_Row),a
+        jr Play_Go
+K_PlayPatRow                        ; текущий паттерн по кругу с текущей роу
+        xor a
+        ld (Src_Mode),a
+Play_Go
+        xor a
         ld (Pat_Loops),a
         ld (Play_Tick),a
         ld a,1
@@ -1685,11 +1696,7 @@ K_Stop  xor a                       ; стоп: остаёмся где стои
         inc a
         ld (Src_Mode),a
         ret
-K_StopCont                          ; пробел: играет - стоп, стоит - продолжить
-        ld a,(Playing)
-        or a
-        jr nz,K_Stop
-K_Continue                          ; продолжить сонг с текущего места
+K_Continue                          ; продолжить сонг с текущего места (для кнопки)
         ld a,1
         ld (Src_Mode),a
         ld (Playing),a
