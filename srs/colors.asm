@@ -44,5 +44,6 @@ Theme_Default
             db #01      ; CLR_SEP       разделители - еле видно (#1 на фоне #0)
             db #04      ; CLR_SB_TRACK  графит - дорожка скроллбара
             db #09      ; CLR_SB_THUMB  стальной - ползунок
+            db #1B      ; CLR_HOVER     поле под мышью: белый на фоне #1
 Theme_Default_end
     ASSERT Theme_Default_end-Theme_Default <= THEME_ROLES_MAX

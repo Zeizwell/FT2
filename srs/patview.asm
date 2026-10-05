@@ -1908,7 +1908,7 @@ Int_Line_Set
     ENDM
 
 Pv_Fields
-        FIELD 0,0,LINE_W,HD_BOX_Y+HD_BOX_H, 0, 0, Head_Fields, 0     ; шапка (srs/head.asm)
+        FIELD 0,0,LINE_W,VIEW_LINE, 0, 0, Head_Fields, 0     ; шапка (srs/head.asm), строки 0..6
 F_Order FIELD ORD_X,FIRST_LINE,DRAW_X0,VIEW_ROWS, FF_FOCUS, Ord_Field, Ord_Kids, 0
         FIELD 0,VIEW_LINE,LINE_W,1,                0,        0,         Head_Kids, 0
 F_Pat   FIELD DRAW_X0,FIRST_LINE,DRAW_X1-DRAW_X0,VIEW_ROWS, FF_FOCUS, Pat_Field, 0, 0
