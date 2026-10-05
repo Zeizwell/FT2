@@ -80,7 +80,8 @@ Sprite_init_table
                 db #FF                                                ;конец таблы
 ;------mouse sprite settings 
 
-MOUSE_SFILE_SLOT equ    5         ; стрелка - запись 5 SFILE: 0..4 - кнопки транспорта (srs/head.asm)
+MOUSE_SFILE_SLOT equ    0         ; стрелка - запись 0 SFILE: первая в списке - поверх всех
+                                  ; (кнопки транспорта - записи 1..5, srs/head.asm)
 MOUSE_Y_MASK    equ     %00100010 ; Флаги Y: ACT=1, размер 16 пикселей (#32)
 MOUSE_X_MASK    equ     %00000010 ; Флаги X: размер 16 пикселей (#02)
 
@@ -100,7 +101,7 @@ Cursor_dma_table
                 defb    #1a, low MOUSE_SAT_BUFFER  ; Адрес источника в ОЗУ (младший байт)
                 defb    #1b, high MOUSE_SAT_BUFFER ; Адрес источника в ОЗУ (старший байт)
                 defb    #1c, PAGE_CORE0            ; Источник сидит в нашей базовой RAM (обычно 0)
-                defb    #1d, MOUSE_SFILE_SLOT*6    ; запись стрелки в SFILE (последней - поверх кнопок шапки)
+                defb    #1d, MOUSE_SFILE_SLOT*6    ; запись стрелки в SFILE (первая - поверх всех)
                 defb    #1e, 2                     ; НАПРАВЛЯЕМ ТРАНЗАКЦИЮ СТРОГО В SFILE (SAT память)
                 defb    #1f, 0
                 defb    #26, (MOUSE_SAT_END - MOUSE_SAT_BUFFER) / 2-1 ; Длина транзакции (3 слова)
