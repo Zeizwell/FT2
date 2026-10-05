@@ -62,7 +62,14 @@ Core_Start
         ld a,CACHE_WIN
         out (c),a
 
-        ; системные переменные для плагинов (sdk/plugin.asm)
+        ; системные переменные для плагинов (sdk/plugin.asm) - сначала все в 0:
+        ; в ОЗУ при старте мусор, а IM1 начинает работать уже в Init_Mouse_Sprite
+        ; (set_ports делает EI) и смотрит SV_PLAYER, SV_FRAME_HOOK...
+        ld hl,SV_PAGES+4            ; тени страниц (SV_PAGES) уже заполнил старт - их не трогаем
+        ld de,SV_PAGES+5
+        ld bc,THEME_ATTR-SV_PAGES-5
+        ld (hl),0
+        ldir
         ld a,FT2_API_VERSION
         ld (SV_API_VERSION),a
         ld a,PAGE_TEXT
