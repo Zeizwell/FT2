@@ -187,6 +187,7 @@ Main_Loop
         BAND_M BAND_INPUT
         call Handle_Keys
         call Dbg_Show               ; отладка ввода - временно
+        call Head_Show              ; шапка: скорость, Env as Note, длина паттерна
         call Fld_Update             ; мышь и колесо - полям (коре, srs/fields.asm)
         call Play_Step
         call Build_Row_Tab
@@ -1653,6 +1654,49 @@ HK_Code         dw 0
 ;-------- ОТЛАДКА ВВОДА (временно): на нижней рамке слева "K:код флаги M:модификаторы"
 ; код - последнее событие клавиатуры (PS/2, E0 +128), флаги - KM_* | KF_REPEAT,
 ; M - SV_KEY_MODS сейчас (1 Shift, 2 Ctrl, 4 Alt)
+;-------- ШАПКА (пока только показ, поверх макета srs/maket.asm, строки 5-6):
+; скорость (что играет плеер, в стопе - трека), Env as Note (галочка),
+; длина паттерна текущей позиции. Пишем только символы - цвета макета
+HEAD_ROW1       equ 5               ; "|Speed:04+- ... Enve as note *|"
+HEAD_ROW2       equ 6               ; "+----...Size:40+- +"
+HD_SPEED_X      equ 7
+HD_ENVNOTE_X    equ 59
+HD_SIZE_X       equ 55
+HD_SPEED_ADDR   equ SCR_BASE_H*256+HEAD_ROW1*256+HD_SPEED_X
+HD_SIZE_ADDR    equ SCR_BASE_H*256+HEAD_ROW2*256+HD_SIZE_X
+
+Head_Show
+        ld a,(SV_PLAY_STATE)        ; скорость
+        or a
+        ld a,(SV_PLAY_SPEED)
+        jr nz,$+4
+        ld a,TEST_SPEED
+        ld hl,HD_SPEED_ADDR
+        call Hd_Hex2
+        ld a,(Env_As_Note)          ; Env as Note: галочка
+        or a
+        ld a,GLYPH_CHK_OFF
+        jr z,$+4
+        ld a,GLYPH_CHK_ON
+        ld ((SCR_BASE_H+HEAD_ROW1)*256+HD_ENVNOTE_X),a
+        ld a,(Cur_Pos)              ; длина паттерна текущей позиции
+        ld hl,Test_Order
+        call Arr_Get
+        ld hl,Pat_Len
+        call Arr_Get
+        ld hl,HD_SIZE_ADDR
+; A -> 2 hex в (HL), (HL+1). Портит DE
+Hd_Hex2
+        ld e,a
+        ld d,high Hex_T
+        ld a,(de)
+        ld (hl),a
+        inc l
+        inc d
+        ld a,(de)
+        ld (hl),a
+        ret
+
 Dbg_Key         db 0
 Dbg_Flags       db 0
 Dbg_Show
