@@ -182,6 +182,7 @@ Main_Loop
         call nz,Bench_Dma_Fill
         BAND_M BAND_INPUT
         call Handle_Keys
+        call Dbg_Show               ; отладка ввода - временно
         call Handle_Mouse
         call Play_Step
         call Build_Row_Tab
@@ -1596,7 +1597,10 @@ Hotkeys db K_UP,    0
 Handle_Keys
 .k      call Key_Get                ; A - код, C - флаги; Z - пусто
         ret z
+        ld (Dbg_Key),a              ; отладка: последнее событие (Dbg_Show)
         ld b,a
+        ld a,c
+        ld (Dbg_Flags),a
         ld a,c
         and KM_SHIFT|KM_CTRL|KM_ALT ; повтор/нажатие для таблицы одинаковы
         ld c,a
@@ -1625,6 +1629,31 @@ Handle_Keys
         inc hl
         jr .f
 .jp     jp (hl)
+
+;-------- ОТЛАДКА ВВОДА (временно): на нижней рамке слева "K:код флаги M:модификаторы"
+; код - последнее событие клавиатуры (PS/2, E0 +128), флаги - KM_* | KF_REPEAT,
+; M - SV_KEY_MODS сейчас (1 Shift, 2 Ctrl, 4 Alt)
+Dbg_Key         db 0
+Dbg_Flags       db 0
+Dbg_Show
+        ld a,(THEME_ATTR+CLR_HEADER)
+        ld c,a
+        ld d,SCR_BASE_H+BOTTOM_LINE
+        ld e,1
+        ld hl,Txt_Dbg_K
+        call PutStr
+        ld a,(Dbg_Key)
+        call PutHex2
+        ld a,' '
+        call PutCh
+        ld a,(Dbg_Flags)
+        call PutHex2
+        ld hl,Txt_Dbg_M
+        call PutStr
+        ld a,(SV_KEY_MODS)
+        jp PutHex2
+Txt_Dbg_K       db "K:",0
+Txt_Dbg_M       db " M:",0
 
 ; Роу курсора: по полотну (сонг) или по кругу (плей паттерна)
 K_RowUp call T_From_Cur
@@ -1896,10 +1925,10 @@ Btn_Show
 .press  bit 0,c
         jr z,$+4
         add a,BTN_PRESSED
-        ld b,a
+        ld l,a                      ; L - значок: SETPAGE3 портит A и BC
         ld a,(SV_DRAW_PAGE)         ; кнопка - прямо на экране (окно 3)
         SETPAGE3 a
-        ld a,b
+        ld a,l
         call PutBtn
         RESTPAGE3
         ret
