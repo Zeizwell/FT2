@@ -1,0 +1,124 @@
+# Bitphase (Pator) — как устроен интерфейс
+
+Эталон, на который смотрим. Записано со скриншота пользователя (2026-10-05),
+чтобы не искать заново. Числа и подписи — как на экране.
+
+## Общая раскладка
+
+Слева направо:
+1. **Order** — узкая колонка ордера.
+2. **Паттерн** — окно чипа.
+3. **Instruments Picker / Effects** — вертикальные вкладки и список эффектов.
+4. **Инструменты** — вкладки Instruments / Tables / Details.
+
+Верхняя панель:
+- меню File, Edit, View, Settings, Help;
+- транспорт: цикл, в начало, плей, плей с места;
+- Octave и Step со стрелками;
+- галочки Auto Env и Env as Note;
+- громкость ползунком.
+
+Строка статуса:
+- слева — подсказка по полю под курсором, например «Envelope Value: Set
+  envelope generator period value. Hex: (0000-FFFF).»;
+- справа — Tick: 3 / 9861 и Time: 00:00 / 03:17.
+
+## Ордер
+
+- Заголовок «Order» со значком.
+- Колонка позиций: номер паттерна, 2 hex. Текущая выделена, слева стрелка ►.
+- Позиции с цветным фоном — цвет паттерна (зелёные оттенки).
+- **Кнопки — столбиком справа от списка, у текущей позиции** (сверху вниз):
+  1. значок (сгенерировать / авто);
+  2. `−` — номер паттерна в позиции −1;
+  3. `+` — номер паттерна в позиции +1;
+  4. дублировать (значок копии).
+
+  `−` и `+` стоят вплотную к текущей строке, остальные — над и под ними.
+- Внизу стрелка прокрутки ▼.
+
+## Окно паттерна
+
+- Заголовок: `AY-3-8910 / YM2149F - (1)`, шестерёнка настроек, длина
+  паттерна `64` со стрелками, закрыть `×`.
+- Колонки:
+
+  ```
+  Env  Efx  NO | Channel A  − + | Channel B  − + | Channel C  − +
+  ```
+
+  - `−` `+` у каждого канала — свернуть / развернуть.
+- Текущая строка — на месте, полотно едет. Выше — пустое поле (начало
+  паттерна).
+- Колонки чипа:
+  - Env — огибающая как нота (`E-4`);
+  - Efx — эффект чипа (`....`);
+  - NO — шум (`..`).
+- Строка канала: `B-5 03F0D D.80`:
+
+  | Поле | Что |
+  |---|---|
+  | `B-5` | нота |
+  | `03` | инструмент |
+  | `F` | форма огибающей |
+  | `0` | таблица |
+  | `D` | громкость |
+  | `D.80` | эффект: команда, задержка или `.`, параметр 2 hex |
+
+  Пустые поля — точки, у пустой ноты — `---`.
+
+## Эффекты (список справа, виден всегда)
+
+`T` в записи — вариант с таблицей вместо параметра.
+
+**General:**
+
+| Команда | Что | Параметры |
+|---|---|---|
+| `AXYZ` | Arpeggio | X steps; Y, Z offset |
+| `AXTY` | Arpeggio | X steps; Y table |
+| `VXYZ` | Vibrato | X delay; Y speed; Z depth |
+| `VXTY` | Vibrato | X delay; Y table |
+| `1XYZ` | Slide Down | X delay; YZ step |
+| `1XTY` | Slide Down | X delay; Y table |
+| `2XYZ` | Slide Up | X delay; YZ step |
+| `2XTY` | Slide Up | X delay; Y table |
+| `PXYZ` | Portamento | X delay; YZ speed |
+| `PXTY` | Portamento | X delay; Y table |
+| `4.XY` | Instrument Position | XY row |
+| `5.XY` | Table Position | XY row |
+| `6.XY` | On/Off | X on; Y off |
+| `6.TY` | On/Off | Y table |
+| `7.XY` | Note Delay | XY ticks |
+| `8XYZ` | Volume Slide | X delay; Y up; Z down |
+| `8XTY` | Volume Slide | X delay; Y table |
+| `D.XY` | Detune | XY signed, 80 = 0 |
+| `D.TY` | Detune | Y table |
+| `S.XY` | Speed | XY ticks |
+| `S.TY` | Speed | Y table |
+
+**AY-3-8910 / YM2149F:**
+
+| Команда | Что | Параметры |
+|---|---|---|
+| `E1XY` / `E1TY` | PWM Min | XY duty / Y table |
+| `E2XY` / `E2TY` | PWM Max | XY duty / Y table |
+| `E3XY` / `E3TY` | PWM Sweep | XY speed / Y table |
+| `E4XY` / `E4TY` | PWM Shape | XY shape / Y table |
+| `E5XY` / `E5TY` | PWM Start | XY phase / Y table |
+| `EAXY` | Auto-Envelope | X num; Y den |
+
+## Инструменты
+
+- Вкладки инструментов: номер и имя (`01 Instrument 01`, `02 tone + env`,
+  `04 Glass Break`…).
+- Кнопки: Add, Save, Load, Presets.
+- Поля: Name, Color, Clear.
+- Режимы: Mixer / Timer Effects / Sample; переключатель Classic.
+- Таблица строк:
+  - `row`, `lp` (цикл), дальше колонки-значки: тон, шум, огибающая,
+    накопления, громкость;
+  - у строки — удалить;
+  - снизу «+ Add new row» и «2 rows».
+- Preview playground: поля Inst, Envelope, Shape, Noise, Table, Volume, Note и
+  кнопка ▷ — проиграть инструмент. Ниже осциллограммы A, B, C.

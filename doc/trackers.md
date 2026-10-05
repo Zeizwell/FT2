@@ -12,7 +12,7 @@
 - [formats/pt3.md](formats/pt3.md)
 - [formats/ftc.md](formats/ftc.md)
 
-Чип — [ay.md](ay.md).
+Чип — [ay.md](ay.md). Интерфейс Bitphase (эталон) — [bitphase.md](bitphase.md).
 
 Тестовые модули по форматам — `Modules for test/` (STC, ST1/ST3, STP/STF, ASC,
 PSC, PSM, PT1, PT2, PT3, SQT, GTR, FLS, FTC, FXM, VT `.txt`, TurboSound).
