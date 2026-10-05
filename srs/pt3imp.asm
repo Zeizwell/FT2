@@ -39,6 +39,8 @@ Pt_Lost         db 0
 Pt_Base         dw 0                ; начало модуля в файле
 Pt_Base2        dw 0                ; второй модуль (TurboSound)
 Pt_Chips        db 1
+Pt_TS37         db 0                ; PT 3.7 TS: N (паттерн чипа 2 = N-1-p), 0 - нет
+PT_TS37_N       equ 98
 
 ;-------- Импорт. Выход - сообщение (Dv_Ok / Dv_Error)
 Pt_Import
@@ -85,18 +87,19 @@ Pt_Import
 Pt_Msg          ds 40
 Pt_Lost_Words   db " rows",0," pats",0," cmds",0," len",0   ; по битам PL_*
 
-;-------- TurboSound: в конце файла "02TS" - два модуля, второй - с размер1
+;-------- TurboSound: в конце файла "02TS" - два модуля, второй - с размер1;
+; иначе - может быть PT 3.7 (Pt_TS37_Check)
 Pt_TS
         ld a,1
         ld (Pt_Chips),a
         ld a,(Ld_Size+2)            ; файл больше 64К - не TS (смещения 16 бит)
         or a
-        ret nz
+        jr nz,Pt_TS37_Check
         ld hl,(Ld_Size)
         ld de,PT_TS_TAIL+256
         or a
         sbc hl,de
-        ret c                       ; совсем короткий
+        jr c,Pt_TS37_Check          ; совсем короткий
         add hl,de
         ld de,-PT_TS_TAIL
         add hl,de                   ; HL - начало хвоста
@@ -117,6 +120,8 @@ Pt_TS
         sbc hl,bc
         jr nz,.no
         pop hl                      ; размер первого модуля - начало второго
+        xor a                       ; не 3.7
+        ld (Pt_TS37),a
         ld de,4
         add hl,de
         call Pt_Get16
@@ -125,6 +130,20 @@ Pt_TS
         ld (Pt_Chips),a
         ret
 .no     pop hl
+; PT 3.7: +98 - число паттернов N (не #20): чип 2 играет паттерн N-1-p из этого же модуля
+Pt_TS37_Check
+        ld hl,PT_TS37_N
+        call Pt_Get
+        cp #20
+        ld b,a
+        ld a,0
+        jr z,.set
+        ld a,2
+        ld (Pt_Chips),a
+        ld a,b
+.set    ld (Pt_TS37),a
+        ld hl,0                     ; второй модуль - он же
+        ld (Pt_Base2),hl
         ret
 
 ;-------- Заголовок трека: чипы, темп, имя, автор
@@ -502,7 +521,17 @@ Pt_Order
         ld a,(Pt_Chips)
         cp 2
         jr c,.find
-        push hl
+        ld a,(Pt_TS37)              ; PT 3.7: чип 2 - паттерн N-1-p этого же модуля
+        or a
+        jr z,.mod2
+        dec a
+        ld b,a
+        ld a,(Po_Key1)
+        neg
+        add a,b
+        ld (Po_Key2),a
+        jr .find
+.mod2   push hl
         call Pt_Mod2
         ld hl,(Po_Ptr2)
         call Pt_Get

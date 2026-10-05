@@ -596,14 +596,14 @@ Dv_Buttons
 ; ПОЛЯ
 ; =========================================================================
 Dv_Fields
-        DV_FIELD 1,0,7,1, FF_HAND, Dv_TabPat, 0                         ; вкладка Pattern
+        DV_FIELD 0,0,90,DV_TOP, FF_HAND, Dv_TabPat, 0                   ; шапка: клик - назад к паттерну
 F_List  DV_FIELD LS_X+1,LS_ROW0,LS_W-2,LS_ROWS, FF_FOCUS, Dv_ListEv, 0  ; каталог
 F_Name  DV_FIELD FP_V,NAME_Y,NAME_W,1, FF_FOCUS|FF_HAND, Dv_NameEv, 0   ; имя файла
 F_Load  DV_FIELD LOAD_X,BTN_Y,BTN_W,1, FF_HAND, Dv_BtnEv, 0              ; Load
 F_Save  DV_FIELD SAVE_X,BTN_Y,BTN_W,1, FF_HAND, Dv_BtnEv, 1              ; Save
         db FLD_END
 
-;-------- Вкладка Pattern: назад в вид паттерна
+;-------- Клик в шапку (вкладки, мимо экрана диска): назад в вид паттерна
 Dv_TabPat
         cp EV_CLICK
         ret nz
