@@ -1135,16 +1135,21 @@ Ext_PT2         db "pt2"
 ; =========================================================================
 ; ЗАГРУЗКА И СОХРАНЕНИЕ FT2
 ; =========================================================================
-;-------- Загрузить файл Dv_Spec (FT2) в трек 1
+;-------- Загрузить файл Dv_Spec в трек 1: FT2 - как есть, PT3 - импорт (srs/pt3imp.asm)
 Dv_Load
         call Dv_Ext
+        ld (Ld_Kind),a
         cp 1
-        jr z,.ft2
-        ld hl,Txt_NotFT2
+        jr z,.kind
+        cp 2
+        jr z,.kind
+        ld hl,Txt_CantLoad
         jp Dv_Error
-.ft2    ld hl,Dv_Spec
+.kind   ld hl,Dv_Spec
         call Dv_Find
         ret c
+        ld (Ld_Size),hl
+        ld (Ld_Size+2),de
         ld a,d                      ; размер: не меньше двух страниц, не больше буфера
         or a
         jr nz,.big
@@ -1157,7 +1162,18 @@ Dv_Load
         jr z,.fits
 .big    ld hl,Txt_TooBig
         jp Dv_Error
-.fits   ld a,e
+.fits   ld a,(Ld_Kind)              ; PT3 - хотя бы заголовок и ордер
+        cp 2
+        jr nz,.ft2min
+        ld a,e
+        or h
+        jr nz,.pages
+        ld a,l
+        cp PT_ORDER+1
+        jr nc,.pages
+        ld hl,Txt_BadPt3
+        jp Dv_Error
+.ft2min ld a,e                      ; FT2 - хотя бы две страницы
         or a
         jr nz,.pages
         ld a,h
@@ -1210,7 +1226,10 @@ Dv_Load
         ld a,(Ld_Pages)
         cp (hl)
         jr nz,.read
-.check  ld a,PAGE_FILEBUF           ; подпись трека
+.check  ld a,(Ld_Kind)              ; PT3 - импорт
+        cp 2
+        jp z,Pt_Import
+        ld a,PAGE_FILEBUF           ; подпись трека
         SETPAGE3 a
         ld hl,(#C000+SH_SIGN)
         ld de,(#C000+SH_SIGN+2)
@@ -1228,6 +1247,8 @@ Dv_Load
 .err    ld a,(Ld_Res)
         jp Dv_Disk_Code
 
+Ld_Kind         db 0                ; 1 FT2, 2 PT3 (Dv_Ext)
+Ld_Size         ds 4                ; размер файла
 Ld_Pages        db 0                ; страниц в файле
 Ld_Page         db 0                ; прочитано страниц
 Ld_Res          db 0
@@ -1637,6 +1658,8 @@ Fs_Step
 .st     ld (Fs_Ptr),hl
         ret
 
+    include "srs/pt3imp.asm"
+
 ; =========================================================================
 ; СООБЩЕНИЯ
 ; =========================================================================
@@ -1829,6 +1852,7 @@ Txt_NoCard      db "No SD card / no FAT32",0
 Txt_NotFound    db "Not found",0
 Txt_NotFT2      db "Not an FT2 file",0
 Txt_TooBig      db "File too big",0
+Txt_CantLoad    db "Load: FT2 or PT3 only",0
 Txt_NoName      db "Type a name",0
 Txt_Loaded      db "Loaded",0
 Txt_Saved       db "Saved",0
