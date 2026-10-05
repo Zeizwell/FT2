@@ -49,14 +49,14 @@ HD_LEN_L        equ 14              ; "Size:" - длина паттерна
 HD_LEN_X        equ 19
 HD_OCT_L        equ 26              ; "Octave:"
 HD_OCT_X        equ 33              ; 1 цифра, кнопки - +1
-HD_STEP_L       equ 39              ; "Step:" + галочка (шаг вкл/выкл)
-HD_STEPCHK_X    equ 44
-HD_STEP_X       equ 45              ; 2 знака, кнопки - +2
-HD_ENVNOTE_L    equ 52              ; "Env as Note" + галочка (вся надпись - поле)
-HD_ENVNOTE_X    equ 63
-HD_AUTO_L       equ 65              ; "Auto Env" + галочка
-HD_AUTO_X       equ 73
-HD_RATIO_X      equ 75              ; "1:1" - клик по кругу
+HD_STEP_L       equ 39              ; "Step:" - клик: шаг вкл/выкл (вкл - фон темнее)
+HD_STEP_W       equ 5
+HD_STEP_X       equ 44              ; 2 знака, кнопки - +2
+HD_ENVNOTE_L    equ 52              ; "Env as Note" - клик: вкл/выкл (вкл - фон темнее)
+HD_ENVNOTE_W    equ 11
+HD_AUTO_L       equ 64              ; "Auto Env" - так же
+HD_AUTO_W       equ 8
+HD_RATIO_X      equ 73              ; "1:1" - клик по кругу
 HD_CHAN_X       equ 80              ; "3ch" / "6ch"
     ASSERT VIEW_LINE == HD_ROW_EDIT+1 ; шапка - строки 0..3, паттерн - сразу под ней
 
@@ -229,17 +229,21 @@ Head_Show
         add a,'0'
         ld de,HD_OCT_X+256*(HD_SCR_H+HD_ROW_EDIT)
         call PutCh
-        ld a,(Auto_Step)            ; шаг: галочка, сразу за ней значение
-        ld de,HD_STEPCHK_X+256*(HD_SCR_H+HD_ROW_EDIT)
-        call Hd_Check
-        ld a,(Cur_Step)
+        ld a,(Cur_Step)             ; шаг
+        ld de,HD_STEP_X+256*(HD_SCR_H+HD_ROW_EDIT)
         call PutHex2
-        ld a,(Env_As_Note)          ; галочки
-        ld de,HD_ENVNOTE_X+256*(HD_SCR_H+HD_ROW_EDIT)
-        call Hd_Check
+        ld a,(Auto_Step)            ; включено - фон надписи темнее
+        ld de,HD_STEP_L+256*(HD_SCR_H+HD_ROW_EDIT)
+        ld b,HD_STEP_W
+        call Hd_Mark
+        ld a,(Env_As_Note)
+        ld de,HD_ENVNOTE_L+256*(HD_SCR_H+HD_ROW_EDIT)
+        ld b,HD_ENVNOTE_W
+        call Hd_Mark
         ld a,(Auto_Env)
-        ld de,HD_AUTO_X+256*(HD_SCR_H+HD_ROW_EDIT)
-        call Hd_Check
+        ld de,HD_AUTO_L+256*(HD_SCR_H+HD_ROW_EDIT)
+        ld b,HD_AUTO_W
+        call Hd_Mark
         ld a,(Auto_Ratio)           ; соотношение автоогибающей
         ld hl,Hd_Ratios
         ld b,3
@@ -356,13 +360,16 @@ Hd_Name
         djnz .p
         ret
 
-; A - 0/1 -> галочка в DE
-Hd_Check
+; A - флаг: включён - атрибуты B знаков с DE - цвет активного (фон темнее, буква та же)
+Hd_Mark
         or a
-        ld a,GLYPH_CHK_OFF
-        jr z,$+4
-        ld a,GLYPH_CHK_ON
-        jp PutCh
+        ret z
+        ld a,(THEME_ATTR+CLR_TOP_HI)
+        set 7,e                     ; атрибуты - на +128
+.m      ld (de),a
+        inc e
+        djnz .m
+        ret
 
 ; A - 0..99 -> 2 десятичные цифры в DE
 Hd_Dec2
@@ -495,9 +502,9 @@ Head_Fields
         FIELD HD_CHIP_X,   HD_ROW_FILE,9,1, FF_HAND, Hd_Field, 0, 10          ; тип чипа - по кругу
         FIELD HD_CHAN_X,   HD_ROW_EDIT,3,1, FF_HAND, Hd_Field, 0, 20          ; 3 / 6 каналов
         FIELD HD_STEREO_X, HD_TABS_Y,  3,1, FF_HAND, Hd_Field, 0, 11          ; стерео - по кругу
-        FIELD HD_ENVNOTE_L,HD_ROW_EDIT,HD_ENVNOTE_X-HD_ENVNOTE_L+1,1, FF_HAND, Hd_Field, 0, 12 ; Env as Note
-        FIELD HD_AUTO_L,   HD_ROW_EDIT,HD_AUTO_X-HD_AUTO_L+1,1, FF_HAND, Hd_Field, 0, 13       ; Auto Env
-        FIELD HD_STEP_L,   HD_ROW_EDIT,HD_STEPCHK_X-HD_STEP_L+1,1, FF_HAND, Hd_Field, 0, 14    ; шаг вкл/выкл
+        FIELD HD_ENVNOTE_L,HD_ROW_EDIT,HD_ENVNOTE_W,1, FF_HAND, Hd_Field, 0, 12 ; Env as Note
+        FIELD HD_AUTO_L,   HD_ROW_EDIT,HD_AUTO_W,1, FF_HAND, Hd_Field, 0, 13    ; Auto Env
+        FIELD HD_STEP_L,   HD_ROW_EDIT,HD_STEP_W,1, FF_HAND, Hd_Field, 0, 14    ; шаг вкл/выкл
         FIELD HD_TRK_X,    HD_TABS_Y, 1,1, FF_HAND, Hd_Field, 0, 21          ; трек 1
         FIELD HD_TRK_X+2,  HD_TABS_Y, 1,1, FF_HAND, Hd_Field, 0, 22          ; трек 2
         FIELD HD_HELP_X,   HD_TABS_Y, 4,1, FF_HAND, Hd_Field, 0, 23          ; Help - пока ничего

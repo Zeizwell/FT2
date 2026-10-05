@@ -53,7 +53,7 @@ Theme_Default
             db #0E      ; CLR_HEAD_BTN    кнопки [+][-] в строке заголовков: цветом заголовков #E
             db #EE      ; CLR_TOP_BG      шапка: светлый фон #E
             db #E0      ; CLR_TOP_TEXT    подписи: самый тёмный #0
-            db #ED      ; CLR_TOP_HI      активная вкладка, трек: зелёный на фоне шапки
+            db #90      ; CLR_TOP_HI      активное (вкладка, трек, Step, Env as Note, Auto Env): фон темнее #9, буква как у подписей
             db #E0      ; CLR_TOP_BTN     кнопки [-][+]: как подписи шапки
 Theme_Default_end
     ASSERT Theme_Default_end-Theme_Default <= THEME_ROLES_MAX
