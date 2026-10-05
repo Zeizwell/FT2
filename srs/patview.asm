@@ -1771,7 +1771,28 @@ Dbg_Show
         ld a,' '
         call PutCh
         ld a,(Dbg_Disk)
+        call PutHex2
+        ld hl,Txt_Dbg_P             ; плеер: скорость, тик, позиция, роу, состояние
+        call PutStr
+        ld a,(SV_PLAY_SPEED)
+        call PutHex2
+        ld a,' '
+        call PutCh
+        ld a,(SV_PLAY_TICK)
+        call PutHex2
+        ld a,' '
+        call PutCh
+        ld a,(SV_PLAY_POS)
+        call PutHex2
+        ld a,' '
+        call PutCh
+        ld a,(SV_PLAY_ROW)
+        call PutHex2
+        ld a,' '
+        call PutCh
+        ld a,(SV_PLAY_STATE)
         jp PutHex2
+Txt_Dbg_P       db " P:",0
 Txt_Dbg_K       db "K:",0
 Txt_Dbg_M       db " M:",0
 Txt_Dbg_D       db " D:",0
