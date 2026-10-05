@@ -1,12 +1,13 @@
 ; =========================================================================
 ; ШАПКА (строки 0..VIEW_LINE-1 над паттерном), свой фон CLR_HEAD_BG
-;   строка 0 (светлая полоса): часы, вкладки | кнопки транспорта (спрайты 16x16,
-;             строки 0..1) |
-;             Chip: тип и 3ch / 6ch
-;   строка 1: File: имя файла | ... | Stereo:, Tune:
-;   строка 2: Song: имя, By: автор
-;   строка 3: как пишем в паттерн: Speed:, Size:,
-;             Octave:, Step:, Env as Note, Auto Env (вплотную к паттерну)
+;   строка 0 (светлая полоса во всю ширину): вкладки, трек 1 / 2, File: имя файла,
+;             Help, About, стерео (ABC) - в правом углу, без подписи
+;   строки 1..2: кнопки транспорта (спрайты 16x16) | Song: имя, By: автор |
+;             Chip:, Tune:
+;   строка 3: как пишем в паттерн: Speed:, Size:, Octave:, Step:, Env as Note,
+;             Auto Env, 3ch / 6ch (вплотную к паттерну)
+; Данные трека (трек 1 / 2 переключает их все): файл, имя, автор, Chip, Tune,
+; стерео, Speed, 3ch / 6ch. Остальное в строке 3 - общие настройки ввода.
 ; Подписи - CLR_HEAD_TEXT, значения - на своём фоне CLR_HEAD_VALUE (как поле ввода).
 ; Всё рисуется в буфер (невидимые строки HD_BUF_LINE..), с подсветкой под мышью;
 ; IM1 копирует буфер на экран одной DMA (Head_Copy). Поля - Head_Fields.
@@ -18,26 +19,26 @@ HD_SCR_H        equ SCR_BASE_H+HD_BUF_LINE
 HD_W            equ 90              ; ширина шапки
 ; --- строка 0
 HD_TABS_Y       equ 0
-HD_TIME_X       equ 1               ; время игры "mm:ss" - в левом углу
-HD_TABS_X       equ 7               ; вкладки - за часами
-HD_PLAY_X       equ 40              ; кнопки транспорта - спрайты 16x16 (40..59, строки 0..1)
-HD_CHIP_L       equ 61              ; "Chip:"
-HD_CHIP_X       equ 66              ; тип чипа (9 знаков)
-HD_CHAN_X       equ 76              ; "3ch" / "6ch"
-; --- строка 1
-HD_ROW_FILE     equ 1
-HD_FILE_L       equ 1               ; "File:"
-HD_FILE_X       equ 7               ; имя файла (30)
-HD_STEREO_L     equ 61              ; "Stereo:"
-HD_STEREO_X     equ 68              ; 3 знака
-HD_TUNE_L       equ 72              ; "Tune:"
-HD_TUNE_X       equ 77              ; 7 знаков
-; --- строка 2: трек
-HD_ROW_SONG     equ 2
-HD_SONG_L       equ 1               ; "Song:"
-HD_NAME_X       equ 6               ; имя (32)
-HD_BY_L         equ 39              ; "By:"
-HD_AUTH_X       equ 42              ; автор (32)
+HD_TABS_X       equ 1               ; вкладки
+HD_TRK_X        equ 34              ; трек "1 2" (выбранный - выделен)
+HD_FILE_L       equ 38              ; "File:"
+HD_FILE_X       equ 44              ; имя файла (30)
+HD_HELP_X       equ 76              ; "Help"
+HD_ABOUT_X      equ 81              ; "About"
+HD_STEREO_X     equ 87              ; стерео "ABC" - в правом углу
+; --- строки 1..2
+HD_PLAY_Y       equ 1               ; кнопки транспорта - спрайты 16x16 (1..20, строки 1..2)
+HD_PLAY_X       equ 1
+HD_ROW_SONG     equ 1
+HD_SONG_L       equ 22              ; "Song:"
+HD_NAME_X       equ 28              ; имя (32)
+HD_ROW_BY       equ 2
+HD_BY_L         equ 25              ; "By:" - двоеточие под двоеточием "Song:"
+HD_AUTH_X       equ 28              ; автор (32)
+HD_CHIP_L       equ 62              ; "Chip:" (строка 1)
+HD_CHIP_X       equ 68              ; тип чипа (9 знаков)
+HD_TUNE_L       equ 62              ; "Tune:" (строка 2)
+HD_TUNE_X       equ 68              ; 7 знаков
 ; --- строка 3: параметры ввода
 HD_ROW_EDIT     equ 3
 HD_SPEED_L      equ 1               ; "Speed:"
@@ -54,6 +55,7 @@ HD_ENVNOTE_X    equ 63
 HD_AUTO_L       equ 65              ; "Auto Env" + галочка
 HD_AUTO_X       equ 73
 HD_RATIO_X      equ 75              ; "1:1" - клик по кругу
+HD_CHAN_X       equ 80              ; "3ch" / "6ch"
     ASSERT VIEW_LINE == HD_ROW_EDIT+1 ; шапка - строки 0..3, паттерн - сразу под ней
 
 ; --- значения
@@ -66,6 +68,7 @@ Cur_Octave      db 4
 Auto_Env        db 0
 Auto_Step       db 1                ; шаг при вводе: 1 - курсор идёт на Cur_Step роу
 Auto_Ratio      db 0                ; номер в Hd_Ratios
+Cur_Track       db 0                ; трек в шапке: 0 / 1 (в памяти пока один)
 TUNINGS         equ 2
 DEVICES         equ 4
 STEREOS         equ 3
@@ -157,15 +160,16 @@ Hd_Static
         db HD_TABS_Y,HD_TABS_X+18,CLR_HEAD_TEXT,"FX",0
         db HD_TABS_Y,HD_TABS_X+21,CLR_HEAD_TEXT,"Disk",0
         db HD_TABS_Y,HD_TABS_X+26,CLR_HEAD_TEXT,"Setup",0
-        db HD_TABS_Y,HD_CHIP_L,CLR_HEAD_TEXT,"Chip:",0
-        db HD_ROW_FILE,HD_FILE_L,CLR_HEAD_TEXT,"File:",0
-        db HD_ROW_FILE,HD_FILE_X,CLR_HEAD_VALUE,"..............................",0
-        db HD_ROW_FILE,HD_STEREO_L,CLR_HEAD_TEXT,"Stereo:",0
-        db HD_ROW_FILE,HD_TUNE_L,CLR_HEAD_TEXT,"Tune:",0
+        db HD_TABS_Y,HD_FILE_L,CLR_HEAD_TEXT,"File:",0
+        db HD_TABS_Y,HD_FILE_X,CLR_HEAD_VALUE,"..............................",0
+        db HD_TABS_Y,HD_HELP_X,CLR_HEAD_TEXT,"Help",0
+        db HD_TABS_Y,HD_ABOUT_X,CLR_HEAD_TEXT,"About",0
+        db HD_ROW_SONG,HD_CHIP_L,CLR_HEAD_TEXT,"Chip:",0
+        db HD_ROW_BY,HD_TUNE_L,CLR_HEAD_TEXT,"Tune:",0
         db HD_ROW_SONG,HD_SONG_L,CLR_HEAD_TEXT,"Song:",0
         db HD_ROW_SONG,HD_NAME_X,CLR_HEAD_VALUE,"................................",0
-        db HD_ROW_SONG,HD_BY_L,CLR_HEAD_TEXT,"By:",0
-        db HD_ROW_SONG,HD_AUTH_X,CLR_HEAD_VALUE,"................................",0
+        db HD_ROW_BY,HD_BY_L,CLR_HEAD_TEXT,"By:",0
+        db HD_ROW_BY,HD_AUTH_X,CLR_HEAD_VALUE,"................................",0
         db HD_ROW_EDIT,HD_SPEED_L,CLR_HEAD_TEXT,"Speed:",0
         db HD_ROW_EDIT,HD_LEN_L,CLR_HEAD_TEXT,"Size:",0
         db HD_ROW_EDIT,HD_OCT_L,CLR_HEAD_TEXT,"Octave:",0
@@ -235,14 +239,14 @@ Head_Show
         ld a,(Song_Device)          ; тип чипа, каналов
         ld hl,Hd_Devices
         ld b,9
-        ld de,HD_CHIP_X+256*(HD_SCR_H+HD_TABS_Y)
+        ld de,HD_CHIP_X+256*(HD_SCR_H+HD_ROW_SONG)
         call Hd_Name
         ld a,(Song_Chips)
         cp 2
         ld a,"3"
         jr c,$+4
         ld a,"6"
-        ld de,HD_CHAN_X+256*(HD_SCR_H+HD_TABS_Y)
+        ld de,HD_CHAN_X+256*(HD_SCR_H+HD_ROW_EDIT)
         call PutCh
         ld a,"c"
         call PutCh
@@ -251,17 +255,39 @@ Head_Show
         ld a,(Song_Stereo)          ; стерео, таблица нот
         ld hl,Hd_Stereos
         ld b,3
-        ld de,HD_STEREO_X+256*(HD_SCR_H+HD_ROW_FILE)
+        ld de,HD_STEREO_X+256*(HD_SCR_H+HD_TABS_Y)
         call Hd_Name
         ld a,(Song_Tuning)
         ld hl,Hd_Tunings
         ld b,7
-        ld de,HD_TUNE_X+256*(HD_SCR_H+HD_ROW_FILE)
+        ld de,HD_TUNE_X+256*(HD_SCR_H+HD_ROW_BY)
         call Hd_Name
+        call Hd_Track               ; трек "1 2"
         call Hd_Buttons             ; кнопки [-][+]
         call Tr_State_Update        ; кнопки транспорта: нажата, активна, под мышью
         jp Hd_Hover                 ; подсветка поля под мышью
 
+
+; Трек "1 2": выбранный - цветом активной вкладки, другой - как подписи
+Hd_Track
+        ld a,(Cur_Track)
+        or a
+        ld a,(THEME_ATTR+CLR_HEAD_HI)   ; трек 1: выбран - яркий
+        ld b,a
+        ld a,(THEME_ATTR+CLR_HEAD_TEXT)
+        jr z,.put
+        ld c,b                      ; трек 2: цвета наоборот
+        ld b,a
+        ld a,c
+.put    ld c,b                      ; "1" - цветом B
+        ld b,a                      ; "2" - цветом A
+        ld de,HD_TRK_X+256*(HD_SCR_H+HD_TABS_Y)
+        ld a,'1'
+        call PutCh
+        inc e
+        ld c,b
+        ld a,'2'
+        jp PutCh
 
 ; A - номер, HL - таблица названий по B знаков, DE - куда. Цвет C
 Hd_Name
@@ -415,19 +441,23 @@ Head_Fields
         FIELD HD_LEN_X+2,  HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 6  ; Len -
         FIELD HD_LEN_X+4,  HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 7  ;     +
         FIELD HD_RATIO_X,  HD_ROW_EDIT,3,1, FF_HAND, Hd_Field, 0, 8          ; соотношение - по кругу
-        FIELD HD_TUNE_X,   HD_ROW_FILE,7,1, FF_HAND, Hd_Field, 0, 9           ; таблица нот - по кругу
-        FIELD HD_CHIP_X,   HD_TABS_Y, 9,1, FF_HAND, Hd_Field, 0, 10          ; тип чипа - по кругу
-        FIELD HD_CHAN_X,   HD_TABS_Y, 3,1, FF_HAND, Hd_Field, 0, 20          ; 3 / 6 каналов
-        FIELD HD_STEREO_X, HD_ROW_FILE,3,1, FF_HAND, Hd_Field, 0, 11          ; стерео - по кругу
+        FIELD HD_TUNE_X,   HD_ROW_BY,  7,1, FF_HAND, Hd_Field, 0, 9           ; таблица нот - по кругу
+        FIELD HD_CHIP_X,   HD_ROW_SONG,9,1, FF_HAND, Hd_Field, 0, 10          ; тип чипа - по кругу
+        FIELD HD_CHAN_X,   HD_ROW_EDIT,3,1, FF_HAND, Hd_Field, 0, 20          ; 3 / 6 каналов
+        FIELD HD_STEREO_X, HD_TABS_Y,  3,1, FF_HAND, Hd_Field, 0, 11          ; стерео - по кругу
         FIELD HD_ENVNOTE_L,HD_ROW_EDIT,HD_ENVNOTE_X-HD_ENVNOTE_L+1,1, FF_HAND, Hd_Field, 0, 12 ; Env as Note
         FIELD HD_AUTO_L,   HD_ROW_EDIT,HD_AUTO_X-HD_AUTO_L+1,1, FF_HAND, Hd_Field, 0, 13       ; Auto Env
         FIELD HD_STEP_L,   HD_ROW_EDIT,HD_STEPCHK_X-HD_STEP_L+1,1, FF_HAND, Hd_Field, 0, 14    ; шаг вкл/выкл
+        FIELD HD_TRK_X,    HD_TABS_Y, 1,1, FF_HAND, Hd_Field, 0, 21          ; трек 1
+        FIELD HD_TRK_X+2,  HD_TABS_Y, 1,1, FF_HAND, Hd_Field, 0, 22          ; трек 2
+        FIELD HD_HELP_X,   HD_TABS_Y, 4,1, FF_HAND, Hd_Field, 0, 23          ; Help - пока ничего
+        FIELD HD_ABOUT_X,  HD_TABS_Y, 5,1, FF_HAND, Hd_Field, 0, 23          ; About - пока ничего
 Tr_Fields                           ; кнопки транспорта (спрайты Tr_*), подряд
-        FIELD HD_PLAY_X,   HD_TABS_Y, 4,2, FF_HAND, Hd_Field, 0, 15          ; ⇄ паттерн по кругу (F8)
-        FIELD HD_PLAY_X+4, HD_TABS_Y, 4,2, FF_HAND, Hd_Field, 0, 16          ; |◀ сонг с начала (F6)
-        FIELD HD_PLAY_X+8, HD_TABS_Y, 4,2, FF_HAND, Hd_Field, 0, 17          ; ▶ сонг с позиции (F5)
-        FIELD HD_PLAY_X+12,HD_TABS_Y, 4,2, FF_HAND, Hd_Field, 0, 18          ; ▷ паттерн с роу (F7)
-        FIELD HD_PLAY_X+16,HD_TABS_Y, 4,2, FF_HAND, Hd_Field, 0, 19          ; ■ стоп (Esc)
+        FIELD HD_PLAY_X,   HD_PLAY_Y, 4,2, FF_HAND, Hd_Field, 0, 15          ; ⇄ паттерн по кругу (F8)
+        FIELD HD_PLAY_X+4, HD_PLAY_Y, 4,2, FF_HAND, Hd_Field, 0, 16          ; |◀ сонг с начала (F6)
+        FIELD HD_PLAY_X+8, HD_PLAY_Y, 4,2, FF_HAND, Hd_Field, 0, 17          ; ▶ сонг с позиции (F5)
+        FIELD HD_PLAY_X+12,HD_PLAY_Y, 4,2, FF_HAND, Hd_Field, 0, 18          ; ▷ паттерн с роу (F7)
+        FIELD HD_PLAY_X+16,HD_PLAY_Y, 4,2, FF_HAND, Hd_Field, 0, 19          ; ■ стоп (Esc)
 Head_Fields_End
         db FLD_END
 
@@ -435,7 +465,7 @@ Hd_Act  dw H_SpdDn, H_SpdUp, H_OctDn, H_OctUp, H_StepDn, H_StepUp
         dw H_LenDn, H_LenUp, H_RatUp
         dw H_Tune, H_Chip, H_Stereo, K_EnvNote, H_AutoEnv, H_AutoStep
         dw K_PlayPat, K_PlayStart, K_PlaySong, K_PlayPatRow, K_Stop
-        dw H_Chips
+        dw H_Chips, H_Trk1, H_Trk2, Hd_Nop
 
 ;-------- Поле шапки: клик - действие (вид нажатой кнопки рисует Hd_Buttons)
 Hd_Field
@@ -533,6 +563,12 @@ H_Chips                             ; 1 <-> 2 чипа: 3 / 6 каналов в 
         call Hd_Save
         call View_Chips
         jp Need_Layout
+H_Trk1  xor a                       ; трек в шапке (второй в памяти - потом)
+        ld (Cur_Track),a
+        ret
+H_Trk2  ld a,1
+        ld (Cur_Track),a
+Hd_Nop  ret                         ; Help, About - пока ничего
 H_AutoStep
         ld hl,Auto_Step
         jr Hd_Toggle
@@ -698,7 +734,7 @@ Tr_Send
 Tr_SAT
 .k = 0
         DUP TR_BUTTONS
-        db 0, SP_ACT|SP_SIZE16, (HD_PLAY_X+.k*4)*4, SP_SIZE16, TR_ROW*64+.k*2, TR_PAL
+        db HD_PLAY_Y*8, SP_ACT|SP_SIZE16, (HD_PLAY_X+.k*4)*4, SP_SIZE16, TR_ROW*64+.k*2, TR_PAL
 .k = .k+1
         EDUP
 Tr_SAT_End
