@@ -71,7 +71,11 @@ DR_NAME         equ 8               ; имя, 0 на конце
 DR_NAME_MAX     equ 55
 DR_SIZE         equ 64
 DR_MAX          equ 248             ; записей: #C000..#FDFF
-DL_TMP          equ #FE00           ; окно 3: запись от драйвера (до 13+255 байт)
+DL_TMP          equ #FE00           ; окно 3: запись от драйвера (до 13+255 байт):
+NX_LEN          equ 4               ;   +0 кластер (4), +4 размер (4), +8 дата, +10 время,
+NX_DATE         equ 8
+NX_FLAG         equ 12              ;   +12 флаг (0 - папка, #10 - файл), +13 имя, 0
+NX_NAME         equ 13
 DL_CLUS         equ #FFF0           ; окно 3: кластер текущего каталога (4 байта)
 DR_IS_DIR       equ #00             ; DR_FLAG (и проход каталога): папка / файл
 DR_IS_FILE      equ #10
@@ -906,10 +910,10 @@ Dl_Pass
         cp 1                        ; не 1 - конец цепочки или ошибка
         ret nz
         ld a,(Dl_Want)
-        ld hl,DL_TMP+0
+        ld hl,DL_TMP+NX_FLAG
         cp (hl)
         jr nz,.next
-        ld hl,DL_TMP+13             ; "." - не берём
+        ld hl,DL_TMP+NX_NAME            ; "." - не берём
         ld a,(hl)
         cp '.'
         jr nz,.keep
@@ -923,16 +927,16 @@ Dl_Pass
         or #C0
         ld h,a
         ex de,hl
-        ld a,(DL_TMP+0)
+        ld a,(DL_TMP+NX_FLAG)
         ld (de),a                   ; DR_FLAG
         inc de
-        ld hl,DL_TMP+5              ; DR_LEN
+        ld hl,DL_TMP+NX_LEN         ; DR_LEN, потом DR_DATE
         ld bc,4
         ldir
         ld bc,2                     ; DR_DATE
         ldir
         inc de                      ; +7 - резерв
-        ld hl,DL_TMP+13             ; DR_NAME, не длиннее DR_NAME_MAX
+        ld hl,DL_TMP+NX_NAME        ; DR_NAME, не длиннее DR_NAME_MAX
         ld b,DR_NAME_MAX
 .nm     ld a,(hl)
         or a
