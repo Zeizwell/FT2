@@ -167,6 +167,8 @@ PluginMain
         call Build_Row_A
         call Init_RowNum            ; страница номеров роу
         call Test_Song              ; тестовые паттерны (данные + текст) и ордер
+        call Head_Load              ; шапка: значения трека
+        call Head_Draw              ; шапка: рамки, подписи, кнопки
         call Build_Layout           ; раскладка (хук IM1 ещё не стоит)
         call Draw_Order
         call Build_Row_Tab
@@ -187,7 +189,8 @@ Main_Loop
         BAND_M BAND_INPUT
         call Handle_Keys
         call Dbg_Show               ; отладка ввода - временно
-        call Head_Show              ; шапка: скорость, Env as Note, длина паттерна
+        call Head_Show              ; шапка: значения (srs/head.asm)
+        call Time_Tick              ; время игры
         call Fld_Update             ; мышь и колесо - полям (коре, srs/fields.asm)
         call Play_Step
         call Build_Row_Tab
@@ -1654,54 +1657,6 @@ HK_Code         dw 0
 ;-------- ОТЛАДКА ВВОДА (временно): на нижней рамке слева "K:код флаги M:модификаторы"
 ; код - последнее событие клавиатуры (PS/2, E0 +128), флаги - KM_* | KF_REPEAT,
 ; M - SV_KEY_MODS сейчас (1 Shift, 2 Ctrl, 4 Alt)
-;-------- ШАПКА (пока только показ, поверх макета srs/maket.asm, строки 5-6):
-; скорость (что играет плеер, в стопе - трека), шаг, Env as Note (галочка),
-; длина паттерна текущей позиции. Пишем только символы - цвета макета
-HEAD_ROW1       equ 5               ; "|Speed:04+- ... Enve as note *|"
-HEAD_ROW2       equ 6               ; "+----...Size:40+- +"
-HD_SPEED_X      equ 7
-HD_ENVNOTE_X    equ 59
-HD_SIZE_X       equ 55
-HD_STEP_X       equ 17
-HD_STEP_ADDR    equ SCR_BASE_H*256+HEAD_ROW1*256+HD_STEP_X
-HD_SPEED_ADDR   equ SCR_BASE_H*256+HEAD_ROW1*256+HD_SPEED_X
-HD_SIZE_ADDR    equ SCR_BASE_H*256+HEAD_ROW2*256+HD_SIZE_X
-
-Head_Show
-        ld a,(SV_PLAY_STATE)        ; скорость
-        or a
-        ld a,(SV_PLAY_SPEED)
-        jr nz,$+4
-        ld a,NEW_SONG_SPEED
-        ld hl,HD_SPEED_ADDR
-        call Hd_Hex2
-        ld a,(Cur_Step)             ; шаг
-        ld hl,HD_STEP_ADDR
-        call Hd_Hex2
-        ld a,(Env_As_Note)          ; Env as Note: галочка
-        or a
-        ld a,GLYPH_CHK_OFF
-        jr z,$+4
-        ld a,GLYPH_CHK_ON
-        ld ((SCR_BASE_H+HEAD_ROW1)*256+HD_ENVNOTE_X),a
-        ld a,(Cur_Pos)              ; длина паттерна текущей позиции
-        ld hl,Test_Order
-        call Arr_Get
-        ld hl,Pat_Len
-        call Arr_Get
-        ld hl,HD_SIZE_ADDR
-; A -> 2 hex в (HL), (HL+1). Портит DE
-Hd_Hex2
-        ld e,a
-        ld d,high Hex_T
-        ld a,(de)
-        ld (hl),a
-        inc l
-        inc d
-        ld a,(de)
-        ld (hl),a
-        ret
-
 Dbg_Key         db 0
 Dbg_Flags       db 0
 Dbg_Show
@@ -1886,6 +1841,7 @@ Play_Go
         ld (Play_Tick),a
         ld a,1
         ld (Playing),a
+        call Time_Reset             ; время игры - с нуля
         ld a,(Cur_Pos)              ; команда плееру: откуда (сначала параметры,
         ld (SV_PLAY_CPOS),a         ; команда - последней: IM1 может влезть)
         ld a,(Cur_Row)
@@ -1952,6 +1908,7 @@ Int_Line_Set
     ENDM
 
 Pv_Fields
+        FIELD 0,0,LINE_W,HD_BOX_Y+HD_BOX_H, 0, 0, Head_Fields, 0     ; шапка (srs/head.asm)
 F_Order FIELD ORD_X,FIRST_LINE,DRAW_X0,VIEW_ROWS, FF_FOCUS, Ord_Field, Ord_Kids, 0
         FIELD 0,VIEW_LINE,LINE_W,1,                0,        0,         Head_Kids, 0
 F_Pat   FIELD DRAW_X0,FIRST_LINE,DRAW_X1-DRAW_X0,VIEW_ROWS, FF_FOCUS, Pat_Field, 0, 0
@@ -2586,6 +2543,8 @@ Band_Bg         dw 0                ; 0 - обычный фон (копия из
                 db %00011000, %01100011     ; 7 белый
                 db %00000000, %01100001     ; 8 оранжевый - замер DMA
 
+    include "srs/head.asm"
+
 ; =========================================================================
 ; ТЕСТОВЫЙ ТРЕК: 8 паттернов разной длины, длинный ордер (для плея сонга).
 ; Все поля непустые (худший случай), значения зависят от паттерна, роу и
@@ -2629,6 +2588,7 @@ Test_Song
 NEW_SONG_SPEED  equ 3               ; новый трек: скорость
 NEW_SONG_STEP   equ 4               ;   шаг курсора при вводе
 NEW_SONG_FORMAT equ 1
+NEW_SONG_DEVICE equ 1               ;   вывод: TurboSound
 
 ;-------- Новый трек: заголовок страницы трека PAGE_SONG1 - нули, подпись, формат,
 ; чипы, скорость, шаг, страница инструментов. Ордер и каталог - Song_Sync
@@ -2650,6 +2610,8 @@ Song_Clear
         ld (#8000+SH_CHIPS),a
         ld a,NEW_SONG_SPEED
         ld (#8000+SH_SPEED),a
+        ld a,NEW_SONG_DEVICE
+        ld (#8000+SH_DEVICE),a
         ld a,NEW_SONG_STEP
         ld (#8000+SH_STEP),a
         ld a,PAGE_INS1

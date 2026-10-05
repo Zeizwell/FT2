@@ -88,6 +88,8 @@ Core_Start
         ld a,PAGE_PLAYER
         ld (SV_PLAYER),a
 
+        call Clear_Screen       ; экран - пробелы цветом фона (макета больше нет)
+
         xor a                   ; шрифт 0 и значки поверх
         call Set_Font
         call Apply_UI_Glyphs
@@ -110,6 +112,26 @@ Call_Tool
         RESTPAGE1
         ret
 
+
+;-------- Экран PAGE_TEXT целиком: символы - пробелы, атрибуты - фон темы.
+; Все 64 строки страницы (видно 36, остальные - шаблоны и запас)
+Clear_Screen
+        SETPAGE3 PAGE_TEXT
+        ld a,(THEME_ATTR+CLR_BG)
+        ld c,a
+        ld h,#C0                    ; строка = H (окно 3)
+.l      ld l,0
+.s      ld (hl),' '                 ; 0..127 - символы
+        set 7,l
+        ld (hl),c                   ; 128..255 - атрибуты
+        res 7,l
+        inc l
+        bit 7,l
+        jr z,.s
+        inc h
+        jr nz,.l
+        RESTPAGE3
+        ret
 
 ;-------- Шрифты. Банк PAGE_FONTS: шрифты по слотам FONT_SIZE, в слоте UI_GLYPH_SLOT -
 ; значки интерфейса. Выбранный шрифт копируется в PAGE_FONT (его видит текстовый

@@ -75,15 +75,6 @@ core_end
     display     "core size",/d,core_end-core_start," bytes"
 
 
-    org #c000
-maket
-
-    include     "srs/maket.asm"
-    org #f000
-maket_end
-    SAVEBIN     "srs/maket.bin",maket,maket_end-maket
-    display     "maket size",/d,maket_end-maket," bytes"
-
     ; --- тулзы: каждая со своим org #4000 и своим файлом, грузится spg в свою страницу
     org #4000
 tool_patview
