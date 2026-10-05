@@ -1481,9 +1481,10 @@ Step_Fwd
 F_HEX16         equ 1               ; 2 байта, старший первым, 4 hex; 0 - "...."
 F_NOISE         equ 2               ; 1 байт, 2 hex; 0 - ".."
 F_NOTE          equ 3               ; нота, 3 знака
-F_SYM           equ 4               ; сэмпл/орнамент, 1 знак (1..W)
+F_SYM           equ 4               ; сэмпл, 1 знак (1..W)
 F_HX1           equ 5               ; огибающая/громкость, 1 hex
 F_CMD           equ 6               ; команда: 2 байта как лежат, 4 hex; 0,0 - "...."
+F_ORN           equ 8               ; орнамент, 1 знак: номер+1 (0..W), 0 - "."
 F_ENVP          equ 7               ; период огибающей: 4 hex, а в режиме Env_As_Note -
                                     ; нота (CHIP_ENVNOTE) "E-4 ", если она есть
 
@@ -1499,7 +1500,7 @@ F_ENVP          equ 7               ; период огибающей: 4 hex, а
         db F_NOTE, (src)+CH_NOTE,      TX_BLOCK+(cx)-CONT_X
         db F_SYM,  (src)+CH_SAMPLE,    TX_BLOCK+(cx)-CONT_X+4
         db F_HX1,  (src)+CH_ENVSHAPE,  TX_BLOCK+(cx)-CONT_X+5
-        db F_SYM,  (src)+CH_ORNAMENT,  TX_BLOCK+(cx)-CONT_X+6
+        db F_ORN,  (src)+CH_ORNAMENT,  TX_BLOCK+(cx)-CONT_X+6
         db F_HX1,  (src)+CH_VOLUME,    TX_BLOCK+(cx)-CONT_X+7
         db F_CMD,  (src)+CH_CMD,       (ex)+1
         db F_CMD,  (src)+CH_CMD+CMD_SIZE, (ex)+6
@@ -1543,7 +1544,16 @@ Row_Fields
         dec a
         jr z,.hx1
         dec a
-        jr nz,.envp
+        jr z,.cmd
+        dec a
+        jp z,.envp
+        ld a,c                      ; орнамент: номер+1 - 0 ".", 1 "0", дальше 1..W
+        or a
+        jr z,.sym
+        dec c
+        jr nz,.sym
+        ld (hl),'0'
+        jr .f
 .cmd    ld a,b                      ; команда: байт C, потом B
         or c
         jr z,.dots4
@@ -1595,12 +1605,12 @@ Row_Fields
         ld d,high Sym_T
         ld a,(de)
         ld (hl),a
-        jr .f
+        jp .f
 .hx1    ld e,c
         ld d,high Hx1_T
         ld a,(de)
         ld (hl),a
-        jr .f
+        jp .f
 .envp   ld a,(Env_As_Note)          ; период огибающей: режим нот выключен - 4 hex
         or a
         jr z,.hex16
@@ -2616,7 +2626,7 @@ Pat_Exists      ds TEST_PATS,1       ; 1 - паттерн есть (номер �
 Test_Order      db 0,1,2,3,3,3,4,5,5,6,1,7,2,0,3,4,6,5,7,1,2,0,6,7
 TEST_ORD_N      equ $-Test_Order
                 ds ORDER_TEST_MAX-TEST_ORD_N,0
-ORDER_TEST_MAX  equ 64
+ORDER_TEST_MAX  equ 255             ; позиций в виде (длина ордера - байт: 1..255)
 
 Test_Song
         call Song_Clear             ; новый трек: заголовок (скорость, шаг 4...)
@@ -2643,43 +2653,7 @@ Test_Song
 ;-------- Трек для плеера: страница трека PAGE_SONG1 - скорость, страница
 ; инструментов, ордер, повтор, каталог паттернов (страница и длина). Пока трек
 ; живёт в переменных вида (Test_Order, Pat_Len...) - копируем туда при каждой правке
-NEW_SONG_SPEED  equ 3               ; новый трек: скорость
-NEW_SONG_STEP   equ 4               ;   шаг курсора при вводе
-NEW_SONG_FORMAT equ 1
-NEW_SONG_DEVICE equ 0               ;   тип чипа: AY (чипов - CHIPS_MAX, 6 каналов)
-
-;-------- Новый трек: заголовок страницы трека PAGE_SONG1 - нули, подпись, формат,
-; чипы, скорость, шаг, страница инструментов. Ордер и каталог - Song_Sync
-Song_Clear
-        ld a,PAGE_SONG1
-        SETPAGE2 a
-        ld hl,#8000+SONG_HDR        ; заголовок - нули
-        ld de,#8000+SONG_HDR+1
-        ld bc,255
-        ld (hl),0
-        ldir
-        ld hl,Txt_Sign
-        ld de,#8000+SH_SIGN
-        ld bc,4
-        ldir
-        ld a,NEW_SONG_FORMAT
-        ld (#8000+SH_FORMAT),a
-        ld a,CHIPS_MAX
-        ld (#8000+SH_CHIPS),a
-        ld a,NEW_SONG_SPEED
-        ld (#8000+SH_SPEED),a
-        ld a,NEW_SONG_DEVICE
-        ld (#8000+SH_DEVICE),a
-        ld a,NEW_SONG_STEP
-        ld (#8000+SH_STEP),a
-        ld a,PAGE_INS1
-        ld (#8000+SH_INS_PAGE),a
-        RESTPAGE2
-        ld a,NEW_SONG_STEP          ; шаг - и в переменную вида (шапка, ввод)
-        ld (Cur_Step),a
-        ret
-Txt_Sign        db "FT2S"
-Cur_Step        db NEW_SONG_STEP    ; шаг курсора (копия SH_STEP)
+Cur_Step        db NEW_SONG_STEP    ; шаг курсора (копия SH_STEP, её кладёт Head_Load)
 
 Song_Sync
         ld a,PAGE_SONG1

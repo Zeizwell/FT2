@@ -384,7 +384,7 @@ ORDER_MAX       equ 256
 ; и сыграть; длинную вещь - делить на несколько треков, а не раздувать лимиты.
 PATTERNS_MAX    equ 64              ; номера 0..63
 SAMPLES_MAX     equ 32              ; номера 1..32, 0 - текущий / нет
-ORNAMENTS_MAX   equ 16              ; номера 1..16, 0 - текущий / нет
+ORNAMENTS_MAX   equ 16              ; номера 1..16 и 0 - пустой (как в FT и PT3)
 FXS_MAX         equ 32              ; номера 1..32, 0 - без FX
 
 PAT_CATALOG     equ #0300           ; по номеру паттерна, 2 байта
@@ -479,7 +479,8 @@ PAT_ROWS_MAX    equ 64
 CH_NOTE         equ 0           ; 0 - пусто, 1..96 ноты, NOTE_CMD.. команды ноты
 CH_SAMPLE       equ 1
 CH_ENVSHAPE     equ 2
-CH_ORNAMENT     equ 3
+CH_ORNAMENT     equ 3           ; номер+1: 0 - пусто (не менять), 1 - орнамент 0 (пустой),
+                                ;   2..17 - орнаменты 1..16
 CH_VOLUME       equ 4
                                 ; +5 резерв
 CH_CMD          equ 6           ; 2 команды по CMD_SIZE: +6 +8

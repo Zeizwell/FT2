@@ -357,12 +357,15 @@ Pr_Channel
         ld a,l                      ; орнамент
         add a,CH_ORNAMENT
         ld l,a
-        ld a,(hl)
+        ld a,(hl)                   ; в паттерне - номер+1, 0 - не менять
         or a
         jr z,.noorn
-        dec a
-        add a,#80+high ORN_BASE     ; блок орнамента: по 256
-        ld (ix+CS_ORN+1),a
+        sub 2                       ; орнамент 1..16 - блок 0..15 (по 256)
+        jr c,.orn0                  ; орнамент 0 - пустой: H = 0
+        add a,#80+high ORN_BASE
+        jr .orns
+.orn0   xor a
+.orns   ld (ix+CS_ORN+1),a
         ld (ix+CS_ORN),0
 .noorn  pop hl
         push hl
