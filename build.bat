@@ -25,6 +25,8 @@ xcopy /Y srs\ft2.spg TMPFT\ >nul
 :: 4. Запись СТРОГО в тот образ, который РЕАЛЬНО открывает твой эмулятор
 set IName="d:\_Work\Speccy\FT2\tools\unreal\wc.img"
 robimg.exe -p=%IName% -C="TMPFT",\TMPFT
+:: test modules - into \MUSIC (overwritten each build, nothing deleted)
+robimg.exe -p=%IName% -C="Modules for test",\MUSIC >nul
 timeout /t 2 >nul
 
 :: 5. Очистка временного мусора на ПК
