@@ -403,8 +403,10 @@ Dv_List_Row
         call Dv_StrKeep
         jr .date
 .file   inc hl                      ; DR_LEN
+        push de                     ; D - строка экрана (Nm_* портят DE)
         call Nm_Load32
         call Nm_Dec7
+        pop de
         ld e,LS_SIZE_X
         ld hl,Nm_Buf
         call Dv_StrKeep
@@ -469,9 +471,11 @@ Dv_Draw_File
         ld de,FP_V+6+256*(DV_SCR_H+TYPE_Y)
         ld hl,Txt_Size
         call PutStr
+        push de                     ; DE - экран (Nm_* портят DE)
         ld hl,Dv_Len
         call Nm_Load32
         call Nm_Dec7
+        pop de
         ld hl,Nm_Buf
         call PutStr
 .song   ld de,FP_V+256*(DV_SCR_H+SONG_Y)
