@@ -164,9 +164,17 @@ PluginMain
         out (c),a
         ld bc,GXOFFSH
         out (c),a
+        ld a,(Pv_Started)           ; первый вход - таблицы и тестовый трек
+        or a
+        jr nz,.again
+        inc a
+        ld (Pv_Started),a
         call Build_Row_A
         call Init_RowNum            ; страница номеров роу
         call Test_Song              ; тестовые паттерны (данные + текст) и ордер
+.again  ld a,(SV_SONG_NEW)          ; трек загрузили (вкладка Disk) - перечитать
+        or a
+        call nz,Song_Reload
         call Head_Load              ; шапка: значения трека
         call View_Chips             ; 3 или 6 каналов - по треку
         call Head_Draw              ; шапка: рамки, подписи, кнопки
@@ -194,6 +202,9 @@ Main_Loop
         call Head_Show              ; шапка: значения (srs/head.asm)
         call Time_Tick              ; время игры
         call Fld_Update             ; мышь и колесо - полям (коре, srs/fields.asm)
+        ld a,(Pv_Exit)              ; выбрали другую вкладку - выходим в коре
+        or a
+        jr nz,Pv_Leave
         call Play_Step
         call Build_Row_Tab
         ld a,(Layout_Pending)       ; сменился открытый элемент
@@ -209,7 +220,21 @@ Main_Loop
         call Draw_Order
         jr Main_Loop
 
+;-------- Выход в коре (другая вкладка, её страница - уже в SV_TOOL): IM1 больше
+; не рисует паттерн, окно 3 - как было при входе (PluginMain)
+Pv_Leave
+        xor a
+        ld (Pv_Exit),a
+        di
+        ld hl,0
+        ld (SV_FRAME_HOOK),hl
+        ei
+        RESTPAGE3
+        ret
+
 ; --- состояние
+Pv_Started      db 0                ; 1 - таблицы и тестовый трек уже есть (вход не первый)
+Pv_Exit         db 0                ; 1 - выйти из основного цикла в коре
 Cur_Chan        db 0                ; канал под курсором 0..5
 Env_Open        db 0                ; 1 - открыт Env чипа курсора, а не канал
 Open_Item       db 1                ; открытый элемент 0..7, ITEM_NONE - нет
@@ -2690,6 +2715,71 @@ Song_Sync
         RESTPAGE2
         ret
 
+
+;-------- Трек загрузили (тулза диска, srs/diskview.asm): страница трека - правда,
+; вид берёт из неё ордер, повтор и каталог паттернов, текст роу строит заново.
+; Паттерн n - в странице PAT_PAGE+n (загрузка кладёт его туда же)
+Song_Reload
+        xor a
+        ld (SV_SONG_NEW),a
+        ld (Cur_Pos),a
+        ld (Cur_Row),a
+        ld a,PAGE_SONG1
+        SETPAGE2 a
+        ld a,(#8000+ORD_LAST)       ; позиций - не больше, чем держит вид
+        cp ORDER_TEST_MAX
+        jr c,$+4
+        ld a,ORDER_TEST_MAX-1
+        ld (Ord_Last),a
+        ld b,a
+        ld a,(#8000+ORD_LOOP)       ; повтор - не за последней
+        cp b
+        jr c,.lp
+        jr z,.lp
+        xor a
+.lp     ld (Loop_Pos),a
+        ld hl,#8000+ORD_POS
+        ld de,Test_Order
+        ld bc,ORDER_TEST_MAX
+        ldir
+        ld hl,#8000+PAT_CATALOG     ; каталог: есть ли паттерн, длина
+        ld de,Pat_Len
+        ld ix,Pat_Exists
+        ld b,PATTERNS_MAX
+.p      ld a,(hl)                   ; страница: 0 - нет
+        or a
+        jr z,$+4
+        ld a,1
+        ld (ix+0),a
+        inc hl
+        ld a,(hl)                   ; длина: 0 - считаем 64
+        or a
+        jr nz,$+4
+        ld a,PAT_ROWS_MAX
+        ld (de),a
+        inc hl
+        inc de
+        inc ix
+        djnz .p
+        RESTPAGE2
+        xor a                       ; текст роу всех паттернов, что есть
+        ld (TF_Pat),a
+.t      ld a,(TF_Pat)
+        ld hl,Pat_Exists
+        call Arr_Get
+        or a
+        jr z,.next
+        ld a,(TF_Pat)
+        add a,PAT_PAGE
+        SETPAGE2 a
+        call Init_Pat_Text
+        RESTPAGE2
+.next   ld hl,TF_Pat
+        inc (hl)
+        ld a,(hl)
+        cp PATTERNS_MAX
+        jr c,.t
+        ret
 TF_Pat          db 0
 
 ;-------- Тестовые инструменты и орнаменты (формат FTC, sdk/plugin.asm) - в страницу

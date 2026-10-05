@@ -101,13 +101,14 @@ Core_Start
         call Set_Font
         call Apply_UI_Glyphs
 
-        ld a,PAGE_TOOL_PATVIEW  ; пока просто показываем тестовый паттерн
-        call Call_Tool
+        ld a,PAGE_TOOL_PATVIEW  ; первым - вид паттерна
+        ld (SV_TOOL),a
 
-Pause
-        ei
-        halt
-        jp Pause
+;-------- Экраны (вкладки): тулза работает, пока не поставит в SV_TOOL другую и не выйдет
+Tools_Loop
+        ld a,(SV_TOOL)
+        call Call_Tool
+        jr Tools_Loop
 
 ;-------- Вызов тулзы: страница тулзы в окно 1, старт с #4000
 ; in: A - пейдж тулзы

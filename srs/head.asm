@@ -452,6 +452,7 @@ Head_Fields
         FIELD HD_TRK_X+2,  HD_TABS_Y, 1,1, FF_HAND, Hd_Field, 0, 22          ; трек 2
         FIELD HD_HELP_X,   HD_TABS_Y, 4,1, FF_HAND, Hd_Field, 0, 23          ; Help - пока ничего
         FIELD HD_ABOUT_X,  HD_TABS_Y, 5,1, FF_HAND, Hd_Field, 0, 23          ; About - пока ничего
+        FIELD HD_TABS_X+21,HD_TABS_Y, 4,1, FF_HAND, Hd_Field, 0, 24          ; вкладка Disk
 Tr_Fields                           ; кнопки транспорта (спрайты Tr_*), подряд
         FIELD HD_PLAY_X,   HD_PLAY_Y, 4,2, FF_HAND, Hd_Field, 0, 15          ; ⇄ паттерн по кругу (F8)
         FIELD HD_PLAY_X+4, HD_PLAY_Y, 4,2, FF_HAND, Hd_Field, 0, 16          ; |◀ сонг с начала (F6)
@@ -465,7 +466,7 @@ Hd_Act  dw H_SpdDn, H_SpdUp, H_OctDn, H_OctUp, H_StepDn, H_StepUp
         dw H_LenDn, H_LenUp, H_RatUp
         dw H_Tune, H_Chip, H_Stereo, K_EnvNote, H_AutoEnv, H_AutoStep
         dw K_PlayPat, K_PlayStart, K_PlaySong, K_PlayPatRow, K_Stop
-        dw H_Chips, H_Trk1, H_Trk2, Hd_Nop
+        dw H_Chips, H_Trk1, H_Trk2, Hd_Nop, H_TabDisk
 
 ;-------- Поле шапки: клик - действие (вид нажатой кнопки рисует Hd_Buttons)
 Hd_Field
@@ -569,6 +570,12 @@ H_Trk1  xor a                       ; трек в шапке (второй в п
 H_Trk2  ld a,1
         ld (Cur_Track),a
 Hd_Nop  ret                         ; Help, About - пока ничего
+H_TabDisk                           ; вкладка Disk: выйти из вида в тулзу диска
+        ld a,PAGE_TOOL_DISK
+        ld (SV_TOOL),a
+        ld a,1
+        ld (Pv_Exit),a
+        ret
 H_AutoStep
         ld hl,Auto_Step
         jr Hd_Toggle

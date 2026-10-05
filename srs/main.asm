@@ -84,6 +84,15 @@ tool_patview_end
     SAVEBIN     "srs/patview.bin",tool_patview,tool_patview_end-tool_patview
     display     "patview size",/d,tool_patview_end-tool_patview," bytes"
 
+    ; --- тулза диска: каталог, загрузка и сохранение (страница PAGE_TOOL_DISK)
+    org #4000
+tool_disk
+    include     "srs/diskview.asm"
+tool_disk_end
+    ASSERT tool_disk_end <= #8000
+    SAVEBIN     "srs/diskview.bin",tool_disk,tool_disk_end-tool_disk
+    display     "diskview size",/d,tool_disk_end-tool_disk," bytes"
+
     ; --- плеер (страница PAGE_PLAYER, окно 1 из IM1)
     include     "srs/player.asm"
     SAVEBIN     "srs/player.bin",player_start,player_end-player_start
