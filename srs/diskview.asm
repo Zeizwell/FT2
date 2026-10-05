@@ -119,6 +119,7 @@ Dv_Start
         SETPAGE3 a
         call Dv_Head
         call Dv_Clear
+        call Tr_Active              ; кнопки транспорта - по плееру (без подсветки шапки)
         ld a,(Dv_Mounted)           ; карта: первый раз - подключить
         or a
         jr nz,.list
@@ -596,7 +597,12 @@ Dv_Buttons
 ; ПОЛЯ
 ; =========================================================================
 Dv_Fields
-        DV_FIELD 0,0,90,DV_TOP, FF_HAND, Dv_TabPat, 0                   ; шапка: клик - назад к паттерну
+        DV_FIELD patview.HD_PLAY_X,   patview.HD_PLAY_Y,4,2, FF_HAND, Dv_TrEv, 0  ; ⇄ паттерн по кругу
+        DV_FIELD patview.HD_PLAY_X+4, patview.HD_PLAY_Y,4,2, FF_HAND, Dv_TrEv, 1  ; |◀ сонг с начала
+        DV_FIELD patview.HD_PLAY_X+8, patview.HD_PLAY_Y,4,2, FF_HAND, Dv_TrEv, 2  ; ▶ сонг
+        DV_FIELD patview.HD_PLAY_X+12,patview.HD_PLAY_Y,4,2, FF_HAND, Dv_TrEv, 3  ; ▷ паттерн с роу
+        DV_FIELD patview.HD_PLAY_X+16,patview.HD_PLAY_Y,4,2, FF_HAND, Dv_TrEv, 4  ; ■ стоп
+        DV_FIELD 0,0,90,DV_TOP, 0, Dv_TabPat, 0                         ; остальная шапка: клик - назад
 F_List  DV_FIELD LS_X+1,LS_ROW0,LS_W-2,LS_ROWS, FF_FOCUS, Dv_ListEv, 0  ; каталог
 F_Name  DV_FIELD FP_V,NAME_Y,NAME_W,1, FF_FOCUS|FF_HAND, Dv_NameEv, 0   ; имя файла
 F_Load  DV_FIELD LOAD_X,BTN_Y,BTN_W,1, FF_HAND, Dv_BtnEv, 0              ; Load
@@ -612,6 +618,43 @@ Dv_TabPat
         ld a,1
         ld (Dv_Exit),a
         ret
+
+;-------- Кнопки транспорта (общие для всех экранов). Позиция - та, что играла
+; последней (курсора паттерна здесь нет): ⇄ - её паттерн по кругу, |◀ - сонг с начала,
+; ▶ - сонг с её начала, ▷ - паттерн с её роу, ■ - стоп
+Dv_TrEv
+        cp EV_CLICK
+        ret nz
+        ld a,(SV_PLAY_POS)          ; откуда
+        ld (SV_PLAY_CPOS),a
+        xor a
+        ld (SV_PLAY_CROW),a
+        ld a,(ix+FLD_PARAM)
+        or a
+        ld b,PC_PATTERN
+        jr z,.cmd
+        dec a
+        jr nz,.play
+        ld (SV_PLAY_CPOS),a         ; |◀ - позиция 0
+        ld b,PC_SONG
+        jr .cmd
+.play   dec a
+        ld b,PC_SONG
+        jr z,.cmd
+        dec a
+        jr nz,.stop
+        ld a,(SV_PLAY_ROW)          ; ▷ - с роу
+        ld (SV_PLAY_CROW),a
+        ld b,PC_PATTERN
+        jr .cmd
+.stop   ld b,PC_STOP
+.cmd    ld a,b                      ; команда - последней (IM1 может влезть)
+        ld (SV_PLAY_CMD),a
+.wait   halt                        ; плеер взял команду - кнопки по состоянию
+        ld a,(SV_PLAY_CMD)
+        or a
+        jr nz,.wait
+        jp Tr_Active
 
 ;-------- Кнопки: Load - открыть выбранную запись, Save - сохранить под Name
 Dv_BtnEv
@@ -1286,11 +1329,13 @@ Dv_Load
         inc b
         ld a,b
         ld (Ld_Pages),a
-        ld a,PC_STOP                ; плеер - стоп: страницы трека сейчас перепишем
-        ld (SV_PLAY_CMD),a
-        halt
-        halt
-        call Tr_Normal              ; кнопки транспорта - не горят
+        ld a,PC_STOP                ; плеер - стоп (регистры AY в 0): страницы трека
+        ld (SV_PLAY_CMD),a          ; сейчас перепишем
+.wst    halt                        ; ждём, пока плеер встанет (SV_PLAY_STATE = 0)
+        ld a,(SV_PLAY_STATE)
+        or a
+        jr nz,.wst
+        call Tr_Active              ; кнопки транспорта - не горят
         xor a                       ; файл - в буфер, по странице
         ld (Ld_Page),a
 .read   ld a,(Ld_Page)

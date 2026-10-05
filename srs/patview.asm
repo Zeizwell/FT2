@@ -172,7 +172,15 @@ PluginMain
         call Build_Row_A
         call Init_RowNum            ; страница номеров роу
         call Test_Song              ; тестовые паттерны (данные + текст) и ордер
-.again  ld a,(SV_SONG_NEW)          ; трек загрузили (вкладка Disk) - перечитать
+.again  ld a,(SV_PLAY_STATE)        ; играет ли - по плееру (на других вкладках его
+        or a                        ; могли пустить или остановить)
+        ld (Playing),a
+        cp PS_PATTERN               ; полотно: паттерн по кругу или по ордеру
+        ld a,0
+        jr z,$+3
+        inc a
+        ld (Src_Mode),a
+        ld a,(SV_SONG_NEW)          ; трек загрузили (вкладка Disk) - перечитать
         or a
         call nz,Song_Reload
         call Head_Load              ; шапка: значения трека

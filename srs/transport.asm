@@ -4,16 +4,30 @@
 TR_BUTTONS      equ 5               ; кнопок (их поля и графика - srs/head.asm)
 
 ; =========================================================================
-;-------- Все кнопки - обычные (плеер встал не по кнопке: загрузка трека)
-Tr_Normal
-        ld hl,Tr_SAT+4              ; тайл в описателе кнопки k: patview.TR_ROW*64 + 2k
+;-------- Кнопки по состоянию плеера (экраны без шапки - диск): все обычные, горит
+; ▶ (играет сонг) или ⇄ (паттерн по кругу). Под мышью / нажата - только в шапке
+TR_TILE_N       equ patview.TR_ROW*64                       ; тайл кнопки 0, обычный
+TR_TILE_A       equ patview.TR_ROW*64+patview.TRV_ACTIVE*10 ;   и горящий
+
+Tr_Active
+        ld hl,Tr_SAT+4              ; тайл в описателе кнопки k: обычный + 2k
         ld de,6
-        ld a,patview.TR_ROW*64
+        ld a,TR_TILE_N
         ld b,TR_BUTTONS
 .k      ld (hl),a
         add hl,de
         add a,2
         djnz .k
+        ld a,(SV_PLAY_STATE)
+        cp PS_SONG
+        ld hl,Tr_SAT+4+patview.TR_K_PLAY*6
+        ld b,TR_TILE_A+patview.TR_K_PLAY*2
+        jr z,.on
+        cp PS_PATTERN
+        jr nz,Tr_Send
+        ld hl,Tr_SAT+4+patview.TR_K_LOOP*6
+        ld b,TR_TILE_A+patview.TR_K_LOOP*2
+.on     ld (hl),b
         jr Tr_Send
 
 ; Описатели кнопок - в SFILE (DMA, из основного цикла)
