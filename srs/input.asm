@@ -13,10 +13,15 @@
 ; Лог: расширение Gluk-часов #02 (pentevo/docs/GluExt/version_ext.md).
 ; =========================================================================
 
+PORT_EFF7       equ #EFF7           ; остальные биты у нас 0 (как после сброса)
+EFF7_CMOS       equ #80
 GLUK_ADDR       equ #DFF7           ; номер регистра Gluk
 GLUK_DATA       equ #BFF7           ; данные
 GLUK_EXTSW      equ #F0             ; регистр выбора расширения / данные лога
 GLUK_EXT_KBLOG  equ #02             ; расширение: лог клавиатуры PS/2
+GLUK_REG_C      equ #0C             ; бит 0 - сбросить лог (после переполнения он
+                                    ; отдаёт #FF, пока не сбросишь)
+KB_MAX_BYTES    equ 16              ; байт лога за кадр, не больше (защита от зависания)
 
 ; Коды клавиш (PS/2 набор 2, E0-коды +128)
 KEY_LSHIFT      equ #12
@@ -28,6 +33,9 @@ KEY_RALT        equ #11+#80
 
 ;-------- Старт: включить лог клавиатуры, настройки по умолчанию
 Input_Init
+        ld bc,PORT_EFF7             ; бит 7 - доступ к портам часов Gluk (без него
+        ld a,EFF7_CMOS              ; DFF7/BFF7 не работают, читается #FF)
+        out (c),a
         ld bc,GLUK_ADDR             ; EXTSW = лог клавиатуры
         ld a,GLUK_EXTSW
         out (c),a
@@ -76,9 +84,15 @@ Kb_Ext          db 0                ; был префикс E0: #80
 Kb_Rel          db 0                ; был префикс F0: 1 - отпускание
 Kb_RepKey       db 0                ; клавиша автоповтора, 0 - нет
 Kb_RepCnt       db 0                ; кадров до следующего повтора
+Kb_Left         db 0                ; сколько байт лога ещё можно прочитать в кадре
 
 Read_Kbd
-.l      ld bc,GLUK_ADDR             ; очередной байт лога
+        ld a,KB_MAX_BYTES
+        ld (Kb_Left),a
+.l      ld hl,Kb_Left               ; лимит за кадр - остальное в следующем
+        dec (hl)
+        jp z,.repeat
+        ld bc,GLUK_ADDR             ; очередной байт лога
         ld a,GLUK_EXTSW
         out (c),a
         ld b,high GLUK_DATA
@@ -139,9 +153,15 @@ Read_Kbd
         ld (Kb_RepCnt),a
         jr .l
 .mods   call Kb_Mods
-        jr .l
+        jp .l
 
-.overflow                           ; лог переполнился: считаем, что всё отпущено
+.overflow                           ; лог переполнился: сбросить, считаем, что всё отпущено
+        ld bc,GLUK_ADDR
+        ld a,GLUK_REG_C
+        out (c),a
+        ld b,high GLUK_DATA
+        ld a,1
+        out (c),a
         ld hl,SV_KEY_DOWN
         ld b,32
         xor a
@@ -151,8 +171,7 @@ Read_Kbd
         ld (Kb_RepKey),a
         ld (Kb_Ext),a
         ld (Kb_Rel),a
-        call Kb_Mods
-        jp .l
+        jp Kb_Mods                  ; лог пуст - в этом кадре больше не читаем
 
 .repeat ld a,(Kb_RepKey)            ; автоповтор последней нажатой
         or a

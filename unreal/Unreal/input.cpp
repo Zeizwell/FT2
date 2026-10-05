@@ -320,19 +320,6 @@ char K_INPUT::readdevices()
       msx = msx_prev + sx;
       msy = msy_prev + sy;
 
-      // FT2 diag: raw DirectInput step, step to the port, port values (statusline)
-      if (conf.input.mousediv > 1)
-      {
-          // to the window title: big and readable (the statusline is dim)
-          static int max_sx, max_sy;
-          if (abs(sx) > abs(max_sx)) max_sx = sx;
-          if (abs(sy) > abs(max_sy)) max_sy = sy;
-          char t[128];
-          sprintf(t, "STEP MAX %+d %+d | PORT X %02X Y %02X",
-              max_sx, max_sy, (u8)msx, (u8)msy);
-          SetWindowTextA(wnd, t);
-      }
-
       if (md.rgbButtons[0])
       {
           mbuttons &= ~1;
@@ -385,7 +372,7 @@ char K_INPUT::readdevices()
 
       if (!dbgbreak && input.buffer.Enabled()) // TODO: ������� � ������� ESC �������� � �����
       {
-         for (int i = 0; i < sizeof(kbdpc); i++)
+         for (int i = 0; i < 256; i++)  // FT2: dik_scan has 256 keys; kbdpc beyond is mouse (VK_LMB...), not PS/2
          {
             if ((kbdpc[i] & 0x80) != (kbdpc_prev[i] & 0x80) && dik_scan[i])
             {
