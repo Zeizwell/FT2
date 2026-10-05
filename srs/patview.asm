@@ -932,6 +932,8 @@ Build_Templates
         call .fill
         ld h,SCR_BASE_H+TPL_LINE+ST_ACTIVE
         call .fill
+        ld h,SCR_BASE_H+TPL_LINE+ST_EDIT   ; (правее рамки - фон, а не прошлая раскладка)
+        call .fill
         ld a,(THEME_ATTR+CLR_EDIT_ROW)  ; строка редактирования - один цвет
         ld c,a
         ld h,SCR_BASE_H+TPL_LINE+ST_EDIT
