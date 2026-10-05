@@ -168,6 +168,7 @@ Dv_Sel          db 0                ; выбранная запись
 Dv_Msg          dw 0                ; сообщение (0 - нет)
 Dv_Msg_Clr      db 0                ; его цвет: роль CLR_*
 Dv_Msg_Code     db 0                ; код ошибки драйвера (печатается за сообщением)
+Dv_Msg_F        db 0                ; флаги драйвера (отладка)
 Dv_Path         ds 120              ; путь от корня, "/" в конце
 DV_PATH_MAX     equ 118
 Dv_Name         ds NAME_W+1         ; поле Name: имя файла (под него и сохраняем)
@@ -487,6 +488,13 @@ Dv_Draw_File
         ld a,(Dv_Msg_Code)          ; код ошибки драйвера
         or a
         ret z
+        call PutHex2
+        ld a,(Dv_Msg_F)             ; и флаги, если есть
+        or a
+        ret z
+        ld a,' '
+        call PutCh
+        ld a,(Dv_Msg_F)
         jp PutHex2
 
 ;-------- Поле Name: текст на фоне поля ввода, в фокусе - курсор "_"
@@ -810,7 +818,20 @@ Dv_List
         RESTPAGE3
         ld a,1                      ; курсор - на первой, поле Name не трогаем
         ld (Dv_Dirty),a
-        jp Dv_Clear_Info
+        call Dv_Clear_Info
+        ld a,(Dv_Count)             ; отладка: пусто - что вернул драйвер (A, флаги)
+        or a
+        ret nz
+        ld hl,Txt_Empty
+        call Dv_Error
+        ld hl,(Dl_Dbg)
+        ld a,h
+        ld (Dv_Msg_Code),a
+        ld a,l
+        ld (Dv_Msg_F),a
+        ret
+
+Dl_Dbg          dw 0                ; отладка: AF последнего NXTETY
 
 ; Проход по каталогу с начала: записи с флагом A - в список
 Dl_Pass
@@ -824,6 +845,9 @@ Dl_Pass
         ld ix,DK_NEXT               ; следующая запись
         ld de,DL_TMP
         call Disk_Call
+        push af                     ; отладка: что вернул драйвер
+        pop hl
+        ld (Dl_Dbg),hl
         ret z                       ; конец каталога
         cp 1                        ; не 1 - конец цепочки или ошибка
         ret nz
@@ -1675,6 +1699,7 @@ Dv_Msg_Set
         ld (Dv_Msg_Clr),a
         xor a
         ld (Dv_Msg_Code),a
+        ld (Dv_Msg_F),a
         inc a
         ld (Dv_Dirty),a
         ret
@@ -1857,6 +1882,7 @@ Txt_NoName      db "Type a name",0
 Txt_Loaded      db "Loaded",0
 Txt_Saved       db "Saved",0
 Txt_DiskErr     db "Disk error #",0
+Txt_Empty       db "Empty dir, drv #",0
 
 ; --- PS/2 код -> символ имени файла (0 - не символ). Shift - в Dv_NameEv
         ALIGN 256
