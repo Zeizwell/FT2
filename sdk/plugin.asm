@@ -124,6 +124,26 @@ SV_FIELDS       equ SYS_VARS+#2C    ; 2  список полей верхнег�
 SV_HOVER        equ SYS_VARS+#2E    ; 2  поле под мышью, 0 - нет
 SV_FOCUS        equ SYS_VARS+#30    ; 2  поле в фокусе (туда идёт клавиатура), 0 - нет
 SV_PRESSED      equ SYS_VARS+#32    ; 2  поле, на котором нажали левую кнопку (до отпускания)
+; --- плеер (doc/player.md). Команду и её параметры пишет основной цикл, остальное -
+;     только плеер (в IM1)
+SV_PLAY_CMD     equ SYS_VARS+#34    ; 1  команда PC_*, плеер берёт и обнуляет
+SV_PLAY_CPOS    equ SYS_VARS+#35    ; 1  команда: позиция
+SV_PLAY_CROW    equ SYS_VARS+#36    ; 1  команда: роу
+SV_PLAY_STATE   equ SYS_VARS+#37    ; 1  PS_*
+SV_PLAY_POS     equ SYS_VARS+#38    ; 1  что играет: позиция
+SV_PLAY_ROW     equ SYS_VARS+#39    ; 1  ... роу
+SV_PLAY_TICK    equ SYS_VARS+#3A    ; 1  тиков до следующей роу
+SV_PLAY_SPEED   equ SYS_VARS+#3B    ; 1  тиков на роу
+SV_PLAYER       equ SYS_VARS+#3C    ; 1  страница плеера, 0 - нет (IM1 не зовёт)
+                                    ;    (трек, который играет, - SV_PLAY_SONG выше)
+PC_SONG         equ 1               ; команды: сонг с позиции CPOS, роу CROW
+PC_PATTERN      equ 2               ;   паттерн позиции CPOS по кругу с роу CROW
+PC_STOP         equ 3               ;   стоп и тишина
+PS_STOP         equ 0               ; состояния
+PS_SONG         equ 1
+PS_PATTERN      equ 2
+PLAYER_INIT     equ #4000           ; входы плеера (его страница - в окне 1)
+PLAYER_TICK     equ #4003
 SV_KEY_DOWN     equ SYS_VARS+#40    ; 32 карта нажатых: бит = код PS/2 (E0-коды +128)
 SV_KEY_Q        equ SYS_VARS+#60    ; 32 очередь клавиш: 16 x [код] [флаги KM_* | KF_REPEAT]
 
@@ -325,6 +345,7 @@ SH_FORMAT       equ SONG_HDR+#04    ; 1  версия формата
 SH_CHIPS        equ SONG_HDR+#05    ; 1  1 или 2 чипа
 SH_SPEED        equ SONG_HDR+#06    ; 1  начальная скорость
 SH_TUNING       equ SONG_HDR+#07    ; 1  таблица нот
+SH_INS_PAGE     equ SONG_HDR+#08    ; 1  страница инструментов и орнаментов (doc/instruments.md)
                                     ; #08-#0B резерв
 SH_PATTERNS     equ SONG_HDR+#0C    ; 1  число паттернов
 SH_SAMPLES      equ SONG_HDR+#0D    ; 1  число сэмплов (инструментов)
@@ -350,7 +371,7 @@ FXS_MAX         equ 32              ; номера 1..32, 0 - без FX
 
 PAT_CATALOG     equ #0300           ; по номеру паттерна, 2 байта
 PC_PAGE         equ 0               ; страница, 0 - паттерна нет
-PC_SLOT         equ 1               ; резерв (паттерн = целая страница, слотов нет)
+PC_LEN          equ 1               ; длина паттерна в роу (1..64)
 PC_SIZE         equ 2
 
 ; Каталоги сэмплов, орнаментов и FX - по номеру, запись 0 не используется.

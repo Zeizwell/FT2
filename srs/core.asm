@@ -36,7 +36,14 @@
 ; решает само - делает по переменным, которые меняет основной цикл.
 IM1_Handler
 
-    ; 1. музыка - первой, в одной и той же точке кадра (здесь будет плеер)
+    ; 1. музыка - первой, в одной и той же точке кадра: страница плеера - в окно 1
+    ld a,(SV_PLAYER)
+    or a
+    jr z,.nomusic
+    SETPAGE1 a
+    call PLAYER_TICK
+    RESTPAGE1
+.nomusic
     ; 2. мышь
     call Read_Mouse
     ; 3. клавиатура PS/2 и события кнопок мыши (srs/input.asm)
@@ -72,6 +79,14 @@ Core_Start
         ld de,100
         call Init_Mouse_Sprite
         call Input_Init         ; лог клавиатуры PS/2, автоповтор, счётчики мыши
+
+        ld a,PAGE_SONG1         ; плеер: трек 1, подготовка, дальше его зовёт IM1
+        ld (SV_PLAY_SONG),a
+        SETPAGE1 PAGE_PLAYER
+        call PLAYER_INIT
+        RESTPAGE1
+        ld a,PAGE_PLAYER
+        ld (SV_PLAYER),a
 
         xor a                   ; шрифт 0 и значки поверх
         call Set_Font

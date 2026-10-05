@@ -93,6 +93,11 @@ tool_patview_end
     SAVEBIN     "srs/patview.bin",tool_patview,tool_patview_end-tool_patview
     display     "patview size",/d,tool_patview_end-tool_patview," bytes"
 
+    ; --- плеер (страница PAGE_PLAYER, окно 1 из IM1)
+    include     "srs/player.asm"
+    SAVEBIN     "srs/player.bin",player_start,player_end-player_start
+    display     "player size",/d,player_end-player_start," bytes"
+
     ; --- диск: переходник к FAT32 (страница PAGE_DISK_APP, работает в окне 2)
     include     "srs/disk.asm"
     SAVEBIN     "srs/disk.bin",disk_start,disk_end-disk_start

@@ -1837,18 +1837,29 @@ Play_Go
         ld (Play_Tick),a
         ld a,1
         ld (Playing),a
+        ld a,(Cur_Pos)              ; команда плееру: откуда (сначала параметры,
+        ld (SV_PLAY_CPOS),a         ; команда - последней: IM1 может влезть)
+        ld a,(Cur_Row)
+        ld (SV_PLAY_CROW),a
+        ld a,(Src_Mode)
+        or a
+        ld a,PC_SONG
+        jr nz,$+4
+        ld a,PC_PATTERN
+        ld (SV_PLAY_CMD),a
         ret
 K_Stop  xor a                       ; стоп: остаёмся где стоим, полотно - по ордеру
         ld (Playing),a
         ld (Pat_Loops),a
         inc a
         ld (Src_Mode),a
+        ld a,PC_STOP
+        ld (SV_PLAY_CMD),a
         ret
 K_Continue                          ; продолжить сонг с текущего места (для кнопки)
         ld a,1
         ld (Src_Mode),a
-        ld (Playing),a
-        ret
+        jr Play_Go
 
 K_Timing
         ld hl,Timing
@@ -2210,17 +2221,19 @@ Build_Layout_Keep
         ret
 
 
-;-------- Имитация проигрывания: роу каждые 3 кадра
-Play_Step
+;-------- Проигрывание: полотно идёт за плеером (SV_PLAY_POS / ROW)
+Play_Step                           ; полотно - за плеером: он на другой роу - шаг вниз
         ld a,(Playing)
         or a
         ret z
-        ld hl,Play_Tick
-        inc (hl)
-        ld a,(hl)
-        cp 3
-        ret c
-        ld (hl),0
+        ld a,(SV_PLAY_ROW)
+        ld hl,Cur_Row
+        cp (hl)
+        jp nz,K_RowDn
+        ld a,(SV_PLAY_POS)
+        ld hl,Cur_Pos
+        cp (hl)
+        ret z
         jp K_RowDn
 
 ; =========================================================================
@@ -2341,6 +2354,7 @@ Ord_Insert
         inc a
         ld (Loop_Pos),a
 Ord_Changed                         ; новая позиция - с роу 0, ордер перерисовать
+        call Song_Sync              ; ордер и каталог - в страницу трека (для плеера)
         xor a
         ld (Cur_Row),a
         ld (Pat_Loops),a
@@ -2557,6 +2571,51 @@ Test_Song
         ld a,(hl)
         cp TEST_PATS
         jr c,.p
+        jp Song_Sync                ; трек - в его страницу (для плеера)
+
+;-------- Трек для плеера: страница трека PAGE_SONG1 - скорость, страница
+; инструментов, ордер, повтор, каталог паттернов (страница и длина). Пока трек
+; живёт в переменных вида (Test_Order, Pat_Len...) - копируем туда при каждой правке
+TEST_SPEED      equ 3
+
+Song_Sync
+        ld a,PAGE_SONG1
+        SETPAGE2 a
+        ld a,TEST_SPEED
+        ld (#8000+SH_SPEED),a
+        ld a,CHIPS_MAX
+        ld (#8000+SH_CHIPS),a
+        ld a,PAGE_INS1
+        ld (#8000+SH_INS_PAGE),a
+        ld a,(Ord_Last)
+        ld (#8000+ORD_LAST),a
+        ld a,(Loop_Pos)
+        ld (#8000+ORD_LOOP),a
+        ld hl,Test_Order
+        ld de,#8000+ORD_POS
+        ld bc,ORDER_TEST_MAX
+        ldir
+        ld hl,#8000+PAT_CATALOG     ; каталог: страница (0 - нет), длина
+        ld de,Pat_Len
+        ld ix,Pat_Exists
+        ld c,0                      ; C - номер паттерна
+.p      ld a,(ix+0)
+        or a
+        jr z,.none
+        ld a,c
+        add a,PAT_PAGE
+.none   ld (hl),a
+        inc hl
+        ld a,(de)
+        ld (hl),a
+        inc hl
+        inc de
+        inc ix
+        inc c
+        ld a,c
+        cp PATTERNS_MAX
+        jr c,.p
+        RESTPAGE2
         ret
 
 TF_Pat          db 0
