@@ -15,9 +15,10 @@
 HD_TABS_Y       equ 0
 HD_PLAY_X       equ 38              ; кнопки транспорта - спрайты, по 4 знакоместа (38..57)
 HD_TIME_X       equ 59              ; время игры "mm:ss"
-HD_CHIP_X       equ 66              ; вывод (10 знаков)
-HD_STEREO_X     equ 77              ; стерео (3 знака)
-HD_TUNE_X       equ 81              ; таблица нот (7 знаков)
+HD_CHIP_X       equ 65              ; тип чипа (9 знаков)
+HD_CHAN_X       equ 75              ; каналов: "3ch" / "6ch" (1 или 2 чипа)
+HD_STEREO_X     equ 79              ; стерео (3 знака)
+HD_TUNE_X       equ 83              ; таблица нот (7 знаков)
 ; --- коробка шапки во всю ширину: своя рамка, строки HD_FRAME_Y..VIEW_LINE-1
 HD_BOX_W        equ 90
 HD_FRAME_Y      equ 2               ; коробка шапки: строки 2..6 (0..1 - вкладки и кнопки 16x16)
@@ -49,7 +50,8 @@ HD_RATIO_X      equ 68              ; "1:1" - клик по кругу
 ; --- значения
 Song_Speed      db 3
 Song_Tuning     db 0
-Song_Device     db 1                ; TurboSound
+Song_Device     db 0                ; тип чипа: AY
+Song_Chips      db 2                ; чипов: 1 (3 канала) или 2 (6 каналов)
 Song_Stereo     db 0
 Cur_Octave      db 4
 Auto_Env        db 0
@@ -63,10 +65,10 @@ RATIOS          equ 8
 ; Названия - по фиксированной ширине
 Hd_Tunings      db "1.75MHz"
                 db "Classic"
-Hd_Devices      db "AY        "
-                db "TurboSound"
-                db "AYX-32    "
-                db "FT2 board "
+Hd_Devices      db "AY       "
+                db "YM       "
+                db "AYX-32   "
+                db "FT2 board"
 Hd_Stereos      db "ABC","ACB","BAC"
 ; Соотношения автоогибающей A:B - как в Vortex Tracker II (StdAutoEnv, main.pas).
 ; Период огибающей = период ноты * A / B / 16 (пила, формы 8 и 12) или / 32
@@ -83,6 +85,8 @@ Head_Load
         ld (Song_Tuning),a
         ld a,(#8000+SH_DEVICE)
         ld (Song_Device),a
+        ld a,(#8000+SH_CHIPS)
+        ld (Song_Chips),a
         ld a,(#8000+SH_STEREO)
         ld (Song_Stereo),a
         ld a,(#8000+SH_STEP)
@@ -100,6 +104,8 @@ Hd_Save
         ld (#8000+SH_TUNING),a
         ld a,(Song_Device)
         ld (#8000+SH_DEVICE),a
+        ld a,(Song_Chips)
+        ld (#8000+SH_CHIPS),a
         ld a,(Song_Stereo)
         ld (#8000+SH_STEREO),a
         ld a,(Cur_Step)
@@ -203,9 +209,20 @@ Head_Show
         call Hd_Name
         ld a,(Song_Device)
         ld hl,Hd_Devices
-        ld b,10
+        ld b,9
         ld de,HD_CHIP_X+256*(SCR_BASE_H+HD_TABS_Y)
         call Hd_Name
+        ld a,(Song_Chips)           ; каналов: "3ch" / "6ch"
+        cp 2
+        ld a,"3"
+        jr c,$+4
+        ld a,"6"
+        ld de,HD_CHAN_X+256*(SCR_BASE_H+HD_TABS_Y)
+        call PutCh
+        ld a,"c"
+        call PutCh
+        ld a,"h"
+        call PutCh
         ld a,(Song_Stereo)
         ld hl,Hd_Stereos
         ld b,3
@@ -405,7 +422,8 @@ Head_Fields
         FIELD HD_LEN_X+4,  HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 7  ;     +
         FIELD HD_RATIO_X,  HD_ROW_EDIT,3,1, FF_HAND, Hd_Field, 0, 8          ; соотношение - по кругу
         FIELD HD_TUNE_X,   HD_TABS_Y, 7,1, FF_HAND, Hd_Field, 0, 9           ; таблица нот - по кругу
-        FIELD HD_CHIP_X,   HD_TABS_Y,10,1, FF_HAND, Hd_Field, 0, 10          ; вывод - по кругу
+        FIELD HD_CHIP_X,   HD_TABS_Y, 9,1, FF_HAND, Hd_Field, 0, 10          ; тип чипа - по кругу
+        FIELD HD_CHAN_X,   HD_TABS_Y, 3,1, FF_HAND, Hd_Field, 0, 20          ; 3 / 6 каналов
         FIELD HD_STEREO_X, HD_TABS_Y, 3,1, FF_HAND, Hd_Field, 0, 11          ; стерео - по кругу
         FIELD HD_ENVNOTE_L,HD_ROW_EDIT,HD_ENVNOTE_X-HD_ENVNOTE_L+1,1, FF_HAND, Hd_Field, 0, 12 ; Env as Note
         FIELD HD_AUTO_L,   HD_ROW_EDIT,HD_AUTO_X-HD_AUTO_L+1,1, FF_HAND, Hd_Field, 0, 13       ; Auto Env
@@ -423,6 +441,7 @@ Hd_Act  dw H_SpdDn, H_SpdUp, H_OctDn, H_OctUp, H_StepDn, H_StepUp
         dw H_LenDn, H_LenUp, H_RatUp
         dw H_Tune, H_Chip, H_Stereo, K_EnvNote, H_AutoEnv, H_AutoStep
         dw K_PlayPat, K_PlayStart, K_PlaySong, K_PlayPatRow, K_Stop
+        dw H_Chips
 
 ;-------- Поле шапки: клик - действие (вид нажатой кнопки рисует Hd_Buttons)
 Hd_Field
@@ -513,6 +532,13 @@ H_Stereo
         ld b,STEREOS
         call Hd_Cycle
         jp Hd_Save
+H_Chips                             ; 1 <-> 2 чипа: 3 / 6 каналов в паттерне и в плеере
+        ld a,(Song_Chips)
+        xor 3
+        ld (Song_Chips),a
+        call Hd_Save
+        call View_Chips
+        jp Need_Layout
 H_AutoStep
         ld hl,Auto_Step
         jr Hd_Toggle

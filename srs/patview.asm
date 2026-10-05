@@ -168,6 +168,7 @@ PluginMain
         call Init_RowNum            ; страница номеров роу
         call Test_Song              ; тестовые паттерны (данные + текст) и ордер
         call Head_Load              ; шапка: значения трека
+        call View_Chips             ; 3 или 6 каналов - по треку
         call Head_Draw              ; шапка: рамки, подписи, кнопки
         call Head_Sprites           ; шапка: кнопки транспорта - спрайты
         call Build_Layout           ; раскладка (хук IM1 ещё не стоит)
@@ -579,6 +580,9 @@ Draw_Seps
 ; РАСКЛАДКА: по открытому элементу - колонки элементов, черепицы, разделители,
 ; шаблоны строк, рамки и подписи. При смене открытого элемента.
 ; =========================================================================
+Vis_Items       db ITEMS            ; видно элементов: 8 (2 чипа) или 4 (1 чип) - View_Chips
+Blk_End         db CX_END           ; правая рамка блока "всё закрыто" для видимых элементов
+Ch_Last         db 5                ; последний канал для курсора: 5 или 2
 Item_Col        ds ITEMS            ; колонка элемента на экране
 Item_W          ds ITEMS            ; ширина на экране
 Lay_End         db 0                ; колонка последнего разделителя (правая рамка)
@@ -631,9 +635,11 @@ Build_Layout
         ld a,e                      ; разделитель после элемента
         add a,d
         ld e,a
-        ld a,b
-        cp ITEMS-1
+        ld a,(Vis_Items)            ; последний видимый элемент - правая рамка
+        dec a
+        cp b
         jr z,.outer
+        ld a,b
         cp 3
         ld a,BOX_V
         jr nz,$+4
@@ -650,7 +656,8 @@ Build_Layout
         inc e
         inc b
         ld a,b
-        cp ITEMS
+        ld hl,Vis_Items
+        cp (hl)
         jr c,.it
 
         call Build_Templates        ; шаблоны строк (символы пустой роу, атрибуты)
@@ -701,6 +708,34 @@ Calc_Open
 
 Cursor_Item     db 1                ; элемент под курсором (фокус), открыт он или нет
 
+;-------- Сколько чипов у трека (Song_Chips, шапка) -> что видно в паттерне.
+; 1 чип: Env, A, B, C (данные второго чипа в паттерне остаются, просто не видны).
+; После - Build_Layout (или Need_Layout)
+HIDDEN_X        equ 200             ; колонка кнопок скрытых элементов - за экраном
+View_Chips
+        ld a,(Song_Chips)
+        cp 2
+        jr c,.one
+        ld a,ITEMS                  ; 2 чипа: все 8 элементов
+        ld (Vis_Items),a
+        ld a,CX_END
+        ld (Blk_End),a
+        ld a,5
+        ld (Ch_Last),a
+        ret
+.one    ld a,4                      ; 1 чип: Env, A, B, C
+        ld (Vis_Items),a
+        ld a,CX_ENV2-1              ; правая рамка - на месте разделителя чипов
+        ld (Blk_End),a
+        ld a,2
+        ld (Ch_Last),a
+        ld a,(Cur_Chan)             ; курсор был на втором чипе - на канал C
+        cp 3
+        ret c
+        ld a,2
+        ld (Cur_Chan),a
+        ret
+
 ; B - элемент -> D - ширина на экране
 Item_Width
         ld a,b
@@ -727,8 +762,10 @@ Build_Tiles
         ld a,(Open_Item)
         cp ITEM_NONE
         jr nz,.open
-        ld e,CONT_X                 ; весь блок
-        ld d,TX_BLOCK_W
+        ld a,(Blk_End)              ; весь блок видимых элементов
+        sub CONT_X
+        ld d,a
+        ld e,CONT_X
         ld c,TX_BLOCK
         call Set_Tile
         ld a,#C9                    ; Tile_1, Tile_2 - не нужны
@@ -769,13 +806,14 @@ Build_Tiles
         ; 3) блок после открытого: с его разделителя до правой рамки, сдвинут на
         ;    ширину расширения. У последнего элемента (F) - нечего
         ld a,(BT_End)
-        cp CX_END
+        ld hl,Blk_End
+        cp (hl)
         jr nc,.last
         ld e,a                      ; колонка в блоке
         sub CONT_X
         add a,TX_BLOCK
         ld c,a
-        ld a,CX_END
+        ld a,(Blk_End)
         sub e
         ld h,a                      ; H - ширина
         ld a,e
@@ -933,7 +971,8 @@ Build_Templates
 .fe     pop bc
         inc b
         ld a,b
-        cp ITEMS
+        ld hl,Vis_Items             ; только видимые элементы
+        cp (hl)
         jr c,.it
         ; --- номер роу в активном: тусклым (свой цвет ставит Draw_Seps)
         ld a,(THEME_ATTR+CLR_EMPTY)
@@ -1095,7 +1134,8 @@ Draw_Frame
         pop bc
         inc b
         ld a,b
-        cp ITEMS
+        ld hl,Vis_Items             ; только видимые элементы
+        cp (hl)
         jr c,.t
         ret
 
@@ -1757,7 +1797,8 @@ K_ChLeft
         jr Set_Chan
 K_ChRight
         ld a,(Cur_Chan)
-        cp 5
+        ld hl,Ch_Last               ; последний канал: 5 или 2 (1 чип)
+        cp (hl)
         ret nc
         inc a
 Set_Chan
@@ -1943,6 +1984,12 @@ Build_Head_Kids
         add a,c
         sub 2
         ld (ix+FLD_X),a
+        ld a,b                      ; скрытый элемент (второй чип при 3ch) - кнопка за экраном
+        ld hl,Vis_Items
+        cp (hl)
+        jr c,.vis
+        ld (ix+FLD_X),HIDDEN_X
+.vis
         ld (ix+FLD_PARAM),b
         ld de,FLD_SIZE
         add ix,de
@@ -2589,7 +2636,7 @@ Test_Song
 NEW_SONG_SPEED  equ 3               ; новый трек: скорость
 NEW_SONG_STEP   equ 4               ;   шаг курсора при вводе
 NEW_SONG_FORMAT equ 1
-NEW_SONG_DEVICE equ 1               ;   вывод: TurboSound
+NEW_SONG_DEVICE equ 0               ;   тип чипа: AY (чипов - CHIPS_MAX, 6 каналов)
 
 ;-------- Новый трек: заголовок страницы трека PAGE_SONG1 - нули, подпись, формат,
 ; чипы, скорость, шаг, страница инструментов. Ордер и каталог - Song_Sync

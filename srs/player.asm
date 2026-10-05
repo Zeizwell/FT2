@@ -48,6 +48,7 @@ Pl_PatLen       db 64
 Pl_InsPage      db 0
 Pl_OrdLast      db 0
 Pl_OrdLoop      db 0
+Pl_Chips        db CHIPS_MAX        ; чипов у трека (SH_CHIPS): 1 - только первый
 
 ;-------- Старт: таблица громкости, тишина
 Pl_Init
@@ -154,7 +155,10 @@ Pl_Cmd
         xor a
         ld (SV_PLAY_STATE),a
         jp Pl_Mute
-.play   ld (SV_PLAY_STATE),a        ; PC_SONG = PS_SONG, PC_PATTERN = PS_PATTERN
+.play   push af                     ; оба чипа - в тишину (второго может не быть в треке)
+        call Pl_Mute
+        pop af
+        ld (SV_PLAY_STATE),a        ; PC_SONG = PS_SONG, PC_PATTERN = PS_PATTERN
         ld a,(SV_PLAY_CPOS)
         ld (SV_PLAY_POS),a
         ld a,(SV_PLAY_CROW)
@@ -185,6 +189,8 @@ Pl_Song_Info
         ld (Pl_InsPage),a
         ld a,(#8000+ORD_LAST)
         ld (Pl_OrdLast),a
+        ld a,(#8000+SH_CHIPS)
+        ld (Pl_Chips),a
         ld a,(#8000+ORD_LOOP)
         ld (Pl_OrdLoop),a
         RESTPAGE2
@@ -317,7 +323,10 @@ Pl_Row
         ld a,(Pr_Chip)
         inc a
         ld (Pr_Chip),a
-        cp CHIPS_MAX
+        push hl                     ; H - роу паттерна, не портить
+        ld hl,Pl_Chips              ; только чипы трека
+        cp (hl)
+        pop hl
         jr c,.chip
         RESTPAGE2
         ret
@@ -459,7 +468,8 @@ Pl_Channels
         ld a,(Pc_Chip)
         inc a
         ld (Pc_Chip),a
-        cp CHIPS_MAX
+        ld hl,Pl_Chips              ; только чипы трека
+        cp (hl)
         jr c,.chip
         RESTPAGE2
         ret
