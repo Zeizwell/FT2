@@ -360,11 +360,29 @@ char K_INPUT::readdevices()
 //~
    }
 
+   static u8 kbdpc_prev[VK_MAX];
    if (nokb)
+   {
+       // FT2: focus came back - keys held when it was lost are released in the
+       // PS/2 log too (before, prev was overwritten by zeros and the release was lost:
+       // Alt after Alt+Tab, Ctrl/Shift after a screenshot hotkey stayed pressed)
+       if (!dbgbreak && input.buffer.Enabled())
+       {
+          for (int i = 0; i < 256; i++)
+          {
+             if ((kbdpc_prev[i] & 0x80) && dik_scan[i])
+             {
+                if (dik_scan[i] & 0x0100) input.buffer.Push(0xE0);
+                input.buffer.Push(0xF0);
+                input.buffer.Push(dik_scan[i] & 0x00FF);
+             }
+          }
+       }
        memset(kbdpc, 0, sizeof(kbdpc));
+       memset(kbdpc_prev, 0, sizeof(kbdpc_prev));
+   }
    else
    {
-      static u8 kbdpc_prev[VK_MAX];
       if (!dbgbreak && buffer.Enabled())
           memcpy(kbdpc_prev, kbdpc, sizeof(kbdpc));
 
