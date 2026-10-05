@@ -67,8 +67,23 @@ Pt_Import
         ld a,(Pt_Lost)
         or a
         jp z,Dv_Ok
-        ld hl,Txt_Pt3Cut
+        ld hl,Txt_Pt3Cut            ; что обрезали - словами за сообщением
+        ld de,Pt_Msg
+        call Str_Copy
+        ld hl,Pt_Lost_Words
+        ld a,(Pt_Lost)
+        ld b,4
+.w      rrca
+        push af
+        call c,Str_Copy
+        pop af
+        call nc,Str_Skip
+        djnz .w
+        ld hl,Pt_Msg
         jp Dv_Ok
+
+Pt_Msg          ds 40
+Pt_Lost_Words   db " rows",0," pats",0," cmds",0," len",0   ; по битам PL_*
 
 ;-------- TurboSound: в конце файла "02TS" - два модуля, второй - с размер1
 Pt_TS
@@ -1148,5 +1163,23 @@ Pr_Delay
         ret
 
 Txt_Pt3Ok       db "PT3 loaded",0
-Txt_Pt3Cut      db "PT3 loaded, some cut",0
+Txt_Pt3Cut      db "PT3 cut:",0
 Txt_BadPt3      db "Bad PT3",0
+
+; Строку HL (до 0) -> DE, DE - на её 0 (следующая допишется). HL - за 0
+Str_Copy
+        ld a,(hl)
+        ld (de),a
+        inc hl
+        or a
+        ret z
+        inc de
+        jr Str_Copy
+
+; HL - за 0 строки
+Str_Skip
+        ld a,(hl)
+        inc hl
+        or a
+        jr nz,Str_Skip
+        ret

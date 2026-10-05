@@ -415,6 +415,8 @@ Dv_List_Row
         inc hl
         ld h,(hl)
         ld l,a
+        or h                        ; даты нет - пусто
+        ret z
         call Nm_Date
         ld e,LS_DATE_X
         ld hl,Nm_Buf
