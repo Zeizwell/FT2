@@ -913,7 +913,7 @@ Dl_Pass
         ld hl,DL_TMP+NX_FLAG
         cp (hl)
         jr nz,.next
-        ld hl,DL_TMP+NX_NAME            ; "." - не берём
+        ld hl,DL_TMP+NX_NAME        ; "." - не берём
         ld a,(hl)
         cp '.'
         jr nz,.keep
