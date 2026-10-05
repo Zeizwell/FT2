@@ -1935,15 +1935,15 @@ F_Pat   FIELD DRAW_X0,FIRST_LINE,DRAW_X1-DRAW_X0,VIEW_ROWS, FF_FOCUS, Pat_Field,
         db FLD_END
 
 Ord_Kids                            ; кнопки ордера: параметр - номер кнопки (Btn_*)
-        FIELD ORD_BTN_X,EDIT_LINE-2,2,1, 0, Btn_Field, 0, OB_ID+0
-        FIELD ORD_BTN_X,EDIT_LINE-1,2,1, 0, Btn_Field, 0, OB_ID+1
-        FIELD ORD_BTN_X,EDIT_LINE+1,2,1, 0, Btn_Field, 0, OB_ID+2
-        FIELD ORD_BTN_X,EDIT_LINE+2,2,1, 0, Btn_Field, 0, OB_ID+3
+        FIELD ORD_BTN_X,EDIT_LINE-2,2,1, FF_HAND, Btn_Field, 0, OB_ID+0
+        FIELD ORD_BTN_X,EDIT_LINE-1,2,1, FF_HAND, Btn_Field, 0, OB_ID+1
+        FIELD ORD_BTN_X,EDIT_LINE+1,2,1, FF_HAND, Btn_Field, 0, OB_ID+2
+        FIELD ORD_BTN_X,EDIT_LINE+2,2,1, FF_HAND, Btn_Field, 0, OB_ID+3
         db FLD_END
 
 Head_Kids                           ; кнопки [+]/[-] элементов: колонки - Build_Head_Kids
         DUP ITEMS
-        FIELD 0,VIEW_LINE,2,1, 0, Btn_Field, 0, 0
+        FIELD 0,VIEW_LINE,2,1, FF_HAND, Btn_Field, 0, 0
         EDUP
         db FLD_END
 

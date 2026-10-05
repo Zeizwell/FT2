@@ -148,9 +148,22 @@ Fld_Update
         ld a,EV_HOVER_IN
         call Fld_Call
 
+        ; --- форма курсора (каждый кадр): над полем с FF_HAND - лапка, иначе стрелка
+.left   ld hl,(SV_HOVER)
+        ld a,h
+        or l
+        ld a,MOUSE_TILE_ARROW
+        jr z,.cur
+        push hl
+        pop ix
+        bit 1,(ix+FLD_FLAGS)        ; FF_HAND
+        jr z,.cur
+        ld a,MOUSE_TILE_HAND
+.cur    ld (MOUSE_TILE),a
+
         ; --- левая кнопка: нажатие, двойной, повтор, отпускание (в таком порядке -
         ;     за кадр может быть всё сразу)
-.left   ld a,MB_LEFT
+        ld a,MB_LEFT
         ld hl,Fld_Seen_L
         call Mouse_Btn
         ld (Fu_Flags),a

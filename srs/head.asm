@@ -381,27 +381,27 @@ Time_Reset
 HF_BUTTON       equ %10000000       ; флаг поля (FLD_FLAGS): кнопка [-]/[+]
 
 Head_Fields
-        FIELD HD_SPEED_X+2,HD_ROW_SONG,2,1, HF_BUTTON, Hd_Field, 0, 0  ; Speed -
-        FIELD HD_SPEED_X+4,HD_ROW_SONG,2,1, HF_BUTTON, Hd_Field, 0, 1  ;       +
-        FIELD HD_OCT_X+1,  HD_ROW_EDIT,2,1, HF_BUTTON, Hd_Field, 0, 2  ; Octave -
-        FIELD HD_OCT_X+3,  HD_ROW_EDIT,2,1, HF_BUTTON, Hd_Field, 0, 3  ;        +
-        FIELD HD_STEP_X+2, HD_ROW_EDIT,2,1, HF_BUTTON, Hd_Field, 0, 4  ; Step -
-        FIELD HD_STEP_X+4, HD_ROW_EDIT,2,1, HF_BUTTON, Hd_Field, 0, 5  ;      +
-        FIELD HD_LEN_X+2,  HD_ROW_EDIT,2,1, HF_BUTTON, Hd_Field, 0, 6  ; Len -
-        FIELD HD_LEN_X+4,  HD_ROW_EDIT,2,1, HF_BUTTON, Hd_Field, 0, 7  ;     +
-        FIELD HD_RATIO_X,  HD_ROW_EDIT,3,1, 0, Hd_Field, 0, 8          ; соотношение - по кругу
-        FIELD HD_TUNE_X,   HD_TABS_Y, 7,1, 0, Hd_Field, 0, 9           ; таблица нот - по кругу
-        FIELD HD_CHIP_X,   HD_TABS_Y,10,1, 0, Hd_Field, 0, 10          ; вывод - по кругу
-        FIELD HD_STEREO_X, HD_TABS_Y, 3,1, 0, Hd_Field, 0, 11          ; стерео - по кругу
-        FIELD HD_ENVNOTE_L,HD_ROW_EDIT,HD_ENVNOTE_X-HD_ENVNOTE_L+1,1, 0, Hd_Field, 0, 12 ; Env as Note
-        FIELD HD_AUTO_L,   HD_ROW_EDIT,HD_AUTO_X-HD_AUTO_L+1,1, 0, Hd_Field, 0, 13       ; Auto Env
-        FIELD HD_STEP_L,   HD_ROW_EDIT,HD_STEPCHK_X-HD_STEP_L+1,1, 0, Hd_Field, 0, 14    ; шаг вкл/выкл
+        FIELD HD_SPEED_X+2,HD_ROW_SONG,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 0  ; Speed -
+        FIELD HD_SPEED_X+4,HD_ROW_SONG,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 1  ;       +
+        FIELD HD_OCT_X+1,  HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 2  ; Octave -
+        FIELD HD_OCT_X+3,  HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 3  ;        +
+        FIELD HD_STEP_X+2, HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 4  ; Step -
+        FIELD HD_STEP_X+4, HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 5  ;      +
+        FIELD HD_LEN_X+2,  HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 6  ; Len -
+        FIELD HD_LEN_X+4,  HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 7  ;     +
+        FIELD HD_RATIO_X,  HD_ROW_EDIT,3,1, FF_HAND, Hd_Field, 0, 8          ; соотношение - по кругу
+        FIELD HD_TUNE_X,   HD_TABS_Y, 7,1, FF_HAND, Hd_Field, 0, 9           ; таблица нот - по кругу
+        FIELD HD_CHIP_X,   HD_TABS_Y,10,1, FF_HAND, Hd_Field, 0, 10          ; вывод - по кругу
+        FIELD HD_STEREO_X, HD_TABS_Y, 3,1, FF_HAND, Hd_Field, 0, 11          ; стерео - по кругу
+        FIELD HD_ENVNOTE_L,HD_ROW_EDIT,HD_ENVNOTE_X-HD_ENVNOTE_L+1,1, FF_HAND, Hd_Field, 0, 12 ; Env as Note
+        FIELD HD_AUTO_L,   HD_ROW_EDIT,HD_AUTO_X-HD_AUTO_L+1,1, FF_HAND, Hd_Field, 0, 13       ; Auto Env
+        FIELD HD_STEP_L,   HD_ROW_EDIT,HD_STEPCHK_X-HD_STEP_L+1,1, FF_HAND, Hd_Field, 0, 14    ; шаг вкл/выкл
 Tr_Fields                           ; кнопки транспорта (спрайты Tr_*), подряд
-        FIELD HD_PLAY_X,   HD_TABS_Y, 4,1, 0, Hd_Field, 0, 15          ; ⇄ паттерн по кругу (F8)
-        FIELD HD_PLAY_X+4, HD_TABS_Y, 4,1, 0, Hd_Field, 0, 16          ; |◀ сонг с начала (F6)
-        FIELD HD_PLAY_X+8, HD_TABS_Y, 4,1, 0, Hd_Field, 0, 17          ; ▶ сонг с позиции (F5)
-        FIELD HD_PLAY_X+12,HD_TABS_Y, 4,1, 0, Hd_Field, 0, 18          ; ▷ паттерн с роу (F7)
-        FIELD HD_PLAY_X+16,HD_TABS_Y, 4,1, 0, Hd_Field, 0, 19          ; ■ стоп (Esc)
+        FIELD HD_PLAY_X,   HD_TABS_Y, 4,1, FF_HAND, Hd_Field, 0, 15          ; ⇄ паттерн по кругу (F8)
+        FIELD HD_PLAY_X+4, HD_TABS_Y, 4,1, FF_HAND, Hd_Field, 0, 16          ; |◀ сонг с начала (F6)
+        FIELD HD_PLAY_X+8, HD_TABS_Y, 4,1, FF_HAND, Hd_Field, 0, 17          ; ▶ сонг с позиции (F5)
+        FIELD HD_PLAY_X+12,HD_TABS_Y, 4,1, FF_HAND, Hd_Field, 0, 18          ; ▷ паттерн с роу (F7)
+        FIELD HD_PLAY_X+16,HD_TABS_Y, 4,1, FF_HAND, Hd_Field, 0, 19          ; ■ стоп (Esc)
 Head_Fields_End
         db FLD_END
 
