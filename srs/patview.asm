@@ -28,14 +28,15 @@
 ;   элемент   текст в странице                закрыт  открыт
 ;   Env       "0134 1F 0000 "  период шум огиб-2   7      13
 ;   канал     "C-4 A1FE 1234 5678" нота инстр к1 к2 8      18
-;   экран: │r05│00│Env│A│B│C║Env│D│E│F│
-;          ордер 5, номер роу 3, дальше элементы с │ после каждого:
-;          всё закрыто: 8 + 2*7 + 6*8 + 8 = 78, открыт канал +10 = 88 из 90
+;   экран: │r05кн│00│Env│A│B│C║Env│D│E│F│   (кн - кнопки ордера, колонки 4..5)
+;          ордер 7, номер роу 3, дальше элементы с │ после каждого:
+;          всё закрыто: 10 + 2*7 + 6*8 + 8 = 80, открыт канал +10 = 90 из 90
 ;
-; Клавиши (пока Спектрума; потом - PS/2 по сканкодам с биндами):
-;   Q/A роу, O/P (и K/L) канал, E - открыть Env чипа, W по кругу,
-;   1 плей сонга, 2 плей паттерна, 3 стоп, 4 продолжить, T полоса времени.
-;   Колесо - роу, Ctrl/Shift + колесо - канал. Мышь: [+]/[-] в заголовке.
+; Клавиши PS/2 (таблица Hotkeys):
+;   стрелки, PgUp/PgDn, Tab - роу и канал, Ctrl+E - открыть Env чипа,
+;   F5..F8, Esc - плей и стоп как в VT, Ctrl+T полоса времени.
+;   Колесо - роу, Ctrl/Shift + колесо - канал. Мышь: [+]/[-] в заголовке,
+;   кнопки ордера Unique / - / + / Clone у текущей позиции.
 ; =========================================================================
     MODULE patview
 
@@ -59,42 +60,43 @@ ST_ACTIVE       equ 1
 ST_EDIT         equ 2
 
 ; Колонки экрана
-ORD_X           equ 0               ; ордер: "│r05" + │ в колонке 4
-ROWNUM_X        equ 5               ; номер роу: 2 знака
-CONT_X          equ 8               ; отсюда - элементы паттерна
-DRAW_X0         equ 4               ; DMA символов/атрибутов - с этой колонки (чётная)
-DRAW_X1         equ 88              ; ... по эту (не включая)
+ORD_X           equ 0               ; ордер: "│r05", кнопки в 4..5, │ в колонке 6
+ORD_BTN_X       equ 4               ; кнопки ордера (2 знакоместа)
+ROWNUM_X        equ 7               ; номер роу: 2 знака
+CONT_X          equ 10              ; отсюда - элементы паттерна
+DRAW_X0         equ 6               ; DMA символов/атрибутов - с этой колонки (чётная)
+DRAW_X1         equ 90              ; ... по эту (не включая)
 DRAW_WORDS      equ (DRAW_X1-DRAW_X0)/2
 
 ; Текст роу в странице паттерна (см. шапку)
 ;   L 112..180  БЛОК: закрытые части всех элементов подряд - ровно экранный вид
-;               при "всё закрыто" (экранные колонки CONT_X..76, разделители - пробелы)
+;               при "всё закрыто" (экранные колонки CONT_X..CX_END-1, разделители - пробелы)
 ;   L 181..253  РАСШИРЕНИЯ: что добавляется при открытии (Env " 0000 ", канал
 ;               " 1234 5678"). Каждое лежит на колонке той же чётности, что и
 ;               экранная колонка, куда оно встаёт - DMA сдвигает только на чётное
 ; Экран из блока: ничего не открыто - 1 черепица (весь блок); открыт элемент -
 ; 3: блок до него включительно, его расширение, блок после него со сдвигом.
 TX_BLOCK        equ PAT_TEXT        ; = экранная колонка CONT_X
-CX_END          equ 77              ; правая рамка при "всё закрыто"
+CX_END          equ CONT_X+69       ; правая рамка при "всё закрыто"
 TX_BLOCK_W      equ CX_END-CONT_X   ; 69
 ; Колонка элемента при "всё закрыто" (в блоке: TX_BLOCK + CX - CONT_X)
-CX_ENV1         equ 8
-CX_A            equ 16
-CX_B            equ 25
-CX_C            equ 34
-CX_ENV2         equ 43
-CX_D            equ 51
-CX_E            equ 60
-CX_F            equ 69
+CX_ENV1         equ CONT_X
+CX_A            equ CONT_X+8
+CX_B            equ CONT_X+17
+CX_C            equ CONT_X+26
+CX_ENV2         equ CONT_X+35
+CX_D            equ CONT_X+43
+CX_E            equ CONT_X+52
+CX_F            equ CONT_X+61
 ; Расширения в строке страницы: сначала встающие на нечётную колонку, потом на чётную
-EX_ENV1         equ 181             ; встаёт на 15
-EX_B            equ 187             ; 33
-EX_D            equ 197             ; 59
-EX_F            equ 207             ; 77
-EX_A            equ 218             ; 24
-EX_C            equ 228             ; 42
-EX_ENV2         equ 238             ; 50
-EX_E            equ 244             ; 68
+EX_ENV1         equ 181             ; встаёт на 17
+EX_B            equ 187             ; 35
+EX_D            equ 197             ; 61
+EX_F            equ 207             ; 79
+EX_A            equ 218             ; 26
+EX_C            equ 228             ; 44
+EX_ENV2         equ 238             ; 52
+EX_E            equ 244             ; 70
 W_ENV_EXT       equ W_ENV_OPEN-W_ENV_CLOSED   ; 6
 W_CH_EXT        equ W_CH_OPEN-W_CH_CLOSED     ; 10
     ASSERT TX_BLOCK+TX_BLOCK_W <= EX_ENV1
@@ -211,7 +213,7 @@ Cur_Pos         db 0
 Loop_Pos        db 0
 Ord_Last        db 0
 Play_Tick       db 0
-Timing          db 1
+Timing          db 0                ; полоса времени: 0 - выкл (по умолчанию), 1 - вкл (Ctrl+T)
 
 ; =========================================================================
 ; IM1, КАЖДЫЙ КАДР: экран паттерна целиком
@@ -303,8 +305,8 @@ Draw_Chars
 ; одна DMA сразу на все строки куска. Прямой код: D - строка источника, E -
 ; строка экрана, остальное - числа в командах (их подставляет Build_Tiles).
 ; Число блоков и страница приёмника DMA помнит между переносами - пишем раз.
-; Черепица: ждём DMA, 6 out - колонка/строка источника, колонка/строка
-; приёмника, длина, пуск.
+; Черепица: ждём DMA, 7 out - колонка/строка источника, колонка/строка
+; приёмника, длина, страница источника (L), пуск.
     MACRO TILE scol,dcol,len
         call dma_wait               ; +0  (C = #AF после dma_wait)
         ld a,scol                   ; +3, число - +4
@@ -322,6 +324,9 @@ Draw_Chars
         ld a,len                    ; +25, число - +26
         ld b,high DMALEN
         out (c),a
+        ld a,l                      ; страница источника - каждый раз: адрес DMA -
+        ld b,high DMASADDRX         ; счётчик, после роу 63 он уходит в следующую
+        out (c),a                   ; страницу
         ld a,DMA_RAM|DMA_SALGN|DMA_DALGN
         ld b,high DMACTR
         out (c),a                   ; пуск
@@ -329,7 +334,7 @@ Draw_Chars
 TILE_SCOL       equ 4               ; где в черепице числа
 TILE_DCOL       equ 15
 TILE_LEN        equ 26
-TILE_SIZE       equ 37
+TILE_SIZE       equ 42
 
 Tile_Run
         ld a,(R_H)                  ; D - строка источника (роу)
@@ -346,14 +351,10 @@ Tile_Run
         ld a,(SV_DRAW_PAGE)
         ld b,high DMADADDRX         ; страница экрана
         out (c),a
-        ld a,PAGE_ROWNUM            ; номер роу - из страницы номеров
-        ld b,high DMASADDRX
-        out (c),a
-        TILE ROWNUM_X&#FE, ROWNUM_X&#FE, 1  ; колонки 4..7: номер + края на разделители
-        call dma_wait
+        ld l,PAGE_ROWNUM            ; L - страница источника: номер роу - из страницы номеров
+        TILE ROWNUM_X&#FE, ROWNUM_X&#FE, 1  ; колонки 6..9: номер + края на разделители
         ld a,(R_Page)               ; дальше - из страницы паттерна
-        ld b,high DMASADDRX
-        out (c),a
+        ld l,a
 Tile_0  TILE 0,0,0                  ; черепицы раскладки (Build_Tiles)
     ASSERT $-Tile_0 == TILE_SIZE
 Tile_1  TILE 0,0,0
@@ -1122,8 +1123,10 @@ HL_CornerR      db 0
 HL_Junction     db 0
 HL_Junction2    db 0
 
-;-------- Ордер-лист прямо на экран (колонки 0..4), при смене позиции.
-; "│r05│", у текущей позиции вместо левой линии - "►". За концом - "│   │"
+;-------- Ордер-лист прямо на экран (колонки 0..5), при смене позиции.
+; "│r05", у текущей позиции вместо левой линии - "►". За концом - "│   ".
+; Колонки 4..5 - пробелы, у текущей позиции - кнопки ордера (│ в колонке 6 -
+; разделитель, его рисует IM1)
 Draw_Order
         xor a
         ld (Order_Pending),a
@@ -1169,13 +1172,40 @@ Draw_Order
         ld hl,Test_Order
         call Arr_Get
         call PutHex2
-.bar    call PutBar
+.bar    ld a,(THEME_ATTR+CLR_BG)    ; место кнопок - пусто
+        ld c,a
+        ld a,' '
+        call PutCh
+        ld a,' '
+        call PutCh
         inc d
         inc b
         pop af
         dec a
         jp nz,.l
+        ld b,0                      ; кнопки - у текущей позиции (она в центре)
+.btn    ld a,b
+        ld hl,OB_Row
+        call Arr_Get
+        add a,SCR_BASE_H
+        ld d,a
+        ld e,ORD_BTN_X
+        ld a,b
+        ld hl,OB_Glyph
+        call Arr_Get
+        call PutBtn
+        inc b
+        ld a,b
+        cp ORD_BTNS
+        jr c,.btn
         ret
+
+; Кнопки ордера (как в Bitphase): строка экрана, значок, действие
+ORD_BTNS        equ 4
+OB_ID           equ ITEMS           ; номера кнопок мыши: 0..7 - элементы, дальше ордер
+OB_Row          db EDIT_LINE-2, EDIT_LINE-1, EDIT_LINE+1, EDIT_LINE+2
+OB_Glyph        db GLYPH_BTN_UNIQUE, GLYPH_BTN_MINUS, GLYPH_BTN_PLUS, GLYPH_BTN_CLONE
+OB_Act          dw O_Unique, O_Remove, O_Add, O_Clone
 
 ; =========================================================================
 ; ТАБЛИЦА РОУ: на каждую экранную строку 3 байта - страница паттерна,
@@ -1789,9 +1819,26 @@ Handle_Mouse
         ret nz
         jp Btn_Action
 
-; B = элемент, чья кнопка (2 последних знака заголовка) под мышью, или ITEM_NONE
+; B = кнопка под мышью: элемент 0..7 (2 последних знака заголовка), кнопка
+; ордера OB_ID+0..3, или ITEM_NONE
 Btn_Under
-        ld b,ITEM_NONE
+        ld a,(SV_MOUSE_COL)         ; кнопки ордера: колонки 4..5, строки OB_Row
+        sub ORD_BTN_X
+        cp 2
+        jr nc,.head
+        ld a,(SV_MOUSE_ROW)
+        ld c,a
+        ld hl,OB_Row
+        ld b,OB_ID
+.ob     ld a,c
+        cp (hl)
+        ret z
+        inc hl
+        inc b
+        ld a,b
+        cp OB_ID+ORD_BTNS
+        jr c,.ob
+.head   ld b,ITEM_NONE
         ld a,(SV_MOUSE_ROW)
         cp VIEW_LINE
         ret nz
@@ -1829,6 +1876,8 @@ Btn_Show
         ld c,a                      ; C - вдавлена?
         ld b,e
         ld a,b
+        cp OB_ID
+        jr nc,.ord
         ld hl,Item_Col
         call Arr_Get
         ld e,a
@@ -1844,20 +1893,42 @@ Btn_Show
         ld a,GLYPH_BTN_PLUS
         jr nz,$+4
         ld a,GLYPH_BTN_MINUS
-        bit 0,c
+.press  bit 0,c
         jr z,$+4
         add a,BTN_PRESSED
         ld b,a
-        ld a,(SV_DRAW_PAGE)         ; заголовок - прямо на экране (окно 3)
+        ld a,(SV_DRAW_PAGE)         ; кнопка - прямо на экране (окно 3)
         SETPAGE3 a
         ld a,b
         call PutBtn
         RESTPAGE3
         ret
+.ord    sub OB_ID                   ; кнопка ордера: её строка и значок
+        ld b,a
+        ld hl,OB_Row
+        call Arr_Get
+        add a,SCR_BASE_H
+        ld d,a
+        ld e,ORD_BTN_X
+        ld a,b
+        ld hl,OB_Glyph
+        call Arr_Get
+        jr .press
 
-; Сработала кнопка элемента E: [-] у открытого - закрыть, [+] - открыть
+; Сработала кнопка E: элемента - [-] у открытого закрыть, [+] открыть;
+; ордера - её действие из OB_Act
 Btn_Action
-        ld b,e
+        ld a,e
+        sub OB_ID
+        jr c,.item
+        add a,a                     ; кнопка ордера: переход по OB_Act
+        ld hl,OB_Act
+        call Arr_Get
+        inc hl
+        ld h,(hl)
+        ld l,a
+        jp (hl)
+.item   ld b,e
         ld a,(Open_Item)
         cp b
         jr z,.close
@@ -1916,6 +1987,235 @@ Play_Step
         ret c
         ld (hl),0
         jp K_RowDn
+
+; =========================================================================
+; КНОПКИ ОРДЕРА (как в Bitphase). Номера паттернов руками не ведём: новый
+; паттерн - следующий свободный номер.
+;   Unique - у текущей позиции новый номер с копией паттерна (другие позиции
+;            со старым номером не меняются)
+;   Remove - убрать текущую позицию (паттерн остаётся; последнюю не убрать)
+;   Add    - новый пустой паттерн - после текущей позиции, она становится текущей
+;   Clone  - копия паттерна текущей позиции - после неё, становится текущей
+; Нет свободного номера или ордер полон - кнопка ничего не делает.
+; =========================================================================
+O_New           db 0                ; номер нового паттерна
+
+O_Add   call Ord_Room
+        ret c
+        call Pat_Free
+        ret c
+        ld (O_New),a
+        call Pat_Empty
+        jr Ord_Insert
+
+O_Clone call Ord_Room
+        ret c
+        call Pat_Free
+        ret c
+        ld (O_New),a
+        call Pat_Dup
+        jr Ord_Insert
+
+O_Unique
+        call Pat_Free
+        ret c
+        ld (O_New),a
+        call Pat_Dup
+        ld a,(Cur_Pos)              ; текущая позиция - на новый номер
+        ld hl,Test_Order
+        call Arr_Get
+        ld a,(O_New)
+        ld (hl),a
+        jp Ord_Changed
+
+O_Remove
+        ld a,(Ord_Last)             ; последнюю не убрать
+        or a
+        ret z
+        ld a,(Cur_Pos)              ; позиции после текущей - на одну назад
+        ld hl,Test_Order+1
+        call Arr_Get                ; HL - позиция Cur_Pos+1
+        ld d,h
+        ld e,l
+        dec de
+        ld a,(Cur_Pos)
+        ld b,a
+        ld a,(Ord_Last)
+        sub b                       ; сколько их (0 - текущая была последней)
+        jr z,.cut
+        ld c,a
+        ld b,0
+        ldir
+.cut    ld hl,Ord_Last
+        dec (hl)
+        ld a,(Cur_Pos)              ; повтор после текущей - на одну назад
+        ld b,a
+        ld a,(Loop_Pos)
+        cp b
+        jr z,.lp
+        jr c,.lp
+        dec a
+.lp     ld b,(hl)                   ; позиции не дальше последней
+        cp b
+        jr c,$+3
+        ld a,b
+        ld (Loop_Pos),a
+        ld a,(Cur_Pos)
+        cp b
+        jr c,$+3
+        ld a,b
+        ld (Cur_Pos),a
+        jr Ord_Changed
+
+; CF - ордер полон, вставлять некуда
+Ord_Room
+        ld a,(Ord_Last)
+        cp ORDER_TEST_MAX-1
+        ccf
+        ret
+
+; Паттерн O_New - в ордер после текущей позиции, она становится текущей
+Ord_Insert
+        ld a,(Cur_Pos)              ; позиции после текущей - на одну вперёд
+        ld b,a
+        ld a,(Ord_Last)
+        sub b                       ; сколько их
+        jr z,.put
+        ld c,a
+        ld a,(Ord_Last)
+        ld hl,Test_Order
+        call Arr_Get                ; HL - последняя
+        ld d,h
+        ld e,l
+        inc de
+        ld b,0
+        lddr
+.put    ld hl,Ord_Last
+        inc (hl)
+        ld a,(Cur_Pos)              ; новая - текущая
+        inc a
+        ld (Cur_Pos),a
+        ld b,a
+        ld hl,Test_Order
+        call Arr_Get
+        ld a,(O_New)
+        ld (hl),a
+        ld a,(Loop_Pos)             ; повтор после старой текущей - на одну вперёд
+        cp b
+        jr c,Ord_Changed
+        inc a
+        ld (Loop_Pos),a
+Ord_Changed                         ; новая позиция - с роу 0, ордер перерисовать
+        xor a
+        ld (Cur_Row),a
+        ld (Pat_Loops),a
+        inc a
+        ld (Order_Pending),a
+        ret
+
+; A = свободный номер паттерна, CF - свободных нет
+Pat_Free
+        ld hl,Pat_Exists
+        ld b,0
+.l      ld a,(hl)
+        or a
+        jr z,.ok
+        inc hl
+        inc b
+        ld a,b
+        cp PATTERNS_MAX
+        jr c,.l
+        scf
+        ret
+.ok     ld a,b                      ; CF = 0 после or a
+        ret
+
+; Паттерн O_New - пустой: данные 0, текст, длина по умолчанию
+Pat_Empty
+        ld a,(O_New)
+        add a,PAT_PAGE
+        SETPAGE2 a
+        ld h,PAT_BASE_H             ; данные всех роу - 0
+.r      ld l,0
+        ld b,PAT_DATA_SIZE
+.c      ld (hl),0
+        inc l
+        djnz .c
+        inc h
+        ld a,h
+        cp PAT_BASE_H+PAT_ROWS_MAX
+        jr c,.r
+        call Init_Pat_Text
+        RESTPAGE2
+        ld e,PAT_ROWS_MAX
+        jr Pat_Mark
+
+; Паттерн O_New = копия паттерна текущей позиции (страница целиком, длина)
+Pat_Dup
+        ld a,(Cur_Pos)
+        ld hl,Test_Order
+        call Arr_Get
+        ld (PC_Src),a
+        ld hl,Pat_Len
+        call Arr_Get
+        push af
+        call Pat_Copy
+        pop af
+        ld e,a
+; Паттерн O_New есть, длина E
+Pat_Mark
+        ld a,(O_New)
+        ld hl,Pat_Len
+        call Arr_Set_E
+        ld a,(O_New)
+        ld hl,Pat_Exists
+        ld e,1
+        jp Arr_Set_E
+
+;-------- Страница паттерна PC_Src -> страница O_New. DMA, 4 куска по 16 роу
+; (4К, ~9000 T). Каждый кусок - сразу после halt: IM1 только что отработал,
+; до следующего - кадр, DMA наша, порты пишем без DI.
+PC_Src          db 0
+PC_Row          db 0
+
+Pat_Copy
+        xor a
+        ld (PC_Row),a
+.k      halt
+        call dma_wait               ; C = #AF
+        ld a,(PC_Src)
+        add a,PAT_PAGE
+        ld b,high DMASADDRX
+        out (c),a
+        ld a,(O_New)
+        add a,PAT_PAGE
+        ld b,high DMADADDRX
+        out (c),a
+        xor a                       ; с колонки 0, строка = роу
+        ld b,high DMASADDRL
+        out (c),a
+        ld b,high DMADADDRL
+        out (c),a
+        ld a,(PC_Row)
+        ld b,high DMASADDRH
+        out (c),a
+        ld b,high DMADADDRH
+        out (c),a
+        ld a,127                    ; 256 байт
+        ld b,high DMALEN
+        out (c),a
+        ld a,15                     ; 16 роу
+        ld b,high DMANUM
+        out (c),a
+        ld a,DMA_RAM|DMA_SALGN|DMA_DALGN
+        ld b,high DMACTR
+        out (c),a
+        ld a,(PC_Row)
+        add a,16
+        ld (PC_Row),a
+        cp PAT_ROWS_MAX
+        jr c,.k
+        jp dma_wait
 
 ; =========================================================================
 ; ПОЛОСА ВРЕМЕНИ И ЗАМЕР DMA
@@ -1996,6 +2296,8 @@ Band_Bg         dw 0                ; 0 - обычный фон (копия из
 TEST_PATS       equ 8
 Pat_Len         db 64,16,32,1,48,8,64,24   ; длина паттерна 0..7
                 ds PATTERNS_MAX-TEST_PATS,64
+Pat_Exists      ds TEST_PATS,1       ; 1 - паттерн есть (номер занят)
+                ds PATTERNS_MAX-TEST_PATS,0
 Test_Order      db 0,1,2,3,3,3,4,5,5,6,1,7,2,0,3,4,6,5,7,1,2,0,6,7
 TEST_ORD_N      equ $-Test_Order
                 ds ORDER_TEST_MAX-TEST_ORD_N,0

@@ -152,29 +152,25 @@ SCR_ATTR        equ 128             ; смещение атрибутов в с�
 
 ; --- значки интерфейса в шрифте FT2 (коды 00-1F, остальное - CP866)
 ; Кнопка - 2 знакоместа подряд: код и код+1 (рамка 15x7).
-; У [+] и [-] есть нажатый вид: код+BTN_PRESSED - та же, сдвинута на точку
+; У [+], [-], Unique и Clone есть нажатый вид: код+BTN_PRESSED - та же, сдвинута на точку
 ; вниз-вправо. Шрифт для FT2 обязан иметь их по этим кодам.
 GLYPH_CHK_OFF   equ #01             ; галочка выключена
 GLYPH_CHK_ON    equ #07             ; галочка включена
 GLYPH_BTN_PLUS  equ #02             ; [+] раскрыть         (#02-#03, нажатая #12-#13)
 GLYPH_BTN_MINUS equ #04             ; [-] свернуть         (#04-#05, нажатая #14-#15)
 BTN_PRESSED     equ #10             ; код нажатой кнопки = код + BTN_PRESSED
-GLYPH_BTN_NEW   equ #08             ; N  новый паттерн     (#08-#09)
+GLYPH_BTN_UNIQUE equ #08            ; ордер: Make Unique   (#08-#09, нажатая #18-#19)
 GLYPH_BTN_PLAY  equ #0A             ; ▶  плей              (#0A-#0B)
 GLYPH_BTN_STOP  equ #0C             ; ■  стоп              (#0C-#0D)
-GLYPH_BTN_REC   equ #0E             ; ●  запись            (#0E-#0F)
+GLYPH_BTN_CLONE equ #0E             ; ордер: Clone         (#0E-#0F, нажатая #1E-#1F)
 GLYPH_BTN_RES1  equ #12             ; занято: нажатая [+]  (#12-#13)
 GLYPH_BTN_RES2  equ #14             ; занято: нажатая [-]  (#14-#15)
 GLYPH_BTN_RES3  equ #16             ;                      (#16-#17)
 GLYPH_BTN_RES4  equ #1C             ;                      (#1C-#1D)
 GLYPH_ARROW_R   equ #10             ; ►  (CP866, не трогаем)
 GLYPH_ARROW_L   equ #11             ; ◄
-GLYPH_UP        equ #18             ; ↑
-GLYPH_DOWN      equ #19             ; ↓
 GLYPH_RIGHT     equ #1A             ; →
 GLYPH_LEFT      equ #1B             ; ←
-GLYPH_TRI_UP    equ #1E             ; ▲
-GLYPH_TRI_DOWN  equ #1F             ; ▼
 ; #00 - конец строки, #06 - пока занят заливкой макета
 
 ; =========================================================================
