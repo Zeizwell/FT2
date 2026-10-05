@@ -1,45 +1,118 @@
 ; =========================================================================
-; ПРОСМОТР ПАТТЕРНА - тулза (окно 1, #4000)
+; ПРОСМОТР ПАТТЕРНА, 6 КАНАЛОВ - тулза (окно 1, #4000)
+; =========================================================================
 ;
-; Виды: компакт / нормал / фулл, адаптив (канал под курсором на уровень шире).
-; 1 или 2 чипа. Если не влезает - сначала без пробела перед │, иначе
-; горизонтальный скролл по полям и скроллбар в нижней рамке.
+; ПАМЯТЬ. Паттерн = страница 16К, роу = полоса 256 байт (H = #80 + роу в окне 2):
+;   L   0..111  данные (2 чипа по CHIP_SIZE, формат - sdk/plugin.asm)
+;   L 112..252  ТЕКСТ роу - готовый вид всех полей во всю ширину
+;   L 253..254  текст номера роу
+; Текст делает основной цикл (Row_To_Text) - при создании паттерна и при
+; правке клетки. На экран сам текст не пересчитывается никогда.
 ;
-; Скорость:
-;  - при смене вида (Relayout) считается раскладка и ГЕНЕРИРУЕТСЯ код строки:
-;    для каждого видимого поля копируется шаблон (T_*) с подставленными
-;    смещением в паттерне и колонкой экрана. Прямой код без таблиц раскладки
-;    и переходов. Два буфера кода: IM1 рисует одним, новый готовится в другом;
-;  - видимые строки рисует IM1 каждый кадр прямо из паттерна (кэша нет);
-;  - поля - через таблицы-плоскости на границе 256 (значение в L, плоскость в H,
-;    следующий символ - inc h, последняя плоскость - атрибут);
-;  - статика (рамки, пробелы, атрибуты) - строка-шаблон в невидимой строке 63
-;    текстовой страницы, разливается DMA. Каждый кадр пишутся только данные.
+; ЭКРАН КАЖДЫЙ КАДР (IM1, после музыки и мыши) собирается заново целиком:
+;   1. поля   - DMA-"черепица": на каждый кусок роу одного паттерна (склейка) по
+;               одной транзакции на элемент, сразу на все строки куска;
+;   2. атрибуты - DMA из строк-шаблонов (тусклый / активный паттерн / строка
+;               редактирования), кусками одинакового состояния;
+;   3. разделители и цвет номеров роу - процессором поверх.
+; Отслеживания изменений на экране нет: что в страницах паттернов, то и видно.
 ;
-; Тест: 1/2/3 вид, 4 адаптив, 5 1/2 чипа, Q/A строка, O/P канал, K/L скролл,
-; W по кругу, Space проигрывание, T полоса времени (фон на время отрисовки),
-; колесо - строка, мышь - перетаскивание скроллбара.
+; ЧЕРЕПИЦА. DMA ходит словами: кусок округляем до чётных колонок, лишний знак
+; с краю попадает только на колонку-разделитель (между элементами ровно одна),
+; а разделители рисуются поверх (п.3). Чтобы округление работало, сдвиг
+; "колонка в тексте -> колонка на экране" у каждого элемента чётный в любой
+; раскладке: всё, что добавляется при открытии элемента, чётной ширины (+6, +10).
+;
+; РАСКЛАДКА. Открыт один элемент (канал под курсором или Env чипа), остальные
+; закрыты. Закрытое = начало открытого, т.е. меняется только длина куска:
+;   элемент   текст в странице                закрыт  открыт
+;   Env       "0134 1F 0000 "  период шум огиб-2   7      13
+;   канал     "C-4 A1FE 1234 5678" нота инстр к1 к2 8      18
+;   экран: │r05│00│Env│A│B│C║Env│D│E│F│
+;          ордер 5, номер роу 3, дальше элементы с │ после каждого:
+;          всё закрыто: 8 + 2*7 + 6*8 + 8 = 78, открыт канал +10 = 88 из 90
+;
+; Клавиши (пока Спектрума; потом - PS/2 по сканкодам с биндами):
+;   Q/A роу, O/P (и K/L) канал, E - открыть Env чипа, W по кругу,
+;   1 плей сонга, 2 плей паттерна, 3 стоп, 4 продолжить, T полоса времени.
+;   Колесо - роу, Ctrl/Shift + колесо - канал. Мышь: [+]/[-] в заголовке.
 ; =========================================================================
     MODULE patview
 
-PAT_PAGE        equ PAGE_POOL       ; временно: первая страница пула
-PAT_SLOT        equ 0               ; слот паттерна в полосе
-PAT_BASE_H      equ #80             ; страница паттернов - в окне 2
-SCR_BASE_H      equ #C0             ; экран - в окне 3
-VIEW_LINE       equ 7               ; строка экрана с заголовком (верхняя рамка)
-VIEW_ROWS       equ 27              ; видимых строк паттерна (экран 8..34)
-VIEW_CENTER     equ VIEW_ROWS/2     ; текущая строка - по центру
-EDIT_LINE       equ VIEW_LINE+1+VIEW_CENTER
-BOTTOM_LINE     equ VIEW_LINE+VIEW_ROWS+1
-TEMPLATE_LINE   equ 63              ; невидимая строка текстовой страницы - шаблон
+PAT_PAGE        equ PAGE_POOL       ; паттерн n = страница PAT_PAGE+n (пока один трек)
+PAT_BASE_H      equ #80             ; страница паттерна - в окне 2
+SCR_BASE_H      equ #C0             ; текстовая страница - в окне 3
+LINE_W          equ 128             ; знакомест в строке текстовой страницы
+VIEW_LINE       equ 7               ; верхняя рамка с заголовками
+VIEW_ROWS       equ 27              ; роу на экране: строки 8..34
+VIEW_CENTER     equ VIEW_ROWS/2     ; строка редактирования - по центру
+FIRST_LINE      equ VIEW_LINE+1
+EDIT_LINE       equ FIRST_LINE+VIEW_CENTER
+BOTTOM_LINE     equ FIRST_LINE+VIEW_ROWS
 
-ORD_COL         equ 0
-ORD_W           equ 9               ; "│r►05◄[N]│" - кнопка в 2 знакоместа
-ROWCOL_W        equ 4               ; "│00│" - номер строки, не скроллится
-FIT_W           equ SCR_COLS-(ORD_W+1)-ROWCOL_W     ; место под каналы, когда всё влезает
+; Невидимые строки текстовой страницы - шаблоны
+TPL_LINE        equ 36              ; символы: пустая роу (пробелы + разделители)
+                                    ; атрибуты: строка 36 - тусклый, 37 - активный,
+                                    ; 38 - строка редактирования
+ST_BASE         equ 0               ; состояния строки = смещение строки-шаблона
+ST_ACTIVE       equ 1
+ST_EDIT         equ 2
 
-ARROW_R         equ #10             ; ►
-ARROW_L         equ #11             ; ◄
+; Колонки экрана
+ORD_X           equ 0               ; ордер: "│r05" + │ в колонке 4
+ROWNUM_X        equ 5               ; номер роу: 2 знака
+CONT_X          equ 8               ; отсюда - элементы паттерна
+DRAW_X0         equ 4               ; DMA символов/атрибутов - с этой колонки (чётная)
+DRAW_X1         equ 88              ; ... по эту (не включая)
+DRAW_WORDS      equ (DRAW_X1-DRAW_X0)/2
+
+; Текст роу в странице паттерна (см. шапку)
+;   L 112..180  БЛОК: закрытые части всех элементов подряд - ровно экранный вид
+;               при "всё закрыто" (экранные колонки CONT_X..76, разделители - пробелы)
+;   L 181..253  РАСШИРЕНИЯ: что добавляется при открытии (Env " 0000 ", канал
+;               " 1234 5678"). Каждое лежит на колонке той же чётности, что и
+;               экранная колонка, куда оно встаёт - DMA сдвигает только на чётное
+; Экран из блока: ничего не открыто - 1 черепица (весь блок); открыт элемент -
+; 3: блок до него включительно, его расширение, блок после него со сдвигом.
+TX_BLOCK        equ PAT_TEXT        ; = экранная колонка CONT_X
+CX_END          equ 77              ; правая рамка при "всё закрыто"
+TX_BLOCK_W      equ CX_END-CONT_X   ; 69
+; Колонка элемента при "всё закрыто" (в блоке: TX_BLOCK + CX - CONT_X)
+CX_ENV1         equ 8
+CX_A            equ 16
+CX_B            equ 25
+CX_C            equ 34
+CX_ENV2         equ 43
+CX_D            equ 51
+CX_E            equ 60
+CX_F            equ 69
+; Расширения в строке страницы: сначала встающие на нечётную колонку, потом на чётную
+EX_ENV1         equ 181             ; встаёт на 15
+EX_B            equ 187             ; 33
+EX_D            equ 197             ; 59
+EX_F            equ 207             ; 77
+EX_A            equ 218             ; 24
+EX_C            equ 228             ; 42
+EX_ENV2         equ 238             ; 50
+EX_E            equ 244             ; 68
+W_ENV_EXT       equ W_ENV_OPEN-W_ENV_CLOSED   ; 6
+W_CH_EXT        equ W_CH_OPEN-W_CH_CLOSED     ; 10
+    ASSERT TX_BLOCK+TX_BLOCK_W <= EX_ENV1
+    ASSERT EX_E+W_CH_EXT <= 256
+    ; чётность: расширение лежит на колонке той же чётности, что и место на экране
+    ASSERT ((CX_ENV1+W_ENV_CLOSED-EX_ENV1)&1) == 0 && ((CX_B+W_CH_CLOSED-EX_B)&1) == 0
+    ASSERT ((CX_D+W_CH_CLOSED-EX_D)&1) == 0 && ((CX_F+W_CH_CLOSED-EX_F)&1) == 0
+    ASSERT ((CX_A+W_CH_CLOSED-EX_A)&1) == 0 && ((CX_C+W_CH_CLOSED-EX_C)&1) == 0
+    ASSERT ((CX_ENV2+W_ENV_CLOSED-EX_ENV2)&1) == 0 && ((CX_E+W_CH_CLOSED-EX_E)&1) == 0
+    ASSERT ((CONT_X-TX_BLOCK)&1) == 0
+
+ITEMS           equ 8               ; Env, A, B, C, Env, D, E, F
+ITEM_NONE       equ #FF
+W_ENV_CLOSED    equ 7
+W_ENV_OPEN      equ 13
+W_CH_CLOSED     equ 8
+W_CH_OPEN       equ 18
+
 BOX_V           equ #B3             ; │
 BOX_H           equ #C4             ; ─
 BOX_UP          equ #C1             ; ┴
@@ -48,28 +121,20 @@ BOX_TL          equ #DA             ; ┌
 BOX_TR          equ #BF             ; ┐
 BOX_BL          equ #C0             ; └
 BOX_BR          equ #D9             ; ┘
-BOX_V2          equ #BA             ; ║ разделитель между чипами
+BOX_V2          equ #BA             ; ║ между чипами
 BOX_DOWN2       equ #D2             ; ╥
 BOX_UP2         equ #D0             ; ╨
-SB_TRACK        equ #B1             ; ▒ дорожка скроллбара - средняя штриховка
-SB_THUMB        equ #B2             ; ▓ ползунок - плотная штриховка, длина - доля видимой части
+ARROW_R         equ #10             ; ►
 
-MODE_COMPACT    equ 0
-MODE_NORMAL     equ 1
-MODE_FULL       equ 2
-
-TEST_ORD_LAST   equ 3
-
-; Полоса времени: на каждый шаг фон своим цветом, высота цвета = время шага (T)
-BAND_BG         equ 0               ; ничего не делаем
-BAND_ROWS       equ 1               ; IM1: строки паттерна кодом       - красный
-BAND_BLANK      equ 2               ; IM1: DMA пустых строк            - жёлтый
-BAND_HILITE     equ 3               ; IM1: подсветка строки            - зелёный
-BAND_INPUT      equ 4               ; ввод, мышь, шаг проигрывания     - синий
-BAND_RELAYOUT   equ 5               ; перестройка вида, код строки     - фиолетовый
-BAND_APPLY      equ 6               ; IM1: рамки, подписи, смена кода  - голубой
-BAND_ORDER      equ 7               ; ордер-лист                       - белый
-BAND_DMATEST    equ 8               ; замер: DMA-заливка 4К            - оранжевый
+; Полоса времени: на каждый шаг фон своим цветом, высота цвета = время шага
+BAND_BG         equ 0
+BAND_TILES      equ 1               ; IM1: поля (черепица)          - красный
+BAND_ATTR       equ 2               ; IM1: атрибуты                 - жёлтый
+BAND_SEPS       equ 3               ; IM1: разделители, номера      - зелёный
+BAND_INPUT      equ 4               ; ввод, таблица роу             - синий
+BAND_LAYOUT     equ 5               ; смена раскладки               - фиолетовый
+BAND_ORDER      equ 7               ; ордер                         - белый
+BAND_DMATEST    equ 8               ; замер: DMA-заливка 4К         - оранжевый
 
     MACRO BAND_I n                  ; из IM1
         ld a,(Timing)
@@ -82,1611 +147,855 @@ BAND_DMATEST    equ 8               ; замер: DMA-заливка 4К        
         call Band_Main
     ENDM
 
-    PLUGIN_HEADER PLG_TOOL,"   ","Pattern view"
+    PLUGIN_HEADER PLG_TOOL,"   ","Pattern view 6ch"
 
+; =========================================================================
+; СТАРТ И ОСНОВНОЙ ЦИКЛ
+; =========================================================================
 PluginMain
-        ld hl,(Palette_Data)        ; цвет фона - для полосы времени (окно 2 ещё стартовое)
+        ld hl,(Palette_Data)        ; цвет фона - для полосы времени
         ld (Band_Bg),hl
-        SETPAGE2 PAT_PAGE
         ld a,(SV_DRAW_PAGE)
         SETPAGE3 a
-        call Test_Fill
-        call Build_Attr_Tables
-        call Int_Line_Set
-        ld hl,Compose               ; сборка экрана - в IM1, каждый кадр
+        xor a                       ; X-офсет текстового режима не используем
+        ld bc,GXOFFSL
+        out (c),a
+        ld bc,GXOFFSH
+        out (c),a
+        call Build_Row_A
+        call Init_RowNum            ; страница номеров роу
+        call Test_Song              ; тестовые паттерны (данные + текст) и ордер
+        call Build_Layout           ; раскладка (хук IM1 ещё не стоит)
+        call Draw_Order
+        call Build_Row_Tab
+        ld hl,Compose               ; вывод - в IM1, каждый кадр
         ld (SV_FRAME_HOOK),hl
-        ld a,1
-        ld (Need_Layout),a
+        call Int_Line_Set
 
-; Экран рисует IM1 (Compose): видимые строки - сгенерированным кодом строки,
-; прямо из паттерна, каждый кадр. Основной цикл - ввод и, при смене вида,
-; новый код строки и шаблон во втором буфере; IM1 переключается на него сам.
 Main_Loop
         BAND_M BAND_BG
         halt
         ld a,(Timing)               ; замер: DMA-заливка 4К (оранжевый)
         or a
         call nz,Bench_Dma_Fill
-        ld a,(Order_Pending)
-        or a
-        jr z,.noorder
-        BAND_M BAND_ORDER
-        call Draw_Order
-.noorder
         BAND_M BAND_INPUT
         call Handle_Keys
         call Handle_Mouse
         call Play_Step
-        ld a,(Apply_Pending)        ; новый вид ещё не показан - раскладку не трогаем,
-        or a                        ; IM1 по ней рисует рамки
-        jr nz,Main_Loop
-        ld a,(Need_Layout)
+        call Build_Row_Tab
+        ld a,(Layout_Pending)       ; сменился открытый элемент
+        or a
+        jr z,.nolayout
+        BAND_M BAND_LAYOUT
+        call Relayout
+.nolayout
+        ld a,(Order_Pending)        ; сменилась позиция
         or a
         jr z,Main_Loop
-        BAND_M BAND_RELAYOUT
-        call Relayout
+        BAND_M BAND_ORDER
+        call Draw_Order
         jr Main_Loop
 
-Order_Pending   db 0
-Apply_Pending   db 0                ; 1 - готов новый вид, IM1 покажет его в начале кадра
-Code_Ready      db 0                ; 0 - IM1 экран не трогает
-Code_Show       dw Row_Code_A       ; код строки, которым рисует IM1
-Code_Build      dw Row_Code_B       ; код строки, который готовит перестройка вида
-Tpl_Show        db 62               ; строки-шаблоны (невидимые строки экрана)
-Tpl_Build       db 63
-Show_Col        db 0                ; область блока для IM1: начало (чётное)
-Show_Len        db 0                ; длина в словах-1
-Show_HlL        db 0                ; подсветка: первый атрибут
-Show_HlN        db 0                ; сколько
-
-;-------- IM1, начало кадра: экран под новый вид, смена кода и шаблона.
-; Строки рисуются тут же, в этом кадре - экран не мигает.
-Apply_Layout
-        BAND_I BAND_APPLY
-        xor a
-        ld (Apply_Pending),a
-        call Fill_Screen_Rows
-        call Draw_Top
-        call Draw_Titles
-        call Draw_Bottom
-        call Draw_Scrollbar
-        ld hl,(Code_Show)           ; новый код и шаблон - показываем
-        ld de,(Code_Build)
-        ld (Code_Show),de
-        ld (Code_Build),hl
-        ld hl,Tpl_Show
-        ld a,(Tpl_Build)
-        ld b,(hl)
-        ld (hl),a
-        ld a,b
-        ld (Tpl_Build),a
-        ld a,(Bl_Col)               ; геометрия для IM1 - вместе с кодом
-        ld (Show_Col),a
-        ld a,(Bl_Len)
-        ld (Show_Len),a
-        ld a,(Blk_X0)
-        ld b,a
-        add a,SCR_ATTR
-        ld (Show_HlL),a
-        ld a,(Blk_End)
-        sub b
-        inc a
-        ld (Show_HlN),a
-        ld a,1
-        ld (Order_Pending),a
-        ld (Code_Ready),a
-        ret
-
-; --- состояние вида
-View_Mode       db MODE_COMPACT
-View_Chips      db 2
-Chan_Level      db MODE_COMPACT,MODE_COMPACT,MODE_COMPACT ; уровень каждого канала:
-                db MODE_COMPACT,MODE_COMPACT,MODE_COMPACT ; вид задаёт всем, +/- - одному
-View_Wrap       db 1                ; 1 - по кругу (сверху конец паттерна), 0 - пусто
+; --- состояние
 Cur_Chan        db 0                ; канал под курсором 0..5
-Cursor_Moved    db 0
-HScroll         db 0                ; первое видимое поле (при скролле)
+Env_Open        db 0                ; 1 - открыт Env чипа курсора, а не канал
+Open_Item       db 1                ; открытый элемент 0..7, ITEM_NONE - нет
+Layout_Pending  db 0
+Layout_Busy     db 0                ; 1 - раскладка меняется, IM1 паттерн не рисует
+Order_Pending   db 0
+Playing         db 0
+Src_Mode        db 1                ; 1 - полотно по ордеру (сонг, стоп), 0 - паттерн по кругу
+Pat_Loops       db 0                ; сколько раз паттерн прокрутился в плее паттерна
 Cur_Row         db 0
 Cur_Pos         db 0
 Loop_Pos        db 0
-Test_Order      db 0,0,0,0
-Playing         db 0
+Ord_Last        db 0
 Play_Tick       db 0
 Timing          db 1
-Need_Layout     db 1
 
 ; =========================================================================
-; ТЕСТОВЫЙ ПАТТЕРН "ПО МАКСИМУМУ": все 64 строки, оба чипа, все каналы, все
-; поля непустые (худший случай для вывода). Значения меняются по строкам и
-; каналам, чтобы было видно, что выводится правильное.
-; =========================================================================
-Test_Fill
-        ld h,PAT_BASE_H
-        ld c,0                      ; C - строка
-.row    ld l,PAT_SLOT
-        ld b,CHIPS_MAX
-.chip   push bc
-        ld a,c                      ; заголовок чипа: период огибающей #01xx
-        inc a
-        ld (hl),a
-        inc l
-        ld (hl),#01
-        inc l
-        ld a,c                      ; шум 1..32
-        and #1F
-        inc a
-        ld (hl),a
-        inc l
-        call .cmd                   ; команда огибающей (4 байта)
-        ld (hl),0                   ; резерв
-        inc l
-        ld b,3                      ; 3 канала
-.ch     push bc
-        ld a,b                      ; нота: (строка + канал*11) mod 96 + 1
-        add a,a
-        add a,a
-        add a,a
-        add a,b
-        add a,b
-        add a,b
-        add a,c
-        cp NOTE_COUNT
-        jr c,$+4
-        sub NOTE_COUNT
-        inc a
-        ld (hl),a
-        inc l
-        ld a,c                      ; сэмпл 1..32
-        add a,b
-        and #1F
-        inc a
-        ld (hl),a
-        inc l
-        ld a,c                      ; огибающая 1..15
-        and #0E
-        inc a
-        ld (hl),a
-        inc l
-        ld a,c                      ; орнамент 1..16
-        add a,b
-        and #0F
-        inc a
-        ld (hl),a
-        inc l
-        ld a,c                      ; громкость 8..15
-        and 7
-        add a,8
-        ld (hl),a
-        inc l
-        ld (hl),0                   ; резерв
-        inc l
-        call .cmd                   ; команда 1
-        call .cmd                   ; команда 2
-        ld (hl),0                   ; резерв
-        inc l
-        ld (hl),0
-        inc l
-        pop bc
-        djnz .ch
-        ld a,l                      ; хвостовой резерв чипа
-        add a,CHIP_SIZE-CHIP_CH_A-3*CH_SIZE
-        ld l,a
-        pop bc
-        djnz .chip
-        inc h
-        inc c
-        ld a,c
-        cp PAT_ROWS_MAX
-        jr c,.row
-        ret
-
-.cmd    ld a,c                      ; команда: код 1..16, задержка 0..15, параметр
-        and #0F
-        inc a
-        ld (hl),a
-        inc l
-        ld a,c
-        and #0F
-        ld (hl),a
-        inc l
-        ld (hl),c                   ; параметр, младший
-        inc l
-        ld a,c
-        add a,#10
-        ld (hl),a                   ; старший
-        inc l
-        ret
-
-;-------- Разреженный тестовый паттерн (ноты через строки, пустые клетки)
-Test_Fill_Sparse
-        ld h,PAT_BASE_H             ; очистка: 64 полосы по PAT_WIDTH байт
-        ld b,PAT_ROWS_MAX
-.clr    ld l,PAT_SLOT
-        ld c,PAT_WIDTH
-        xor a
-.clr1   ld (hl),a
-        inc l
-        dec c
-        jr nz,.clr1
-        inc h
-        djnz .clr
-
-        ld h,PAT_BASE_H
-        ld c,0                      ; номер строки
-.row    ld a,c                      ; A: каждые 4 строки C-4, C#4, ...
-        and 3
-        jr nz,.no_a
-        ld a,c
-        rrca
-        rrca
-        and #0F
-        cp 12
-        jr c,$+4
-        sub 12
-        add a,NOTE_FIRST+12*4
-        ld l,PAT_SLOT+CHIP_CH_A+CH_NOTE
-        ld (hl),a
-        inc l
-        ld (hl),1                   ; сэмпл 1
-        ld l,PAT_SLOT+CHIP_CH_A+CH_VOLUME
-        ld (hl),15
-.no_a   ld a,c                      ; A: команда 1 каждые 8 строк со сдвигом 4
-        and 7
-        cp 4
-        jr nz,.no_ac
-        ld l,PAT_SLOT+CHIP_CH_A+CH_CMD
-        ld (hl),1                   ; код 1, задержка 0, параметр #0010
-        ld l,PAT_SLOT+CHIP_CH_A+CH_CMD+CMD_PARAM
-        ld (hl),#10
-.no_ac  ld a,c                      ; B: G-3 каждые 8 со сдвигом 2
-        and 7
-        cp 2
-        jr nz,.no_b
-        ld l,PAT_SLOT+CHIP_CH_B+CH_NOTE
-        ld (hl),NOTE_FIRST+12*3+7
-        inc l
-        ld (hl),2
-        ld l,PAT_SLOT+CHIP_CH_B+CH_ORNAMENT
-        ld (hl),3
-.no_b   ld a,c                      ; B: команды 1 и 2 каждые 16 со сдвигом 6
-        and 15
-        cp 6
-        jr nz,.no_bc
-        ld l,PAT_SLOT+CHIP_CH_B+CH_CMD
-        ld (hl),3                   ; команда 1: код 3, параметр #0102
-        ld l,PAT_SLOT+CHIP_CH_B+CH_CMD+CMD_PARAM
-        ld (hl),#02
-        inc l
-        ld (hl),#01
-        ld l,PAT_SLOT+CHIP_CH_B+CH_CMD+CMD_SIZE
-        ld (hl),5                   ; команда 2: код 5, задержка 2, параметр #00FF
-        inc l
-        ld (hl),2
-        inc l
-        ld (hl),#FF
-.no_bc  ld a,c                      ; C: C-2 каждые 16, команда 2 каждые 32
-        and 15
-        jr nz,.no_c
-        ld l,PAT_SLOT+CHIP_CH_C+CH_NOTE
-        ld (hl),NOTE_FIRST+12*2
-        inc l
-        ld (hl),10
-        inc l
-        ld (hl),8
-        ld l,PAT_SLOT+CHIP_CH_C+CH_VOLUME
-        ld (hl),12
-        ld a,c
-        and 31
-        jr nz,.no_c
-        ld l,PAT_SLOT+CHIP_CH_C+CH_CMD+CMD_SIZE
-        ld (hl),10                  ; код A, параметр #1234
-        ld l,PAT_SLOT+CHIP_CH_C+CH_CMD+CMD_SIZE+CMD_PARAM
-        ld (hl),#34
-        inc l
-        ld (hl),#12
-.no_c   ld a,c                      ; D (чип 2): A-3 каждые 4 со сдвигом 2
-        and 3
-        cp 2
-        jr nz,.no_d
-        ld l,PAT_SLOT+CHIP_SIZE+CHIP_CH_A+CH_NOTE
-        ld (hl),NOTE_FIRST+12*3+9
-        inc l
-        ld (hl),4
-        ld l,PAT_SLOT+CHIP_SIZE+CHIP_CH_A+CH_VOLUME
-        ld (hl),10
-        ld l,PAT_SLOT+CHIP_SIZE+CHIP_CH_A+CH_CMD
-        ld (hl),7                   ; код 7, параметр #0001
-        ld l,PAT_SLOT+CHIP_SIZE+CHIP_CH_A+CH_CMD+CMD_PARAM
-        ld (hl),#01
-.no_d   ld a,c                      ; E: E-5 каждые 8
-        and 7
-        jr nz,.no_e
-        ld l,PAT_SLOT+CHIP_SIZE+CHIP_CH_B+CH_NOTE
-        ld (hl),NOTE_FIRST+12*5+4
-        inc l
-        ld (hl),5
-        ld l,PAT_SLOT+CHIP_SIZE+CHIP_CH_B+CH_ORNAMENT
-        ld (hl),2
-.no_e   inc h
-        inc c
-        ld a,c
-        cp PAT_ROWS_MAX
-        jp c,.row
-
-        ld hl,(PAT_BASE_H+34)*256+PAT_SLOT+CHIP_CH_A+CH_NOTE
-        ld (hl),NOTE_OFF
-        ld hl,PAT_BASE_H*256+PAT_SLOT+CHIP_ENVPER
-        ld (hl),#2D                 ; огибающая #012D
-        inc l
-        ld (hl),#01
-        ld l,PAT_SLOT+CHIP_ENVCMD   ; команда огибающей 2 #0080
-        ld (hl),2
-        ld l,PAT_SLOT+CHIP_ENVCMD+CMD_PARAM
-        ld (hl),#80
-        ld l,PAT_SLOT+CHIP_NOISE
-        ld (hl),#0A
-        ld hl,(PAT_BASE_H+8)*256+PAT_SLOT+CHIP_SIZE+CHIP_ENVPER
-        ld (hl),#40                 ; чип 2: огибающая #0040 в строке 8
-        ld hl,(PAT_BASE_H+16)*256+PAT_SLOT+CHIP_SIZE+CHIP_NOISE
-        ld (hl),#1F                 ; чип 2: шум #1F в строке 16
-        ret
-
-; =========================================================================
-; РАСКЛАДКА - только при смене вида
-; =========================================================================
-; Типы полей
-TY_ROWNUM       equ 0
-TY_NOTE         equ 1
-TY_SAMPLE       equ 2
-TY_ENV          equ 3
-TY_ORN          equ 4
-TY_VOL          equ 5
-TY_NOISE        equ 6
-TY_ENVPER       equ 7
-TY_CMD          equ 8
-TY_BAR          equ #80             ; бит 7 - разделитель, не поле
-TY_BAR2         equ #81             ; ║ между чипами
-
-Type_W          db 2,3,1,1,1,1,2,4,5    ; ширина поля на экране по типу
-
-; Поля групп по уровню: тип, смещение в группе, пробел перед; конец #FF
-GF_Chip0        db TY_ENVPER,CHIP_ENVPER,0, #FF
-GF_Chip1        db TY_ENVPER,CHIP_ENVPER,0, TY_NOISE,CHIP_NOISE,1, #FF
-GF_Chip2        db TY_ENVPER,CHIP_ENVPER,0, TY_NOISE,CHIP_NOISE,1, TY_CMD,CHIP_ENVCMD,1, #FF
-GF_Ch0          db TY_NOTE,CH_NOTE,0, TY_SAMPLE,CH_SAMPLE,1, TY_ENV,CH_ENVSHAPE,0
-                db TY_ORN,CH_ORNAMENT,0, TY_VOL,CH_VOLUME,0, #FF
-GF_Ch1          db TY_NOTE,CH_NOTE,0, TY_SAMPLE,CH_SAMPLE,1, TY_ENV,CH_ENVSHAPE,0
-                db TY_ORN,CH_ORNAMENT,0, TY_VOL,CH_VOLUME,0, TY_CMD,CH_CMD,1, #FF
-GF_Ch2          db TY_NOTE,CH_NOTE,0, TY_SAMPLE,CH_SAMPLE,1, TY_ENV,CH_ENVSHAPE,0
-                db TY_ORN,CH_ORNAMENT,0, TY_VOL,CH_VOLUME,0, TY_CMD,CH_CMD,1
-                db TY_CMD,CH_CMD+CMD_SIZE,1, #FF
-GF_Chip_Tab     dw GF_Chip0,GF_Chip1,GF_Chip2
-GF_Ch_Tab       dw GF_Ch0,GF_Ch1,GF_Ch2
-
-; Раскладка: элементы по 4 байта - тип, x (в содержимом), ширина, смещение в паттерне
-LAY_MAX         equ 80
-Lay             ds LAY_MAX*4
-Lay_N           db 0
-Lay_X           db 0
-Lay_W           db 0                ; ширина содержимого
-FieldX          ds 64               ; x каждого поля - для скролла по полям
-Fld_N           db 0
-GRP_MAX         equ 8
-Grp_X           ds GRP_MAX          ; x ведущего пробела группы
-Grp_End         ds GRP_MAX          ; x │ в конце группы
-Grp_First       ds GRP_MAX          ; первое поле группы
-Grp_Kind        ds GRP_MAX          ; 0 - чип, 1 - канал
-Grp_Num         ds GRP_MAX          ; номер чипа / канала
-Grp_N           db 0
-Trail_Pad       db 0                ; пробел перед │ в конце группы
-EG_Base         db 0
-EG_Bar          db TY_BAR
-EG_Kind         db 0
-EG_Num          db 0
-BL_Chip         db 0
-
-; Размещение
-Scroll_Mode     db 0
-Blk_X0          db 0                ; левая │ колонки номера строки
-Win_X           db 0                ; первая колонка содержимого на экране
-Blk_End         db 0                ; правая │ блока
-WinC            db 0                ; колонок под содержимое
-Off             db 0                ; x содержимого, с которого начинается окно
-Max_Scroll      db 0
-Thumb_X         db 0
-Thumb_W         db 0
-Scroll_Map      ds 80               ; колонка в окне -> HScroll (для мыши)
-Map_I           db 0
-Map_Ptr         dw 0
-
-Relayout
-        xor a
-        ld (Need_Layout),a
-        call Build_Layout           ; поля вплотную к │, без пробелов
-        ld a,(Lay_W)
-        cp FIT_W+1
-        jr c,.fit
-        call Place_Scroll
-        jr .placed
-.fit    call Place_Fit
-.placed call Gen_Code
-        call Calc_Blank_Region
-        call Build_Template
-        ld a,1                      ; показать - IM1 в начале следующего кадра
-        ld (Apply_Pending),a
-        ret
-
-;-------- Из IM1: строки области паттерна - из шаблона нового вида. Ордер-лист
-; (колонки до его правой │) не трогаем - он рисуется отдельно и не мигает
-FSR_COL         equ (ORD_W-1)&#FE
-Fill_Screen_Rows
-        ld a,(SV_DRAW_PAGE)
-        ld (I_SrcX),a
-        ld a,(Tpl_Build)
-        ld (I_SrcLine),a
-        ld a,VIEW_LINE+1
-        ld (I_DstLine),a
-        ld a,(128-FSR_COL)/2-1
-        ld (I_Len),a
-        xor a
-        ld (I_Num),a
-        ld a,DMA_RAM
-        ld (I_Ctrl),a
-        call .both
-        ld a,VIEW_LINE+1            ; первая -> остальные, с перекрытием
-        ld (I_SrcLine),a
-        inc a
-        ld (I_DstLine),a
-        ld a,VIEW_ROWS-2
-        ld (I_Num),a
-        ld a,DMA_RAM|DMA_SALGN|DMA_DALGN
-        ld (I_Ctrl),a
-.both   ld a,FSR_COL                ; символы и атрибуты
-        call .one
-        ld a,FSR_COL+SCR_ATTR
-.one    ld (I_Col),a
-        jp Dma_Int
-
-; =========================================================================
-; IM1, КАЖДЫЙ КАДР (после музыки и мыши): видимые строки паттерна - кодом
-; строки прямо из паттерна, пустые (выше 0 / ниже конца без "по кругу") -
-; шаблоном через DMA, потом подсветка строки редактирования.
-; Строка рисуется быстрее, чем её проходит луч, - без разрывов.
+; IM1, КАЖДЫЙ КАДР: экран паттерна целиком
 ; =========================================================================
 Compose
-        SETPAGE2 PAT_PAGE
-        ld a,(SV_DRAW_PAGE)
+        ld a,(Layout_Busy)
+        or a
+        ret nz
+        ld a,(SV_DRAW_PAGE)         ; экран - в окно 3 (для прохода процессором)
         SETPAGE3 a
-        ld a,(Apply_Pending)
+        ld a,(Tpl_Repl)             ; раскладка сменилась - размножить шаблоны
         or a
-        call nz,Apply_Layout
-        ld a,(Code_Ready)
-        or a
-        jp z,.exit
-        ld a,(Cur_Row)
-        sub VIEW_CENTER
-        ld (CP_Row),a               ; первая видимая строка ("отрицательная" - выше нуля)
-        ld a,VIEW_LINE+1
-        ld (CP_Line),a
-        ld a,VIEW_ROWS
-        ld (CP_Left),a
-.loop   ld a,(CP_Left)
-        or a
-        jr z,.done
-        ld a,(CP_Row)
-        cp PAT_ROWS_MAX
-        jr c,.inside
-        ld b,a
-        ld a,(View_Wrap)
-        or a
-        jr nz,.wrap
-        ld a,b                      ; пусто: выше нуля - до строки 0, ниже конца - до низа
-        bit 7,a
-        jr z,.after
-        neg
-        jr .cnt
-.after  ld a,(CP_Left)
-.cnt    call Min_Left
-        BAND_I BAND_BLANK
-        call Blank_N
-        jr .next
-.wrap   ld a,b
-        and PAT_ROWS_MAX-1
-        ld (CP_Row),a
-.inside ld b,a                      ; участок до конца паттерна
-        ld a,PAT_ROWS_MAX
-        sub b
-        call Min_Left
-        BAND_I BAND_ROWS
-        call Rows_N
-.next   ld hl,CP_Row                ; продвинулись на CP_N строк
-        ld a,(CP_N)
-        ld b,a
-        ld a,(hl)
-        add a,b
-        ld (hl),a
-        ld hl,CP_Line
-        ld a,(hl)
-        add a,b
-        ld (hl),a
-        ld hl,CP_Left
-        ld a,(hl)
-        sub b
-        ld (hl),a
-        jr .loop
-
-.done   BAND_I BAND_HILITE
-        ld a,(THEME_ATTR+CLR_EDIT_ROW)  ; подсветка строки редактирования: фон, ink свой
-        and #F0
-        ld c,a
-        ld h,SCR_BASE_H+EDIT_LINE
-        ld a,(Show_HlL)
-        ld l,a
-        ld a,(Show_HlN)
-        ld b,a
-.hl     ld a,(hl)
-        and #0F
-        or c
-        ld (hl),a
-        inc l
-        djnz .hl
-.exit   RESTPAGE3
-        RESTPAGE2
-        ld a,(Timing)               ; вернуть цвет, который был у основного цикла
+        call nz,Tpl_Replicate
+        BAND_I BAND_TILES
+        call Draw_Chars             ; 1. поля: черепица и пустые строки
+        BAND_I BAND_ATTR
+        call Draw_Attrs             ; 2. атрибуты из шаблонов
+        BAND_I BAND_SEPS
+        call Draw_Seps              ; 3. разделители, цвет номеров роу
+        RESTPAGE3
+        ld a,(Timing)               ; вернуть цвет основного цикла
         or a
         ret z
         ld a,(Band_Cur)
         jp Band_Int
 
-; A = min(A, CP_Left) -> CP_N
-Min_Left
-        ld hl,CP_Left
+; --- общие для проходов
+R_Ptr           dw 0                ; следующая запись таблицы роу
+R_Idx           db 0                ; номер экранной строки (0..26) следующего куска
+R_Start         db 0                ; первая строка куска
+R_N             db 0                ; строк в куске
+R_Page          db 0                ; страница паттерна куска (0 - пусто)
+R_H             db 0                ; H первой роу куска
+R_State         db 0                ; состояние куска (для атрибутов)
+
+;-------- 1. ПОЛЯ. Таблица роу -> куски "одна страница, роу подряд" или "пусто"
+Draw_Chars
+        ld hl,(Row_Tab_Show)
+        xor a
+        ld (R_Idx),a
+.run    ld a,(R_Idx)
+        cp VIEW_ROWS
+        ret nc
+        ld (R_Start),a
+        ld a,(hl)                   ; страница
+        ld (R_Page),a
+        inc hl
+        ld a,(hl)                   ; H
+        ld (R_H),a
+        inc hl
+        inc hl
+        ld c,1                      ; C - строк в куске
+.ext    ld a,(R_Start)              ; продлеваем, пока та же страница и роу подряд
+        add a,c
+        cp VIEW_ROWS
+        jr nc,.go
+        ld a,(R_Page)
         cp (hl)
-        jr c,$+3
-        ld a,(hl)
-        ld (CP_N),a
+        jr nz,.go
+        or a
+        jr z,.next                  ; пустые - подряд всегда
+        inc hl
+        ld a,(R_H)
+        add a,c
+        cp (hl)
+        dec hl
+        jr nz,.go
+.next   inc hl
+        inc hl
+        inc hl
+        inc c
+        jr .ext
+.go     ld a,c
+        ld (R_N),a
+        ld a,(R_Start)
+        add a,c
+        ld (R_Idx),a
+        push hl
+        ld a,(R_Page)
+        or a
+        jr z,.blank
+        call Tile_Run
+        jr .done
+.blank  call Blank_Run
+.done   pop hl
+        jr .run
+
+;-------- Кусок роу одного паттерна: номер роу + черепицы раскладки, каждая -
+; одна DMA сразу на все строки куска. Прямой код: D - строка источника, E -
+; строка экрана, остальное - числа в командах (их подставляет Build_Tiles).
+; Число блоков и страница приёмника DMA помнит между переносами - пишем раз.
+; Черепица: ждём DMA, 6 out - колонка/строка источника, колонка/строка
+; приёмника, длина, пуск.
+    MACRO TILE scol,dcol,len
+        call dma_wait               ; +0  (C = #AF после dma_wait)
+        ld a,scol                   ; +3, число - +4
+        ld b,high DMASADDRL
+        out (c),a
+        ld a,d                      ; строка источника
+        ld b,high DMASADDRH
+        out (c),a
+        ld a,dcol                   ; +14, число - +15
+        ld b,high DMADADDRL
+        out (c),a
+        ld a,e                      ; строка экрана
+        ld b,high DMADADDRH
+        out (c),a
+        ld a,len                    ; +25, число - +26
+        ld b,high DMALEN
+        out (c),a
+        ld a,DMA_RAM|DMA_SALGN|DMA_DALGN
+        ld b,high DMACTR
+        out (c),a                   ; пуск
+    ENDM
+TILE_SCOL       equ 4               ; где в черепице числа
+TILE_DCOL       equ 15
+TILE_LEN        equ 26
+TILE_SIZE       equ 37
+
+Tile_Run
+        ld a,(R_H)                  ; D - строка источника (роу)
+        sub PAT_BASE_H
+        ld d,a
+        ld a,(R_Start)              ; E - строка экрана
+        add a,FIRST_LINE
+        ld e,a
+        call dma_wait               ; общие для куска регистры
+        ld a,(R_N)
+        dec a
+        ld b,high DMANUM            ; блоков-1
+        out (c),a
+        ld a,(SV_DRAW_PAGE)
+        ld b,high DMADADDRX         ; страница экрана
+        out (c),a
+        ld a,PAGE_ROWNUM            ; номер роу - из страницы номеров
+        ld b,high DMASADDRX
+        out (c),a
+        TILE ROWNUM_X&#FE, ROWNUM_X&#FE, 1  ; колонки 4..7: номер + края на разделители
+        call dma_wait
+        ld a,(R_Page)               ; дальше - из страницы паттерна
+        ld b,high DMASADDRX
+        out (c),a
+Tile_0  TILE 0,0,0                  ; черепицы раскладки (Build_Tiles)
+    ASSERT $-Tile_0 == TILE_SIZE
+Tile_1  TILE 0,0,0
+Tile_2  TILE 0,0,0
         ret
 
-; CP_N строк паттерна с CP_Row -> экран с CP_Line: код строки на каждую
-Rows_N
-        ld a,(CP_Row)
-        add a,PAT_BASE_H
-        ld b,a
-        ld a,(CP_Line)
-        add a,SCR_BASE_H
-        ld d,a
-        ld a,(CP_N)
-.r      push af
-        push bc
-        push de
-        call .row
+;-------- Кусок пустых строк: символы пустой роу из страницы тусклого шаблона
+Blank_Run
+        ld a,PAGE_VIEW_TPL+ST_BASE
+        ld h,DRAW_X0
+        jp Tpl_Run
+
+;-------- 2. АТРИБУТЫ. Куски одинакового состояния -> строка-шаблон этого состояния
+Draw_Attrs
+        ld hl,(Row_Tab_Show)
+        xor a
+        ld (R_Idx),a
+.run    ld a,(R_Idx)
+        cp VIEW_ROWS
+        ret nc
+        ld (R_Start),a
+        call Row_State              ; A - состояние строки R_Idx, HL - на следующую запись
+        ld (R_State),a
+        ld c,1
+.ext    ld a,(R_Start)
+        add a,c
+        cp VIEW_ROWS
+        jr nc,.go
+        ld (R_Idx),a
+        push hl
+        call Row_State
         pop de
-        pop bc
-        pop af
-        inc b
-        inc d
+        ld b,a
+        ld a,(R_State)
+        cp b
+        ex de,hl                    ; HL - снова на эту запись
+        jr nz,.go
+        inc hl
+        inc hl
+        inc hl
+        inc c
+        jr .ext
+.go     ld a,c
+        ld (R_N),a
+        ld a,(R_Start)
+        add a,c
+        ld (R_Idx),a
+        push hl
+        ld a,(R_State)              ; страница шаблона этого состояния
+        add a,PAGE_VIEW_TPL
+        ld h,DRAW_X0+SCR_ATTR
+        call Tpl_Run
+        pop hl
+        jr .run
+
+; A = состояние строки R_Idx по записи (HL): пусто/тусклый -> ST_BASE, активный
+; паттерн -> ST_ACTIVE, центр -> ST_EDIT. HL += 3
+Row_State
+        ld a,(R_Idx)
+        cp VIEW_CENTER
+        jr nz,.data
+        inc hl
+        inc hl
+        inc hl
+        ld a,ST_EDIT
+        ret
+.data   ld a,(hl)                   ; страница: 0 - пусто
+        inc hl
+        inc hl
+        or a
+        jr z,.base
+        ld a,(hl)                   ; состояние из таблицы роу
+        inc hl
+        ret
+.base   inc hl
+        ld a,ST_BASE
+        ret
+
+;-------- После смены раскладки: в каждой странице шаблона строка 0 -> строки
+; 1..26, с перекрытием (блок k копирует строку k в k+1, которую уже переписал
+; блок k-1). Одна DMA на страницу, раз за смену раскладки
+Tpl_Repl        db 0
+Tpl_Replicate
+        xor a
+        ld (Tpl_Repl),a
+        ld a,PAGE_VIEW_TPL+ST_BASE
+        call .one
+        ld a,PAGE_VIEW_TPL+ST_ACTIVE
+        call .one
+        ld a,PAGE_VIEW_TPL+ST_EDIT
+.one    ld l,a
+        call dma_wait               ; C = #AF
+        ld a,l
+        ld b,high DMASADDRX         ; источник и приёмник - эта страница
+        out (c),a
+        ld b,high DMADADDRX
+        out (c),a
+        xor a
+        ld b,high DMASADDRL         ; строка 0 -> строка 1, с колонки 0
+        out (c),a
+        ld b,high DMASADDRH
+        out (c),a
+        ld b,high DMADADDRL
+        out (c),a
+        inc a
+        ld b,high DMADADDRH
+        out (c),a
+        ld a,127                    ; вся строка: 128 слов
+        ld b,high DMALEN
+        out (c),a
+        ld a,VIEW_ROWS-2            ; блоков-1: строки 1..26
+        ld b,high DMANUM
+        out (c),a
+        ld a,DMA_RAM|DMA_SALGN|DMA_DALGN
+        ld b,high DMACTR
+        out (c),a
+        ret
+
+;-------- Кусок одинаковых строк из страницы шаблона: ОДНА DMA на весь кусок.
+; В странице шаблона строки 0..26 одинаковые - берём с 0-й, сколько надо.
+; A - страница шаблона, H - колонка (DRAW_X0 - символы, +SCR_ATTR - атрибуты).
+; Прямой код: 9 out, без таблиц.
+Tpl_Run
+        ld l,a
+        call dma_wait               ; C = #AF
+        ld a,l
+        ld b,high DMASADDRX         ; источник: страница шаблона, строка 0
+        out (c),a
+        ld a,h
+        ld b,high DMASADDRL
+        out (c),a
+        xor a
+        ld b,high DMASADDRH
+        out (c),a
+        ld a,h                      ; приёмник: та же колонка, строка куска
+        ld b,high DMADADDRL
+        out (c),a
+        ld a,(R_Start)
+        add a,FIRST_LINE
+        ld b,high DMADADDRH
+        out (c),a
+        ld a,(SV_DRAW_PAGE)
+        ld b,high DMADADDRX
+        out (c),a
+        ld a,DRAW_WORDS-1
+        ld b,high DMALEN
+        out (c),a
+        ld a,(R_N)
         dec a
+        ld b,high DMANUM
+        out (c),a
+        ld a,DMA_RAM|DMA_SALGN|DMA_DALGN
+        ld b,high DMACTR
+        out (c),a                   ; пуск
+        ret
+
+;-------- 3. РАЗДЕЛИТЕЛИ (их колонки перекрыты черепицей) и цвет номеров роу
+Draw_Seps
+        ld hl,Seps                  ; колонка, символ
+        ld a,(Seps_N)
+        ld b,a
+.s      ld e,(hl)
+        inc hl
+        ld a,(hl)
+        inc hl
+        push hl
+        ld l,e
+        ld h,SCR_BASE_H+FIRST_LINE
+        DUP VIEW_ROWS
+        ld (hl),a
+        inc h
+        EDUP
+        pop hl
+        djnz .s
+
+        ld hl,(Row_Tab_Show)        ; цвет номера роу: готовый по номеру, центр - свой
+        ld d,SCR_BASE_H+FIRST_LINE
+        ld b,0
+.r      ld a,(hl)                   ; страница: 0 - пусто, цвет не важен
+        inc hl
+        or a
+        ld a,(hl)                   ; H
+        inc hl
+        inc hl
+        jr z,.n
+        sub PAT_BASE_H
+        push hl
+        ld l,a
+        ld h,high Row_A
+        ld a,(hl)
+        pop hl
+        ld c,a
+        ld a,b
+        cp VIEW_CENTER
+        jr nz,.put
+        ld a,(THEME_ATTR+CLR_EDIT_ROW)
+        ld c,a
+.put    ld e,ROWNUM_X+SCR_ATTR
+        ld a,c
+        ld (de),a
+        inc e
+        ld (de),a
+.n      inc d
+        inc b
+        ld a,b
+        cp VIEW_ROWS
+        jr c,.r
+        ret
+
+; =========================================================================
+; РАСКЛАДКА: по открытому элементу - колонки элементов, черепицы, разделители,
+; шаблоны строк, рамки и подписи. При смене открытого элемента.
+; =========================================================================
+Item_Col        ds ITEMS            ; колонка элемента на экране
+Item_W          ds ITEMS            ; ширина на экране
+Lay_End         db 0                ; колонка последнего разделителя (правая рамка)
+
+; Элемент при "всё закрыто": колонка экрана и где лежит его расширение
+Item_CX         db CX_ENV1, CX_A, CX_B, CX_C, CX_ENV2, CX_D, CX_E, CX_F
+Item_EX         db EX_ENV1, EX_A, EX_B, EX_C, EX_ENV2, EX_D, EX_E, EX_F
+SEPS_MAX        equ ITEMS+2
+Seps_N          db 0
+Seps            ds SEPS_MAX*2       ; колонка, символ
+Sep_Attr        ds SEPS_MAX         ; цвет разделителя (для шаблонов)
+
+;-------- Из основного цикла: открытый элемент сменился. Без DI: DMA тут нет,
+; а IM1 паттерн не рисует, пока Layout_Busy (музыка и мышь при этом идут)
+Relayout
+        xor a
+        ld (Layout_Pending),a
+        ld a,1
+        ld (Layout_Busy),a
+        call Build_Layout
+        xor a
+        ld (Layout_Busy),a
+        ret
+
+Build_Layout
+        call Calc_Open
+        ; --- колонки элементов и разделители
+        xor a
+        ld (Seps_N),a
+        ld e,DRAW_X0                ; разделитель ордер | номер роу
+        ld a,BOX_V
+        ld d,CLR_TITLE
+        call Add_Sep
+        ld e,CONT_X-1               ; разделитель номер роу | элементы
+        ld a,BOX_V
+        ld d,CLR_SEP
+        call Add_Sep
+        ld b,0                      ; B - элемент
+        ld e,CONT_X                 ; E - колонка
+.it     ld a,b
+        ld hl,Item_Col
+        call Arr_Set_E
+        call Item_Width             ; D - ширина
+        ld a,b
+        ld hl,Item_W
+        push de
+        ld e,d
+        call Arr_Set_E
+        pop de
+        ld a,e                      ; разделитель после элемента
+        add a,d
+        ld e,a
+        ld a,b
+        cp ITEMS-1
+        jr z,.outer
+        cp 3
+        ld a,BOX_V
+        jr nz,$+4
+        ld a,BOX_V2
+        ld d,CLR_SEP
+        jr .sep
+.outer  ld a,e
+        ld (Lay_End),a
+        ld a,BOX_V
+        ld d,CLR_TITLE
+.sep    push bc
+        call Add_Sep
+        pop bc
+        inc e
+        inc b
+        ld a,b
+        cp ITEMS
+        jr c,.it
+
+        call Build_Templates        ; шаблоны строк (символы пустой роу, атрибуты)
+        call Build_Tiles            ; черепицы: числа в прямой код Tile_0..2
+        call Clear_Right            ; правее рамки - остатки прошлой раскладки
+        call Draw_Frame             ; рамки и подписи
+        ret
+
+;-------- Строки роу: колонки правее правой рамки - пробелы цветом фона.
+; Черепица туда не пишет, а при сужении раскладки там остаётся старое
+Clear_Right
+        ld a,(THEME_ATTR+CLR_BG)
+        ld c,a
+        ld h,SCR_BASE_H+FIRST_LINE
+        ld d,VIEW_ROWS
+.r      ld a,(Lay_End)
+        inc a
+        ld l,a
+.c      ld (hl),' '
+        set 7,l
+        ld (hl),c
+        res 7,l
+        inc l
+        bit 7,l
+        jr z,.c                     ; до колонки 127
+        inc h
+        dec d
         jr nz,.r
         ret
-.row    ld hl,(Code_Show)
-        jp (hl)
 
-; CP_N пустых строк с CP_Line: шаблон -> первая, потом с перекрытием вниз
-Blank_N
-        ld a,(Show_Len)
-        ld (I_Len),a
-        ld a,(Show_Col)
-        call .one
-        ld a,(Show_Col)
-        add a,SCR_ATTR
-.one    ld (I_Col),a
-        ld a,(SV_DRAW_PAGE)
-        ld (I_SrcX),a
-        ld a,(Tpl_Show)
-        ld (I_SrcLine),a
-        ld a,(CP_Line)
-        ld (I_DstLine),a
-        xor a
-        ld (I_Num),a
-        ld a,DMA_RAM
-        ld (I_Ctrl),a
-        call Dma_Int
-        ld a,(CP_N)
-        sub 2
-        ret c
-        ld (I_Num),a
-        ld a,(CP_Line)
-        ld (I_SrcLine),a
+; Открытый элемент: Env чипа курсора или канал курсора
+Calc_Open
+        ld a,(Cur_Chan)             ; канал -> элемент: 0..2 -> 1..3, 3..5 -> 5..7
         inc a
-        ld (I_DstLine),a
-        ld a,DMA_RAM|DMA_SALGN|DMA_DALGN
-        ld (I_Ctrl),a
-        jp Dma_Int
-
-CP_Row          db 0
-CP_Line         db 0
-CP_Left         db 0
-CP_N            db 0
-
-;-------- DMA из IM1: своя таблица (основной код может как раз заполнять Dma_T)
-; Приёмник - экран. Источник - I_SrcX / I_SrcLine, колонка I_Col, длина Show_Len
-Dma_Int
-        ld a,(I_SrcX)
-        ld (Dma_I+5),a
-        ld a,(I_SrcLine)
-        ld (Dma_I+3),a
-        ld a,(I_Col)
-        ld (Dma_I+1),a
-        ld (Dma_I+7),a
-        ld a,(I_DstLine)
-        ld (Dma_I+9),a
-        ld a,(SV_DRAW_PAGE)
-        ld (Dma_I+11),a
-        ld a,(I_Len)
-        ld (Dma_I+13),a
-        ld a,(I_Num)
-        ld (Dma_I+15),a
-        ld a,(I_Ctrl)
-        ld (Dma_I+17),a
-        ld hl,Dma_I
-        call set_ports_int
-        jp dma_wait
-
-I_SrcX          db 0
-I_SrcLine       db 0
-I_Col           db 0
-I_DstLine       db 0
-I_Num           db 0
-I_Ctrl          db 0
-I_Len           db 0                ; длина в словах-1
-
-Dma_I   db high DMASADDRL,0, high DMASADDRH,0, high DMASADDRX,0
-        db high DMADADDRL,0, high DMADADDRH,0, high DMADADDRX,0
-        db high DMALEN,0, high DMANUM,0, high DMACTR,0, #FF
-
-;-------- Раскладка всех групп: чип, 3 канала, [чип, 3 канала]
-Build_Layout
-        xor a
-        ld (Lay_N),a
-        ld (Fld_N),a
-        ld (Grp_N),a
-        ld (Lay_X),a
-        ld ix,Lay
-        ld a,(View_Chips)
-        ld b,a
-        xor a
-.chip   push bc
-        ld (BL_Chip),a
-        rrca                        ; чип*64
-        rrca
-        ld (EG_Base),a
-        xor a
-        ld (EG_Kind),a
-        ld a,(BL_Chip)
-        ld (EG_Num),a
-        ld a,(View_Mode)
-        ld hl,GF_Chip_Tab
-        call Get_List
-        call Emit_Group
-
-        ld c,0                      ; канал в чипе
-.ch     push bc
-        ld a,(BL_Chip)
-        ld b,a
-        add a,a
-        add a,b
-        add a,c                     ; номер канала 0..5
-        ld (EG_Num),a
-        ld hl,Chan_Level            ; уровень канала: вид, поправленный +/- канала
-        call Arr_Get
-        ld hl,GF_Ch_Tab
-        call Get_List
-        ld a,(BL_Chip)              ; смещение канала: чип*64 + CHIP_CH_A + канал*16
-        rrca
-        rrca
-        ld b,a
-        ld a,c
-        add a,a
-        add a,a
-        add a,a
-        add a,a
-        add a,CHIP_CH_A
-        add a,b
-        ld (EG_Base),a
-        ld a,1
-        ld (EG_Kind),a
-        ld a,c                      ; последний канал первого из двух чипов - ║
-        cp 2
-        ld a,TY_BAR
-        jr nz,.bar
-        ld a,(BL_Chip)
-        or a
-        ld a,TY_BAR
-        jr nz,.bar
-        ld a,(View_Chips)
-        cp 2
-        ld a,TY_BAR
-        jr nz,.bar
-        ld a,TY_BAR2
-.bar    ld (EG_Bar),a
-        call Emit_Group
-        ld a,TY_BAR
-        ld (EG_Bar),a
-        pop bc
-        inc c
-        ld a,c
-        cp 3
-        jr c,.ch
-
-        pop bc
-        ld a,(BL_Chip)
-        inc a
-        dec b
-        jp nz,.chip
-        ld a,(Lay_X)
-        ld (Lay_W),a
-        ret
-
-; HL - таблица dw, A - индекс -> HL = элемент
-Get_List
-        add a,a
-        add a,l
-        ld l,a
-        adc a,h
-        sub l
-        ld h,a
-        ld a,(hl)
-        inc hl
-        ld h,(hl)
-        ld l,a
-        ret
-
-; A - индекс, HL - массив байт -> A = массив[индекс]
-Arr_Get
-        add a,l
-        ld l,a
-        adc a,h
-        sub l
-        ld h,a
-        ld a,(hl)
-        ret
-
-; A - индекс, HL - массив, C - значение -> массив[индекс] = C
-Arr_Set
-        add a,l
-        ld l,a
-        adc a,h
-        sub l
-        ld h,a
-        ld (hl),c
-        ret
-
-;-------- Группа: ведущий пробел, поля, [пробел], │. HL - поля группы
-Emit_Group
-        push hl
-        ld a,(Lay_X)
-        ld c,a
-        ld a,(Grp_N)
-        ld hl,Grp_X
-        call Arr_Set
-        ld a,(Fld_N)
-        ld c,a
-        ld a,(Grp_N)
-        ld hl,Grp_First
-        call Arr_Set
-        ld a,(EG_Kind)
-        ld c,a
-        ld a,(Grp_N)
-        ld hl,Grp_Kind
-        call Arr_Set
-        ld a,(EG_Num)
-        ld c,a
-        ld a,(Grp_N)
-        ld hl,Grp_Num
-        call Arr_Set
-        pop hl
-
-.f      ld a,(hl)
-        cp #FF
-        jr z,.end
-        ld (ix+0),a                 ; тип
-        ld e,a
-        inc hl
-        ld a,(EG_Base)              ; смещение в паттерне
-        add a,(hl)
-        add a,PAT_SLOT
-        ld (ix+3),a
-        inc hl
-        ld a,(hl)                   ; пробел перед полем?
-        inc hl
-        or a
-        jr z,.ns
-        ld a,(Lay_X)
-        inc a
-        ld (Lay_X),a
-.ns     ld a,(Lay_X)
-        ld (ix+1),a
-        push hl
-        ld c,a                      ; FieldX[Fld_N] = x
-        ld a,(Fld_N)
-        ld hl,FieldX
-        call Arr_Set
-        ld a,(Fld_N)
-        inc a
-        ld (Fld_N),a
-        ld a,e                      ; ширина
-        ld hl,Type_W
-        call Arr_Get
-        pop hl
-        ld (ix+2),a
-        ld c,a
-        ld a,(Lay_X)
-        add a,c
-        ld (Lay_X),a
-        ld bc,4
-        add ix,bc
-        ld a,(Lay_N)
-        inc a
-        ld (Lay_N),a
-        jr .f
-
-.end    ld a,(EG_Bar)               ; [пробел] и │ (или ║ между чипами)
-        ld (ix+0),a
-        ld a,(Trail_Pad)
-        ld c,a
-        ld a,(Lay_X)
-        add a,c
-        ld (ix+1),a
-        ld (ix+2),1
-        ld (ix+3),0
-        ld c,a
-        inc a
-        ld (Lay_X),a
-        ld de,4
-        add ix,de
-        ld a,(Lay_N)
-        inc a
-        ld (Lay_N),a
-        ld a,(Grp_N)                ; Grp_End = x │
-        ld hl,Grp_End
-        call Arr_Set
-        ld a,(Grp_N)
-        inc a
-        ld (Grp_N),a
-        ret
-
-;-------- Всё влезает: по центру, без скролла
-Place_Fit
-        xor a
-        ld (Scroll_Mode),a
-        ld (HScroll),a
-        ld (Off),a
-        ld (Cursor_Moved),a
-        ld a,(Lay_W)
-        ld (WinC),a
-        ld b,a
-        ld a,FIT_W
-        sub b
-        srl a
-        add a,ORD_W+1
-        ld (Blk_X0),a
-        add a,ROWCOL_W
-        ld (Win_X),a
-        add a,b
-        dec a
-        ld (Blk_End),a
-        ret
-
-;-------- Не влезает: номер строки вплотную к ордер-листу (общая │), окно до
-; правого края, скролл по полям
-Place_Scroll
-        ld a,1
-        ld (Scroll_Mode),a
-        ld a,ORD_W-1
-        ld (Blk_X0),a
-        add a,ROWCOL_W
-        ld (Win_X),a
-        ld a,SCR_COLS-1
-        ld (Blk_End),a
-        ld a,SCR_COLS-1-(ORD_W-1+ROWCOL_W)
-        ld (WinC),a
-
-        ld hl,FieldX                ; Max_Scroll: первое поле, с которого остаток влезает
-        ld c,0
-.m      ld a,(Lay_W)
-        sub (hl)
-        inc a                       ; W - (x-1)
-        ld b,a
-        ld a,(WinC)
-        cp b
-        jr nc,.mf
-        inc hl
-        inc c
-        ld a,(Fld_N)
-        cp c
-        jr nz,.m
-        dec c
-.mf     ld a,c
-        ld (Max_Scroll),a
-
-        ld a,(Cursor_Moved)         ; курсор сменил канал - его группа должна быть видна
-        or a
-        jr z,.clamp
-        xor a
-        ld (Cursor_Moved),a
-        call Cursor_Group           ; A - группа
-        ld (PS_G),a
-        call Calc_Off
-        ld b,a                      ; B - Off
-        ld a,(PS_G)
-        ld hl,Grp_X
-        call Arr_Get
-        cp b
-        jr c,.show                  ; начало группы левее окна
-        ld a,(PS_G)
-        ld hl,Grp_End
-        call Arr_Get
-        sub b
-        ld hl,WinC
-        cp (hl)
-        jr c,.clamp                 ; конец группы влезает
-.show   ld a,(PS_G)
-        ld hl,Grp_First
-        call Arr_Get
-        ld (HScroll),a
-.clamp  ld a,(Max_Scroll)
-        ld c,a
-        ld a,(HScroll)
-        cp c
+        cp 4
         jr c,$+3
-        ld a,c                      ; HScroll > Max - прижимаем
-        ld (HScroll),a
-        call Calc_Off
-        ld (Off),a
-
-        ; Скроллбар как в Turbo Vision: ◄ ▒▒▒■▒▒▒ ►. Дорожка - между стрелками,
-        ; ползунок - один символ. Track_W = WinC-2.
-        ld a,(WinC)
-        sub 2
-        ld (Track_W),a
-        ld e,a                      ; длина ползунка = Track_W*WinC/Lay_W, не меньше 2
-        ld a,(WinC)
-        call Mul8
-        ld a,(Lay_W)
-        ld c,a
-        call Div16_8
-        ld a,l
-        cp 2
-        jr nc,$+4
-        ld a,2
-        ld (Thumb_W),a
-        ld a,(Max_Scroll)           ; позиция = HScroll*(Track_W-Thumb_W)/Max
-        or a
-        jr z,.tx
-        ld c,a
-        ld a,(Thumb_W)
-        ld b,a
-        ld a,(Track_W)
-        sub b
-        ld e,a
-        ld a,(HScroll)
-        push bc
-        call Mul8
-        pop bc
-        call Div16_8
-        ld a,l
-.tx     ld (Thumb_X),a
-
-        ; колонка дорожки -> HScroll = i*Max/(Tw-1) с округлением. Без умножений:
-        ; накопитель как у отрезка Брезенхэма - на колонку одно сложение
-        ld a,(Track_W)
-        dec a
-        ld c,a                      ; C - Tw-1
-        srl a
-        ld e,a                      ; E - накопитель (с половиной - округление)
-        ld a,(Max_Scroll)
-        ld d,a                      ; D - шаг
-        ld hl,Scroll_Map
-        ld a,(Track_W)
-        ld b,a                      ; B - колонок
-        ld ixl,0                    ; IXL - значение
-.mp     ld a,ixl
-        ld (hl),a
-        inc hl
-        ld a,e
-        add a,d
-.w      cp c
-        jr c,.n
-        sub c
-        inc ixl
-        jr .w
-.n      ld e,a
-        djnz .mp
-        ret
-
-Track_W         db 0
-
-PS_G            db 0
-
-; A = FieldX[HScroll]-1
-Calc_Off
-        ld a,(HScroll)
-        ld hl,FieldX
-        call Arr_Get
-        dec a
-        ret
-
-; A = группа канала под курсором: чип*4 + 1 + канал в чипе
-Cursor_Group
-        ld a,(Cur_Chan)
-        cp 3
-        jr c,.c1
-        add a,4-3+1
-        ret
-.c1     inc a
-        ret
-
-; HL = A*E. Портит B,D
-Mul8
-        ld hl,0
-        ld d,h
-        ld b,8
-.l      add hl,hl
-        add a,a
-        jr nc,.n
-        add hl,de
-.n      djnz .l
-        ret
-
-; HL = HL/C, A - остаток. Портит B
-Div16_8
-        xor a
-        ld b,16
-.l      add hl,hl
-        rla
-        cp c
-        jr c,.n
-        sub c
-        inc l
-.n      djnz .l
-        ret
-
-;-------- Генерация кода строки: номер строки + шаблон каждого видимого поля
-Gen_Code
-        ld de,(Code_Build)
-        ld hl,T_ROWNUM
-        ld bc,T_ROWNUM_E-T_ROWNUM
-        push de
-        ldir
-        pop ix
-        ld a,(Blk_X0)
         inc a
-        ld (ix+3),a
-
-        ld iy,Lay
-        ld a,(Lay_N)
         ld b,a
-.e      push bc
-        ld a,(iy+0)
-        bit 7,a                     ; разделитель - не поле
-        jr nz,.next
-        ld (GC_T),a
-        ld a,(Off)                  ; видно ли поле: x >= Off и x-Off+w <= WinC
-        ld c,a
-        ld a,(iy+1)
-        sub c
-        jr c,.next
-        ld (GC_Rel),a
-        add a,(iy+2)
-        ld c,a
-        ld a,(WinC)
-        cp c
-        jr c,.next
+        ld a,(Env_Open)
+        or a
+        ld a,b
+        jr z,.set
+        and 4                       ; Env этого чипа: 0 или 4
+.set    ld (Cursor_Item),a          ; под курсором - всегда, открыт - он же
+        ld (Open_Item),a
+        ret
 
-        ld a,(GC_T)                 ; шаблон: адрес и длина
+Cursor_Item     db 1                ; элемент под курсором (фокус), открыт он или нет
+
+; B - элемент -> D - ширина на экране
+Item_Width
+        ld a,b
+        and 3
+        ld d,W_ENV_CLOSED
+        jr z,$+4
+        ld d,W_CH_CLOSED
+        ld a,(Open_Item)
+        cp b
+        ret nz
+        ld a,d                      ; открыт: Env 7->13, канал 8->18
+        cp W_ENV_CLOSED
+        ld d,W_ENV_OPEN
+        ret z
+        ld d,W_CH_OPEN
+        ret
+
+;-------- Черепицы раскладки -> числа в прямой код Tile_0..2 (Tile_Run).
+; Ничего не открыто: 1 черепица - весь блок закрытых частей.
+; Открыт элемент k: блок до него включительно, его расширение, блок после него
+; (со сдвигом на ширину расширения). Неиспользуемые черепицы отрезаются "ret".
+Build_Tiles
+        ld ix,Tile_0
+        ld a,(Open_Item)
+        cp ITEM_NONE
+        jr nz,.open
+        ld e,CONT_X                 ; весь блок
+        ld d,TX_BLOCK_W
+        ld c,TX_BLOCK
+        call Set_Tile
+        ld a,#C9                    ; Tile_1, Tile_2 - не нужны
+        ld (Tile_1),a
+        ret
+
+.open   ld b,a                      ; B - открытый элемент
+        ld hl,Item_CX               ; конец его закрытой части при "всё закрыто"
+        call Arr_Get
+        ld c,a
+        ld a,b
+        and 3
+        ld a,W_ENV_CLOSED
+        jr z,$+4
+        ld a,W_CH_CLOSED
+        add a,c
+        ld (BT_End),a
+        ; 1) блок от начала до конца закрытой части открытого
+        sub CONT_X
+        ld d,a
+        ld e,CONT_X
+        ld c,TX_BLOCK
+        call Set_Tile
+        ; 2) расширение открытого - сразу за его закрытой частью
+        ld a,b
+        ld hl,Item_EX
+        call Arr_Get
+        ld c,a
+        ld a,b
+        and 3
+        ld d,W_ENV_EXT
+        jr z,$+4
+        ld d,W_CH_EXT
+        ld a,(BT_End)
+        ld e,a
+        ld ix,Tile_1
+        call Set_Tile
+        ; 3) блок после открытого: с его разделителя до правой рамки, сдвинут на
+        ;    ширину расширения. У последнего элемента (F) - нечего
+        ld a,(BT_End)
+        cp CX_END
+        jr nc,.last
+        ld e,a                      ; колонка в блоке
+        sub CONT_X
+        add a,TX_BLOCK
+        ld c,a
+        ld a,CX_END
+        sub e
+        ld h,a                      ; H - ширина
+        ld a,e
+        add a,d                     ; + ширина расширения (D ещё от п.2)
+        ld e,a
+        ld d,h
+        ld ix,Tile_2
+        call Set_Tile
+        ld a,#CD                    ; все три в работе
+        ld (Tile_1),a
+        ld (Tile_2),a
+        ret
+.last   ld a,#CD
+        ld (Tile_1),a
+        ld a,#C9                    ; Tile_2 - не нужна
+        ld (Tile_2),a
+        ret
+
+BT_End          db 0
+
+; Черепица IX: E - колонка экрана, D - ширина, C - колонка в тексте.
+; DMA ходит словами: начало вниз до чётного (в тексте - на столько же), длина -
+; вверх до целых слов. Лишний знак с краёв падает на колонку-разделитель
+Set_Tile
+        ld a,e
+        and 1                       ; H - сдвиг до чётного
+        ld h,a
+        ld a,c
+        sub h
+        ld (ix+TILE_SCOL),a         ; колонка в тексте
+        ld a,e
+        sub h
+        ld (ix+TILE_DCOL),a         ; колонка на экране
+        ld a,d                      ; слов-1 = (ширина + сдвиг + 1) / 2 - 1
+        add a,h
+        inc a
+        srl a
+        dec a
+        ld (ix+TILE_LEN),a
+        ret
+
+Add_Sep
+        push af
+        ld a,(Seps_N)
         ld c,a
         add a,a
-        add a,c
-        ld hl,TT
+        ld hl,Seps
         add a,l
         ld l,a
         adc a,h
         sub l
         ld h,a
-        ld c,(hl)
+        ld (hl),e
         inc hl
-        ld b,(hl)
-        inc hl
-        ld a,(hl)
-        push bc
-        pop hl
-        ld c,a
-        ld b,0
+        pop af
+        ld (hl),a
+        ld a,c
+        ld hl,Sep_Attr
         push de
-        ldir
-        pop ix
-        ld a,(iy+3)                 ; подставляем смещение в паттерне
-        ld (ix+1),a
-        ld a,(Win_X)                ; и колонку экрана
-        ld c,a
-        ld a,(GC_Rel)
-        add a,c
-        ld (ix+3),a
-.next   ld bc,4
-        add iy,bc
-        pop bc
-        djnz .e
-        ld a,#C9                    ; ret
-        ld (de),a
+        ld e,d
+        call Arr_Set_E
+        pop de
+        ld hl,Seps_N
+        inc (hl)
         ret
 
-GC_T            db 0
-GC_Rel          db 0
-
-; Шаблоны полей по типу: адрес, длина
-TT      dw T_ROWNUM
-        db T_ROWNUM_E-T_ROWNUM
-        dw T_NOTE
-        db T_NOTE_E-T_NOTE
-        dw T_SAMPLE
-        db T_SAMPLE_E-T_SAMPLE
-        dw T_ENV
-        db T_ENV_E-T_ENV
-        dw T_ORN
-        db T_ORN_E-T_ORN
-        dw T_VOL
-        db T_VOL_E-T_VOL
-        dw T_NOISE
-        db T_NOISE_E-T_NOISE
-        dw T_ENVPER
-        db T_ENVPER_E-T_ENVPER
-        dw T_CMD
-        db T_CMD_E-T_CMD
-
-;-------- Строка-шаблон (статика) в невидимой строке экрана Tpl_Build
-Build_Template
-        ld a,(Tpl_Build)
-        add a,SCR_BASE_H
-        ld (BT_H),a
+; A - индекс, HL - массив, E - значение
+Arr_Set_E
+        add a,l
+        ld l,a
+        adc a,h
+        sub l
         ld h,a
+        ld (hl),e
+        ret
+
+;-------- Шаблоны в строках 36..38 текстовой страницы (окно 3):
+; символы строки 36 - пустая роу: пробелы и разделители;
+; атрибуты 36 - тусклый (всё CLR_EMPTY), 37 - активный (цвета полей), 38 - строка
+; редактирования (всё CLR_EDIT_ROW). Разделители - своим цветом в 36 и 37.
+Build_Templates
+        ld h,SCR_BASE_H+TPL_LINE    ; символы: пробелы
         ld l,0
-        ld b,SCR_COLS
+        ld b,LINE_W
         ld a,' '
 .c      ld (hl),a
         inc l
         djnz .c
-        ld l,SCR_ATTR
-        ld b,SCR_COLS
-        ld a,(THEME_ATTR+CLR_BG)
-.a      ld (hl),a
+        ld a,(THEME_ATTR+CLR_BG)    ; атрибуты трёх шаблонов - фон
+        ld c,a
+        ld h,SCR_BASE_H+TPL_LINE+ST_BASE
+        call .fill
+        ld h,SCR_BASE_H+TPL_LINE+ST_ACTIVE
+        call .fill
+        ld a,(THEME_ATTR+CLR_EDIT_ROW)  ; строка редактирования - один цвет
+        ld c,a
+        ld h,SCR_BASE_H+TPL_LINE+ST_EDIT
+        ld l,DRAW_X0+SCR_ATTR
+        ld a,(Lay_End)
+        sub DRAW_X0-1
+        ld b,a
+.e      ld (hl),c
         inc l
-        djnz .a
-
-        ld d,h
-        ld e,ORD_COL                ; внешние рамки - CLR_TITLE
-        call PutBar
-        ld e,ORD_W-1
-        call PutBar
-        ld a,(Blk_X0)
-        ld e,a
-        call PutBar
-        ld a,(Win_X)                ; номер строки | каналы - мягкий разделитель
-        dec a
-        ld e,a
-        ld a,BOX_V
-        call PutSep
-
-        ld iy,Lay                   ; видимые разделители групп
-        ld a,(Lay_N)
-        ld b,a
-.e      ld a,(iy+0)
-        bit 7,a
-        jr z,.n
-        ld a,(Off)
-        ld c,a
-        ld a,(iy+1)
-        sub c
-        jr c,.n
-        ld c,a
-        ld a,(WinC)
-        dec a
-        cp c
-        jr c,.n                     ; правее окна
-        ld a,(Win_X)
-        add a,c
-        ld e,a
-        ld a,(Blk_End)              ; правый край блока - внешняя рамка
-        cp e
-        jr z,.outer
-        ld a,(iy+0)
-        cp TY_BAR2
-        ld a,BOX_V
-        jr nz,$+4
-        ld a,BOX_V2                 ; между чипами - двойной
-        call PutSep
-        jr .n
-.outer  call PutBar
-.n      ld de,4
-        add iy,de
-        ld a,(BT_H)
-        ld d,a
         djnz .e
-
-        ld a,(Scroll_Mode)          ; при скролле - правая рамка у края экрана
-        or a
-        ret z
-        ld a,(Blk_End)
+        ; --- тусклый: всё от номера роу до правой рамки - CLR_EMPTY
+        ld a,(THEME_ATTR+CLR_EMPTY)
+        ld c,a
+        ld h,SCR_BASE_H+TPL_LINE+ST_BASE
+        ld l,ROWNUM_X+SCR_ATTR
+        ld a,(Lay_End)
+        sub ROWNUM_X-1
+        ld b,a
+.d      ld (hl),c
+        inc l
+        djnz .d
+        ; --- активный: поля по ролям
+        ld b,0
+.it     push bc
+        ld a,b
+        ld hl,Item_Col
+        call Arr_Get
+        add a,SCR_ATTR
         ld e,a
-        jp PutBar
-
-BT_H            db 0
-
-;-------- Область пустых строк: от первой клетки данных до правой рамки, по словам
-Calc_Blank_Region
-        ld a,(Blk_X0)
-        inc a
-        and #FE                     ; DMA работает словами - начало чётное
-        ld (Bl_Col),a
-        ld b,a
-        ld a,(Blk_End)
-        inc a
-        sub b                       ; байт
-        inc a
-        srl a                       ; слов (с округлением вверх)
-        dec a
-        ld (Bl_Len),a
-        ret
-
-Bl_Col          db 0
-Bl_Len          db 0
-
-;-------- DMA строк текстовой страницы SV_DRAW_PAGE
-; A - строка-источник, E - строка-приёмник, C - блоков-1, B - DMACtrl.
-; Колонка и длина в словах-1 - Dma_Col / Dma_Len (по умолчанию строка целиком)
-Dma_Lines
-        push af
-        ld a,(SV_DRAW_PAGE)
-        ld (Dma_T+5),a
-        ld (Dma_T+11),a
-        pop af
-Dma_Lines_Pages                     ; то же, страницы уже записаны в Dma_T
-        ld (Dma_T+3),a
-        ld a,e
-        ld (Dma_T+9),a
-        ld a,c
-        ld (Dma_T+15),a
+        ld d,SCR_BASE_H+TPL_LINE+ST_ACTIVE
+        ld a,b                      ; описание полей: Env/канал, закрыт/открыт
+        and 3
+        ld hl,D_Env0
+        jr z,$+5
+        ld hl,D_Ch0
+        ld a,(Open_Item)
+        cp b
+        jr nz,.f
         ld a,b
-        ld (Dma_T+17),a
-        ld a,(Dma_Col)
-        ld (Dma_T+1),a
-        ld (Dma_T+7),a
-        ld a,(Dma_Len)
-        ld (Dma_T+13),a
-        ld hl,Dma_T
-        call set_ports
-        jp dma_wait
-
-Dma_Col         db 0
-Dma_Len         db 127
-
-Dma_T   db high DMASADDRL,0, high DMASADDRH,0, high DMASADDRX,0
-        db high DMADADDRL,0, high DMADADDRH,0, high DMADADDRX,0
-        db high DMALEN,127, high DMANUM,0, high DMACTR,0, #FF
-
-; =========================================================================
-; ШАБЛОНЫ ПОЛЕЙ - копируются в Row_Code. Начало у всех одно:
-;   +0 ld c,смещение в паттерне   (подставляется в +1)
-;   +2 ld e,колонка экрана        (подставляется в +3)
-; Вход: B - строка паттерна (#80+строка), D - строка экрана. Только jr внутри.
-; =========================================================================
-T_ROWNUM                            ; номер строки: из B, цвет - каждая 4-я
-        ld c,0
-        ld e,0
-        ld a,b
-        sub PAT_BASE_H
-        ld l,a
-        ld h,high Hex_T
-        ld a,(hl)
-        ld (de),a
-        inc e
-        inc h
-        ld a,(hl)
-        ld (de),a
-        ld h,high Row_A
-        ld a,(hl)
-        set 7,e
-        ld (de),a
-        dec e
-        ld (de),a
-T_ROWNUM_E
-
-T_NOTE                              ; нота: 3 плоскости символов + атрибут
-        ld c,0
-        ld e,0
-        ld a,(bc)
-        ld l,a
-        ld h,high Note_T
-        ld a,(hl)
-        ld (de),a
-        inc e
-        inc h
-        ld a,(hl)
-        ld (de),a
-        inc e
-        inc h
-        ld a,(hl)
-        ld (de),a
-        inc h
-        ld a,(hl)
-        set 7,e
-        ld (de),a
-        dec e
-        ld (de),a
-        dec e
-        ld (de),a
-T_NOTE_E
-
-    MACRO TPL_ONE tab,attr          ; один знак + атрибут из плоскости tab+attr
-        ld c,0
-        ld e,0
-        ld a,(bc)
-        ld l,a
-        ld h,high tab
-        ld a,(hl)
-        ld (de),a
-        ld h,(high tab)+attr
-        ld a,(hl)
-        set 7,e
-        ld (de),a
-    ENDM
-
-T_SAMPLE
-        TPL_ONE Sym_T,1
-T_SAMPLE_E
-T_ENV
-        TPL_ONE Hx1_T,1
-T_ENV_E
-T_ORN
-        TPL_ONE Sym_T,2
-T_ORN_E
-T_VOL
-        TPL_ONE Hx1_T,2
-T_VOL_E
-
-T_NOISE                             ; 2 hex, 0 = "--"
-        ld c,0
-        ld e,0
-        ld a,(bc)
-        ld l,a
-        ld h,high HexD_T
-        ld a,(hl)
-        ld (de),a
-        inc e
-        inc h
-        ld a,(hl)
-        ld (de),a
-        inc h
-        ld a,(hl)
-        set 7,e
-        ld (de),a
-        dec e
-        ld (de),a
-T_NOISE_E
-
-T_ENVPER                            ; период огибающей, 16 бит; 0 = "----"
-        ld c,0
-        ld e,0
-        ld a,(bc)                   ; младший
-        inc c
-        ld h,a
-        ld a,(bc)                   ; старший
-        ld l,a
-        or h
-        jr z,.empty
-        ld a,h
-        push af
-        ld h,high Hex_T
-        ld a,(hl)
-        ld (de),a
-        inc e
-        inc h
-        ld a,(hl)
-        ld (de),a
-        inc e
-        pop af
-        ld l,a
-        ld h,high Hex_T
-        ld a,(hl)
-        ld (de),a
-        inc e
-        inc h
-        ld a,(hl)
-        ld (de),a
-        ld a,(THEME_ATTR+CLR_ENVPER)
-        jr .attr
-.empty  ld a,'-'
-        ld (de),a
-        inc e
-        ld (de),a
-        inc e
-        ld (de),a
-        inc e
-        ld (de),a
-        ld a,(THEME_ATTR+CLR_EMPTY)
-.attr   set 7,e
-        ld (de),a
-        dec e
-        ld (de),a
-        dec e
-        ld (de),a
-        dec e
-        ld (de),a
-T_ENVPER_E
-
-T_CMD                               ; команда: код (символ 1..W) + параметр 4 hex; код 0 = "-----"
-        ld c,0
-        ld e,0
-        ld a,(bc)
+        and 3
+        ld hl,D_Env1
+        jr z,.f
+        ld hl,D_Ch1
+.f      ld a,(hl)                   ; ширина, роль; конец - 0
         or a
-        jr z,.empty
-        ld l,a
-        ld h,high Sym_T
-        ld a,(hl)
-        ld (de),a
-        inc e
-        inc c                       ; код, задержка, параметр (младший, старший)
-        inc c
-        inc c
-        ld a,(bc)                   ; параметр, старший
-        ld l,a
-        ld h,high Hex_T
-        ld a,(hl)
-        ld (de),a
-        inc e
-        inc h
-        ld a,(hl)
-        ld (de),a
-        inc e
-        dec c
-        ld a,(bc)                   ; параметр, младший
-        ld l,a
-        ld h,high Hex_T
-        ld a,(hl)
-        ld (de),a
-        inc e
-        inc h
-        ld a,(hl)
-        ld (de),a
-        ld a,(THEME_ATTR+CLR_CMD)
-        jr .attr
-.empty  ld a,'-'
-        ld (de),a
-        inc e
-        ld (de),a
-        inc e
-        ld (de),a
-        inc e
-        ld (de),a
-        inc e
-        ld (de),a
-        ld a,(THEME_ATTR+CLR_EMPTY)
-.attr   set 7,e
-        ld (de),a
-        dec e
-        ld (de),a
-        dec e
-        ld (de),a
-        dec e
-        ld (de),a
-        dec e
-        ld (de),a
-T_CMD_E
-
-;-------- Ордер-лист слева. Только при изменении позиции и после смены вида
-Draw_Order
-        xor a
-        ld (Order_Pending),a
-        ld d,SCR_BASE_H+VIEW_LINE+1
-        ld a,(Cur_Pos)
-        sub VIEW_CENTER
-        ld b,a                      ; B - позиция
-        ld a,VIEW_ROWS
-.l      push af
-        ld e,ORD_COL
-        call PutBar
-        ld a,b
-        cp TEST_ORD_LAST+1
-        jr c,.item
-        ld a,(THEME_ATTR+CLR_BG)    ; за концом списка - пусто
-        ld c,a
-        ld a,' '
-        call PutCh
-        ld a,' '
-        call PutCh
-        ld a,' '
-        call PutCh
-        ld a,' '
-        call PutCh
-        ld a,' '
-        call PutCh
-        jr .buttons
-.item   ld a,(THEME_ATTR+CLR_LOOP)
-        ld c,a
-        ld a,(Loop_Pos)
-        cp b
-        ld a,' '
-        jr nz,$+4
-        ld a,'r'
-        call PutCh
-        ld a,(THEME_ATTR+CLR_ORD_CUR)
-        ld c,a
-        ld a,(Cur_Pos)
-        cp b
-        ld a,' '
-        jr nz,$+4
-        ld a,ARROW_R
-        call PutCh
-        ld a,(THEME_ATTR+CLR_PATNUM)
-        ld c,a
-        ld a,b
-        ld hl,Test_Order
-        call Arr_Get
-        call PutHex2
-        ld a,(THEME_ATTR+CLR_ORD_CUR)
-        ld c,a
-        ld a,(Cur_Pos)
-        cp b
-        ld a,' '
-        jr nz,$+4
-        ld a,ARROW_L
-        call PutCh
-.buttons
-        ld e,ORD_COL+6
-        ld a,(Cur_Pos)              ; кнопки у текущей и двух под ней
-        neg
-        add a,b
-        cp 3
-        jr c,.btn
-        ld a,(THEME_ATTR+CLR_BG)
-        ld c,a
-        ld a,' '
-        call PutCh
-        ld a,' '
-        jr .put
-.btn    ld hl,Order_Buttons
-        call Arr_Get
-        call PutBtn
-        jr .bar
-.put    call PutCh
-.bar    call PutBar
-        inc d
-        inc b
-        pop af
-        dec a
-        jp nz,.l
-        ret
-
-Order_Buttons   db GLYPH_BTN_NEW,GLYPH_BTN_PLUS,GLYPH_BTN_MINUS
-
-; Кнопка-значок A (2 знакоместа: A, A+1) цветом CLR_BUTTON в DE. E += 2
-PutBtn
-        push bc
+        jr z,.fe
         ld b,a
-        ld a,(THEME_ATTR+CLR_BUTTON)
-        ld c,a
+        inc hl
+        ld a,(hl)
+        inc hl
+        push hl
+        add a,low THEME_ATTR
+        ld l,a
+        ld h,high THEME_ATTR
+        ld a,(hl)
+        pop hl
+.fw     ld (de),a
+        inc e
+        djnz .fw
+        jr .f
+.fe     pop bc
+        inc b
         ld a,b
-        call PutCh
-        ld a,b
-        inc a
-        call PutCh
-        pop bc
+        cp ITEMS
+        jr c,.it
+        ; --- номер роу в активном: тусклым (свой цвет ставит Draw_Seps)
+        ld a,(THEME_ATTR+CLR_EMPTY)
+        ld ((SCR_BASE_H+TPL_LINE+ST_ACTIVE)*256+ROWNUM_X+SCR_ATTR),a
+        ld ((SCR_BASE_H+TPL_LINE+ST_ACTIVE)*256+ROWNUM_X+1+SCR_ATTR),a
+        ; --- разделители: символ в строку пустой роу, цвет в оба шаблона
+        ld hl,Seps
+        ld a,(Seps_N)
+        ld b,a
+        ld c,0
+.s      ld e,(hl)                   ; колонка
+        inc hl
+        ld a,(hl)                   ; символ
+        inc hl
+        push hl
+        ld h,SCR_BASE_H+TPL_LINE
+        ld l,e
+        ld (hl),a
+        ld a,c
+        ld hl,Sep_Attr
+        call Arr_Get
+        add a,low THEME_ATTR
+        ld l,a
+        ld h,high THEME_ATTR
+        ld a,(hl)
+        ld h,SCR_BASE_H+TPL_LINE+ST_BASE
+        set 7,e
+        ld l,e
+        ld (hl),a
+        inc h
+        ld (hl),a
+        pop hl
+        inc c
+        djnz .s
+        ; --- строки 36..38 -> строка 0 страниц шаблонов (символы и атрибуты целиком);
+        ;     на строки 1..26 их размножит IM1 одной DMA на страницу (Tpl_Replicate)
+        SETPAGE2 PAGE_VIEW_TPL+ST_BASE
+        ld hl,(SCR_BASE_H+TPL_LINE+ST_BASE)*256
+        call .line0
+        RESTPAGE2
+        SETPAGE2 PAGE_VIEW_TPL+ST_ACTIVE
+        ld hl,(SCR_BASE_H+TPL_LINE+ST_ACTIVE)*256
+        call .line0
+        RESTPAGE2
+        SETPAGE2 PAGE_VIEW_TPL+ST_EDIT
+        ld hl,(SCR_BASE_H+TPL_LINE+ST_EDIT)*256
+        call .line0
+        RESTPAGE2
+        ld a,1
+        ld (Tpl_Repl),a
+        ret
+.line0  ld de,PAT_BASE_H*256        ; страница шаблона - в окне 2, строка 0
+        ld bc,256
+        ldir
         ret
 
+.fill   ld l,SCR_ATTR               ; H - строка, C - цвет: все атрибуты
+        ld b,LINE_W
+.ff     ld (hl),c
+        inc l
+        djnz .ff
+        ret
+
+; Поля элемента по ролям: ширина, роль (CLR_BG - промежуток). Конец - 0
+D_Env0          db 4,CLR_ENVPER, 1,CLR_BG, 2,CLR_NOISE, 0
+D_Env1          db 4,CLR_ENVPER, 1,CLR_BG, 2,CLR_NOISE, 1,CLR_BG, 4,CLR_ENVPER, 1,CLR_BG, 0
+D_Ch0           db 3,CLR_NOTE, 1,CLR_BG, 1,CLR_INSTR, 1,CLR_ENVSHAPE, 1,CLR_ORNAMENT, 1,CLR_VOLUME, 0
+D_Ch1           db 3,CLR_NOTE, 1,CLR_BG, 1,CLR_INSTR, 1,CLR_ENVSHAPE, 1,CLR_ORNAMENT, 1,CLR_VOLUME
+                db 1,CLR_BG, 4,CLR_CMD, 1,CLR_BG, 4,CLR_CMD, 0
+
 ; =========================================================================
-; РАМКИ, ЗАГОЛОВКИ, СКРОЛЛБАР - при смене вида
+; РАМКИ И ПОДПИСИ (строки 7 и 35), при смене раскладки
 ; =========================================================================
-Draw_Top                            ; ┌──┬──┐ по строке заголовка
-        ld a,BOX_TL
+Draw_Frame
+        ld a,BOX_TL                 ; ┌──┬──┐
         ld (HL_CornerL),a
         ld a,BOX_TR
         ld (HL_CornerR),a
@@ -1695,10 +1004,8 @@ Draw_Top                            ; ┌──┬──┐ по строке з
         ld a,BOX_DOWN2
         ld (HL_Junction2),a
         ld d,SCR_BASE_H+VIEW_LINE
-        jr Draw_HLine_Tpl
-
-Draw_Bottom                         ; └──┴──┘ под последней строкой
-        ld a,BOX_BL
+        call Draw_HLine
+        ld a,BOX_BL                 ; └──┴──┘
         ld (HL_CornerL),a
         ld a,BOX_BR
         ld (HL_CornerR),a
@@ -1707,50 +1014,93 @@ Draw_Bottom                         ; └──┴──┘ под послед�
         ld a,BOX_UP2
         ld (HL_Junction2),a
         ld d,SCR_BASE_H+BOTTOM_LINE
-Draw_HLine_Tpl                      ; вертикали - как в шаблоне нового вида
-        ld a,(Tpl_Build)
-        add a,SCR_BASE_H
-        ld h,a
+        call Draw_HLine
 
-; D - строка, где рисуем; H - строка, где смотрим вертикали
+        ld a,(THEME_ATTR+CLR_HEADER)    ; подписи
+        ld c,a
+        ld d,SCR_BASE_H+VIEW_LINE
+        ld e,ORD_X+1
+        ld hl,Txt_Order
+        call PutStr
+        ld e,ROWNUM_X
+        ld hl,Txt_Rw
+        call PutStr
+        ld b,0
+.t      push bc
+        ld a,b                      ; подпись элемента
+        ld hl,Item_Col
+        call Arr_Get
+        ld e,a
+        ld a,b
+        and 3
+        ld hl,Txt_Env
+        jr z,.p
+        ld a,b                      ; элемент -> буква канала: 1..3 -> A..C, 5..7 -> D..F
+        cp 4
+        jr c,$+3
+        dec a
+        add a,'A'-1
+        ld (Txt_Ch_L),a
+        ld hl,Txt_Ch
+.p      ld a,(Cursor_Item)          ; элемент под курсором - заголовок ярче (фокус)
+        cp b
+        ld a,(THEME_ATTR+CLR_HEADER)
+        jr nz,$+5
+        ld a,(THEME_ATTR+CLR_ORD_CUR)
+        ld c,a
+        call PutStr
+        pop bc
+        push bc
+        ld a,b                      ; кнопка [+] / [-] - двумя последними знаками элемента
+        ld hl,Item_Col
+        call Arr_Get
+        ld e,a
+        ld a,b
+        ld hl,Item_W
+        call Arr_Get
+        add a,e
+        sub 2
+        ld e,a
+        ld a,(Open_Item)
+        cp b
+        ld a,GLYPH_BTN_PLUS
+        jr nz,$+4
+        ld a,GLYPH_BTN_MINUS
+        call PutBtn
+        pop bc
+        inc b
+        ld a,b
+        cp ITEMS
+        jr c,.t
+        ret
+
+Txt_Order       db "Ord",0
+Txt_Rw          db "Rw",0
+Txt_Env         db "Env",0
+Txt_Ch          db "Ch:"
+Txt_Ch_L        db "A",0
+
+; D - строка. Стыки - под разделителями строки-шаблона (символы строки 36)
 Draw_HLine
+        ld h,SCR_BASE_H+TPL_LINE
         ld e,0
-.l      ld a,e
-        cp ORD_W
-        jr c,.in
-        ld a,(Blk_X0)
+.l      ld a,(THEME_ATTR+CLR_TITLE)
         ld c,a
         ld a,e
-        cp c
-        jr c,.out
-        ld a,(Blk_End)
+        or a
+        jr z,.cl
+        ld a,(Lay_End)
         cp e
-        jr c,.out
-.in     ld a,(THEME_ATTR+CLR_TITLE)
-        ld c,a
+        jr z,.cr
+        jr c,.out                   ; правее рамки - пусто
         ld l,e
         ld a,(hl)
         cp BOX_V2
-        jr z,.j2                    ; ║ - двойной стык
+        jr z,.j2
         cp BOX_V
         ld a,BOX_H
         jr nz,.put
-        ld a,e                      ; вертикаль: угол или стык
-        cp ORD_COL
-        jr z,.cl
-        ld a,(Blk_X0)
-        cp e
-        jr nz,.nb
-        cp ORD_W-1                  ; номер строки вплотную к ордер-листу - общая │
-        jr z,.jn
-        jr .cl
-.nb     ld a,e
-        cp ORD_W-1
-        jr z,.cr
-        ld a,(Blk_End)
-        cp e
-        jr z,.cr
-.jn     ld a,(HL_Junction)
+        ld a,(HL_Junction)
         jr .put
 .j2     ld a,(HL_Junction2)
         jr .put
@@ -1763,7 +1113,7 @@ Draw_HLine
         ld a,' '
 .put    call PutCh
         ld a,e
-        cp SCR_COLS
+        cp LINE_W
         jr c,.l
         ret
 
@@ -1772,141 +1122,399 @@ HL_CornerR      db 0
 HL_Junction     db 0
 HL_Junction2    db 0
 
-;-------- Подписи на верхней линии: Order, Rw, у каждой видимой группы - имя
-Draw_Titles
-        ld a,(THEME_ATTR+CLR_HEADER)
-        ld c,a
-        ld d,SCR_BASE_H+VIEW_LINE
-        ld e,ORD_COL+1
-        ld hl,Txt_Order
-        call PutStr
-        ld a,(Blk_X0)
-        inc a
-        ld e,a
-        ld hl,Txt_Rw
-        call PutStr
-        ld b,0
-.g      ld a,(Grp_N)
+;-------- Ордер-лист прямо на экран (колонки 0..4), при смене позиции.
+; "│r05│", у текущей позиции вместо левой линии - "►". За концом - "│   │"
+Draw_Order
+        xor a
+        ld (Order_Pending),a
+        ld d,SCR_BASE_H+FIRST_LINE
+        ld a,(Cur_Pos)
+        sub VIEW_CENTER
+        ld b,a                      ; B - позиция
+        ld a,VIEW_ROWS
+.l      push af
+        ld e,ORD_X
+        ld a,(Cur_Pos)              ; линия или стрелка текущей
         cp b
-        ret z
-        push bc
-        ld a,b
-        ld hl,Grp_X
-        call Arr_Get
-        ld hl,Off
-        sub (hl)
-        jr c,.skip                  ; левее окна
-        ld e,a
-        add a,4
-        ld hl,WinC
-        cp (hl)
-        jr nc,.skip                 ; не влезает справа
-        ld a,(Win_X)
-        add a,e
-        ld e,a
-        ld a,b
-        ld hl,Grp_Kind
-        call Arr_Get
-        or a
-        ld hl,Txt_Env
-        jr z,.put
-        ld a,b
-        ld hl,Grp_Num
-        call Arr_Get
-        add a,'A'
-        ld (Txt_Ch_L),a
-        ld a,b                      ; у канала - кнопки [+][-] вплотную к правому краю
-        ld hl,Grp_End
-        call Arr_Get
-        ld hl,Off
-        sub (hl)
-        sub 4                       ; x "+" в окне
-        jr c,.nobtn
-        ld l,a
-        add a,4
-        push hl
-        ld hl,WinC
-        cp (hl)
-        pop hl
-        jr nc,.nobtn                ; правее окна
-        ld a,(Win_X)
-        add a,l
-        push de
-        ld e,a
-        ld a,GLYPH_BTN_PLUS
-        call PutBtn
-        ld a,GLYPH_BTN_MINUS
-        call PutBtn
-        pop de
-.nobtn  ld hl,Txt_Ch
-.put    ld a,(THEME_ATTR+CLR_HEADER)
-        ld c,a
-        call PutStr
-.skip   pop bc
-        inc b
-        jp .g
-
-Txt_Order       db "Order ",0
-Txt_Rw          db "Rw",0
-Txt_Env         db "Env",0
-Txt_Ch          db "Ch:"
-Txt_Ch_L        db "A",0
-
-;-------- Скроллбар в нижней рамке (только при скролле): ◄ ▒▒▒■▒▒▒ ►
-Draw_Scrollbar
-        ld a,(Scroll_Mode)
-        or a
-        ret z
-        ld d,SCR_BASE_H+BOTTOM_LINE
-        ld a,(Win_X)
-        ld e,a
-        ld a,(THEME_ATTR+CLR_BUTTON)
-        ld c,a
-        ld a,ARROW_L
-        call PutCh
-        ld a,(THEME_ATTR+CLR_SB_TRACK)  ; дорожка
-        ld c,a
-        ld a,(Track_W)
-        ld b,a
-.t      ld a,SB_TRACK
-        call PutCh
-        djnz .t
-        ld a,(THEME_ATTR+CLR_BUTTON)
+        jr z,.cur
+        call PutBar
+        jr .item
+.cur    ld a,(THEME_ATTR+CLR_ORD_CUR)
         ld c,a
         ld a,ARROW_R
         call PutCh
-        ld a,(THEME_ATTR+CLR_SB_THUMB)  ; ползунок - пропорциональной длины
+.item   ld a,(Ord_Last)
+        cp b
+        jr nc,.pos
+        ld a,(THEME_ATTR+CLR_BG)    ; за концом - пусто
         ld c,a
-        ld a,(Win_X)
-        inc a
-        ld b,a
-        ld a,(Thumb_X)
-        add a,b
-        ld e,a
-        ld a,(Thumb_W)
-        ld b,a
-.th     ld a,SB_THUMB
+        ld a,' '
         call PutCh
-        djnz .th
+        ld a,' '
+        call PutCh
+        ld a,' '
+        call PutCh
+        jr .bar
+.pos    ld a,(THEME_ATTR+CLR_LOOP)  ; r - позиция повтора
+        ld c,a
+        ld a,(Loop_Pos)
+        cp b
+        ld a,' '
+        jr nz,$+4
+        ld a,'r'
+        call PutCh
+        ld a,(THEME_ATTR+CLR_PATNUM)
+        ld c,a
+        ld a,b
+        ld hl,Test_Order
+        call Arr_Get
+        call PutHex2
+.bar    call PutBar
+        inc d
+        inc b
+        pop af
+        dec a
+        jp nz,.l
+        ret
+
+; =========================================================================
+; ТАБЛИЦА РОУ: на каждую экранную строку 3 байта - страница паттерна,
+; #80+роу, состояние (ST_BASE / ST_ACTIVE). Страница 0 - роу пустая.
+; Активный = роу текущей позиции в текущем проходе. Строится в свободный буфер,
+; указатель меняется одной командой - IM1 всегда видит целую таблицу.
+; =========================================================================
+Row_Tab_A       ds VIEW_ROWS*3
+Row_Tab_B       ds VIEW_ROWS*3
+Row_Tab_Show    dw Row_Tab_A        ; по ней рисует IM1
+Row_Tab_Build   dw Row_Tab_B        ; эту строим
+
+T_Pos           db 0                ; позиция и роу, по которым идём
+T_Row           db 0
+T_Pass          db 0                ; проход: 0 - текущий, +-1 - соседние
+T_Dead          db 0                ; 1 - дальше пусто
+
+Build_Row_Tab
+        ld ix,(Row_Tab_Build)       ; IX - запись текущей роу (центр)
+        ld de,VIEW_CENTER*3
+        add ix,de
+        push ix
+        call T_From_Cur
+        call Put_Entry
+        ld b,VIEW_CENTER            ; вверх от текущей
+.up     push bc
+        ld de,-3
+        add ix,de
+        call Step_Back
+        call Put_Entry
+        pop bc
+        djnz .up
+        pop ix                      ; вниз от текущей
+        call T_From_Cur
+        ld b,VIEW_ROWS-1-VIEW_CENTER
+.dn     push bc
+        ld de,3
+        add ix,de
+        call Step_Fwd
+        call Put_Entry
+        pop bc
+        djnz .dn
+        ld hl,(Row_Tab_Show)        ; готово - меняем местами
+        ld de,(Row_Tab_Build)
+        ld (Row_Tab_Show),de        ; одна команда - IM1 не застанет половину
+        ld (Row_Tab_Build),hl
+        ret
+
+T_From_Cur
+        ld a,(Cur_Pos)
+        ld (T_Pos),a
+        ld a,(Cur_Row)
+        ld (T_Row),a
+        xor a
+        ld (T_Pass),a
+        ld (T_Dead),a
+        ret
+
+; (IX) = запись для T_Pos/T_Row, или пусто
+Put_Entry
+        ld a,(T_Dead)
+        or a
+        jr z,.ok
+        ld (ix+0),0
+        ret
+.ok     call T_Pat
+        add a,PAT_PAGE
+        ld (ix+0),a
+        ld a,(T_Row)
+        add a,PAT_BASE_H
+        ld (ix+1),a
+        ld a,(T_Pass)               ; активный - только текущая позиция в текущем проходе
+        or a
+        ld a,ST_BASE
+        jr nz,.st
+        ld a,(Cur_Pos)
+        ld b,a
+        ld a,(T_Pos)
+        cp b
+        ld a,ST_BASE
+        jr nz,.st
+        ld a,ST_ACTIVE
+.st     ld (ix+2),a
+        ret
+
+T_Pat                               ; A = паттерн позиции T_Pos. Портит HL
+        ld a,(T_Pos)
+        ld hl,Test_Order
+        jp Arr_Get
+
+T_Len                               ; A = длина паттерна позиции T_Pos. Портит HL
+        call T_Pat
+        ld hl,Pat_Len
+        jp Arr_Get
+
+; Роу назад. Сонг: в конец предыдущей позиции, до нулевой. Паттерн по кругу:
+; в конец того же паттерна, проход -1; выше первого прохода плея - пусто
+Step_Back
+        ld a,(T_Dead)
+        or a
+        ret nz
+        ld a,(T_Row)
+        or a
+        jr z,.edge
+        dec a
+        ld (T_Row),a
+        ret
+.edge   ld a,(Src_Mode)
+        or a
+        jr nz,.song
+        ld a,(Pat_Loops)            ; паттерн: проходы до первого - пусто
+        ld b,a
+        ld a,(T_Pass)
+        add a,b
+        jr z,T_Kill
+        ld hl,T_Pass
+        dec (hl)
+        jr .last
+.song   ld a,(T_Pos)
+        or a
+        jr z,T_Kill
+        dec a
+        ld (T_Pos),a
+        ld hl,T_Pass                ; другая позиция - уже не активная
+        dec (hl)
+.last   call T_Len
+        dec a
+        ld (T_Row),a
+        ret
+
+T_Kill  ld a,1
+        ld (T_Dead),a
+        ret
+
+; Роу вперёд. Сонг: на начало следующей позиции, после последней - на позицию
+; повтора. Паттерн по кругу: на начало того же, проход +1
+Step_Fwd
+        ld a,(T_Dead)
+        or a
+        ret nz
+        ld a,(T_Row)
+        inc a
+        ld (T_Row),a
+        ld b,a
+        call T_Len
+        ld c,a
+        ld a,b
+        cp c
+        ret c                       ; ещё внутри паттерна
+        xor a
+        ld (T_Row),a
+        ld hl,T_Pass                ; другой проход/позиция - не активный
+        inc (hl)
+        ld a,(Src_Mode)
+        or a
+        ret z                       ; паттерн по кругу
+        ld a,(Ord_Last)
+        ld b,a
+        ld a,(T_Pos)
+        inc a
+        cp b
+        jr c,.pos
+        jr z,.pos
+        ld a,(Loop_Pos)
+.pos    ld (T_Pos),a
+        ret
+
+; =========================================================================
+; ТЕКСТ РОУ в странице паттерна. H - роу (страница - в окне 2).
+; По таблице полей Txt_Fields: тип, смещение данных, колонка текста.
+; Пробелы между полями кладёт Init_Pat_Text один раз.
+; =========================================================================
+F_HEX16         equ 1               ; 2 байта, старший первым, 4 hex; 0 - "...."
+F_NOISE         equ 2               ; 1 байт, 2 hex; 0 - ".."
+F_NOTE          equ 3               ; нота, 3 знака
+F_SYM           equ 4               ; сэмпл/орнамент, 1 знак (1..W)
+F_HX1           equ 5               ; огибающая/громкость, 1 hex
+F_CMD           equ 6               ; команда: 2 байта как лежат, 4 hex; 0,0 - "...."
+
+    ; Поле: тип, смещение данных в роу, колонка текста в строке страницы.
+    ; Закрытые части - в блоке (TX_BLOCK + экранная колонка при "всё закрыто" -
+    ; CONT_X), расширения - на своих местах EX_*.
+    MACRO TXT_ENV src,cx,ex             ; Env: "0134 1F" + расширение " 0000 "
+        db F_HEX16, (src)+CHIP_ENVPER, TX_BLOCK+(cx)-CONT_X
+        db F_NOISE, (src)+CHIP_NOISE,  TX_BLOCK+(cx)-CONT_X+5
+        db F_HEX16, (src)+CHIP_ENV2,   (ex)+1
+    ENDM
+    MACRO TXT_CH src,cx,ex              ; канал: "C-4 A1FE" + расширение " 1234 5678"
+        db F_NOTE, (src)+CH_NOTE,      TX_BLOCK+(cx)-CONT_X
+        db F_SYM,  (src)+CH_SAMPLE,    TX_BLOCK+(cx)-CONT_X+4
+        db F_HX1,  (src)+CH_ENVSHAPE,  TX_BLOCK+(cx)-CONT_X+5
+        db F_SYM,  (src)+CH_ORNAMENT,  TX_BLOCK+(cx)-CONT_X+6
+        db F_HX1,  (src)+CH_VOLUME,    TX_BLOCK+(cx)-CONT_X+7
+        db F_CMD,  (src)+CH_CMD,       (ex)+1
+        db F_CMD,  (src)+CH_CMD+CMD_SIZE, (ex)+6
+    ENDM
+
+Txt_Fields
+        TXT_ENV 0,                      CX_ENV1, EX_ENV1
+        TXT_CH  CHIP_CH_A,              CX_A,    EX_A
+        TXT_CH  CHIP_CH_B,              CX_B,    EX_B
+        TXT_CH  CHIP_CH_C,              CX_C,    EX_C
+        TXT_ENV CHIP_SIZE,              CX_ENV2, EX_ENV2
+        TXT_CH  CHIP_SIZE+CHIP_CH_A,    CX_D,    EX_D
+        TXT_CH  CHIP_SIZE+CHIP_CH_B,    CX_E,    EX_E
+        TXT_CH  CHIP_SIZE+CHIP_CH_C,    CX_F,    EX_F
+        db 0
+
+; H - роу. Портит всё, кроме H
+Row_To_Text
+        ld ix,Txt_Fields
+.f      ld a,(ix+0)                 ; тип, 0 - конец
+        or a
+        ret z
+        ld l,(ix+1)                 ; данные: C - байт, B - следующий
+        ld c,(hl)
+        inc l
+        ld b,(hl)
+        ld l,(ix+2)                 ; L - куда текст
+        inc ix
+        inc ix
+        inc ix
+        dec a
+        jr z,.hex16
+        dec a
+        jr z,.noise
+        dec a
+        jr z,.note
+        dec a
+        jr z,.sym
+        dec a
+        jr z,.hx1
+.cmd    ld a,b                      ; команда: байт C, потом B
+        or c
+        jr z,.dots4
+        ld a,c
+        call Txt_Hex2
+        ld a,b
+        call Txt_Hex2
+        jr .f
+.hex16  ld a,b                      ; 16 бит: старший B, потом младший C
+        or c
+        jr z,.dots4
+        ld a,b
+        call Txt_Hex2
+        ld a,c
+        call Txt_Hex2
+        jr .f
+.dots4  ld a,'.'
+        ld (hl),a
+        inc l
+        ld (hl),a
+        inc l
+        ld (hl),a
+        inc l
+        ld (hl),a
+        jr .f
+.noise  ld e,c                      ; 2 знака из HexD_T (0 - "..")
+        ld d,high HexD_T
+        ld a,(de)
+        ld (hl),a
+        inc l
+        inc d
+        ld a,(de)
+        ld (hl),a
+        jr .f
+.note   ld e,c                      ; 3 знака из Note_T
+        ld d,high Note_T
+        ld a,(de)
+        ld (hl),a
+        inc l
+        inc d
+        ld a,(de)
+        ld (hl),a
+        inc l
+        inc d
+        ld a,(de)
+        ld (hl),a
+        jr .f
+.sym    ld e,c
+        ld d,high Sym_T
+        ld a,(de)
+        ld (hl),a
+        jr .f
+.hx1    ld e,c
+        ld d,high Hx1_T
+        ld a,(de)
+        ld (hl),a
+        jr .f
+
+; A -> 2 hex в (HL), L += 2. Портит DE
+Txt_Hex2
+        ld e,a
+        ld d,high Hex_T
+        ld a,(de)
+        ld (hl),a
+        inc l
+        inc d
+        ld a,(de)
+        ld (hl),a
+        inc l
+        ret
+
+; Паттерн в окне 2: текст всех 64 роу - пробелы, номер роу, поля
+Init_Pat_Text
+        ld h,PAT_BASE_H
+.r      ld l,PAT_TEXT               ; пробелы
+        ld a,' '
+.s      ld (hl),a
+        inc l
+        jr nz,.s
+        call Row_To_Text
+        inc h
+        ld a,h
+        cp PAT_BASE_H+PAT_ROWS_MAX
+        jr c,.r
+        ret
+
+;-------- Страница номеров роу: строка r, колонки ROWNUM_X..+1 = "rr". Одна на
+; всех: номер роу на экран идёт черепицей отсюда, а не из страницы паттерна
+Init_RowNum
+        SETPAGE2 PAGE_ROWNUM
+        ld h,PAT_BASE_H
+.r      ld a,h
+        sub PAT_BASE_H
+        ld l,ROWNUM_X
+        call Txt_Hex2
+        inc h
+        ld a,h
+        cp PAT_BASE_H+PAT_ROWS_MAX
+        jr c,.r
+        RESTPAGE2
         ret
 
 ; =========================================================================
 ; ВВОД
 ; =========================================================================
 ; Клавиша: старший байт порта #xxFE, маска, обработчик. Конец - 0
-Key_Tab db #F7,%00001
-        dw K_Mode0                  ; 1
-        db #F7,%00010
-        dw K_Mode1                  ; 2
-        db #F7,%00100
-        dw K_Mode2                  ; 3
-        db #FE,%00100
-        dw K_Expand                 ; X - раскрыть канал под курсором
-        db #FE,%00010
-        dw K_Collapse               ; Z - свернуть
-        db #F7,%10000
-        dw K_Chips                  ; 5
-        db #FB,%00001
+Key_Tab db #FB,%00001
         dw K_RowUp                  ; Q
         db #FD,%00001
         dw K_RowDn                  ; A
@@ -1915,17 +1523,23 @@ Key_Tab db #F7,%00001
         db #DF,%00001
         dw K_ChRight                ; P
         db #BF,%00100
-        dw K_ScLeft                 ; K
+        dw K_ChLeft                 ; K
         db #BF,%00010
-        dw K_ScRight                ; L
-        db #FB,%00010
-        dw K_Wrap                   ; W
-        db #7F,%00001
-        dw K_Play                   ; Space
+        dw K_ChRight                ; L
+        db #FB,%00100
+        dw K_EnvOpen                ; E
+        db #F7,%00001
+        dw K_PlaySong               ; 1
+        db #F7,%00010
+        dw K_PlayPat                ; 2
+        db #F7,%00100
+        dw K_Stop                   ; 3
+        db #F7,%01000
+        dw K_Continue               ; 4
         db #FB,%10000
         dw K_Timing                 ; T
         db 0
-KEYS_N          equ 15
+KEYS_N          equ 12
 Keys_Prev       ds KEYS_N
 
 Handle_Keys
@@ -1959,119 +1573,85 @@ Handle_Keys
         jr .k
 .jp     jp (hl)
 
-K_Mode0 xor a
-        jr Set_Mode
-K_Mode1 ld a,MODE_NORMAL
-        jr Set_Mode
-K_Mode2 ld a,MODE_FULL
-Set_Mode
-        ld (View_Mode),a
-        ld hl,Chan_Level            ; вид - уровень всем каналам
-        ld b,6
-.l      ld (hl),a
-        inc hl
-        djnz .l
-        xor a
-        ld (HScroll),a
-Dirty   ld a,1
-        ld (Need_Layout),a
-        ret
-
-;-------- +/- канала: A - канал. Раскрыть / свернуть на уровень
-K_Expand
-        ld a,(Cur_Chan)
-Chan_Expand
-        ld hl,Chan_Level
-        call Arr_Ptr
-        ld a,(hl)
-        cp MODE_FULL
-        ret nc
-        inc (hl)
-        jr Dirty
-K_Collapse
-        ld a,(Cur_Chan)
-Chan_Collapse
-        ld hl,Chan_Level
-        call Arr_Ptr
-        ld a,(hl)
+; Роу курсора: по полотну (сонг) или по кругу (плей паттерна)
+K_RowUp call T_From_Cur
+        call Step_Back
+        jr T_To_Cur
+K_RowDn call T_From_Cur
+        call Step_Fwd
+T_To_Cur
+        ld a,(T_Dead)
         or a
+        ret nz
+        ld a,(T_Pass)               ; плей паттерна: прошёл круг
+        ld hl,Pat_Loops
+        add a,(hl)
+        ld (hl),a
+        ld a,(T_Row)
+        ld (Cur_Row),a
+        ld a,(T_Pos)
+        ld hl,Cur_Pos
+        cp (hl)
         ret z
-        dec (hl)
-        jr Dirty
+        ld (hl),a
+        ld a,1                      ; позиция сменилась - перерисовать ордер
+        ld (Order_Pending),a
+        ret
 
-; HL - массив, A - индекс -> HL = адрес элемента
-Arr_Ptr
-        add a,l
-        ld l,a
-        adc a,h
-        sub l
-        ld h,a
-        ret
-K_Chips ld hl,View_Chips
-        ld a,(hl)
-        xor 3                       ; 1 <-> 2
-        ld (hl),a
-        cp 2
-        jr z,.ok
-        ld a,(Cur_Chan)
-        cp 3
-        jr c,.ok
-        ld a,2
-        ld (Cur_Chan),a
-.ok     xor a
-        ld (HScroll),a
-        jr Dirty
-K_RowUp ld hl,Cur_Row
-        dec (hl)
-        jr Row_Wrap
-K_RowDn ld hl,Cur_Row
-        inc (hl)
-Row_Wrap
-        ld a,(hl)
-        and PAT_ROWS_MAX-1
-        ld (hl),a
-        ret
 K_ChLeft
         ld a,(Cur_Chan)
         or a
         ret z
         dec a
+        jr Set_Chan
+K_ChRight
+        ld a,(Cur_Chan)
+        cp 5
+        ret nc
+        inc a
 Set_Chan
         ld (Cur_Chan),a
+        xor a
+        ld (Env_Open),a
+Need_Layout
         ld a,1
-        ld (Cursor_Moved),a
-        jr Dirty
-K_ChRight
-        ld a,(View_Chips)
-        ld b,a
-        add a,a
-        add a,b
-        dec a                       ; последний канал
-        ld b,a
-        ld a,(Cur_Chan)
-        cp b
-        ret nc
+        ld (Layout_Pending),a
+        ret
+K_EnvOpen
+        ld hl,Env_Open
+        ld a,(hl)
+        xor 1
+        ld (hl),a
+        jr Need_Layout
+
+; Плей / стоп - как в других трекерах
+K_PlaySong                          ; сонг с начала текущей позиции
+        ld a,1
+        ld (Src_Mode),a
+        jr Play_From0
+K_PlayPat                           ; текущий паттерн по кругу с начала
+        xor a
+        ld (Src_Mode),a
+Play_From0
+        xor a
+        ld (Cur_Row),a
+        ld (Pat_Loops),a
+        ld (Play_Tick),a
+        ld a,1
+        ld (Playing),a
+        ret
+K_Stop  xor a                       ; стоп: остаёмся где стоим, полотно - по ордеру
+        ld (Playing),a
+        ld (Pat_Loops),a
         inc a
-        jr Set_Chan
-K_ScLeft
-        ld a,(HScroll)
-        or a
-        ret z
-        dec a
-        ld (HScroll),a
-        jp Dirty
-K_ScRight
-        ld a,(HScroll)
-        ld hl,Max_Scroll
-        cp (hl)
-        ret nc
-        inc a
-        ld (HScroll),a
-        jp Dirty
-K_Wrap  ld hl,View_Wrap
-        jr Toggle
-K_Play  ld hl,Playing
-        jr Toggle
+        ld (Src_Mode),a
+        ret
+K_Continue                          ; продолжить сонг с текущего места
+        ld a,1
+        ld (Src_Mode),a
+        ld (Playing),a
+        ret
+
 K_Timing
         ld hl,Timing
         ld a,(hl)
@@ -2098,117 +1678,115 @@ Int_Line_Set
         ld bc,VSINTH
         out (c),a
         ret
-Toggle  ld a,(hl)
-        xor 1
-        ld (hl),a
-        ret
 
-;-------- Мышь: колесо - строка, левая кнопка на нижней рамке - скроллбар
+;-------- Мышь: колесо - роу, с Symbol/Caps Shift (Ctrl/Shift) - канал.
+; Левая кнопка на [+]/[-] в заголовке - открыть / закрыть элемент
 Handle_Mouse
         call Mouse_Get_Wheel
         or a
-        jr z,.nowheel
-        ld b,a
-        ld a,(Cur_Row)
-        sub b
-        and PAT_ROWS_MAX-1
-        ld (Cur_Row),a
-.nowheel
-        ld a,(SV_MOUSE_BUT)         ; бит 0 = 0 - левая нажата
+        jr z,.button
+        ld c,a
+        ld a,#7F                    ; Symbol Shift: порт #7FFE, бит 1
+        in a,(#FE)
+        and %00010
+        jr z,.ch
+        ld a,#FE                    ; Caps Shift: порт #FEFE, бит 0
+        in a,(#FE)
+        and %00001
+        jr z,.ch
+        ld a,c                      ; без модификатора - роу
+        or a
+        jp m,K_RowDn
+        jp K_RowUp
+.ch     ld a,c
+        or a
+        jp m,K_ChRight
+        jp K_ChLeft
+
+.button ld a,(SV_MOUSE_BUT)         ; бит 0 = 0 - левая нажата
         cpl
         and 1
         ld hl,Mouse_Prev
-        ld c,(hl)                   ; C - была нажата в прошлом кадре
+        ld c,(hl)
         ld (hl),a
         or a
         ret z
-        ld a,(SV_MOUSE_ROW)         ; знакоместа - готовые, из прерывания мыши
+        ld a,c                      ; только на нажатие
+        or a
+        ret nz
+        ld a,(SV_MOUSE_ROW)
         cp VIEW_LINE
-        jr z,Mouse_Header
-        cp BOTTOM_LINE
         ret nz
-        ld a,(Scroll_Mode)
-        or a
-        ret z
-        ld a,(SV_MOUSE_COL)
-        ld hl,Win_X
-        sub (hl)
-        ret c
-        ld hl,WinC
-        cp (hl)
-        ret nc
-        or a                        ; ◄ - на нажатие
-        jr z,.left
-        inc a
-        cp (hl)
-        jr z,.right                 ; ► - последняя колонка окна
-        sub 2                       ; дорожка: колонка 0..Track_W-1
-        ld hl,Scroll_Map
-        call Arr_Get
-        ld hl,HScroll
-        cp (hl)
-        ret z
-        ld (hl),a
-        jp Dirty
-.left   ld a,c
-        or a
-        ret nz                      ; держат - не повторяем
-        jp K_ScLeft
-.right  ld a,c
-        or a
-        ret nz
-        jp K_ScRight
-
-;-------- Нажатие в строке заголовка: + / - канала (на нажатие, не на удержание)
-Mouse_Header
-        ld a,c
-        or a
-        ret nz
-        ld a,(SV_MOUSE_COL)         ; x в раскладке = колонка - Win_X + Off
-        ld hl,Win_X
-        sub (hl)
-        ret c
-        ld hl,Off
-        add a,(hl)
+        ld a,(SV_MOUSE_COL)         ; кнопка - два последних знака элемента
         ld e,a
-        ld b,0                      ; ищем канал, у которого здесь + или -
-.g      ld a,(Grp_N)
+        ld b,0
+.it     ld a,b
+        ld hl,Item_Col
+        call Arr_Get
+        ld c,a
+        ld a,b
+        ld hl,Item_W
+        call Arr_Get
+        add a,c
+        sub 2                       ; A - левая половина кнопки
+        cp e
+        jr z,.hit
+        inc a                       ; правая
+        cp e
+        jr z,.hit
+        inc b
+        ld a,b
+        cp ITEMS
+        jr c,.it
+        ret
+.hit    ld a,(Open_Item)            ; [-] у открытого - закрыть всё
         cp b
-        ret z
-        ld a,b
-        ld hl,Grp_Kind
-        call Arr_Get
-        or a
-        jr z,.n                     ; чип - без кнопок
-        ld a,b
-        ld hl,Grp_End
-        call Arr_Get
-        sub 4                       ; [+] - 2 знакоместа, [-] - 2
-        cp e
-        jr z,.plus
-        inc a
-        cp e
-        jr z,.plus
-        inc a
-        cp e
-        jr z,.minus
-        inc a
-        cp e
-        jr z,.minus
-.n      inc b
-        jr .g
-.plus   ld a,b
-        ld hl,Grp_Num
-        call Arr_Get
-        jp Chan_Expand
-.minus  ld a,b
-        ld hl,Grp_Num
-        call Arr_Get
-        jp Chan_Collapse
+        jr z,.close
+        ld a,b                      ; [+] - открыть: Env чипа или канал
+        and 3
+        jr z,.env
+        ld a,b                      ; элемент -> канал: 1..3 -> 0..2, 5..7 -> 3..5
+        dec a
+        cp 4
+        jr c,$+3
+        dec a
+        jp Set_Chan
+.env    ld a,b                      ; Env: курсор на канал A этого чипа + Env
+        rrca
+        rrca
+        and 1
+        ld c,a
+        add a,a
+        add a,c                     ; 0 или 3
+        ld (Cur_Chan),a
+        ld a,1
+        ld (Env_Open),a
+        jp Need_Layout
+.close  ld a,ITEM_NONE              ; ничего не открыто
+        ld (Open_Item),a
+        ld a,1                      ; раскладка без Calc_Open
+        ld (Layout_Busy),a
+        call Build_Layout_Keep
+        xor a
+        ld (Layout_Busy),a
+        ret
+
+; Как Build_Layout, но открытый элемент не пересчитывается
+Build_Layout_Keep
+        ld hl,Calc_Open             ; временно "ret" вместо Calc_Open
+        ld a,(hl)
+        push af
+        push hl
+        ld (hl),#C9
+        call Build_Layout
+        pop hl
+        pop af
+        ld (hl),a
+        ret
 
 Mouse_Prev      db 0
 
-;-------- Имитация проигрывания: строка каждые 3 кадра
+;-------- Имитация проигрывания: роу каждые 3 кадра
 Play_Step
         ld a,(Playing)
         or a
@@ -2219,17 +1797,14 @@ Play_Step
         cp 3
         ret c
         ld (hl),0
-        ld hl,Cur_Row
-        inc (hl)
-        jp Row_Wrap
+        jp K_RowDn
 
-;-------- Полоса времени: на каждый шаг фон (палитра PALET_NUM, цвет 0) своим цветом.
-; Высота цвета на экране = время шага. T - вкл/выкл.
+; =========================================================================
+; ПОЛОСА ВРЕМЕНИ И ЗАМЕР DMA
+; =========================================================================
 BAND_W          equ PALET_NUM*16    ; слово CRAM
 
-;-------- Замер: DMA FILL 4К (16 строк по 256) в свободную страницу, фон оранжевый.
-; Высота оранжевой полосы = время. 1 строка знакомест = 8 строк растра = 512 мкс
-BENCH_PAGE      equ #BF             ; последняя страница пула - не используется
+;-------- Замер: DMA FILL 4К (16 строк по 256) в свободную страницу, фон оранжевый
 Bench_Dma_Fill
         BAND_M BAND_DMATEST
         ld hl,Bench_T
@@ -2240,7 +1815,7 @@ Bench_Dma_Fill
 
 Bench_T db high DMASADDRL,(Bench_Zero-#4000)&255, high DMASADDRH,(Bench_Zero-#4000)>>8
         db high DMASADDRX,PAGE_TOOL_PATVIEW
-        db high DMADADDRL,0, high DMADADDRH,0, high DMADADDRX,BENCH_PAGE
+        db high DMADADDRL,0, high DMADADDRH,0, high DMADADDRX,PAGE_BENCH
         db high DMALEN,127, high DMANUM,15, high DMACTR,DMA_FILL|DMA_DALGN, #FF
 
         ALIGN 2
@@ -2295,50 +1870,152 @@ Band_Bg         dw 0                ; 0 - обычный фон (копия из
                 db %00011000, %01100011     ; 7 белый
                 db %00000000, %01100001     ; 8 оранжевый - замер DMA
 
-;-------- Плоскости атрибутов из темы: значение 0 - "пусто", остальное - цвет поля
-Build_Attr_Tables
-        ld a,(THEME_ATTR+CLR_NOTE)
-        ld h,(high Note_T)+3
-        call Fill_Attr_Plane
-        ld a,(THEME_ATTR+CLR_NOISE)
-        ld h,(high HexD_T)+2
-        call Fill_Attr_Plane
-        ld a,(THEME_ATTR+CLR_INSTR)
-        ld h,(high Sym_T)+1
-        call Fill_Attr_Plane
-        ld a,(THEME_ATTR+CLR_ORNAMENT)
-        ld h,(high Sym_T)+2
-        call Fill_Attr_Plane
-        ld a,(THEME_ATTR+CLR_ENVSHAPE)
-        ld h,(high Hx1_T)+1
-        call Fill_Attr_Plane
-        ld a,(THEME_ATTR+CLR_VOLUME)
-        ld h,(high Hx1_T)+2
-        call Fill_Attr_Plane
-        ld h,high Row_A             ; номер строки: каждая 4-я выделена
-        ld l,0
-.r      ld a,l
-        and 3
-        ld a,(THEME_ATTR+CLR_ROW_NUM)
-        jr nz,$+5
-        ld a,(THEME_ATTR+CLR_ROW_BEAT)
-        ld (hl),a
-        inc l
-        jr nz,.r
+; =========================================================================
+; ТЕСТОВЫЙ ТРЕК: 8 паттернов разной длины, длинный ордер (для плея сонга).
+; Все поля непустые (худший случай), значения зависят от паттерна, роу и
+; канала - сразу видно, откуда строка.
+; =========================================================================
+TEST_PATS       equ 8
+Pat_Len         db 64,16,32,1,48,8,64,24   ; длина паттерна 0..7
+                ds PATTERNS_MAX-TEST_PATS,64
+Test_Order      db 0,1,2,3,3,3,4,5,5,6,1,7,2,0,3,4,6,5,7,1,2,0,6,7
+TEST_ORD_N      equ $-Test_Order
+                ds ORDER_TEST_MAX-TEST_ORD_N,0
+ORDER_TEST_MAX  equ 64
+
+Test_Song
+        ld a,TEST_ORD_N-1
+        ld (Ord_Last),a
+        ld a,2                      ; повтор - с позиции 2
+        ld (Loop_Pos),a
+        xor a                       ; номер паттерна - в памяти: SETPAGE работает
+        ld (TF_Pat),a               ; через стек, push/pop вокруг него нельзя
+.p      ld a,(TF_Pat)
+        add a,PAT_PAGE
+        SETPAGE2 a                  ; страница паттерна - в окно 2
+        call Test_Fill
+        call Init_Pat_Text
+        RESTPAGE2
+        ld hl,TF_Pat
+        inc (hl)
+        ld a,(hl)
+        cp TEST_PATS
+        jr c,.p
         ret
 
-Fill_Attr_Plane
-        ld l,0
-.f      ld (hl),a
+TF_Pat          db 0
+
+; Паттерн в окне 2 (номер - TF_Pat): все 64 роу данных
+Test_Fill
+        ld h,PAT_BASE_H
+        ld c,0                      ; C - роу
+.row    ld l,0
+        ld b,CHIPS_MAX
+.chip   push bc
+        ld (hl),c                   ; период огибающей: мл = роу, ст = паттерн+1
         inc l
-        jr nz,.f
-        ld a,(THEME_ATTR+CLR_EMPTY)
+        ld a,(TF_Pat)
+        inc a
         ld (hl),a
+        inc l
+        ld a,(TF_Pat)               ; огибающая-2: мл = паттерн, ст = роу
+        ld (hl),a
+        inc l
+        ld (hl),c
+        inc l
+        ld a,c                      ; шум 1..32
+        and #1F
+        inc a
+        ld (hl),a
+        inc l
+        ld (hl),0                   ; нота огибающей
+        inc l
+        ld (hl),0                   ; резерв
+        inc l
+        ld (hl),0
+        inc l
+        ld b,3                      ; 3 канала
+.ch     push bc
+        ld a,b                      ; нота: (роу + канал*11 + паттерн*5) mod 96 + 1
+        add a,a
+        add a,a
+        add a,a
+        add a,b
+        add a,b
+        add a,b
+        add a,c
+        ld e,a
+        ld a,(TF_Pat)
+        ld d,a
+        add a,a
+        add a,a
+        add a,d
+        add a,e
+.mod    cp NOTE_COUNT
+        jr c,.nok
+        sub NOTE_COUNT
+        jr .mod
+.nok    inc a
+        ld (hl),a
+        inc l
+        ld a,(TF_Pat)               ; сэмпл = паттерн+1 (видно, чей паттерн)
+        inc a
+        ld (hl),a
+        inc l
+        ld a,c                      ; огибающая 1..15
+        and #0E
+        inc a
+        ld (hl),a
+        inc l
+        ld a,c                      ; орнамент 1..16
+        add a,b
+        and #0F
+        inc a
+        ld (hl),a
+        inc l
+        ld a,c                      ; громкость 8..15
+        and 7
+        add a,8
+        ld (hl),a
+        inc l
+        ld (hl),0                   ; резерв
+        inc l
+        ld a,b                      ; команда 1: канал*16 + паттерн, роу
+        add a,a
+        add a,a
+        add a,a
+        add a,a
+        ld e,a
+        ld a,(TF_Pat)
+        add a,e
+        ld (hl),a
+        inc l
+        ld (hl),c
+        inc l
+        ld (hl),c                   ; команда 2: роу, #A0 + канал
+        inc l
+        ld a,b
+        add a,#A0
+        ld (hl),a
+        inc l
+        ld a,l                      ; резерв канала
+        add a,CH_SIZE-CH_CMD-CH_CMDS*CMD_SIZE
+        ld l,a
+        pop bc
+        djnz .ch
+        pop bc
+        djnz .chip
+        inc h
+        inc c
+        ld a,c
+        cp PAT_ROWS_MAX
+        jp c,.row
         ret
 
 ; =========================================================================
-; Простой вывод (статика, ордер-лист)
+; Простой вывод (рамки, ордер)
 ; =========================================================================
+; HL - строка, конец 0. C - цвет. На выходе HL - на 0
 PutStr
 .l      ld a,(hl)
         or a
@@ -2377,18 +2054,21 @@ PutBar
         pop bc
         ret
 
-; Внутренний разделитель: A - символ (│ или ║), цвет CLR_SEP
-PutSep
+; Кнопка A (2 знакоместа: A, A+1; нажатая - A+BTN_PRESSED) цветом CLR_BUTTON. E += 2
+PutBtn
         push bc
         ld b,a
-        ld a,(THEME_ATTR+CLR_SEP)
+        ld a,(THEME_ATTR+CLR_BUTTON)
         ld c,a
-        ld a,b
+        ld a,b                      ; левая половина
+        call PutCh
+        ld a,b                      ; правая
+        inc a
         call PutCh
         pop bc
         ret
 
-; Символ A атрибутом C в DE (D - строка, E - колонка), атрибут на +128. E++
+; Символ A цветом C в DE (D - строка, E - колонка), цвет на +128. E++
 PutCh
         ld (de),a
         set 7,e
@@ -2398,24 +2078,48 @@ PutCh
         inc e
         ret
 
+; A - индекс, HL - массив байт -> A = массив[индекс]
+Arr_Get
+        add a,l
+        ld l,a
+        adc a,h
+        sub l
+        ld h,a
+        ld a,(hl)
+        ret
+
+;-------- Цвет номера роу: каждая 4-я своим цветом (оба - готовые из темы)
+Build_Row_A
+        ld h,high Row_A
+        ld l,0
+.r      ld a,l
+        and 3
+        ld a,(THEME_ATTR+CLR_ROW_NUM)
+        jr nz,$+5
+        ld a,(THEME_ATTR+CLR_ROW_BEAT)
+        ld (hl),a
+        inc l
+        jr nz,.r
+        ret
+
 ; =========================================================================
 ; ТАБЛИЦЫ-ПЛОСКОСТИ (каждая 256 байт на границе 256, индекс - само значение)
 ; hex-цифра d -> символ: '0'+d+((d+6)>>4)*7
 ; =========================================================================
         ALIGN 256
-Note_T  db '-'                      ; 0 "---", 1..96 "C-0".."B-7", 97 "OFF", дальше "???"
+Note_T  db '.'                      ; 0 "...", 1..96 "C-0".."B-7", 97 "OFF", дальше "???"
         DUP 8
         db "CCDDEFFGGAAB"
         EDUP
         db 'O'
         ds 256-98,'?'
-        db '-'
+        db '.'
         DUP 8
         db "-#-#--#-#-#-"
         EDUP
         db 'F'
         ds 256-98,'?'
-        db '-'
+        db '.'
         DUP 8,O
         DUP 12
         db '0'+O
@@ -2423,7 +2127,6 @@ Note_T  db '-'                      ; 0 "---", 1..96 "C-0".."B-7", 97 "OFF", д�
         EDUP
         db 'F'
         ds 256-98,'?'
-        ds 256                      ; атрибут
 
 Hex_T   DUP 256,N                   ; 2 hex всегда
         db '0'+(N>>4)+(((N>>4)+6)>>4)*7
@@ -2432,19 +2135,18 @@ Hex_T   DUP 256,N                   ; 2 hex всегда
         db '0'+(N&15)+(((N&15)+6)>>4)*7
         EDUP
 
-HexD_T  db '-'                      ; 2 hex, 0 = "--"
+HexD_T  db '.'                      ; 2 hex, 0 = ".."
         DUP 255,N
         db '0'+((N+1)>>4)+((((N+1)>>4)+6)>>4)*7
         EDUP
-        db '-'
+        db '.'
         DUP 255,N
         db '0'+((N+1)&15)+((((N+1)&15)+6)>>4)*7
         EDUP
-        ds 256                      ; атрибут шума
 
-Row_A   ds 256                      ; атрибут номера строки
+Row_A   ds 256                      ; цвет номера роу
 
-Sym_T   db '-'                      ; 0 "-", 1..9, A..W, дальше "?"
+Sym_T   db '.'                      ; 0 ".", 1..9, A..W, дальше "?"
         DUP 9,I
         db '1'+I
         EDUP
@@ -2452,29 +2154,19 @@ Sym_T   db '-'                      ; 0 "-", 1..9, A..W, дальше "?"
         db 'A'+I
         EDUP
         ds 256-33,'?'
-        ds 256                      ; атрибут сэмпла
-        ds 256                      ; атрибут орнамента
 
-Hx1_T   db '-'                      ; 0 "-", 1..F, дальше "?"
+Hx1_T   db '.'                      ; 0 ".", 1..F, дальше "?"
         DUP 15,I
         db '0'+(I+1)+(((I+1)+6)>>4)*7
         EDUP
         ds 256-16,'?'
-        ds 256                      ; атрибут огибающей
-        ds 256                      ; атрибут громкости
 Tables_End
 
-    ASSERT Hex_T == Note_T+4*256
+    ASSERT Hex_T == Note_T+3*256
     ASSERT HexD_T == Hex_T+2*256
-    ASSERT Row_A == HexD_T+3*256
+    ASSERT Row_A == HexD_T+2*256
     ASSERT Sym_T == Row_A+256
-    ASSERT Hx1_T == Sym_T+3*256
-    ASSERT Tables_End == Hx1_T+3*256
-
-; Сгенерированный код строки: два буфера - IM1 рисует одним, перестройка
-; вида готовит другой, переключение - в IM1 (Apply_Layout)
-ROW_CODE_MAX    equ 2048
-Row_Code_A      ds ROW_CODE_MAX
-Row_Code_B      ds ROW_CODE_MAX
+    ASSERT Hx1_T == Sym_T+256
+    ASSERT Tables_End == Hx1_T+256
 
     ENDMODULE

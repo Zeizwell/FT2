@@ -140,17 +140,18 @@ Apply_UI_Glyphs
         RESTPAGE2
         ret
 
-; Какие коды берутся из значков (остальное - из шрифта). Кнопка - код и код+1.
+; Какие коды берутся из значков (остальное - из шрифта).
+; Кнопка - код и код+1 (две половины), у [+]/[-] ещё нажатый вид (код+BTN_PRESSED).
 UI_Glyph_Codes
         db GLYPH_CHK_OFF, GLYPH_CHK_ON
         db GLYPH_BTN_PLUS,  GLYPH_BTN_PLUS+1
+        db GLYPH_BTN_PLUS+BTN_PRESSED,  GLYPH_BTN_PLUS+BTN_PRESSED+1
         db GLYPH_BTN_MINUS, GLYPH_BTN_MINUS+1
+        db GLYPH_BTN_MINUS+BTN_PRESSED, GLYPH_BTN_MINUS+BTN_PRESSED+1
         db GLYPH_BTN_NEW,   GLYPH_BTN_NEW+1
         db GLYPH_BTN_PLAY,  GLYPH_BTN_PLAY+1
         db GLYPH_BTN_STOP,  GLYPH_BTN_STOP+1
         db GLYPH_BTN_REC,   GLYPH_BTN_REC+1
-        db GLYPH_BTN_RES1,  GLYPH_BTN_RES1+1
-        db GLYPH_BTN_RES2,  GLYPH_BTN_RES2+1
         db GLYPH_BTN_RES3,  GLYPH_BTN_RES3+1
         db GLYPH_BTN_RES4,  GLYPH_BTN_RES4+1
         db #FF

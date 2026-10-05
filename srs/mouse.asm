@@ -175,7 +175,7 @@ MOUSE_PORTY     db      0
 MOUSE_dX        DB 0            ;тут содержится не приведенная дельта перемещения по оси X
 MOUSE_dY        DB 0            ;тут содержится не приведенная дельта перемещения по оси Y
 MOUSE_SPEED     DB 4            ;значение от 0 до 1 - 5 это 100%, шаг 26
-MOUSE_ACCEL     DB 14            ;кубическая акселерация мышки 0-8  
+MOUSE_ACCEL     DB 0             ;кубическая акселерация мышки 0-8, 0 - выкл (пока: будет настройкой трекера)
 MOUSE_ACC_TABLE DUP MOUSE_MAXSPEED, X
                 DW (X * X * X) / 16   ;x в кубе/128 x=1..MOUSE_MAXSPEED
                 EDUP  

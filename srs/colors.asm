@@ -17,31 +17,31 @@ COLOR_0     equ $
 Theme_Default
             db #06      ; CLR_BG        фон
             db #09      ; CLR_TEXT      стальной текст
-            db #07      ; CLR_TITLE     дымчато-синий - рамки
-            db #0B      ; CLR_NOTE      белый - ноты
-            db #0E      ; CLR_INSTR     лазурный - инструмент
+            db #01      ; CLR_TITLE     рамки - еле видно (#1 на фоне #0)
+            db #0B      ; CLR_NOTE      белый - ноты активного паттерна
+            db #06      ; CLR_INSTR     светло-серый - инструмент
             db #09      ; CLR_PARAM     стальной - прочие параметры
-            db #0D      ; CLR_CMD       зелёный - команды
-            db #08      ; CLR_EMPTY     тусклый - пустые поля
-            db #09      ; CLR_ROW_NUM   номера строк
-            db #0A      ; CLR_ROW_BEAT  крем - каждая 4-я строка
+            db #0A      ; CLR_CMD       кремовый - команды
+            db #03      ; CLR_EMPTY     тусклый текст (соседние паттерны) - палитра фона, чуть ярче
+            db #07      ; CLR_ROW_NUM   дымчато-синий - номера роу
+            db #02      ; CLR_ROW_BEAT  светлый - каждая 4-я роу
             db #F0      ; CLR_CURSOR    курсор
             db #2B      ; CLR_SELECT    выделение
             db #3B      ; CLR_PLAY_ROW  играющая строка
             db #04      ; CLR_MUTED     заглушенный канал
             db #0C      ; CLR_ERROR     бордовый - ошибки
-            db #1B      ; CLR_HEADER    белый на чуть более светлом фоне - плашка заголовков
-            db #09      ; CLR_ENVSHAPE  форма огибающей
-            db #09      ; CLR_ORNAMENT  орнамент
-            db #09      ; CLR_VOLUME    громкость
-            db #09      ; CLR_ENVPER    период огибающей
-            db #09      ; CLR_NOISE     шум
-            db #0D      ; CLR_BUTTON    кнопки
+            db #02      ; CLR_HEADER    светлый на фоне - заголовки колонок
+            db #02      ; CLR_ENVSHAPE  светлый лавандовый - форма огибающей
+            db #02      ; CLR_ORNAMENT  светлый лавандовый - орнамент
+            db #02      ; CLR_VOLUME    светлый лавандовый - громкость
+            db #06      ; CLR_ENVPER    светло-серый - период огибающей
+            db #06      ; CLR_NOISE     светло-серый - шум
+            db #07      ; CLR_BUTTON    дымчато-синий - кнопки
             db #0A      ; CLR_LOOP      маркер повтора
             db #0A      ; CLR_ORD_CUR   стрелки текущей позиции
             db #0B      ; CLR_PATNUM    номера паттернов в ордер-листе
-            db #10      ; CLR_EDIT_ROW  фон #1 - чуть светлее основного фона
-            db #04      ; CLR_SEP       графит - внутренние разделители
+            db #12      ; CLR_EDIT_ROW  строка редактирования целиком: светлый #2 на фоне #1
+            db #01      ; CLR_SEP       разделители - еле видно (#1 на фоне #0)
             db #04      ; CLR_SB_TRACK  графит - дорожка скроллбара
             db #09      ; CLR_SB_THUMB  стальной - ползунок
 Theme_Default_end
