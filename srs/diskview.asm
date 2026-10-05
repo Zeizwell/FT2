@@ -169,6 +169,7 @@ Dv_Msg          dw 0                ; сообщение (0 - нет)
 Dv_Msg_Clr      db 0                ; его цвет: роль CLR_*
 Dv_Msg_Code     db 0                ; код ошибки драйвера (печатается за сообщением)
 Dv_Msg_F        db 0                ; флаги драйвера (отладка)
+Dv_Msg_Show     db 0                ; отладка: 1 - строка "list .. find .."
 Dv_Path         ds 120              ; путь от корня, "/" в конце
 DV_PATH_MAX     equ 118
 Dv_Name         ds NAME_W+1         ; поле Name: имя файла (под него и сохраняем)
@@ -485,16 +486,28 @@ Dv_Draw_File
         ld c,a
         ld de,FP_L+256*(DV_SCR_H+MSG_Y)
         call PutStr
-        ld a,(Dv_Msg_Code)          ; код ошибки драйвера
+        ld a,(Dv_Msg_Show)          ; отладка: A и флаги листинга, A и флаги поиска
         or a
-        ret z
+        jr z,.code
+        ld de,FP_L+256*(DV_SCR_H+MSG_Y+1)
+        ld hl,Txt_DbgList
+        call PutStr
+        ld hl,(Dl_Dbg)
+        call .af
+        ld hl,Txt_DbgFind
+        call PutStr
+        ld hl,(Dl_Dbg2)
+.af     ld a,h
+        push hl
         call PutHex2
-        ld a,(Dv_Msg_F)             ; и флаги, если есть
-        or a
-        ret z
         ld a,' '
         call PutCh
-        ld a,(Dv_Msg_F)
+        pop hl
+        ld a,l
+        jp PutHex2
+.code   ld a,(Dv_Msg_Code)          ; код ошибки драйвера
+        or a
+        ret z
         jp PutHex2
 
 ;-------- Поле Name: текст на фоне поля ввода, в фокусе - курсор "_"
@@ -822,6 +835,12 @@ Dv_List
         ld a,(Dv_Count)             ; отладка: пусто - что вернул драйвер (A, флаги)
         or a
         ret nz
+        ld ix,DK_FIND+256           ; и поиск TMPFT по имени: A, флаги
+        ld hl,Spec_TmpFT
+        call Disk_Call
+        push af
+        pop hl
+        ld (Dl_Dbg2),hl
         ld hl,Txt_Empty
         call Dv_Error
         ld hl,(Dl_Dbg)
@@ -829,7 +848,12 @@ Dv_List
         ld (Dv_Msg_Code),a
         ld a,l
         ld (Dv_Msg_F),a
+        ld a,1                      ; код печатаем всегда
+        ld (Dv_Msg_Show),a
         ret
+
+Spec_TmpFT      db FD_DIR,"TMPFT",0
+Dl_Dbg2         dw 0                ; отладка: AF поиска TMPFT
 
 Dl_Dbg          dw 0                ; отладка: AF последнего NXTETY
 
@@ -1700,6 +1724,7 @@ Dv_Msg_Set
         xor a
         ld (Dv_Msg_Code),a
         ld (Dv_Msg_F),a
+        ld (Dv_Msg_Show),a
         inc a
         ld (Dv_Dirty),a
         ret
@@ -1882,7 +1907,9 @@ Txt_NoName      db "Type a name",0
 Txt_Loaded      db "Loaded",0
 Txt_Saved       db "Saved",0
 Txt_DiskErr     db "Disk error #",0
-Txt_Empty       db "Empty dir, drv #",0
+Txt_Empty       db "Empty dir",0
+Txt_DbgList     db "list ",0
+Txt_DbgFind     db "  find ",0
 
 ; --- PS/2 код -> символ имени файла (0 - не символ). Shift - в Dv_NameEv
         ALIGN 256
