@@ -497,6 +497,24 @@ Dv_Draw_File
         ld hl,Txt_DbgFind
         call PutStr
         ld hl,(Dl_Dbg2)
+        call .af
+        ld de,FP_L+256*(DV_SCR_H+MSG_Y+2)  ; дамп
+        ld hl,Dl_Dump
+        ld b,16
+.dmp    ld a,(hl)
+        push hl
+        push bc
+        call PutHex2
+        pop bc
+        pop hl
+        inc hl
+        ld a,b
+        cp 5                        ; CGPZ, CGFL - через пробел
+        jr nz,.nsp
+        ld a,' '
+        call PutCh
+.nsp    djnz .dmp
+        ret
 .af     ld a,h
         push hl
         call PutHex2
@@ -850,7 +868,19 @@ Dv_List
         ld (Dv_Msg_F),a
         ld a,1                      ; код печатаем всегда
         ld (Dv_Msg_Show),a
+        ld a,PAGE_FAT_WORK          ; буфер каталога драйвера (#0000) и CGFL / CGPZ (#37FC)
+        SETPAGE3 a
+        ld hl,#C000
+        ld de,Dl_Dump
+        ld bc,12
+        ldir
+        ld hl,#C000+#37FC
+        ld bc,4
+        ldir
+        RESTPAGE3
         ret
+
+Dl_Dump         ds 16               ; отладка: 12 байт буфера + CGPZ, CGFL
 
 Spec_TmpFT      db FD_DIR,"TMPFT",0
 Dl_Dbg2         dw 0                ; отладка: AF поиска TMPFT
