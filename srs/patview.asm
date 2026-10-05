@@ -2143,38 +2143,6 @@ Pat_Keys
         dw K_ChLeft
         db 0
 
-;-------- Таблица клавиш: HL - таблица (код, модификаторы точно, обработчик; конец 0),
-; B - код, C - флаги события. Выход: CF - клавиша наша (обработчик вызван)
-Keys_Table
-        ld a,c
-        and KM_SHIFT|KM_CTRL|KM_ALT ; повтор и нажатие для таблицы одинаковы
-        ld c,a
-.f      ld a,(hl)                   ; код, 0 - конец таблицы
-        or a
-        ret z                       ; не наша (CF = 0)
-        cp b
-        jr nz,.n
-        inc hl
-        ld a,(hl)                   ; модификаторы
-        dec hl
-        cp c
-        jr nz,.n
-        inc hl
-        inc hl
-        ld e,(hl)
-        inc hl
-        ld d,(hl)
-        ex de,hl
-        call .jp
-        scf
-        ret
-.n      inc hl
-        inc hl
-        inc hl
-        inc hl
-        jr .f
-.jp     jp (hl)
-
 Btn_Shown       db 0                ; 1 - кнопка, которую держат, нарисована вдавленной
 
 ; Кнопка E (элемент 0..7 или OB_ID+n) вдавленной (A=1) или обычной (A=0).
@@ -2934,38 +2902,8 @@ Test_Fill
         ret
 
 ; =========================================================================
-; Простой вывод (рамки, ордер)
+; Простой вывод (рамки, ордер). PutCh, PutStr, PutHex2 - в коре (srs/text.asm)
 ; =========================================================================
-; HL - строка, конец 0. C - цвет. На выходе HL - на 0
-PutStr
-.l      ld a,(hl)
-        or a
-        ret z
-        call PutCh
-        inc hl
-        jr .l
-
-PutHex2
-        push af
-        rrca
-        rrca
-        rrca
-        rrca
-        and #0F
-        call HexDigit
-        call PutCh
-        pop af
-        and #0F
-        call HexDigit
-        jp PutCh
-
-HexDigit
-        cp 10
-        jr c,.d
-        add a,7
-.d      add a,'0'
-        ret
-
 PutBar
         push bc
         ld a,(THEME_ATTR+CLR_TITLE)
@@ -2996,16 +2934,6 @@ PutBtn_Head
         ld a,(THEME_ATTR+CLR_HEAD_BTN)
         jr Pb_Draw
 
-; Символ A цветом C в DE (D - строка, E - колонка), цвет на +128. E++
-PutCh
-        ld (de),a
-        set 7,e
-        ld a,c
-        ld (de),a
-        res 7,e
-        inc e
-        ret
-
 ; HL - поле. Z - оно в фокусе. Портит A, HL
 Is_Focus
         push de
@@ -3013,16 +2941,6 @@ Is_Focus
         or a
         sbc hl,de
         pop de
-        ret
-
-; A - индекс, HL - массив байт -> A = массив[индекс]
-Arr_Get
-        add a,l
-        ld l,a
-        adc a,h
-        sub l
-        ld h,a
-        ld a,(hl)
         ret
 
 ;-------- Цвет номера роу: каждая 4-я своим цветом (оба - готовые из темы)
