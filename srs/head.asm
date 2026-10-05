@@ -258,15 +258,6 @@ Head_Show
         ld b,7
         ld de,HD_TUNE_X+256*(HD_SCR_H+HD_ROW_FILE)
         call Hd_Name
-        ld a,(THEME_ATTR+CLR_HEAD_TEXT) ; время игры mm:ss
-        ld c,a
-        ld de,HD_TIME_X+256*(HD_SCR_H+HD_TABS_Y)
-        ld a,(Tm_Min)
-        call Hd_Dec2
-        ld a,':'
-        call PutCh
-        ld a,(Tm_Sec)
-        call Hd_Dec2
         call Hd_Buttons             ; кнопки [-][+]
         call Tr_State_Update        ; кнопки транспорта: нажата, активна, под мышью
         jp Hd_Hover                 ; подсветка поля под мышью
@@ -723,349 +714,349 @@ Tr_Dma  db high DMASADDRL, low (Tr_SAT-#4000)
         db high DMACTR, DMA_RAM_SFILE
         db #FF
 
-Tr_Gfx_N                            ; обычные: грань #4, кромки #6 / #1, значок #B
+Tr_Gfx_N                            ; обычные: серая грань #9, кромки белая #B / тёмная #1, значок #1
 ; LOOP
-        db #06,#66,#66,#66,#66,#66,#66,#60   ; .LLLLLLLLLLLLLL.
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#44,#4B,#44,#44,#41   ; LFFFFFFFFIFFFFFD
-        db #64,#44,#BB,#BB,#BB,#BB,#44,#41   ; LFFFIIIIIIIIFFFD
-        db #64,#44,#44,#44,#4B,#44,#44,#41   ; LFFFFFFFFIFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#B4,#44,#44,#44,#41   ; LFFFFFIFFFFFFFFD
-        db #64,#44,#BB,#BB,#BB,#BB,#44,#41   ; LFFFIIIIIIIIFFFD
-        db #64,#44,#44,#B4,#44,#44,#44,#41   ; LFFFFFIFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
+        db #0B,#BB,#BB,#BB,#BB,#BB,#BB,#B0   ; .LLLLLLLLLLLLLL.
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#99,#91,#99,#99,#91   ; LFFFFFFFFIFFFFFD
+        db #B9,#99,#11,#11,#11,#11,#99,#91   ; LFFFIIIIIIIIFFFD
+        db #B9,#99,#99,#99,#91,#99,#99,#91   ; LFFFFFFFFIFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#19,#99,#99,#99,#91   ; LFFFFFIFFFFFFFFD
+        db #B9,#99,#11,#11,#11,#11,#99,#91   ; LFFFIIIIIIIIFFFD
+        db #B9,#99,#99,#19,#99,#99,#99,#91   ; LFFFFFIFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
         db #01,#11,#11,#11,#11,#11,#11,#10   ; .DDDDDDDDDDDDDD.
 ; START
-        db #06,#66,#66,#66,#66,#66,#66,#60   ; .LLLLLLLLLLLLLL.
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#4B,#44,#44,#B4,#44,#41   ; LFFFFIFFFFIFFFFD
-        db #64,#44,#4B,#44,#4B,#B4,#44,#41   ; LFFFFIFFFIIFFFFD
-        db #64,#44,#4B,#44,#BB,#B4,#44,#41   ; LFFFFIFFIIIFFFFD
-        db #64,#44,#4B,#4B,#BB,#B4,#44,#41   ; LFFFFIFIIIIFFFFD
-        db #64,#44,#4B,#4B,#BB,#B4,#44,#41   ; LFFFFIFIIIIFFFFD
-        db #64,#44,#4B,#44,#BB,#B4,#44,#41   ; LFFFFIFFIIIFFFFD
-        db #64,#44,#4B,#44,#4B,#B4,#44,#41   ; LFFFFIFFFIIFFFFD
-        db #64,#44,#4B,#44,#44,#B4,#44,#41   ; LFFFFIFFFFIFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
+        db #0B,#BB,#BB,#BB,#BB,#BB,#BB,#B0   ; .LLLLLLLLLLLLLL.
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#91,#99,#99,#19,#99,#91   ; LFFFFIFFFFIFFFFD
+        db #B9,#99,#91,#99,#91,#19,#99,#91   ; LFFFFIFFFIIFFFFD
+        db #B9,#99,#91,#99,#11,#19,#99,#91   ; LFFFFIFFIIIFFFFD
+        db #B9,#99,#91,#91,#11,#19,#99,#91   ; LFFFFIFIIIIFFFFD
+        db #B9,#99,#91,#91,#11,#19,#99,#91   ; LFFFFIFIIIIFFFFD
+        db #B9,#99,#91,#99,#11,#19,#99,#91   ; LFFFFIFFIIIFFFFD
+        db #B9,#99,#91,#99,#91,#19,#99,#91   ; LFFFFIFFFIIFFFFD
+        db #B9,#99,#91,#99,#99,#19,#99,#91   ; LFFFFIFFFFIFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
         db #01,#11,#11,#11,#11,#11,#11,#10   ; .DDDDDDDDDDDDDD.
 ; PLAY
-        db #06,#66,#66,#66,#66,#66,#66,#60   ; .LLLLLLLLLLLLLL.
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#B4,#44,#44,#44,#41   ; LFFFFFIFFFFFFFFD
-        db #64,#44,#44,#BB,#44,#44,#44,#41   ; LFFFFFIIFFFFFFFD
-        db #64,#44,#44,#BB,#B4,#44,#44,#41   ; LFFFFFIIIFFFFFFD
-        db #64,#44,#44,#BB,#BB,#44,#44,#41   ; LFFFFFIIIIFFFFFD
-        db #64,#44,#44,#BB,#BB,#44,#44,#41   ; LFFFFFIIIIFFFFFD
-        db #64,#44,#44,#BB,#B4,#44,#44,#41   ; LFFFFFIIIFFFFFFD
-        db #64,#44,#44,#BB,#44,#44,#44,#41   ; LFFFFFIIFFFFFFFD
-        db #64,#44,#44,#B4,#44,#44,#44,#41   ; LFFFFFIFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
+        db #0B,#BB,#BB,#BB,#BB,#BB,#BB,#B0   ; .LLLLLLLLLLLLLL.
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#19,#99,#99,#99,#91   ; LFFFFFIFFFFFFFFD
+        db #B9,#99,#99,#11,#99,#99,#99,#91   ; LFFFFFIIFFFFFFFD
+        db #B9,#99,#99,#11,#19,#99,#99,#91   ; LFFFFFIIIFFFFFFD
+        db #B9,#99,#99,#11,#11,#99,#99,#91   ; LFFFFFIIIIFFFFFD
+        db #B9,#99,#99,#11,#11,#99,#99,#91   ; LFFFFFIIIIFFFFFD
+        db #B9,#99,#99,#11,#19,#99,#99,#91   ; LFFFFFIIIFFFFFFD
+        db #B9,#99,#99,#11,#99,#99,#99,#91   ; LFFFFFIIFFFFFFFD
+        db #B9,#99,#99,#19,#99,#99,#99,#91   ; LFFFFFIFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
         db #01,#11,#11,#11,#11,#11,#11,#10   ; .DDDDDDDDDDDDDD.
 ; FROM
-        db #06,#66,#66,#66,#66,#66,#66,#60   ; .LLLLLLLLLLLLLL.
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#B4,#44,#44,#44,#41   ; LFFFFFIFFFFFFFFD
-        db #64,#44,#44,#BB,#44,#44,#44,#41   ; LFFFFFIIFFFFFFFD
-        db #64,#44,#44,#B4,#B4,#44,#44,#41   ; LFFFFFIFIFFFFFFD
-        db #64,#44,#44,#B4,#4B,#44,#44,#41   ; LFFFFFIFFIFFFFFD
-        db #64,#44,#44,#B4,#4B,#44,#44,#41   ; LFFFFFIFFIFFFFFD
-        db #64,#44,#44,#B4,#B4,#44,#44,#41   ; LFFFFFIFIFFFFFFD
-        db #64,#44,#44,#BB,#44,#44,#44,#41   ; LFFFFFIIFFFFFFFD
-        db #64,#44,#44,#B4,#44,#44,#44,#41   ; LFFFFFIFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
+        db #0B,#BB,#BB,#BB,#BB,#BB,#BB,#B0   ; .LLLLLLLLLLLLLL.
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#19,#99,#99,#99,#91   ; LFFFFFIFFFFFFFFD
+        db #B9,#99,#99,#11,#99,#99,#99,#91   ; LFFFFFIIFFFFFFFD
+        db #B9,#99,#99,#19,#19,#99,#99,#91   ; LFFFFFIFIFFFFFFD
+        db #B9,#99,#99,#19,#91,#99,#99,#91   ; LFFFFFIFFIFFFFFD
+        db #B9,#99,#99,#19,#91,#99,#99,#91   ; LFFFFFIFFIFFFFFD
+        db #B9,#99,#99,#19,#19,#99,#99,#91   ; LFFFFFIFIFFFFFFD
+        db #B9,#99,#99,#11,#99,#99,#99,#91   ; LFFFFFIIFFFFFFFD
+        db #B9,#99,#99,#19,#99,#99,#99,#91   ; LFFFFFIFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
         db #01,#11,#11,#11,#11,#11,#11,#10   ; .DDDDDDDDDDDDDD.
 ; STOP
-        db #06,#66,#66,#66,#66,#66,#66,#60   ; .LLLLLLLLLLLLLL.
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#4B,#BB,#BB,#B4,#44,#41   ; LFFFFIIIIIIFFFFD
-        db #64,#44,#4B,#BB,#BB,#B4,#44,#41   ; LFFFFIIIIIIFFFFD
-        db #64,#44,#4B,#BB,#BB,#B4,#44,#41   ; LFFFFIIIIIIFFFFD
-        db #64,#44,#4B,#BB,#BB,#B4,#44,#41   ; LFFFFIIIIIIFFFFD
-        db #64,#44,#4B,#BB,#BB,#B4,#44,#41   ; LFFFFIIIIIIFFFFD
-        db #64,#44,#4B,#BB,#BB,#B4,#44,#41   ; LFFFFIIIIIIFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
-        db #64,#44,#44,#44,#44,#44,#44,#41   ; LFFFFFFFFFFFFFFD
+        db #0B,#BB,#BB,#BB,#BB,#BB,#BB,#B0   ; .LLLLLLLLLLLLLL.
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#91,#11,#11,#19,#99,#91   ; LFFFFIIIIIIFFFFD
+        db #B9,#99,#91,#11,#11,#19,#99,#91   ; LFFFFIIIIIIFFFFD
+        db #B9,#99,#91,#11,#11,#19,#99,#91   ; LFFFFIIIIIIFFFFD
+        db #B9,#99,#91,#11,#11,#19,#99,#91   ; LFFFFIIIIIIFFFFD
+        db #B9,#99,#91,#11,#11,#19,#99,#91   ; LFFFFIIIIIIFFFFD
+        db #B9,#99,#91,#11,#11,#19,#99,#91   ; LFFFFIIIIIIFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #B9,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
         db #01,#11,#11,#11,#11,#11,#11,#10   ; .DDDDDDDDDDDDDD.
-Tr_Gfx_H                            ; под мышью: грань #9
+Tr_Gfx_H                            ; под мышью: грань светлее, #6
 ; LOOP
-        db #06,#66,#66,#66,#66,#66,#66,#60   ; .LLLLLLLLLLLLLL.
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#99,#9B,#99,#99,#91   ; LFFFFFFFFIFFFFFD
-        db #69,#99,#BB,#BB,#BB,#BB,#99,#91   ; LFFFIIIIIIIIFFFD
-        db #69,#99,#99,#99,#9B,#99,#99,#91   ; LFFFFFFFFIFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#B9,#99,#99,#99,#91   ; LFFFFFIFFFFFFFFD
-        db #69,#99,#BB,#BB,#BB,#BB,#99,#91   ; LFFFIIIIIIIIFFFD
-        db #69,#99,#99,#B9,#99,#99,#99,#91   ; LFFFFFIFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #0B,#BB,#BB,#BB,#BB,#BB,#BB,#B0   ; .LLLLLLLLLLLLLL.
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#66,#61,#66,#66,#61   ; LFFFFFFFFIFFFFFD
+        db #B6,#66,#11,#11,#11,#11,#66,#61   ; LFFFIIIIIIIIFFFD
+        db #B6,#66,#66,#66,#61,#66,#66,#61   ; LFFFFFFFFIFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#16,#66,#66,#66,#61   ; LFFFFFIFFFFFFFFD
+        db #B6,#66,#11,#11,#11,#11,#66,#61   ; LFFFIIIIIIIIFFFD
+        db #B6,#66,#66,#16,#66,#66,#66,#61   ; LFFFFFIFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
         db #01,#11,#11,#11,#11,#11,#11,#10   ; .DDDDDDDDDDDDDD.
 ; START
-        db #06,#66,#66,#66,#66,#66,#66,#60   ; .LLLLLLLLLLLLLL.
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#9B,#99,#99,#B9,#99,#91   ; LFFFFIFFFFIFFFFD
-        db #69,#99,#9B,#99,#9B,#B9,#99,#91   ; LFFFFIFFFIIFFFFD
-        db #69,#99,#9B,#99,#BB,#B9,#99,#91   ; LFFFFIFFIIIFFFFD
-        db #69,#99,#9B,#9B,#BB,#B9,#99,#91   ; LFFFFIFIIIIFFFFD
-        db #69,#99,#9B,#9B,#BB,#B9,#99,#91   ; LFFFFIFIIIIFFFFD
-        db #69,#99,#9B,#99,#BB,#B9,#99,#91   ; LFFFFIFFIIIFFFFD
-        db #69,#99,#9B,#99,#9B,#B9,#99,#91   ; LFFFFIFFFIIFFFFD
-        db #69,#99,#9B,#99,#99,#B9,#99,#91   ; LFFFFIFFFFIFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #0B,#BB,#BB,#BB,#BB,#BB,#BB,#B0   ; .LLLLLLLLLLLLLL.
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#61,#66,#66,#16,#66,#61   ; LFFFFIFFFFIFFFFD
+        db #B6,#66,#61,#66,#61,#16,#66,#61   ; LFFFFIFFFIIFFFFD
+        db #B6,#66,#61,#66,#11,#16,#66,#61   ; LFFFFIFFIIIFFFFD
+        db #B6,#66,#61,#61,#11,#16,#66,#61   ; LFFFFIFIIIIFFFFD
+        db #B6,#66,#61,#61,#11,#16,#66,#61   ; LFFFFIFIIIIFFFFD
+        db #B6,#66,#61,#66,#11,#16,#66,#61   ; LFFFFIFFIIIFFFFD
+        db #B6,#66,#61,#66,#61,#16,#66,#61   ; LFFFFIFFFIIFFFFD
+        db #B6,#66,#61,#66,#66,#16,#66,#61   ; LFFFFIFFFFIFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
         db #01,#11,#11,#11,#11,#11,#11,#10   ; .DDDDDDDDDDDDDD.
 ; PLAY
-        db #06,#66,#66,#66,#66,#66,#66,#60   ; .LLLLLLLLLLLLLL.
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#B9,#99,#99,#99,#91   ; LFFFFFIFFFFFFFFD
-        db #69,#99,#99,#BB,#99,#99,#99,#91   ; LFFFFFIIFFFFFFFD
-        db #69,#99,#99,#BB,#B9,#99,#99,#91   ; LFFFFFIIIFFFFFFD
-        db #69,#99,#99,#BB,#BB,#99,#99,#91   ; LFFFFFIIIIFFFFFD
-        db #69,#99,#99,#BB,#BB,#99,#99,#91   ; LFFFFFIIIIFFFFFD
-        db #69,#99,#99,#BB,#B9,#99,#99,#91   ; LFFFFFIIIFFFFFFD
-        db #69,#99,#99,#BB,#99,#99,#99,#91   ; LFFFFFIIFFFFFFFD
-        db #69,#99,#99,#B9,#99,#99,#99,#91   ; LFFFFFIFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #0B,#BB,#BB,#BB,#BB,#BB,#BB,#B0   ; .LLLLLLLLLLLLLL.
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#16,#66,#66,#66,#61   ; LFFFFFIFFFFFFFFD
+        db #B6,#66,#66,#11,#66,#66,#66,#61   ; LFFFFFIIFFFFFFFD
+        db #B6,#66,#66,#11,#16,#66,#66,#61   ; LFFFFFIIIFFFFFFD
+        db #B6,#66,#66,#11,#11,#66,#66,#61   ; LFFFFFIIIIFFFFFD
+        db #B6,#66,#66,#11,#11,#66,#66,#61   ; LFFFFFIIIIFFFFFD
+        db #B6,#66,#66,#11,#16,#66,#66,#61   ; LFFFFFIIIFFFFFFD
+        db #B6,#66,#66,#11,#66,#66,#66,#61   ; LFFFFFIIFFFFFFFD
+        db #B6,#66,#66,#16,#66,#66,#66,#61   ; LFFFFFIFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
         db #01,#11,#11,#11,#11,#11,#11,#10   ; .DDDDDDDDDDDDDD.
 ; FROM
-        db #06,#66,#66,#66,#66,#66,#66,#60   ; .LLLLLLLLLLLLLL.
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#B9,#99,#99,#99,#91   ; LFFFFFIFFFFFFFFD
-        db #69,#99,#99,#BB,#99,#99,#99,#91   ; LFFFFFIIFFFFFFFD
-        db #69,#99,#99,#B9,#B9,#99,#99,#91   ; LFFFFFIFIFFFFFFD
-        db #69,#99,#99,#B9,#9B,#99,#99,#91   ; LFFFFFIFFIFFFFFD
-        db #69,#99,#99,#B9,#9B,#99,#99,#91   ; LFFFFFIFFIFFFFFD
-        db #69,#99,#99,#B9,#B9,#99,#99,#91   ; LFFFFFIFIFFFFFFD
-        db #69,#99,#99,#BB,#99,#99,#99,#91   ; LFFFFFIIFFFFFFFD
-        db #69,#99,#99,#B9,#99,#99,#99,#91   ; LFFFFFIFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #0B,#BB,#BB,#BB,#BB,#BB,#BB,#B0   ; .LLLLLLLLLLLLLL.
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#16,#66,#66,#66,#61   ; LFFFFFIFFFFFFFFD
+        db #B6,#66,#66,#11,#66,#66,#66,#61   ; LFFFFFIIFFFFFFFD
+        db #B6,#66,#66,#16,#16,#66,#66,#61   ; LFFFFFIFIFFFFFFD
+        db #B6,#66,#66,#16,#61,#66,#66,#61   ; LFFFFFIFFIFFFFFD
+        db #B6,#66,#66,#16,#61,#66,#66,#61   ; LFFFFFIFFIFFFFFD
+        db #B6,#66,#66,#16,#16,#66,#66,#61   ; LFFFFFIFIFFFFFFD
+        db #B6,#66,#66,#11,#66,#66,#66,#61   ; LFFFFFIIFFFFFFFD
+        db #B6,#66,#66,#16,#66,#66,#66,#61   ; LFFFFFIFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
         db #01,#11,#11,#11,#11,#11,#11,#10   ; .DDDDDDDDDDDDDD.
 ; STOP
-        db #06,#66,#66,#66,#66,#66,#66,#60   ; .LLLLLLLLLLLLLL.
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#9B,#BB,#BB,#B9,#99,#91   ; LFFFFIIIIIIFFFFD
-        db #69,#99,#9B,#BB,#BB,#B9,#99,#91   ; LFFFFIIIIIIFFFFD
-        db #69,#99,#9B,#BB,#BB,#B9,#99,#91   ; LFFFFIIIIIIFFFFD
-        db #69,#99,#9B,#BB,#BB,#B9,#99,#91   ; LFFFFIIIIIIFFFFD
-        db #69,#99,#9B,#BB,#BB,#B9,#99,#91   ; LFFFFIIIIIIFFFFD
-        db #69,#99,#9B,#BB,#BB,#B9,#99,#91   ; LFFFFIIIIIIFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
-        db #69,#99,#99,#99,#99,#99,#99,#91   ; LFFFFFFFFFFFFFFD
+        db #0B,#BB,#BB,#BB,#BB,#BB,#BB,#B0   ; .LLLLLLLLLLLLLL.
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#61,#11,#11,#16,#66,#61   ; LFFFFIIIIIIFFFFD
+        db #B6,#66,#61,#11,#11,#16,#66,#61   ; LFFFFIIIIIIFFFFD
+        db #B6,#66,#61,#11,#11,#16,#66,#61   ; LFFFFIIIIIIFFFFD
+        db #B6,#66,#61,#11,#11,#16,#66,#61   ; LFFFFIIIIIIFFFFD
+        db #B6,#66,#61,#11,#11,#16,#66,#61   ; LFFFFIIIIIIFFFFD
+        db #B6,#66,#61,#11,#11,#16,#66,#61   ; LFFFFIIIIIIFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
+        db #B6,#66,#66,#66,#66,#66,#66,#61   ; LFFFFFFFFFFFFFFD
         db #01,#11,#11,#11,#11,#11,#11,#10   ; .DDDDDDDDDDDDDD.
 Tr_Gfx_P                            ; нажата: кромки наоборот, значок на точку вниз-вправо
 ; LOOP
         db #01,#11,#11,#11,#11,#11,#11,#10   ; .DDDDDDDDDDDDDD.
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#44,#44,#B4,#44,#46   ; DFFFFFFFFFIFFFFL
-        db #14,#44,#4B,#BB,#BB,#BB,#B4,#46   ; DFFFFIIIIIIIIFFL
-        db #14,#44,#44,#44,#44,#B4,#44,#46   ; DFFFFFFFFFIFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#4B,#44,#44,#44,#46   ; DFFFFFFIFFFFFFFL
-        db #14,#44,#4B,#BB,#BB,#BB,#B4,#46   ; DFFFFIIIIIIIIFFL
-        db #14,#44,#44,#4B,#44,#44,#44,#46   ; DFFFFFFIFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #06,#66,#66,#66,#66,#66,#66,#60   ; .LLLLLLLLLLLLLL.
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#99,#99,#19,#99,#9B   ; DFFFFFFFFFIFFFFL
+        db #19,#99,#91,#11,#11,#11,#19,#9B   ; DFFFFIIIIIIIIFFL
+        db #19,#99,#99,#99,#99,#19,#99,#9B   ; DFFFFFFFFFIFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#91,#99,#99,#99,#9B   ; DFFFFFFIFFFFFFFL
+        db #19,#99,#91,#11,#11,#11,#19,#9B   ; DFFFFIIIIIIIIFFL
+        db #19,#99,#99,#91,#99,#99,#99,#9B   ; DFFFFFFIFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #0B,#BB,#BB,#BB,#BB,#BB,#BB,#B0   ; .LLLLLLLLLLLLLL.
 ; START
         db #01,#11,#11,#11,#11,#11,#11,#10   ; .DDDDDDDDDDDDDD.
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#B4,#44,#4B,#44,#46   ; DFFFFFIFFFFIFFFL
-        db #14,#44,#44,#B4,#44,#BB,#44,#46   ; DFFFFFIFFFIIFFFL
-        db #14,#44,#44,#B4,#4B,#BB,#44,#46   ; DFFFFFIFFIIIFFFL
-        db #14,#44,#44,#B4,#BB,#BB,#44,#46   ; DFFFFFIFIIIIFFFL
-        db #14,#44,#44,#B4,#BB,#BB,#44,#46   ; DFFFFFIFIIIIFFFL
-        db #14,#44,#44,#B4,#4B,#BB,#44,#46   ; DFFFFFIFFIIIFFFL
-        db #14,#44,#44,#B4,#44,#BB,#44,#46   ; DFFFFFIFFFIIFFFL
-        db #14,#44,#44,#B4,#44,#4B,#44,#46   ; DFFFFFIFFFFIFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #06,#66,#66,#66,#66,#66,#66,#60   ; .LLLLLLLLLLLLLL.
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#19,#99,#91,#99,#9B   ; DFFFFFIFFFFIFFFL
+        db #19,#99,#99,#19,#99,#11,#99,#9B   ; DFFFFFIFFFIIFFFL
+        db #19,#99,#99,#19,#91,#11,#99,#9B   ; DFFFFFIFFIIIFFFL
+        db #19,#99,#99,#19,#11,#11,#99,#9B   ; DFFFFFIFIIIIFFFL
+        db #19,#99,#99,#19,#11,#11,#99,#9B   ; DFFFFFIFIIIIFFFL
+        db #19,#99,#99,#19,#91,#11,#99,#9B   ; DFFFFFIFFIIIFFFL
+        db #19,#99,#99,#19,#99,#11,#99,#9B   ; DFFFFFIFFFIIFFFL
+        db #19,#99,#99,#19,#99,#91,#99,#9B   ; DFFFFFIFFFFIFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #0B,#BB,#BB,#BB,#BB,#BB,#BB,#B0   ; .LLLLLLLLLLLLLL.
 ; PLAY
         db #01,#11,#11,#11,#11,#11,#11,#10   ; .DDDDDDDDDDDDDD.
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#4B,#44,#44,#44,#46   ; DFFFFFFIFFFFFFFL
-        db #14,#44,#44,#4B,#B4,#44,#44,#46   ; DFFFFFFIIFFFFFFL
-        db #14,#44,#44,#4B,#BB,#44,#44,#46   ; DFFFFFFIIIFFFFFL
-        db #14,#44,#44,#4B,#BB,#B4,#44,#46   ; DFFFFFFIIIIFFFFL
-        db #14,#44,#44,#4B,#BB,#B4,#44,#46   ; DFFFFFFIIIIFFFFL
-        db #14,#44,#44,#4B,#BB,#44,#44,#46   ; DFFFFFFIIIFFFFFL
-        db #14,#44,#44,#4B,#B4,#44,#44,#46   ; DFFFFFFIIFFFFFFL
-        db #14,#44,#44,#4B,#44,#44,#44,#46   ; DFFFFFFIFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #06,#66,#66,#66,#66,#66,#66,#60   ; .LLLLLLLLLLLLLL.
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#91,#99,#99,#99,#9B   ; DFFFFFFIFFFFFFFL
+        db #19,#99,#99,#91,#19,#99,#99,#9B   ; DFFFFFFIIFFFFFFL
+        db #19,#99,#99,#91,#11,#99,#99,#9B   ; DFFFFFFIIIFFFFFL
+        db #19,#99,#99,#91,#11,#19,#99,#9B   ; DFFFFFFIIIIFFFFL
+        db #19,#99,#99,#91,#11,#19,#99,#9B   ; DFFFFFFIIIIFFFFL
+        db #19,#99,#99,#91,#11,#99,#99,#9B   ; DFFFFFFIIIFFFFFL
+        db #19,#99,#99,#91,#19,#99,#99,#9B   ; DFFFFFFIIFFFFFFL
+        db #19,#99,#99,#91,#99,#99,#99,#9B   ; DFFFFFFIFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #0B,#BB,#BB,#BB,#BB,#BB,#BB,#B0   ; .LLLLLLLLLLLLLL.
 ; FROM
         db #01,#11,#11,#11,#11,#11,#11,#10   ; .DDDDDDDDDDDDDD.
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#4B,#44,#44,#44,#46   ; DFFFFFFIFFFFFFFL
-        db #14,#44,#44,#4B,#B4,#44,#44,#46   ; DFFFFFFIIFFFFFFL
-        db #14,#44,#44,#4B,#4B,#44,#44,#46   ; DFFFFFFIFIFFFFFL
-        db #14,#44,#44,#4B,#44,#B4,#44,#46   ; DFFFFFFIFFIFFFFL
-        db #14,#44,#44,#4B,#44,#B4,#44,#46   ; DFFFFFFIFFIFFFFL
-        db #14,#44,#44,#4B,#4B,#44,#44,#46   ; DFFFFFFIFIFFFFFL
-        db #14,#44,#44,#4B,#B4,#44,#44,#46   ; DFFFFFFIIFFFFFFL
-        db #14,#44,#44,#4B,#44,#44,#44,#46   ; DFFFFFFIFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #06,#66,#66,#66,#66,#66,#66,#60   ; .LLLLLLLLLLLLLL.
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#91,#99,#99,#99,#9B   ; DFFFFFFIFFFFFFFL
+        db #19,#99,#99,#91,#19,#99,#99,#9B   ; DFFFFFFIIFFFFFFL
+        db #19,#99,#99,#91,#91,#99,#99,#9B   ; DFFFFFFIFIFFFFFL
+        db #19,#99,#99,#91,#99,#19,#99,#9B   ; DFFFFFFIFFIFFFFL
+        db #19,#99,#99,#91,#99,#19,#99,#9B   ; DFFFFFFIFFIFFFFL
+        db #19,#99,#99,#91,#91,#99,#99,#9B   ; DFFFFFFIFIFFFFFL
+        db #19,#99,#99,#91,#19,#99,#99,#9B   ; DFFFFFFIIFFFFFFL
+        db #19,#99,#99,#91,#99,#99,#99,#9B   ; DFFFFFFIFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #0B,#BB,#BB,#BB,#BB,#BB,#BB,#B0   ; .LLLLLLLLLLLLLL.
 ; STOP
         db #01,#11,#11,#11,#11,#11,#11,#10   ; .DDDDDDDDDDDDDD.
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#BB,#BB,#BB,#44,#46   ; DFFFFFIIIIIIFFFL
-        db #14,#44,#44,#BB,#BB,#BB,#44,#46   ; DFFFFFIIIIIIFFFL
-        db #14,#44,#44,#BB,#BB,#BB,#44,#46   ; DFFFFFIIIIIIFFFL
-        db #14,#44,#44,#BB,#BB,#BB,#44,#46   ; DFFFFFIIIIIIFFFL
-        db #14,#44,#44,#BB,#BB,#BB,#44,#46   ; DFFFFFIIIIIIFFFL
-        db #14,#44,#44,#BB,#BB,#BB,#44,#46   ; DFFFFFIIIIIIFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #14,#44,#44,#44,#44,#44,#44,#46   ; DFFFFFFFFFFFFFFL
-        db #06,#66,#66,#66,#66,#66,#66,#60   ; .LLLLLLLLLLLLLL.
-Tr_Gfx_A                            ; активна (играет): грань #7
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#11,#11,#11,#99,#9B   ; DFFFFFIIIIIIFFFL
+        db #19,#99,#99,#11,#11,#11,#99,#9B   ; DFFFFFIIIIIIFFFL
+        db #19,#99,#99,#11,#11,#11,#99,#9B   ; DFFFFFIIIIIIFFFL
+        db #19,#99,#99,#11,#11,#11,#99,#9B   ; DFFFFFIIIIIIFFFL
+        db #19,#99,#99,#11,#11,#11,#99,#9B   ; DFFFFFIIIIIIFFFL
+        db #19,#99,#99,#11,#11,#11,#99,#9B   ; DFFFFFIIIIIIFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #19,#99,#99,#99,#99,#99,#99,#9B   ; DFFFFFFFFFFFFFFL
+        db #0B,#BB,#BB,#BB,#BB,#BB,#BB,#B0   ; .LLLLLLLLLLLLLL.
+Tr_Gfx_A                            ; активна (играет): зелёная грань #D
 ; LOOP
-        db #06,#66,#66,#66,#66,#66,#66,#60   ; .LLLLLLLLLLLLLL.
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#77,#7B,#77,#77,#71   ; LFFFFFFFFIFFFFFD
-        db #67,#77,#BB,#BB,#BB,#BB,#77,#71   ; LFFFIIIIIIIIFFFD
-        db #67,#77,#77,#77,#7B,#77,#77,#71   ; LFFFFFFFFIFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#B7,#77,#77,#77,#71   ; LFFFFFIFFFFFFFFD
-        db #67,#77,#BB,#BB,#BB,#BB,#77,#71   ; LFFFIIIIIIIIFFFD
-        db #67,#77,#77,#B7,#77,#77,#77,#71   ; LFFFFFIFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
+        db #0B,#BB,#BB,#BB,#BB,#BB,#BB,#B0   ; .LLLLLLLLLLLLLL.
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#D1,#DD,#DD,#D1   ; LFFFFFFFFIFFFFFD
+        db #BD,#DD,#11,#11,#11,#11,#DD,#D1   ; LFFFIIIIIIIIFFFD
+        db #BD,#DD,#DD,#DD,#D1,#DD,#DD,#D1   ; LFFFFFFFFIFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#1D,#DD,#DD,#DD,#D1   ; LFFFFFIFFFFFFFFD
+        db #BD,#DD,#11,#11,#11,#11,#DD,#D1   ; LFFFIIIIIIIIFFFD
+        db #BD,#DD,#DD,#1D,#DD,#DD,#DD,#D1   ; LFFFFFIFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
         db #01,#11,#11,#11,#11,#11,#11,#10   ; .DDDDDDDDDDDDDD.
 ; START
-        db #06,#66,#66,#66,#66,#66,#66,#60   ; .LLLLLLLLLLLLLL.
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#7B,#77,#77,#B7,#77,#71   ; LFFFFIFFFFIFFFFD
-        db #67,#77,#7B,#77,#7B,#B7,#77,#71   ; LFFFFIFFFIIFFFFD
-        db #67,#77,#7B,#77,#BB,#B7,#77,#71   ; LFFFFIFFIIIFFFFD
-        db #67,#77,#7B,#7B,#BB,#B7,#77,#71   ; LFFFFIFIIIIFFFFD
-        db #67,#77,#7B,#7B,#BB,#B7,#77,#71   ; LFFFFIFIIIIFFFFD
-        db #67,#77,#7B,#77,#BB,#B7,#77,#71   ; LFFFFIFFIIIFFFFD
-        db #67,#77,#7B,#77,#7B,#B7,#77,#71   ; LFFFFIFFFIIFFFFD
-        db #67,#77,#7B,#77,#77,#B7,#77,#71   ; LFFFFIFFFFIFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
+        db #0B,#BB,#BB,#BB,#BB,#BB,#BB,#B0   ; .LLLLLLLLLLLLLL.
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#D1,#DD,#DD,#1D,#DD,#D1   ; LFFFFIFFFFIFFFFD
+        db #BD,#DD,#D1,#DD,#D1,#1D,#DD,#D1   ; LFFFFIFFFIIFFFFD
+        db #BD,#DD,#D1,#DD,#11,#1D,#DD,#D1   ; LFFFFIFFIIIFFFFD
+        db #BD,#DD,#D1,#D1,#11,#1D,#DD,#D1   ; LFFFFIFIIIIFFFFD
+        db #BD,#DD,#D1,#D1,#11,#1D,#DD,#D1   ; LFFFFIFIIIIFFFFD
+        db #BD,#DD,#D1,#DD,#11,#1D,#DD,#D1   ; LFFFFIFFIIIFFFFD
+        db #BD,#DD,#D1,#DD,#D1,#1D,#DD,#D1   ; LFFFFIFFFIIFFFFD
+        db #BD,#DD,#D1,#DD,#DD,#1D,#DD,#D1   ; LFFFFIFFFFIFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
         db #01,#11,#11,#11,#11,#11,#11,#10   ; .DDDDDDDDDDDDDD.
 ; PLAY
-        db #06,#66,#66,#66,#66,#66,#66,#60   ; .LLLLLLLLLLLLLL.
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#B7,#77,#77,#77,#71   ; LFFFFFIFFFFFFFFD
-        db #67,#77,#77,#BB,#77,#77,#77,#71   ; LFFFFFIIFFFFFFFD
-        db #67,#77,#77,#BB,#B7,#77,#77,#71   ; LFFFFFIIIFFFFFFD
-        db #67,#77,#77,#BB,#BB,#77,#77,#71   ; LFFFFFIIIIFFFFFD
-        db #67,#77,#77,#BB,#BB,#77,#77,#71   ; LFFFFFIIIIFFFFFD
-        db #67,#77,#77,#BB,#B7,#77,#77,#71   ; LFFFFFIIIFFFFFFD
-        db #67,#77,#77,#BB,#77,#77,#77,#71   ; LFFFFFIIFFFFFFFD
-        db #67,#77,#77,#B7,#77,#77,#77,#71   ; LFFFFFIFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
+        db #0B,#BB,#BB,#BB,#BB,#BB,#BB,#B0   ; .LLLLLLLLLLLLLL.
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#1D,#DD,#DD,#DD,#D1   ; LFFFFFIFFFFFFFFD
+        db #BD,#DD,#DD,#11,#DD,#DD,#DD,#D1   ; LFFFFFIIFFFFFFFD
+        db #BD,#DD,#DD,#11,#1D,#DD,#DD,#D1   ; LFFFFFIIIFFFFFFD
+        db #BD,#DD,#DD,#11,#11,#DD,#DD,#D1   ; LFFFFFIIIIFFFFFD
+        db #BD,#DD,#DD,#11,#11,#DD,#DD,#D1   ; LFFFFFIIIIFFFFFD
+        db #BD,#DD,#DD,#11,#1D,#DD,#DD,#D1   ; LFFFFFIIIFFFFFFD
+        db #BD,#DD,#DD,#11,#DD,#DD,#DD,#D1   ; LFFFFFIIFFFFFFFD
+        db #BD,#DD,#DD,#1D,#DD,#DD,#DD,#D1   ; LFFFFFIFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
         db #01,#11,#11,#11,#11,#11,#11,#10   ; .DDDDDDDDDDDDDD.
 ; FROM
-        db #06,#66,#66,#66,#66,#66,#66,#60   ; .LLLLLLLLLLLLLL.
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#B7,#77,#77,#77,#71   ; LFFFFFIFFFFFFFFD
-        db #67,#77,#77,#BB,#77,#77,#77,#71   ; LFFFFFIIFFFFFFFD
-        db #67,#77,#77,#B7,#B7,#77,#77,#71   ; LFFFFFIFIFFFFFFD
-        db #67,#77,#77,#B7,#7B,#77,#77,#71   ; LFFFFFIFFIFFFFFD
-        db #67,#77,#77,#B7,#7B,#77,#77,#71   ; LFFFFFIFFIFFFFFD
-        db #67,#77,#77,#B7,#B7,#77,#77,#71   ; LFFFFFIFIFFFFFFD
-        db #67,#77,#77,#BB,#77,#77,#77,#71   ; LFFFFFIIFFFFFFFD
-        db #67,#77,#77,#B7,#77,#77,#77,#71   ; LFFFFFIFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
+        db #0B,#BB,#BB,#BB,#BB,#BB,#BB,#B0   ; .LLLLLLLLLLLLLL.
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#1D,#DD,#DD,#DD,#D1   ; LFFFFFIFFFFFFFFD
+        db #BD,#DD,#DD,#11,#DD,#DD,#DD,#D1   ; LFFFFFIIFFFFFFFD
+        db #BD,#DD,#DD,#1D,#1D,#DD,#DD,#D1   ; LFFFFFIFIFFFFFFD
+        db #BD,#DD,#DD,#1D,#D1,#DD,#DD,#D1   ; LFFFFFIFFIFFFFFD
+        db #BD,#DD,#DD,#1D,#D1,#DD,#DD,#D1   ; LFFFFFIFFIFFFFFD
+        db #BD,#DD,#DD,#1D,#1D,#DD,#DD,#D1   ; LFFFFFIFIFFFFFFD
+        db #BD,#DD,#DD,#11,#DD,#DD,#DD,#D1   ; LFFFFFIIFFFFFFFD
+        db #BD,#DD,#DD,#1D,#DD,#DD,#DD,#D1   ; LFFFFFIFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
         db #01,#11,#11,#11,#11,#11,#11,#10   ; .DDDDDDDDDDDDDD.
 ; STOP
-        db #06,#66,#66,#66,#66,#66,#66,#60   ; .LLLLLLLLLLLLLL.
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#7B,#BB,#BB,#B7,#77,#71   ; LFFFFIIIIIIFFFFD
-        db #67,#77,#7B,#BB,#BB,#B7,#77,#71   ; LFFFFIIIIIIFFFFD
-        db #67,#77,#7B,#BB,#BB,#B7,#77,#71   ; LFFFFIIIIIIFFFFD
-        db #67,#77,#7B,#BB,#BB,#B7,#77,#71   ; LFFFFIIIIIIFFFFD
-        db #67,#77,#7B,#BB,#BB,#B7,#77,#71   ; LFFFFIIIIIIFFFFD
-        db #67,#77,#7B,#BB,#BB,#B7,#77,#71   ; LFFFFIIIIIIFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
-        db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
+        db #0B,#BB,#BB,#BB,#BB,#BB,#BB,#B0   ; .LLLLLLLLLLLLLL.
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#D1,#11,#11,#1D,#DD,#D1   ; LFFFFIIIIIIFFFFD
+        db #BD,#DD,#D1,#11,#11,#1D,#DD,#D1   ; LFFFFIIIIIIFFFFD
+        db #BD,#DD,#D1,#11,#11,#1D,#DD,#D1   ; LFFFFIIIIIIFFFFD
+        db #BD,#DD,#D1,#11,#11,#1D,#DD,#D1   ; LFFFFIIIIIIFFFFD
+        db #BD,#DD,#D1,#11,#11,#1D,#DD,#D1   ; LFFFFIIIIIIFFFFD
+        db #BD,#DD,#D1,#11,#11,#1D,#DD,#D1   ; LFFFFIIIIIIFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
+        db #BD,#DD,#DD,#DD,#DD,#DD,#DD,#D1   ; LFFFFFFFFFFFFFFD
         db #01,#11,#11,#11,#11,#11,#11,#10   ; .DDDDDDDDDDDDDD.
 
 ;-------- IM1, в начале сборки кадра: буфер шапки (строки HD_BUF_LINE..) -> строки
