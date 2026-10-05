@@ -105,6 +105,8 @@
   по плееру и проверен на модуле);
 - `doc/bitphase.md` — интерфейс Bitphase (эталон): ордер, колонки, эффекты;
 - `doc/ay.md` — AY; `doc/architecture.md` — план интерфейса.
+- `doc/ay-ports-map.md` — порты AY: кто занимает какие номера регистров и значения `#FFFD`
+  (TurboSound, TS-FM, AYX-32, MultiSound, SAA), свободное поле для Trinity.
 - `doc/zx-trinity.md` — звуковая карта ZX Trinity (AY-эффекты, GS/Paula): всё обсуждённое,
   требования автора, разбор NeoGS и MultiSound (`schemes/`). Читать перед любым разговором о карте.
 - `doc/instruments.md` — инструменты и орнаменты FTC / PT3 / Bitphase, формат FT2.
