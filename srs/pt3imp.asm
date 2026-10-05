@@ -63,6 +63,8 @@ Pt_Import
         call Pt_Order               ; ордер -> наши паттерны
         call Pt_Patterns
         call Pt_Song_Order          ; ордер и каталог - в страницу трека
+        ld hl,Dv_Spec+1             ; имя файла - в трек (шапка)
+        call Dv_Song_File
         ld a,1                      ; вид паттерна перечитает трек при входе
         ld (SV_SONG_NEW),a
         ld a,(Pt_Lost)              ; без потерь - экран диска закрываем

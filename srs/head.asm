@@ -22,7 +22,8 @@ HD_TABS_Y       equ 0
 HD_TABS_X       equ 1               ; вкладки
 HD_PLAY_Y       equ 0               ; кнопки транспорта - спрайты 16x16 (35..54, строки 0..1)
 HD_PLAY_X       equ 35
-HD_TRK_X        equ 57              ; трек "1 2" (выбранный - выделен)
+HD_TRK_L        equ 57              ; "Track:"
+HD_TRK_X        equ 64              ; трек "1 2" (выбранный - выделен)
 HD_HELP_X       equ 76              ; "Help"
 HD_ABOUT_X      equ 81              ; "About"
 HD_STEREO_X     equ 87              ; стерео "ABC" - в правом углу
@@ -104,8 +105,25 @@ Head_Load
         ld (Song_Stereo),a
         ld a,(#8000+SH_STEP)
         ld (Cur_Step),a
+        ld hl,#8000+SH_NAME         ; имя, автор, файл - копии для вывода
+        ld de,Hd_Song
+        ld bc,32
+        ldir
+        ld hl,#8000+SH_AUTHOR
+        ld de,Hd_Author
+        ld bc,32
+        ldir
+        ld hl,#8000+SH_FILE
+        ld de,Hd_File
+        ld bc,32
+        ldir
         RESTPAGE2
         ret
+
+Hd_Song         ds 32               ; имя трека (32 знака, хвост - пробелы или 0)
+Hd_Author       ds 32
+Hd_File         ds 32               ; имя файла, 0 на конце
+HD_FILE_W       equ 28              ; видно знаков имени файла
 
 ;-------- Значения трека - в страницу трека (поменяли в шапке)
 Hd_Save
@@ -154,15 +172,13 @@ Hd_Static
         db HD_TABS_Y,HD_TABS_X+21,CLR_TOP_TEXT,"Disk",0
         db HD_TABS_Y,HD_TABS_X+26,CLR_TOP_TEXT,"Setup",0
         db HD_ROW_FILE,HD_FILE_L,CLR_TOP_TEXT,"File:",0
-        db HD_ROW_FILE,HD_FILE_X,CLR_TOP_VALUE,"............................",0
+        db HD_TABS_Y,HD_TRK_L,CLR_TOP_TEXT,"Track:",0
         db HD_TABS_Y,HD_HELP_X,CLR_TOP_TEXT,"Help",0
         db HD_TABS_Y,HD_ABOUT_X,CLR_TOP_TEXT,"About",0
         db HD_ROW_FILE,HD_CHIP_L,CLR_TOP_TEXT,"Chip:",0
         db HD_ROW_FILE,HD_TUNE_L,CLR_TOP_TEXT,"Tune:",0
         db HD_ROW_SONG,HD_SONG_L,CLR_TOP_TEXT,"Song:",0
-        db HD_ROW_SONG,HD_NAME_X,CLR_TOP_VALUE,"................................",0
         db HD_ROW_SONG,HD_BY_L,CLR_TOP_TEXT,"By:",0
-        db HD_ROW_SONG,HD_AUTH_X,CLR_TOP_VALUE,"................................",0
         db HD_ROW_EDIT,HD_SPEED_L,CLR_TOP_TEXT,"Speed:",0
         db HD_ROW_EDIT,HD_LEN_L,CLR_TOP_TEXT,"Size:",0
         db HD_ROW_EDIT,HD_OCT_L,CLR_TOP_TEXT,"Octave:",0
@@ -255,11 +271,45 @@ Head_Show
         ld b,7
         ld de,HD_TUNE_X+256*(HD_SCR_H+HD_ROW_FILE)
         call Hd_Name
+        call Hd_Texts               ; имя файла, трека, автор
         call Hd_Track               ; трек "1 2"
         call Hd_Buttons             ; кнопки [-][+]
         call Tr_State_Update        ; кнопки транспорта: нажата, активна, под мышью
         jp Hd_Hover                 ; подсветка поля под мышью
 
+
+;-------- Имя файла, трека, автор: знаки до 0, остаток поля - точки (как поле ввода)
+Hd_Texts
+        ld a,(THEME_ATTR+CLR_TOP_VALUE)
+        ld c,a
+        ld hl,Hd_File
+        ld b,HD_FILE_W
+        ld de,HD_FILE_X+256*(HD_SCR_H+HD_ROW_FILE)
+        call Hd_Text
+        ld hl,Hd_Song
+        ld b,32
+        ld de,HD_NAME_X+256*(HD_SCR_H+HD_ROW_SONG)
+        call Hd_Text
+        ld hl,Hd_Author
+        ld b,32
+        ld de,HD_AUTH_X+256*(HD_SCR_H+HD_ROW_SONG)
+; HL - текст, B - ширина поля, DE - куда, C - цвет. 0 - конец, дальше точки;
+; управляющие знаки - точки
+Hd_Text
+.c      ld a,(hl)
+        or a
+        jr z,.dots
+        cp ' '
+        jr nc,$+4
+        ld a,'.'
+        call PutCh
+        inc hl
+        djnz .c
+        ret
+.dots   ld a,'.'
+        call PutCh
+        djnz .dots
+        ret
 
 ; Трек "1 2": выбранный - цветом активной вкладки, другой - как подписи
 Hd_Track

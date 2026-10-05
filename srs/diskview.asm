@@ -1429,9 +1429,33 @@ Ld_Unpack
         ld a,(hl)
         cp PATTERNS_MAX
         jr c,.pat
+        ld hl,Dv_Spec+1             ; имя файла - в трек (шапка)
+        call Dv_Song_File
         ld a,1                      ; вид паттерна перечитает трек при входе
         ld (SV_SONG_NEW),a
         jp Dv_Loaded
+
+;-------- Имя файла HL (0 на конце, до 31 знака) - в заголовок трека (SH_FILE)
+Sf_Src          dw 0
+
+Dv_Song_File
+        ld (Sf_Src),hl
+        ld a,PAGE_SONG1
+        SETPAGE2 a
+        ld hl,(Sf_Src)
+        ld de,#8000+SH_FILE
+        ld b,31
+.c      ld a,(hl)
+        ld (de),a
+        or a
+        jr z,.e
+        inc hl
+        inc de
+        djnz .c
+        xor a                       ; длиннее - обрезали
+        ld (de),a
+.e      RESTPAGE2
+        ret
 
 ;-------- Загрузили без потерь - экран диска закрываем, назад в вид паттерна
 Dv_Loaded
@@ -1516,6 +1540,8 @@ Dv_Save
         ld hl,Txt_NoName
         jp Dv_Error
 .name   call Name_Ext
+        ld hl,Dv_Name               ; имя файла - в трек (и в файл)
+        call Dv_Song_File
         call Sv_Pack                ; трек -> буфер файла
         ld hl,Dv_Spec               ; такой файл есть? - пишем во временный
         ld (hl),FD_FILE
