@@ -21,8 +21,13 @@ HD_STEREO_X     equ 79              ; стерео (3 знака)
 HD_TUNE_X       equ 83              ; таблица нот (7 знаков)
 ; --- коробка шапки во всю ширину: своя рамка, строки HD_FRAME_Y..VIEW_LINE-1
 HD_BOX_W        equ 90
+; --- рисуем в буфер: невидимые строки HD_BUF_LINE.. текстовой страницы (вместе с
+;     подсветкой), IM1 в начале кадра копирует их в строки 0..6 одной DMA (Head_Copy) -
+;     на экран попадает только готовая шапка, без промежуточных цветов
+HD_BUF_LINE     equ 48
+HD_SCR_H        equ SCR_BASE_H+HD_BUF_LINE
 HD_FRAME_Y      equ 2               ; коробка шапки: строки 2..6 (0..1 - вкладки и кнопки 16x16)
-HD_ROW_SONG     equ 3               ; имя, автор, скорость
+HD_ROW_SONG     equ 3               ; имя, автор
 HD_ROW_FILE     equ 4               ; имя файла
 HD_ROW_EDIT     equ 5               ; параметры ввода - ближе к паттерну
 ; --- Song
@@ -31,21 +36,21 @@ HD_FILE_L       equ 2               ; "File"
 HD_FILE_X       equ 8               ; имя файла (32)
 HD_BY_X         equ 35
 HD_AUTH_X       equ 38              ; автор (32)
-HD_SPEED_L      equ 72              ; "Speed"
-HD_SPEED_X      equ 78              ; значение, [-][+] - сразу за ним
-; --- Edit
-HD_OCT_L        equ 2               ; "Octave"
-HD_OCT_X        equ 9               ; 1 цифра, кнопки - +1
-HD_STEP_L       equ 16              ; "Step" + галочка (шаг вкл/выкл)
-HD_STEPCHK_X    equ 20
-HD_STEP_X       equ 22              ; 2 знака, кнопки - +2
-HD_LEN_L        equ 30
-HD_LEN_X        equ 34
-HD_ENVNOTE_L    equ 43              ; "Env as Note" + галочка (вся надпись - поле)
-HD_ENVNOTE_X    equ 54
-HD_AUTO_L       equ 58              ; "Auto Env" + галочка
-HD_AUTO_X       equ 66
-HD_RATIO_X      equ 68              ; "1:1" - клик по кругу
+; --- Edit: Speed, Size, Octave, Step, Env as Note, Auto Env
+HD_SPEED_L      equ 2               ; "Speed"
+HD_SPEED_X      equ 8               ; 2 знака, кнопки - +2
+HD_OCT_L        equ 29              ; "Octave"
+HD_OCT_X        equ 36              ; 1 цифра, кнопки - +1
+HD_STEP_L       equ 43              ; "Step" + галочка (шаг вкл/выкл)
+HD_STEPCHK_X    equ 47
+HD_STEP_X       equ 49              ; 2 знака, кнопки - +2
+HD_LEN_L        equ 16              ; "Size" - длина паттерна
+HD_LEN_X        equ 21
+HD_ENVNOTE_L    equ 57              ; "Env as Note" + галочка (вся надпись - поле)
+HD_ENVNOTE_X    equ 68
+HD_AUTO_L       equ 71              ; "Auto Env" + галочка
+HD_AUTO_X       equ 79
+HD_RATIO_X      equ 81              ; "1:1" - клик по кругу
 
 ; --- значения
 Song_Speed      db 3
@@ -120,7 +125,7 @@ Hd_Save
 Head_Draw
         ld a,(THEME_ATTR+CLR_TITLE)
         ld c,a
-        ld d,SCR_BASE_H+HD_FRAME_Y  ; верх: ┌──────┐
+        ld d,HD_SCR_H+HD_FRAME_Y  ; верх: ┌──────┐
         ld e,0
         ld a,BOX_TL
         call PutCh
@@ -161,12 +166,12 @@ Hd_Static
         db HD_ROW_SONG,HD_NAME_X,CLR_EMPTY,"................................",0
         db HD_ROW_SONG,HD_BY_X,CLR_HEADER,"by",0
         db HD_ROW_SONG,HD_AUTH_X,CLR_EMPTY,"................................",0
-        db HD_ROW_SONG,HD_SPEED_L,CLR_HEADER,"Speed",0
+        db HD_ROW_EDIT,HD_SPEED_L,CLR_HEADER,"Speed",0
         db HD_ROW_FILE,HD_FILE_L,CLR_HEADER,"File",0
         db HD_ROW_FILE,HD_FILE_X,CLR_EMPTY,"................................",0
         db HD_ROW_EDIT,HD_OCT_L,CLR_HEADER,"Octave",0
         db HD_ROW_EDIT,HD_STEP_L,CLR_HEADER,"Step",0
-        db HD_ROW_EDIT,HD_LEN_L,CLR_HEADER,"Len",0
+        db HD_ROW_EDIT,HD_LEN_L,CLR_HEADER,"Size",0
         db HD_ROW_EDIT,HD_ENVNOTE_L,CLR_HEADER,"Env as Note",0
         db HD_ROW_EDIT,HD_AUTO_L,CLR_HEADER,"Auto Env",0
         db #FF
@@ -177,7 +182,7 @@ Head_Show
 .s      ld a,(hl)
         cp #FF
         jr z,.values
-        add a,SCR_BASE_H
+        add a,HD_SCR_H
         ld d,a
         inc hl
         ld e,(hl)
@@ -200,24 +205,24 @@ Head_Show
         ld a,(SV_PLAY_SPEED)
         jr nz,$+5
         ld a,(Song_Speed)
-        ld de,HD_SPEED_X+256*(SCR_BASE_H+HD_ROW_SONG)
+        ld de,HD_SPEED_X+256*(HD_SCR_H+HD_ROW_EDIT)
         call PutHex2
         ld a,(Song_Tuning)          ; строка 0, справа: таблица нот, вывод, стерео
         ld hl,Hd_Tunings
         ld b,7
-        ld de,HD_TUNE_X+256*(SCR_BASE_H+HD_TABS_Y)
+        ld de,HD_TUNE_X+256*(HD_SCR_H+HD_TABS_Y)
         call Hd_Name
         ld a,(Song_Device)
         ld hl,Hd_Devices
         ld b,9
-        ld de,HD_CHIP_X+256*(SCR_BASE_H+HD_TABS_Y)
+        ld de,HD_CHIP_X+256*(HD_SCR_H+HD_TABS_Y)
         call Hd_Name
         ld a,(Song_Chips)           ; каналов: "3ch" / "6ch"
         cp 2
         ld a,"3"
         jr c,$+4
         ld a,"6"
-        ld de,HD_CHAN_X+256*(SCR_BASE_H+HD_TABS_Y)
+        ld de,HD_CHAN_X+256*(HD_SCR_H+HD_TABS_Y)
         call PutCh
         ld a,"c"
         call PutCh
@@ -226,39 +231,39 @@ Head_Show
         ld a,(Song_Stereo)
         ld hl,Hd_Stereos
         ld b,3
-        ld de,HD_STEREO_X+256*(SCR_BASE_H+HD_TABS_Y)
+        ld de,HD_STEREO_X+256*(HD_SCR_H+HD_TABS_Y)
         call Hd_Name
         ld a,(Cur_Octave)           ; Edit: октава, шаг, длина
         add a,'0'
-        ld de,HD_OCT_X+256*(SCR_BASE_H+HD_ROW_EDIT)
+        ld de,HD_OCT_X+256*(HD_SCR_H+HD_ROW_EDIT)
         call PutCh
         ld a,(Cur_Step)
-        ld de,HD_STEP_X+256*(SCR_BASE_H+HD_ROW_EDIT)
+        ld de,HD_STEP_X+256*(HD_SCR_H+HD_ROW_EDIT)
         call PutHex2
         ld a,(Cur_Pos)              ; длина паттерна текущей позиции
         ld hl,Test_Order
         call Arr_Get
         ld hl,Pat_Len
         call Arr_Get
-        ld de,HD_LEN_X+256*(SCR_BASE_H+HD_ROW_EDIT)
+        ld de,HD_LEN_X+256*(HD_SCR_H+HD_ROW_EDIT)
         call PutHex2
         ld a,(Auto_Ratio)           ; соотношение автоогибающей
         ld hl,Hd_Ratios
         ld b,3
-        ld de,HD_RATIO_X+256*(SCR_BASE_H+HD_ROW_EDIT)
+        ld de,HD_RATIO_X+256*(HD_SCR_H+HD_ROW_EDIT)
         call Hd_Name
         ld a,(Env_As_Note)          ; галочки
-        ld de,HD_ENVNOTE_X+256*(SCR_BASE_H+HD_ROW_EDIT)
+        ld de,HD_ENVNOTE_X+256*(HD_SCR_H+HD_ROW_EDIT)
         call Hd_Check
         ld a,(Auto_Step)
-        ld de,HD_STEPCHK_X+256*(SCR_BASE_H+HD_ROW_EDIT)
+        ld de,HD_STEPCHK_X+256*(HD_SCR_H+HD_ROW_EDIT)
         call Hd_Check
         ld a,(Auto_Env)
-        ld de,HD_AUTO_X+256*(SCR_BASE_H+HD_ROW_EDIT)
+        ld de,HD_AUTO_X+256*(HD_SCR_H+HD_ROW_EDIT)
         call Hd_Check
         ld a,(THEME_ATTR+CLR_HEADER) ; время игры mm:ss
         ld c,a
-        ld de,HD_TIME_X+256*(SCR_BASE_H+HD_TABS_Y)
+        ld de,HD_TIME_X+256*(HD_SCR_H+HD_TABS_Y)
         ld a,(Tm_Min)
         call Hd_Dec2
         ld a,':'
@@ -329,7 +334,7 @@ Hd_Buttons
         jr nz,.show
         inc b
 .show   ld a,(ix+FLD_Y)
-        add a,SCR_BASE_H
+        add a,HD_SCR_H
         ld d,a
         ld e,(ix+FLD_X)
         ld a,(ix+FLD_PARAM)         ; чётная - [-], нечётная - [+]
@@ -357,7 +362,7 @@ Hd_Hover
         ret nc
         ld ix,(SV_HOVER)
         ld a,(ix+FLD_Y)
-        add a,SCR_BASE_H
+        add a,HD_SCR_H
         ld h,a
         ld a,(ix+FLD_X)
         or SCR_ATTR
@@ -412,8 +417,8 @@ Time_Reset
 HF_BUTTON       equ %10000000       ; флаг поля (FLD_FLAGS): кнопка [-]/[+]
 
 Head_Fields
-        FIELD HD_SPEED_X+2,HD_ROW_SONG,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 0  ; Speed -
-        FIELD HD_SPEED_X+4,HD_ROW_SONG,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 1  ;       +
+        FIELD HD_SPEED_X+2,HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 0  ; Speed -
+        FIELD HD_SPEED_X+4,HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 1  ;       +
         FIELD HD_OCT_X+1,  HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 2  ; Octave -
         FIELD HD_OCT_X+3,  HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 3  ;        +
         FIELD HD_STEP_X+2, HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 4  ; Step -
@@ -564,14 +569,14 @@ Hd_Cycle
 ; КНОПКИ ТРАНСПОРТА - СПРАЙТЫ (как у Bitphase: светлый значок на скруглённой
 ; подложке). Спрайт 16x8 = 4 знакоместа x 1 строка (пиксель спрайта - пол знакоместа
 ; по ширине). Графика - в странице спрайтов: ряд тайлов 2 (строки 16..23) - обычные,
-; ряд 3 (строки 24..31) - под мышью. Описатели - SFILE, записи 1..5; стрелка мыши -
-; запись 0 (раньше в списке - выше, srs/mouse.asm).
+; ряд 4 (строки 32..47) - под мышью. Описатели - SFILE, записи 0..4; стрелка мыши -
+; запись 5 (позже в списке - выше, srs/mouse.asm).
 ; =========================================================================
 TR_BUTTONS      equ 5
 TR_ROW_N        equ 2               ; ряд тайлов: обычные (строки битмапа 16..31)
 TR_ROW_H        equ 4               ;             под мышью (строки 32..47)
 TR_PAL          equ #D0             ; палитра 13 (как у текста и стрелки)
-TR_SFILE_SLOT   equ 1               ; первая запись SFILE кнопок: 0 - стрелка мыши (она поверх)
+TR_SFILE_SLOT   equ 0               ; записи SFILE кнопок 0..4; стрелка мыши - 5 (позже - поверх)
 
 ;-------- Раз при старте: графику - в страницу спрайтов, описатели - в SFILE
 Head_Sprites
@@ -672,7 +677,7 @@ Tr_SAT_End
 Tr_Dma  db high DMASADDRL, low (Tr_SAT-#4000)
         db high DMASADDRH, high (Tr_SAT-#4000)
         db high DMASADDRX, PAGE_TOOL_PATVIEW
-        db high DMADADDRL, TR_SFILE_SLOT*6  ; SFILE: записи 1..5 (0 - стрелка мыши)
+        db high DMADADDRL, TR_SFILE_SLOT*6  ; SFILE: записи 0..4 (5 - стрелка мыши)
         db high DMADADDRH, 0
         db high DMADADDRX, 0
         db high DMALEN, (Tr_SAT_End-Tr_SAT)/2-1
@@ -852,3 +857,34 @@ Tr_Gfx_H                            ; под мышью: грань #7
         db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
         db #67,#77,#77,#77,#77,#77,#77,#71   ; LFFFFFFFFFFFFFFD
         db #01,#11,#11,#11,#11,#11,#11,#10   ; .DDDDDDDDDDDDDD.
+
+;-------- IM1, в начале сборки кадра: буфер шапки (строки HD_BUF_LINE..) -> строки
+; 0..VIEW_LINE-1 экрана, символы и атрибуты, одной DMA
+Head_Copy
+        call dma_wait               ; C = #AF
+        ld a,(SV_DRAW_PAGE)         ; та же страница: источник и приёмник
+        ld b,high DMASADDRX
+        out (c),a
+        ld b,high DMADADDRX
+        out (c),a
+        xor a                       ; с колонки 0
+        ld b,high DMASADDRL
+        out (c),a
+        ld b,high DMADADDRL
+        out (c),a
+        ld a,HD_BUF_LINE            ; строка буфера -> строка 0
+        ld b,high DMASADDRH
+        out (c),a
+        xor a
+        ld b,high DMADADDRH
+        out (c),a
+        ld a,127                    ; вся строка 256 байт
+        ld b,high DMALEN
+        out (c),a
+        ld a,VIEW_LINE-1            ; строк 0..VIEW_LINE-1
+        ld b,high DMANUM
+        out (c),a
+        ld a,DMA_RAM|DMA_SALGN|DMA_DALGN
+        ld b,high DMACTR
+        out (c),a
+        ret

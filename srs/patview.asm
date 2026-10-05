@@ -239,6 +239,7 @@ Compose
         ld a,(Tpl_Repl)             ; раскладка сменилась - размножить шаблоны
         or a
         call nz,Tpl_Replicate
+        call Head_Copy              ; 0. шапка - из буфера (srs/head.asm)
         BAND_I BAND_TILES
         call Draw_Chars             ; 1. поля: черепица и пустые строки
         BAND_I BAND_ATTR
