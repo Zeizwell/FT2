@@ -53,7 +53,7 @@ Theme_Default
             db #07      ; CLR_HEAD_BTN    кнопки: дымчато-синий, как в паттерне
             db #88      ; CLR_TOP_BG      шапка: фон #8 (свой, темнее плашек заголовков #1)
             db #82      ; CLR_TOP_TEXT    подписи: светлый #2
-            db #8A      ; CLR_TOP_HI      выделенное: #A
+            db #8D      ; CLR_TOP_HI      выделенное (активная вкладка, трек): зелёный #D, как горящая кнопка
             db #87      ; CLR_TOP_BTN     кнопки [-][+]: #7
 Theme_Default_end
     ASSERT Theme_Default_end-Theme_Default <= THEME_ROLES_MAX

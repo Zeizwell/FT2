@@ -65,10 +65,9 @@ Pt_Import
         call Pt_Song_Order          ; ордер и каталог - в страницу трека
         ld a,1                      ; вид паттерна перечитает трек при входе
         ld (SV_SONG_NEW),a
-        ld hl,Txt_Pt3Ok
-        ld a,(Pt_Lost)
+        ld a,(Pt_Lost)              ; без потерь - экран диска закрываем
         or a
-        jp z,Dv_Ok
+        jp z,Dv_Loaded
         ld hl,Txt_Pt3Cut            ; что обрезали - словами за сообщением
         ld de,Pt_Msg
         call Str_Copy
@@ -1192,7 +1191,6 @@ Pr_Delay
         ld a,15
         ret
 
-Txt_Pt3Ok       db "PT3 loaded",0
 Txt_Pt3Cut      db "PT3 cut:",0
 Txt_BadPt3      db "Bad PT3",0
 

@@ -1431,8 +1431,15 @@ Ld_Unpack
         jr c,.pat
         ld a,1                      ; вид паттерна перечитает трек при входе
         ld (SV_SONG_NEW),a
-        ld hl,Txt_Loaded
-        jp Dv_Ok
+        jp Dv_Loaded
+
+;-------- Загрузили без потерь - экран диска закрываем, назад в вид паттерна
+Dv_Loaded
+        ld a,PAGE_TOOL_PATVIEW
+        ld (SV_TOOL),a
+        ld a,1
+        ld (Dv_Exit),a
+        ret
 
 ; Данные роу 0..63 паттерна в окне 2 - нули
 Pat_Zero
@@ -1990,7 +1997,6 @@ Txt_NotFT2      db "Not an FT2 file",0
 Txt_TooBig      db "File too big",0
 Txt_CantLoad    db "Load: FT2 or PT3 only",0
 Txt_NoName      db "Type a name",0
-Txt_Loaded      db "Loaded",0
 Txt_Saved       db "Saved",0
 Txt_DiskErr     db "Disk error #",0
 Txt_Empty       db "Empty dir",0
