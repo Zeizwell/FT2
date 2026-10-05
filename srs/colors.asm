@@ -44,6 +44,12 @@ Theme_Default
             db #01      ; CLR_SEP       разделители - еле видно (#1 на фоне #0)
             db #04      ; CLR_SB_TRACK  графит - дорожка скроллбара
             db #09      ; CLR_SB_THUMB  стальной - ползунок
-            db #1B      ; CLR_HOVER     поле под мышью: белый на фоне #1
+            db #7B      ; CLR_HOVER     поле под мышью: белый на дымчато-синем
+            db #11      ; CLR_HEAD_BG   шапка: фон #1 (чуть светлее основного #0)
+            db #12      ; CLR_HEAD_TEXT   подписи: светлый
+            db #4B      ; CLR_HEAD_VALUE  значения: белый на графите
+            db #13      ; CLR_HEAD_LINE   рамки: тусклый
+            db #1A      ; CLR_HEAD_HI     выделенное: кремовый
+            db #17      ; CLR_HEAD_BTN    кнопки: дымчато-синий
 Theme_Default_end
     ASSERT Theme_Default_end-Theme_Default <= THEME_ROLES_MAX

@@ -44,8 +44,8 @@ PAT_PAGE        equ PAGE_POOL       ; паттерн n = страница PAT_PA
 PAT_BASE_H      equ #80             ; страница паттерна - в окне 2
 SCR_BASE_H      equ #C0             ; текстовая страница - в окне 3
 LINE_W          equ 128             ; знакомест в строке текстовой страницы
-VIEW_LINE       equ 7               ; верхняя рамка с заголовками
-VIEW_ROWS       equ 27              ; роу на экране: строки 8..34
+VIEW_LINE       equ 4               ; верхняя рамка с заголовками (над ней - шапка, srs/head.asm)
+VIEW_ROWS       equ 30              ; роу на экране: строки 5..34
 VIEW_CENTER     equ VIEW_ROWS/2     ; строка редактирования - по центру
 FIRST_LINE      equ VIEW_LINE+1
 EDIT_LINE       equ FIRST_LINE+VIEW_CENTER
@@ -1048,6 +1048,10 @@ D_Ch1           db 3,CLR_NOTE, 1,CLR_BG, 1,CLR_INSTR, 1,CLR_ENVSHAPE, 1,CLR_ORNA
 ; РАМКИ И ПОДПИСИ (строки 7 и 35), при смене раскладки
 ; =========================================================================
 Draw_Frame
+        ld a,(THEME_ATTR+CLR_HEAD_LINE) ; верх - полоса заголовков: цвета шапки
+        ld (HL_Line),a
+        ld a,(THEME_ATTR+CLR_HEAD_BG)
+        ld (HL_Out),a
         ld a,BOX_TL                 ; ┌──┬──┐
         ld (HL_CornerL),a
         ld a,BOX_TR
@@ -1058,6 +1062,10 @@ Draw_Frame
         ld (HL_Junction2),a
         ld d,SCR_BASE_H+VIEW_LINE
         call Draw_HLine
+        ld a,(THEME_ATTR+CLR_TITLE)  ; низ - обычные цвета
+        ld (HL_Line),a
+        ld a,(THEME_ATTR+CLR_BG)
+        ld (HL_Out),a
         ld a,BOX_BL                 ; └──┴──┘
         ld (HL_CornerL),a
         ld a,BOX_BR
@@ -1071,15 +1079,15 @@ Draw_Frame
 
         ld hl,F_Order               ; "Ord" - ярче, когда ордер в фокусе
         call Is_Focus
-        ld a,(THEME_ATTR+CLR_HEADER)
+        ld a,(THEME_ATTR+CLR_HEAD_TEXT)
         jr nz,$+5
-        ld a,(THEME_ATTR+CLR_ORD_CUR)
+        ld a,(THEME_ATTR+CLR_HEAD_HI)
         ld c,a
         ld d,SCR_BASE_H+VIEW_LINE
         ld e,ORD_X+1
         ld hl,Txt_Order
         call PutStr
-        ld a,(THEME_ATTR+CLR_HEADER)    ; остальные подписи
+        ld a,(THEME_ATTR+CLR_HEAD_TEXT)    ; остальные подписи
         ld c,a
         ld e,ROWNUM_X
         ld hl,Txt_Rw
@@ -1109,9 +1117,9 @@ Draw_Frame
         jr nz,$+5
         ld a,(Cursor_Item)          ; элемент под курсором - заголовок ярче (фокус)
         cp b
-        ld a,(THEME_ATTR+CLR_HEADER)
+        ld a,(THEME_ATTR+CLR_HEAD_TEXT)
         jr nz,$+5
-        ld a,(THEME_ATTR+CLR_ORD_CUR)
+        ld a,(THEME_ATTR+CLR_HEAD_HI)
         ld c,a
         call PutStr
         pop bc
@@ -1131,7 +1139,7 @@ Draw_Frame
         ld a,GLYPH_BTN_PLUS
         jr nz,$+4
         ld a,GLYPH_BTN_MINUS
-        call PutBtn
+        call PutBtn_Head
         pop bc
         inc b
         ld a,b
@@ -1150,7 +1158,7 @@ Txt_Ch_L        db "A",0
 Draw_HLine
         ld h,SCR_BASE_H+TPL_LINE
         ld e,0
-.l      ld a,(THEME_ATTR+CLR_TITLE)
+.l      ld a,(HL_Line)
         ld c,a
         ld a,e
         or a
@@ -1174,7 +1182,7 @@ Draw_HLine
         jr .put
 .cr     ld a,(HL_CornerR)
         jr .put
-.out    ld a,(THEME_ATTR+CLR_BG)
+.out    ld a,(HL_Out)
         ld c,a
         ld a,' '
 .put    call PutCh
@@ -1183,6 +1191,8 @@ Draw_HLine
         jr c,.l
         ret
 
+HL_Line         db 0                ; цвет линии и подписей рамки (Draw_Frame)
+HL_Out          db 0                ; цвет правее рамки
 HL_CornerL      db 0
 HL_CornerR      db 0
 HL_Junction     db 0
@@ -2200,9 +2210,15 @@ Btn_Show
         ld l,a                      ; L - значок: SETPAGE3 портит A и BC
         ld a,(SV_DRAW_PAGE)         ; кнопка - прямо на экране (окно 3)
         SETPAGE3 a
+        ld a,d                      ; в полосе заголовков - цветом шапки
+        cp SCR_BASE_H+VIEW_LINE
         ld a,l
+        jr nz,.ord_btn
+        call PutBtn_Head
+        jr .shown
+.ord_btn
         call PutBtn
-        RESTPAGE3
+.shown  RESTPAGE3
         ret
 .ord    sub OB_ID                   ; кнопка ордера: её строка и значок
         ld b,a
@@ -2964,7 +2980,7 @@ PutBtn
         push bc
         ld b,a
         ld a,(THEME_ATTR+CLR_BUTTON)
-        ld c,a
+Pb_Draw ld c,a
         ld a,b                      ; левая половина
         call PutCh
         ld a,b                      ; правая
@@ -2972,6 +2988,13 @@ PutBtn
         call PutCh
         pop bc
         ret
+
+; То же цветом шапки (CLR_HEAD_BTN): кнопки в шапке и в полосе заголовков паттерна
+PutBtn_Head
+        push bc
+        ld b,a
+        ld a,(THEME_ATTR+CLR_HEAD_BTN)
+        jr Pb_Draw
 
 ; Символ A цветом C в DE (D - строка, E - колонка), цвет на +128. E++
 PutCh
