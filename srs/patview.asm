@@ -170,6 +170,10 @@ PluginMain
         call Build_Layout           ; раскладка (хук IM1 ещё не стоит)
         call Draw_Order
         call Build_Row_Tab
+        ld hl,Pv_Fields             ; поля вида, фокус - паттерну
+        call Fld_Init
+        ld hl,F_Pat
+        call Fld_Set_Focus
         ld hl,Compose               ; вывод - в IM1, каждый кадр
         ld (SV_FRAME_HOOK),hl
         call Int_Line_Set
@@ -183,7 +187,7 @@ Main_Loop
         BAND_M BAND_INPUT
         call Handle_Keys
         call Dbg_Show               ; отладка ввода - временно
-        call Handle_Mouse
+        call Fld_Update             ; мышь и колесо - полям (коре, srs/fields.asm)
         call Play_Step
         call Build_Row_Tab
         ld a,(Layout_Pending)       ; сменился открытый элемент
@@ -214,6 +218,7 @@ Cur_Pos         db 0
 Loop_Pos        db 0
 Ord_Last        db 0
 Play_Tick       db 0
+Env_As_Note     db 0                ; 1 - период огибающей показывать нотой (Alt+E)
 Timing          db 0                ; полоса времени: 0 - выкл (по умолчанию), 1 - вкл (Ctrl+T)
 
 ; =========================================================================
@@ -645,6 +650,7 @@ Build_Layout
 
         call Build_Templates        ; шаблоны строк (символы пустой роу, атрибуты)
         call Build_Tiles            ; черепицы: числа в прямой код Tile_0..2
+        call Build_Head_Kids        ; поля кнопок [+]/[-] - на новые колонки
         call Clear_Right            ; правее рамки - остатки прошлой раскладки
         call Draw_Frame             ; рамки и подписи
         ret
@@ -1018,12 +1024,18 @@ Draw_Frame
         ld d,SCR_BASE_H+BOTTOM_LINE
         call Draw_HLine
 
-        ld a,(THEME_ATTR+CLR_HEADER)    ; подписи
+        ld hl,F_Order               ; "Ord" - ярче, когда ордер в фокусе
+        call Is_Focus
+        ld a,(THEME_ATTR+CLR_HEADER)
+        jr nz,$+5
+        ld a,(THEME_ATTR+CLR_ORD_CUR)
         ld c,a
         ld d,SCR_BASE_H+VIEW_LINE
         ld e,ORD_X+1
         ld hl,Txt_Order
         call PutStr
+        ld a,(THEME_ATTR+CLR_HEADER)    ; остальные подписи
+        ld c,a
         ld e,ROWNUM_X
         ld hl,Txt_Rw
         call PutStr
@@ -1044,7 +1056,13 @@ Draw_Frame
         add a,'A'-1
         ld (Txt_Ch_L),a
         ld hl,Txt_Ch
-.p      ld a,(Cursor_Item)          ; элемент под курсором - заголовок ярче (фокус)
+.p      push hl                     ; паттерн не в фокусе - выделенного заголовка нет
+        ld hl,F_Pat
+        call Is_Focus
+        pop hl
+        ld a,ITEM_NONE
+        jr nz,$+5
+        ld a,(Cursor_Item)          ; элемент под курсором - заголовок ярче (фокус)
         cp b
         ld a,(THEME_ATTR+CLR_HEADER)
         jr nz,$+5
@@ -1385,12 +1403,14 @@ F_NOTE          equ 3               ; нота, 3 знака
 F_SYM           equ 4               ; сэмпл/орнамент, 1 знак (1..W)
 F_HX1           equ 5               ; огибающая/громкость, 1 hex
 F_CMD           equ 6               ; команда: 2 байта как лежат, 4 hex; 0,0 - "...."
+F_ENVP          equ 7               ; период огибающей: 4 hex, а в режиме Env_As_Note -
+                                    ; нота (CHIP_ENVNOTE) "E-4 ", если она есть
 
     ; Поле: тип, смещение данных в роу, колонка текста в строке страницы.
     ; Закрытые части - в блоке (TX_BLOCK + экранная колонка при "всё закрыто" -
     ; CONT_X), расширения - на своих местах EX_*.
     MACRO TXT_ENV src,cx,ex             ; Env: "0134 1F" + расширение " 0000 "
-        db F_HEX16, (src)+CHIP_ENVPER, TX_BLOCK+(cx)-CONT_X
+        db F_ENVP,  (src)+CHIP_ENVPER, TX_BLOCK+(cx)-CONT_X
         db F_NOISE, (src)+CHIP_NOISE,  TX_BLOCK+(cx)-CONT_X+5
         db F_HEX16, (src)+CHIP_ENV2,   (ex)+1
     ENDM
@@ -1418,6 +1438,8 @@ Txt_Fields
 ; H - роу. Портит всё, кроме H
 Row_To_Text
         ld ix,Txt_Fields
+; H - роу, IX - таблица полей (как Txt_Fields). Портит всё, кроме H
+Row_Fields
 .f      ld a,(ix+0)                 ; тип, 0 - конец
         or a
         ret z
@@ -1439,6 +1461,8 @@ Row_To_Text
         jr z,.sym
         dec a
         jr z,.hx1
+        dec a
+        jr nz,.envp
 .cmd    ld a,b                      ; команда: байт C, потом B
         or c
         jr z,.dots4
@@ -1496,6 +1520,32 @@ Row_To_Text
         ld a,(de)
         ld (hl),a
         jr .f
+.envp   ld a,(Env_As_Note)          ; период огибающей: режим нот выключен - 4 hex
+        or a
+        jr z,.hex16
+        ld e,l                      ; нота огибающей - в том же чипе, CHIP_ENVNOTE
+        ld a,(ix-2)                 ; (смещение данных этого поля - запись уже пройдена)
+        add a,CHIP_ENVNOTE-CHIP_ENVPER
+        ld l,a
+        ld a,(hl)
+        ld l,e
+        or a
+        jr z,.hex16                 ; ноты нет (период вводили числом) - 4 hex
+        ld e,a                      ; "E-4 ": 3 знака из Note_T и пробел
+        ld d,high Note_T
+        ld a,(de)
+        ld (hl),a
+        inc l
+        inc d
+        ld a,(de)
+        ld (hl),a
+        inc l
+        inc d
+        ld a,(de)
+        ld (hl),a
+        inc l
+        ld (hl),' '
+        jp .f
 
 ; A -> 2 hex в (HL), L += 2. Портит DE
 Txt_Hex2
@@ -1561,23 +1611,7 @@ K_F8            equ #0A
 K_E             equ #24
 K_T             equ #2C
 
-Hotkeys db K_UP,    0
-        dw K_RowUp
-        db K_DOWN,  0
-        dw K_RowDn
-        db K_PGUP,  0
-        dw K_PageUp
-        db K_PGDN,  0
-        dw K_PageDn
-        db K_LEFT,  0
-        dw K_ChLeft
-        db K_RIGHT, 0
-        dw K_ChRight
-        db K_TAB,   0
-        dw K_ChRight
-        db K_TAB,   KM_SHIFT
-        dw K_ChLeft
-        db K_F5,    0               ; F5..F8, Esc - как в VT
+Hotkeys db K_F5,    0               ; общие клавиши вида; F5..F8, Esc - как в VT
         dw K_PlaySong               ; сонг с текущей позиции
         db K_F6,    0
         dw K_PlayStart              ; сонг с начала
@@ -1589,11 +1623,14 @@ Hotkeys db K_UP,    0
         dw K_Stop
         db K_E,     KM_CTRL
         dw K_EnvOpen                ; Ctrl+E - открыть Env чипа
+        db K_E,     KM_ALT
+        dw K_EnvNote                ; Alt+E - период огибающей нотой / числом
         db K_T,     KM_CTRL
         dw K_Timing                 ; Ctrl+T - полоса времени
         db 0
 
-;-------- Все события клавиатуры за кадр -> обработчики по таблице
+;-------- Все события клавиатуры за кадр: сначала полю в фокусе (навигация
+; паттерна или ордера), не съело - общей таблице Hotkeys
 Handle_Keys
 .k      call Key_Get                ; A - код, C - флаги; Z - пусто
         ret z
@@ -1601,34 +1638,14 @@ Handle_Keys
         ld b,a
         ld a,c
         ld (Dbg_Flags),a
-        ld a,c
-        and KM_SHIFT|KM_CTRL|KM_ALT ; повтор/нажатие для таблицы одинаковы
-        ld c,a
+        ld (HK_Code),bc
+        call Fld_Key                ; полю в фокусе
+        jr c,.k
+        ld bc,(HK_Code)
         ld hl,Hotkeys
-.f      ld a,(hl)                   ; код, 0 - конец таблицы
-        or a
-        jr z,.k                     ; не наше - следующее событие
-        cp b
-        jr nz,.n
-        inc hl
-        ld a,(hl)                   ; модификаторы
-        dec hl
-        cp c
-        jr nz,.n
-        inc hl
-        inc hl
-        ld e,(hl)
-        inc hl
-        ld d,(hl)
-        ex de,hl
-        call .jp
+        call Keys_Table
         jr .k
-.n      inc hl
-        inc hl
-        inc hl
-        inc hl
-        jr .f
-.jp     jp (hl)
+HK_Code         dw 0
 
 ;-------- ОТЛАДКА ВВОДА (временно): на нижней рамке слева "K:код флаги M:модификаторы"
 ; код - последнее событие клавиатуры (PS/2, E0 +128), флаги - KM_* | KF_REPEAT,
@@ -1722,6 +1739,47 @@ K_EnvOpen
         ld (hl),a
         jr Need_Layout
 
+;-------- Огибающая нотой: переключить режим и переписать текст периода огибающей
+; (только эти 2 поля) во всех роу всех паттернов. Экран сам подхватит со
+; следующего кадра - он из текста страниц.
+ER_Pat          db 0                ; номер паттерна - в памяти: SETPAGE через стек
+
+K_EnvNote
+        ld hl,Env_As_Note
+        ld a,(hl)
+        xor 1
+        ld (hl),a
+        xor a
+        ld (ER_Pat),a
+.p      ld a,(ER_Pat)               ; паттерн есть?
+        ld hl,Pat_Exists
+        call Arr_Get
+        or a
+        jr z,.next
+        ld a,(ER_Pat)
+        add a,PAT_PAGE
+        SETPAGE2 a
+        ld h,PAT_BASE_H             ; все роу
+.r      ld ix,Txt_EnvP
+        call Row_Fields
+        inc h
+        ld a,h
+        cp PAT_BASE_H+PAT_ROWS_MAX
+        jr c,.r
+        RESTPAGE2
+.next   ld hl,ER_Pat
+        inc (hl)
+        ld a,(hl)
+        cp PATTERNS_MAX
+        jr c,.p
+        ret
+
+; Поля периода огибающей обоих чипов (для K_EnvNote)
+Txt_EnvP
+        db F_ENVP, CHIP_ENVPER,           TX_BLOCK+CX_ENV1-CONT_X
+        db F_ENVP, CHIP_SIZE+CHIP_ENVPER, TX_BLOCK+CX_ENV2-CONT_X
+        db 0
+
 ; Плей / стоп - как в VT
 K_PlayStart                         ; сонг с первой позиции
         xor a
@@ -1788,19 +1846,165 @@ Int_Line_Set
         out (c),a
         ret
 
-;-------- Мышь. Колесо - роу, с Ctrl/Shift - канал.
-; Кнопки [+]/[-] в заголовке - как в Windows: нажал - кнопка вдавлена, увёл мышь -
-; отжалась, вернул - снова вдавлена, отпустил над ней - сработала.
-Ms_Seen_L       ds 4                ; события левой кнопки, которые уже видели
-Btn_Held        db ITEM_NONE        ; элемент, чью кнопку держат
-Btn_Shown       db 0                ; 1 - сейчас нарисована вдавленной
+; =========================================================================
+; ПОЛЯ ВИДА ПАТТЕРНА (коре: srs/fields.asm). Мышь и фокус - через поля:
+;   ордер    - колонки 0..5: фокус, клик по позиции, колесо и стрелки - позиции;
+;              дети - 4 кнопки ордера;
+;   заголовки - строка 7: дети - кнопки [+]/[-] элементов (строит Build_Layout);
+;   паттерн  - фокус, колесо (с Ctrl/Shift - каналы), навигационные клавиши.
+; Кнопки - как в Windows: нажал - вдавлена, увёл мышь - отжалась, вернул -
+; снова вдавлена, отпустил над ней - сработала.
+; =========================================================================
+    MACRO FIELD x,y,w,h,flags,handler,kids,param
+        db x,y,w,h,flags,PAGE_TOOL_PATVIEW
+        dw handler,kids,param
+    ENDM
 
-Handle_Mouse
-        call Mouse_Get_Wheel
-        or a
-        jr z,.button
+Pv_Fields
+F_Order FIELD ORD_X,FIRST_LINE,DRAW_X0,VIEW_ROWS, FF_FOCUS, Ord_Field, Ord_Kids, 0
+        FIELD 0,VIEW_LINE,LINE_W,1,                0,        0,         Head_Kids, 0
+F_Pat   FIELD DRAW_X0,FIRST_LINE,DRAW_X1-DRAW_X0,VIEW_ROWS, FF_FOCUS, Pat_Field, 0, 0
+        db FLD_END
+
+Ord_Kids                            ; кнопки ордера: параметр - номер кнопки (Btn_*)
+        FIELD ORD_BTN_X,EDIT_LINE-2,2,1, 0, Btn_Field, 0, OB_ID+0
+        FIELD ORD_BTN_X,EDIT_LINE-1,2,1, 0, Btn_Field, 0, OB_ID+1
+        FIELD ORD_BTN_X,EDIT_LINE+1,2,1, 0, Btn_Field, 0, OB_ID+2
+        FIELD ORD_BTN_X,EDIT_LINE+2,2,1, 0, Btn_Field, 0, OB_ID+3
+        db FLD_END
+
+Head_Kids                           ; кнопки [+]/[-] элементов: колонки - Build_Head_Kids
+        DUP ITEMS
+        FIELD 0,VIEW_LINE,2,1, 0, Btn_Field, 0, 0
+        EDUP
+        db FLD_END
+
+;-------- Кнопки заголовков - на свои колонки (после смены раскладки):
+; два последних знака элемента, параметр - номер элемента
+Build_Head_Kids
+        ld ix,Head_Kids
+        ld b,0
+.it     ld a,b
+        ld hl,Item_Col
+        call Arr_Get
         ld c,a
-        ld a,(SV_KEY_MODS)          ; Ctrl или Shift - колесо по каналам
+        ld a,b
+        ld hl,Item_W
+        call Arr_Get
+        add a,c
+        sub 2
+        ld (ix+FLD_X),a
+        ld (ix+FLD_PARAM),b
+        ld de,FLD_SIZE
+        add ix,de
+        inc b
+        ld a,b
+        cp ITEMS
+        jr c,.it
+        ret
+
+;-------- Кнопка (заголовка или ордера). Параметр поля - номер кнопки (Btn_Show/Action)
+Btn_Field
+        ld e,(ix+FLD_PARAM)
+        cp EV_PRESS
+        ld a,1
+        jp z,Btn_Show
+        ld a,(Fc_Ev)
+        cp EV_RELEASE
+        ld a,0
+        jp z,Btn_Show
+        ld a,(Fc_Ev)
+        cp EV_CLICK
+        jp z,Btn_Action
+        ld a,(Fc_Ev)                ; держат и мышь ушла / вернулась
+        cp EV_HOVER_OUT
+        ld c,0
+        jr z,.held
+        cp EV_HOVER_IN
+        ret nz
+        ld c,1
+.held   push ix                     ; это та кнопка, которую держат?
+        pop hl
+        ld de,(SV_PRESSED)
+        or a
+        sbc hl,de
+        ret nz
+        ld e,(ix+FLD_PARAM)
+        ld a,c
+        jp Btn_Show
+
+;-------- Ордер: клик по позиции - выбрать её, колесо и стрелки - позиции
+Ord_Field
+        cp EV_PRESS
+        jr z,.click
+        cp EV_WHEEL
+        jr z,.wheel
+        cp EV_KEY
+        jr z,.key
+        cp EV_FOCUS_IN
+        jr z,.focus
+        cp EV_FOCUS_OUT
+        ret nz
+.focus  jp Draw_Frame               ; заголовок "Ord" - ярче в фокусе
+.click  ld a,(SV_MOUSE_COL)         ; по кнопкам (колонки 4..5) - не выбор
+        cp ORD_BTN_X
+        ret nc
+        ld a,(SV_MOUSE_ROW)         ; строка -> позиция (текущая - в центре)
+        sub EDIT_LINE
+        ld b,a
+        ld a,(Cur_Pos)
+        add a,b
+        ld b,a
+        ld a,(Ord_Last)
+        cp b
+        ret c                       ; за концом ордера
+        ld a,b
+        jr Ord_Go
+.wheel  ld a,c                      ; колесо: вверх - назад по ордеру
+        or a
+        jp m,Ord_Next
+        jr Ord_Prev
+.key    ld hl,Ord_Keys
+        jp Keys_Table
+
+Ord_Keys
+        db K_UP,   0
+        dw Ord_Prev
+        db K_DOWN, 0
+        dw Ord_Next
+        db 0
+
+Ord_Prev
+        ld a,(Cur_Pos)
+        or a
+        ret z
+        dec a
+        jr Ord_Go
+Ord_Next
+        ld a,(Ord_Last)
+        ld b,a
+        ld a,(Cur_Pos)
+        cp b
+        ret nc
+        inc a
+; A - позиция: она текущая, с роу 0
+Ord_Go  ld (Cur_Pos),a
+        jp Ord_Changed
+
+;-------- Паттерн: колесо - роу (с Ctrl/Shift - каналы), клавиши навигации
+Pat_Field
+        cp EV_WHEEL
+        jr z,.wheel
+        cp EV_KEY
+        jr z,.key
+        cp EV_FOCUS_IN
+        jr z,.focus
+        cp EV_FOCUS_OUT
+        ret nz
+.focus  jp Draw_Frame               ; заголовок элемента под курсором - ярче в фокусе
+.key    ld hl,Pat_Keys
+        jp Keys_Table
+.wheel  ld a,(SV_KEY_MODS)          ; Ctrl или Shift - колесо по каналам
         and KM_CTRL|KM_SHIFT
         jr nz,.ch
         ld a,c
@@ -1812,90 +2016,61 @@ Handle_Mouse
         jp m,K_ChRight
         jp K_ChLeft
 
-.button ld a,MB_LEFT
-        ld hl,Ms_Seen_L
-        call Mouse_Btn              ; A - события + бит 7 "держат"
-        ld d,a
-        call Btn_Under              ; B - элемент, чья кнопка под мышью (или ITEM_NONE)
-        bit ME_PRESS,d              ; нажали - запомнить, чью кнопку
-        jr z,.nopress
-        ld a,b
-        ld (Btn_Held),a
-.nopress
-        ld a,(Btn_Held)
-        cp ITEM_NONE
-        ret z                       ; никакую не держат
-        ld e,a                      ; E - удерживаемая
-        bit ME_RELEASE,d
-        jr nz,.release
-        ld a,b                      ; держат: вдавлена, только пока мышь над ней
-        cp e
-        ld a,1
-        jr z,$+3
-        xor a
-        jp Btn_Show
-.release
-        ld a,ITEM_NONE
-        ld (Btn_Held),a
-        xor a                       ; отжать
-        push bc
-        push de
-        call Btn_Show
-        pop de
-        pop bc
-        ld a,b                      ; отпустили над той же - сработала
-        cp e
-        ret nz
-        jp Btn_Action
+; Навигация по паттерну - только когда он в фокусе
+Pat_Keys
+        db K_UP,    0
+        dw K_RowUp
+        db K_DOWN,  0
+        dw K_RowDn
+        db K_PGUP,  0
+        dw K_PageUp
+        db K_PGDN,  0
+        dw K_PageDn
+        db K_LEFT,  0
+        dw K_ChLeft
+        db K_RIGHT, 0
+        dw K_ChRight
+        db K_TAB,   0
+        dw K_ChRight
+        db K_TAB,   KM_SHIFT
+        dw K_ChLeft
+        db 0
 
-; B = кнопка под мышью: элемент 0..7 (2 последних знака заголовка), кнопка
-; ордера OB_ID+0..3, или ITEM_NONE
-Btn_Under
-        ld a,(SV_MOUSE_COL)         ; кнопки ордера: колонки 4..5, строки OB_Row
-        sub ORD_BTN_X
-        cp 2
-        jr nc,.head
-        ld a,(SV_MOUSE_ROW)
+;-------- Таблица клавиш: HL - таблица (код, модификаторы точно, обработчик; конец 0),
+; B - код, C - флаги события. Выход: CF - клавиша наша (обработчик вызван)
+Keys_Table
+        ld a,c
+        and KM_SHIFT|KM_CTRL|KM_ALT ; повтор и нажатие для таблицы одинаковы
         ld c,a
-        ld hl,OB_Row
-        ld b,OB_ID
-.ob     ld a,c
-        cp (hl)
-        ret z
+.f      ld a,(hl)                   ; код, 0 - конец таблицы
+        or a
+        ret z                       ; не наша (CF = 0)
+        cp b
+        jr nz,.n
         inc hl
-        inc b
-        ld a,b
-        cp OB_ID+ORD_BTNS
-        jr c,.ob
-.head   ld b,ITEM_NONE
-        ld a,(SV_MOUSE_ROW)
-        cp VIEW_LINE
-        ret nz
-        ld a,(SV_MOUSE_COL)
-        ld e,a
-        ld b,0
-.it     ld a,b
-        ld hl,Item_Col
-        call Arr_Get
-        ld c,a
-        ld a,b
-        ld hl,Item_W
-        call Arr_Get
-        add a,c
-        sub 2                       ; левая половина кнопки
-        cp e
-        ret z
-        inc a                       ; правая
-        cp e
-        ret z
-        inc b
-        ld a,b
-        cp ITEMS
-        jr c,.it
-        ld b,ITEM_NONE
+        ld a,(hl)                   ; модификаторы
+        dec hl
+        cp c
+        jr nz,.n
+        inc hl
+        inc hl
+        ld e,(hl)
+        inc hl
+        ld d,(hl)
+        ex de,hl
+        call .jp
+        scf
         ret
+.n      inc hl
+        inc hl
+        inc hl
+        inc hl
+        jr .f
+.jp     jp (hl)
 
-; Кнопка удерживаемого элемента (Btn_Held / E) вдавленной (A=1) или обычной (A=0).
+Btn_Shown       db 0                ; 1 - кнопка, которую держат, нарисована вдавленной
+
+; Кнопка E (элемент 0..7 или OB_ID+n) вдавленной (A=1) или обычной (A=0).
 ; Рисуем, только когда вид меняется
 Btn_Show
         ld hl,Btn_Shown
@@ -2377,7 +2552,13 @@ Test_Fill
         inc a
         ld (hl),a
         inc l
-        ld (hl),0                   ; нота огибающей
+        ld a,c                      ; нота огибающей: в каждой 4-й роу (роу+1), иначе 0
+        and 3
+        ld a,0
+        jr nz,$+4
+        ld a,c
+        inc a
+        ld (hl),a
         inc l
         ld (hl),0                   ; резерв
         inc l
@@ -2453,7 +2634,8 @@ Test_Fill
         pop bc
         djnz .ch
         pop bc
-        djnz .chip
+        dec b
+        jp nz,.chip
         inc h
         inc c
         ld a,c
@@ -2525,6 +2707,15 @@ PutCh
         ld (de),a
         res 7,e
         inc e
+        ret
+
+; HL - поле. Z - оно в фокусе. Портит A, HL
+Is_Focus
+        push de
+        ld de,(SV_FOCUS)
+        or a
+        sbc hl,de
+        pop de
         ret
 
 ; A - индекс, HL - массив байт -> A = массив[индекс]
