@@ -1655,13 +1655,15 @@ HK_Code         dw 0
 ; код - последнее событие клавиатуры (PS/2, E0 +128), флаги - KM_* | KF_REPEAT,
 ; M - SV_KEY_MODS сейчас (1 Shift, 2 Ctrl, 4 Alt)
 ;-------- ШАПКА (пока только показ, поверх макета srs/maket.asm, строки 5-6):
-; скорость (что играет плеер, в стопе - трека), Env as Note (галочка),
+; скорость (что играет плеер, в стопе - трека), шаг, Env as Note (галочка),
 ; длина паттерна текущей позиции. Пишем только символы - цвета макета
 HEAD_ROW1       equ 5               ; "|Speed:04+- ... Enve as note *|"
 HEAD_ROW2       equ 6               ; "+----...Size:40+- +"
 HD_SPEED_X      equ 7
 HD_ENVNOTE_X    equ 59
 HD_SIZE_X       equ 55
+HD_STEP_X       equ 17
+HD_STEP_ADDR    equ SCR_BASE_H*256+HEAD_ROW1*256+HD_STEP_X
 HD_SPEED_ADDR   equ SCR_BASE_H*256+HEAD_ROW1*256+HD_SPEED_X
 HD_SIZE_ADDR    equ SCR_BASE_H*256+HEAD_ROW2*256+HD_SIZE_X
 
@@ -1670,8 +1672,11 @@ Head_Show
         or a
         ld a,(SV_PLAY_SPEED)
         jr nz,$+4
-        ld a,TEST_SPEED
+        ld a,NEW_SONG_SPEED
         ld hl,HD_SPEED_ADDR
+        call Hd_Hex2
+        ld a,(Cur_Step)             ; шаг
+        ld hl,HD_STEP_ADDR
         call Hd_Hex2
         ld a,(Env_As_Note)          ; Env as Note: галочка
         or a
@@ -2597,6 +2602,7 @@ TEST_ORD_N      equ $-Test_Order
 ORDER_TEST_MAX  equ 64
 
 Test_Song
+        call Song_Clear             ; новый трек: заголовок (скорость, шаг 4...)
         call Test_Instr             ; инструменты и орнаменты - в их страницу
         ld a,TEST_ORD_N-1
         ld (Ord_Last),a
@@ -2620,17 +2626,44 @@ Test_Song
 ;-------- Трек для плеера: страница трека PAGE_SONG1 - скорость, страница
 ; инструментов, ордер, повтор, каталог паттернов (страница и длина). Пока трек
 ; живёт в переменных вида (Test_Order, Pat_Len...) - копируем туда при каждой правке
-TEST_SPEED      equ 3
+NEW_SONG_SPEED  equ 3               ; новый трек: скорость
+NEW_SONG_STEP   equ 4               ;   шаг курсора при вводе
+NEW_SONG_FORMAT equ 1
+
+;-------- Новый трек: заголовок страницы трека PAGE_SONG1 - нули, подпись, формат,
+; чипы, скорость, шаг, страница инструментов. Ордер и каталог - Song_Sync
+Song_Clear
+        ld a,PAGE_SONG1
+        SETPAGE2 a
+        ld hl,#8000+SONG_HDR        ; заголовок - нули
+        ld de,#8000+SONG_HDR+1
+        ld bc,255
+        ld (hl),0
+        ldir
+        ld hl,Txt_Sign
+        ld de,#8000+SH_SIGN
+        ld bc,4
+        ldir
+        ld a,NEW_SONG_FORMAT
+        ld (#8000+SH_FORMAT),a
+        ld a,CHIPS_MAX
+        ld (#8000+SH_CHIPS),a
+        ld a,NEW_SONG_SPEED
+        ld (#8000+SH_SPEED),a
+        ld a,NEW_SONG_STEP
+        ld (#8000+SH_STEP),a
+        ld a,PAGE_INS1
+        ld (#8000+SH_INS_PAGE),a
+        RESTPAGE2
+        ld a,NEW_SONG_STEP          ; шаг - и в переменную вида (шапка, ввод)
+        ld (Cur_Step),a
+        ret
+Txt_Sign        db "FT2S"
+Cur_Step        db NEW_SONG_STEP    ; шаг курсора (копия SH_STEP)
 
 Song_Sync
         ld a,PAGE_SONG1
         SETPAGE2 a
-        ld a,TEST_SPEED
-        ld (#8000+SH_SPEED),a
-        ld a,CHIPS_MAX
-        ld (#8000+SH_CHIPS),a
-        ld a,PAGE_INS1
-        ld (#8000+SH_INS_PAGE),a
         ld a,(Ord_Last)
         ld (#8000+ORD_LAST),a
         ld a,(Loop_Pos)

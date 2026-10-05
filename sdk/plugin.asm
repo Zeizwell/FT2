@@ -346,7 +346,8 @@ SH_CHIPS        equ SONG_HDR+#05    ; 1  1 или 2 чипа
 SH_SPEED        equ SONG_HDR+#06    ; 1  начальная скорость
 SH_TUNING       equ SONG_HDR+#07    ; 1  таблица нот
 SH_INS_PAGE     equ SONG_HDR+#08    ; 1  страница инструментов и орнаментов (doc/instruments.md)
-                                    ; #08-#0B резерв
+SH_STEP         equ SONG_HDR+#09    ; 1  шаг курсора при вводе (новый трек - 4)
+                                    ; #0A-#0B резерв
 SH_PATTERNS     equ SONG_HDR+#0C    ; 1  число паттернов
 SH_SAMPLES      equ SONG_HDR+#0D    ; 1  число сэмплов (инструментов)
 SH_ORNAMENTS    equ SONG_HDR+#0E    ; 1  число орнаментов
