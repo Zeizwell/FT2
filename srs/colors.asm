@@ -46,14 +46,14 @@ Theme_Default
             db #09      ; CLR_SB_THUMB  стальной - ползунок
             db #7B      ; CLR_HOVER     поле под мышью: белый на дымчато-синем
             db #00      ; CLR_HEAD_BG   полоса заголовков паттерна: фон как у паттерна
-            db #12      ; CLR_HEAD_TEXT   подписи и заголовки колонок: светлые плашки (#2 на #1)
-            db #E0      ; CLR_TOP_VALUE   шапка: значения - самый тёмный #0 на светлом #E
+            db #1E      ; CLR_HEAD_TEXT   заголовки колонок: светлый #E на плашке #1
+            db #E1      ; CLR_TOP_VALUE   шапка: значения - #1 на светлом #E
             db #01      ; CLR_HEAD_LINE   рамки: как у паттерна (#1 на фоне #0)
-            db #1A      ; CLR_HEAD_HI     выделенное: кремовый
+            db #1B      ; CLR_HEAD_HI     заголовок в фокусе: белый на плашке #1
             db #07      ; CLR_HEAD_BTN    кнопки: дымчато-синий, как в паттерне
             db #EE      ; CLR_TOP_BG      шапка: светлый фон #E
-            db #E4      ; CLR_TOP_TEXT    подписи: тёмный #4
-            db #D0      ; CLR_TOP_HI      выделенное (активная вкладка, трек): тёмный на зелёной плашке
-            db #E7      ; CLR_TOP_BTN     кнопки [-][+]: #7 на светлом
+            db #E0      ; CLR_TOP_TEXT    подписи: самый тёмный #0
+            db #ED      ; CLR_TOP_HI      активная вкладка, трек: зелёный на фоне шапки
+            db #E0      ; CLR_TOP_BTN     кнопки [-][+]: как подписи шапки
 Theme_Default_end
     ASSERT Theme_Default_end-Theme_Default <= THEME_ROLES_MAX
