@@ -45,12 +45,15 @@ Theme_Default
             db #04      ; CLR_SB_TRACK  графит - дорожка скроллбара
             db #09      ; CLR_SB_THUMB  стальной - ползунок
             db #7B      ; CLR_HOVER     поле под мышью: белый на дымчато-синем
-            db #00      ; CLR_HEAD_BG   шапка: фон как у паттерна (значения - "вдавлены")
+            db #00      ; CLR_HEAD_BG   полоса заголовков паттерна: фон как у паттерна
             db #12      ; CLR_HEAD_TEXT   подписи и заголовки колонок: светлые плашки (#2 на #1)
-            db #0B      ; CLR_HEAD_VALUE  значения: белый на тёмном фоне паттерна
+            db #8B      ; CLR_TOP_VALUE   шапка: значения - белый на её фоне #8
             db #01      ; CLR_HEAD_LINE   рамки: как у паттерна (#1 на фоне #0)
             db #1A      ; CLR_HEAD_HI     выделенное: кремовый
             db #07      ; CLR_HEAD_BTN    кнопки: дымчато-синий, как в паттерне
-            db #11      ; CLR_HEAD_STRIP  верхняя полоса (вкладки): фон #1, как у плашек заголовков
+            db #88      ; CLR_TOP_BG      шапка: фон #8 (свой, темнее плашек заголовков #1)
+            db #82      ; CLR_TOP_TEXT    подписи: светлый #2
+            db #8A      ; CLR_TOP_HI      выделенное: #A
+            db #87      ; CLR_TOP_BTN     кнопки [-][+]: #7
 Theme_Default_end
     ASSERT Theme_Default_end-Theme_Default <= THEME_ROLES_MAX

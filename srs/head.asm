@@ -1,14 +1,14 @@
 ; =========================================================================
-; ШАПКА (строки 0..VIEW_LINE-1 над паттерном), свой фон CLR_HEAD_BG
-;   строка 0 (светлая полоса во всю ширину): вкладки, трек 1 / 2, File: имя файла,
-;             Help, About, стерео (ABC) - в правом углу, без подписи
-;   строки 1..2: кнопки транспорта (спрайты 16x16) | Song: имя, By: автор |
-;             Chip:, Tune:
+; ШАПКА (строки 0..VIEW_LINE-1 над паттерном), один свой фон CLR_TOP_BG
+;   строка 0: вкладки | кнопки транспорта по центру (спрайты 16x16, строки 0..1) |
+;             трек 1 / 2 | Help, About, стерео (ABC) - в правом углу, без подписи
+;   строка 1: File: имя файла | (кнопки) | Chip:, Tune:
+;   строка 2: Song: имя, By: автор
 ;   строка 3: как пишем в паттерн: Speed:, Size:, Octave:, Step:, Env as Note,
 ;             Auto Env, 3ch / 6ch (вплотную к паттерну)
 ; Данные трека (трек 1 / 2 переключает их все): файл, имя, автор, Chip, Tune,
 ; стерео, Speed, 3ch / 6ch. Остальное в строке 3 - общие настройки ввода.
-; Подписи - CLR_HEAD_TEXT, значения - на своём фоне CLR_HEAD_VALUE (как поле ввода).
+; Подписи - CLR_TOP_TEXT, значения - CLR_TOP_VALUE, на том же фоне.
 ; Всё рисуется в буфер (невидимые строки HD_BUF_LINE..), с подсветкой под мышью;
 ; IM1 копирует буфер на экран одной DMA (Head_Copy). Поля - Head_Fields.
 ; Значения трека - копии из страницы трека (Song_*), меняются - Hd_Save пишет туда.
@@ -20,25 +20,26 @@ HD_W            equ 90              ; ширина шапки
 ; --- строка 0
 HD_TABS_Y       equ 0
 HD_TABS_X       equ 1               ; вкладки
-HD_TRK_X        equ 34              ; трек "1 2" (выбранный - выделен)
-HD_FILE_L       equ 38              ; "File:"
-HD_FILE_X       equ 44              ; имя файла (30)
+HD_PLAY_Y       equ 0               ; кнопки транспорта - спрайты 16x16 (35..54, строки 0..1)
+HD_PLAY_X       equ 35
+HD_TRK_X        equ 57              ; трек "1 2" (выбранный - выделен)
 HD_HELP_X       equ 76              ; "Help"
 HD_ABOUT_X      equ 81              ; "About"
 HD_STEREO_X     equ 87              ; стерео "ABC" - в правом углу
-; --- строки 1..2
-HD_PLAY_Y       equ 1               ; кнопки транспорта - спрайты 16x16 (1..20, строки 1..2)
-HD_PLAY_X       equ 1
-HD_ROW_SONG     equ 1
-HD_SONG_L       equ 22              ; "Song:"
-HD_NAME_X       equ 28              ; имя (32)
-HD_ROW_BY       equ 2
-HD_BY_L         equ 25              ; "By:" - двоеточие под двоеточием "Song:"
-HD_AUTH_X       equ 28              ; автор (32)
-HD_CHIP_L       equ 62              ; "Chip:" (строка 1)
-HD_CHIP_X       equ 68              ; тип чипа (9 знаков)
-HD_TUNE_L       equ 62              ; "Tune:" (строка 2)
-HD_TUNE_X       equ 68              ; 7 знаков
+; --- строка 1
+HD_ROW_FILE     equ 1
+HD_FILE_L       equ 1               ; "File:"
+HD_FILE_X       equ 7               ; имя файла (28)
+HD_CHIP_L       equ 56              ; "Chip:"
+HD_CHIP_X       equ 62              ; тип чипа (9 знаков)
+HD_TUNE_L       equ 73              ; "Tune:"
+HD_TUNE_X       equ 79              ; 7 знаков
+; --- строка 2
+HD_ROW_SONG     equ 2
+HD_SONG_L       equ 1               ; "Song:"
+HD_NAME_X       equ 7               ; имя (32)
+HD_BY_L         equ 41              ; "By:"
+HD_AUTH_X       equ 45              ; автор (32)
 ; --- строка 3: параметры ввода
 HD_ROW_EDIT     equ 3
 HD_SPEED_L      equ 1               ; "Speed:"
@@ -128,9 +129,9 @@ Hd_Save
 ; =========================================================================
 ; РИСОВАНИЕ (в буфер)
 ; =========================================================================
-;-------- Раз при старте: фон шапки, светлая строка 0
+;-------- Раз при старте: вся шапка - одним фоном (свой, не как у полосы заголовков паттерна)
 Head_Draw
-        ld a,(THEME_ATTR+CLR_HEAD_BG)
+        ld a,(THEME_ATTR+CLR_TOP_BG)
         ld c,a
         ld d,HD_SCR_H               ; строки 0..VIEW_LINE-1: пробелы фоном шапки
 .f      ld e,0
@@ -142,40 +143,32 @@ Head_Draw
         ld a,d
         cp HD_SCR_H+VIEW_LINE
         jr c,.f
-        ld a,(THEME_ATTR+CLR_HEAD_STRIP) ; строка 0 - светлая полоса (вкладки, часы)
-        ld c,a
-        ld d,HD_SCR_H+HD_TABS_Y
-        ld e,0
-.st     ld a,' '
-        call PutCh
-        bit 7,e
-        jr z,.st
         ret
 
 ; Надписи: строка, колонка, роль цвета, текст, 0. Конец - #FF
 Hd_Static
-        db HD_TABS_Y,HD_TABS_X,CLR_HEAD_HI,"Pattern",0
-        db HD_TABS_Y,HD_TABS_X+8,CLR_HEAD_TEXT,"Instr",0
-        db HD_TABS_Y,HD_TABS_X+14,CLR_HEAD_TEXT,"Orn",0
-        db HD_TABS_Y,HD_TABS_X+18,CLR_HEAD_TEXT,"FX",0
-        db HD_TABS_Y,HD_TABS_X+21,CLR_HEAD_TEXT,"Disk",0
-        db HD_TABS_Y,HD_TABS_X+26,CLR_HEAD_TEXT,"Setup",0
-        db HD_TABS_Y,HD_FILE_L,CLR_HEAD_TEXT,"File:",0
-        db HD_TABS_Y,HD_FILE_X,CLR_HEAD_VALUE,"..............................",0
-        db HD_TABS_Y,HD_HELP_X,CLR_HEAD_TEXT,"Help",0
-        db HD_TABS_Y,HD_ABOUT_X,CLR_HEAD_TEXT,"About",0
-        db HD_ROW_SONG,HD_CHIP_L,CLR_HEAD_TEXT,"Chip:",0
-        db HD_ROW_BY,HD_TUNE_L,CLR_HEAD_TEXT,"Tune:",0
-        db HD_ROW_SONG,HD_SONG_L,CLR_HEAD_TEXT,"Song:",0
-        db HD_ROW_SONG,HD_NAME_X,CLR_HEAD_VALUE,"................................",0
-        db HD_ROW_BY,HD_BY_L,CLR_HEAD_TEXT,"By:",0
-        db HD_ROW_BY,HD_AUTH_X,CLR_HEAD_VALUE,"................................",0
-        db HD_ROW_EDIT,HD_SPEED_L,CLR_HEAD_TEXT,"Speed:",0
-        db HD_ROW_EDIT,HD_LEN_L,CLR_HEAD_TEXT,"Size:",0
-        db HD_ROW_EDIT,HD_OCT_L,CLR_HEAD_TEXT,"Octave:",0
-        db HD_ROW_EDIT,HD_STEP_L,CLR_HEAD_TEXT,"Step:",0
-        db HD_ROW_EDIT,HD_ENVNOTE_L,CLR_HEAD_TEXT,"Env as Note",0
-        db HD_ROW_EDIT,HD_AUTO_L,CLR_HEAD_TEXT,"Auto Env",0
+        db HD_TABS_Y,HD_TABS_X,CLR_TOP_HI,"Pattern",0
+        db HD_TABS_Y,HD_TABS_X+8,CLR_TOP_TEXT,"Instr",0
+        db HD_TABS_Y,HD_TABS_X+14,CLR_TOP_TEXT,"Orn",0
+        db HD_TABS_Y,HD_TABS_X+18,CLR_TOP_TEXT,"FX",0
+        db HD_TABS_Y,HD_TABS_X+21,CLR_TOP_TEXT,"Disk",0
+        db HD_TABS_Y,HD_TABS_X+26,CLR_TOP_TEXT,"Setup",0
+        db HD_ROW_FILE,HD_FILE_L,CLR_TOP_TEXT,"File:",0
+        db HD_ROW_FILE,HD_FILE_X,CLR_TOP_VALUE,"............................",0
+        db HD_TABS_Y,HD_HELP_X,CLR_TOP_TEXT,"Help",0
+        db HD_TABS_Y,HD_ABOUT_X,CLR_TOP_TEXT,"About",0
+        db HD_ROW_FILE,HD_CHIP_L,CLR_TOP_TEXT,"Chip:",0
+        db HD_ROW_FILE,HD_TUNE_L,CLR_TOP_TEXT,"Tune:",0
+        db HD_ROW_SONG,HD_SONG_L,CLR_TOP_TEXT,"Song:",0
+        db HD_ROW_SONG,HD_NAME_X,CLR_TOP_VALUE,"................................",0
+        db HD_ROW_SONG,HD_BY_L,CLR_TOP_TEXT,"By:",0
+        db HD_ROW_SONG,HD_AUTH_X,CLR_TOP_VALUE,"................................",0
+        db HD_ROW_EDIT,HD_SPEED_L,CLR_TOP_TEXT,"Speed:",0
+        db HD_ROW_EDIT,HD_LEN_L,CLR_TOP_TEXT,"Size:",0
+        db HD_ROW_EDIT,HD_OCT_L,CLR_TOP_TEXT,"Octave:",0
+        db HD_ROW_EDIT,HD_STEP_L,CLR_TOP_TEXT,"Step:",0
+        db HD_ROW_EDIT,HD_ENVNOTE_L,CLR_TOP_TEXT,"Env as Note",0
+        db HD_ROW_EDIT,HD_AUTO_L,CLR_TOP_TEXT,"Auto Env",0
         db #FF
 
 ;-------- Каждый кадр: надписи, значения, кнопки, подсветка под мышью
@@ -200,7 +193,7 @@ Head_Show
         call PutStr
         inc hl
         jr .s
-.values ld a,(THEME_ATTR+CLR_HEAD_VALUE) ; значения - на своём фоне
+.values ld a,(THEME_ATTR+CLR_TOP_VALUE) ; значения - на своём фоне
         ld c,a
         ld a,(SV_PLAY_STATE)        ; скорость: играет - плеера, иначе трека
         or a
@@ -239,7 +232,7 @@ Head_Show
         ld a,(Song_Device)          ; тип чипа, каналов
         ld hl,Hd_Devices
         ld b,9
-        ld de,HD_CHIP_X+256*(HD_SCR_H+HD_ROW_SONG)
+        ld de,HD_CHIP_X+256*(HD_SCR_H+HD_ROW_FILE)
         call Hd_Name
         ld a,(Song_Chips)
         cp 2
@@ -260,7 +253,7 @@ Head_Show
         ld a,(Song_Tuning)
         ld hl,Hd_Tunings
         ld b,7
-        ld de,HD_TUNE_X+256*(HD_SCR_H+HD_ROW_BY)
+        ld de,HD_TUNE_X+256*(HD_SCR_H+HD_ROW_FILE)
         call Hd_Name
         call Hd_Track               ; трек "1 2"
         call Hd_Buttons             ; кнопки [-][+]
@@ -272,9 +265,9 @@ Head_Show
 Hd_Track
         ld a,(Cur_Track)
         or a
-        ld a,(THEME_ATTR+CLR_HEAD_HI)   ; трек 1: выбран - яркий
+        ld a,(THEME_ATTR+CLR_TOP_HI)    ; трек 1: выбран - яркий
         ld b,a
-        ld a,(THEME_ATTR+CLR_HEAD_TEXT)
+        ld a,(THEME_ATTR+CLR_TOP_TEXT)
         jr z,.put
         ld c,b                      ; трек 2: цвета наоборот
         ld b,a
@@ -288,6 +281,13 @@ Hd_Track
         ld c,b
         ld a,'2'
         jp PutCh
+
+; Кнопка A ([-] / [+], 2 знакоместа) цветом кнопок шапки CLR_TOP_BTN. E += 2
+PutBtn_Top
+        push bc
+        ld b,a
+        ld a,(THEME_ATTR+CLR_TOP_BTN)
+        jp Pb_Draw
 
 ; A - номер, HL - таблица названий по B знаков, DE - куда. Цвет C
 Hd_Name
@@ -360,7 +360,7 @@ Hd_Buttons
         bit 0,b
         jr z,$+4
         add a,BTN_PRESSED
-        call PutBtn_Head
+        call PutBtn_Top
 .n      ld de,FLD_SIZE
         add ix,de
         jr .b
@@ -441,8 +441,8 @@ Head_Fields
         FIELD HD_LEN_X+2,  HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 6  ; Len -
         FIELD HD_LEN_X+4,  HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 7  ;     +
         FIELD HD_RATIO_X,  HD_ROW_EDIT,3,1, FF_HAND, Hd_Field, 0, 8          ; соотношение - по кругу
-        FIELD HD_TUNE_X,   HD_ROW_BY,  7,1, FF_HAND, Hd_Field, 0, 9           ; таблица нот - по кругу
-        FIELD HD_CHIP_X,   HD_ROW_SONG,9,1, FF_HAND, Hd_Field, 0, 10          ; тип чипа - по кругу
+        FIELD HD_TUNE_X,   HD_ROW_FILE,7,1, FF_HAND, Hd_Field, 0, 9           ; таблица нот - по кругу
+        FIELD HD_CHIP_X,   HD_ROW_FILE,9,1, FF_HAND, Hd_Field, 0, 10          ; тип чипа - по кругу
         FIELD HD_CHAN_X,   HD_ROW_EDIT,3,1, FF_HAND, Hd_Field, 0, 20          ; 3 / 6 каналов
         FIELD HD_STEREO_X, HD_TABS_Y,  3,1, FF_HAND, Hd_Field, 0, 11          ; стерео - по кругу
         FIELD HD_ENVNOTE_L,HD_ROW_EDIT,HD_ENVNOTE_X-HD_ENVNOTE_L+1,1, FF_HAND, Hd_Field, 0, 12 ; Env as Note
