@@ -126,9 +126,6 @@ BOX_BR          equ #D9             ; ┘
 BOX_V2          equ #BA             ; ║ между чипами
 BOX_DOWN2       equ #D2             ; ╥
 BOX_UP2         equ #D0             ; ╨
-BOX_LT          equ #C3             ; ├
-BOX_RT          equ #B4             ; ┤
-OUTER_X         equ DRAW_X1-1       ; правый край общей рамки (шапка + паттерн)
 ARROW_R         equ #10             ; ►
 
 ; Полоса времени: на каждый шаг фон своим цветом, высота цвета = время шага
@@ -589,7 +586,7 @@ Lay_End         db 0                ; колонка последнего раз
 ; Элемент при "всё закрыто": колонка экрана и где лежит его расширение
 Item_CX         db CX_ENV1, CX_A, CX_B, CX_C, CX_ENV2, CX_D, CX_E, CX_F
 Item_EX         db EX_ENV1, EX_A, EX_B, EX_C, EX_ENV2, EX_D, EX_E, EX_F
-SEPS_MAX        equ ITEMS+3          ; + край общей рамки справа
+SEPS_MAX        equ ITEMS+2
 Seps_N          db 0
 Seps            ds SEPS_MAX*2       ; колонка, символ
 Sep_Attr        ds SEPS_MAX         ; цвет разделителя (для шаблонов)
@@ -656,14 +653,7 @@ Build_Layout
         cp ITEMS
         jr c,.it
 
-        ld a,(Lay_End)              ; паттерн уже экрана - справа край общей рамки
-        cp OUTER_X
-        jr nc,.full
-        ld e,OUTER_X
-        ld a,BOX_V
-        ld d,CLR_TITLE
-        call Add_Sep
-.full   call Build_Templates        ; шаблоны строк (символы пустой роу, атрибуты)
+        call Build_Templates        ; шаблоны строк (символы пустой роу, атрибуты)
         call Build_Tiles            ; черепицы: числа в прямой код Tile_0..2
         call Build_Head_Kids        ; поля кнопок [+]/[-] - на новые колонки
         call Clear_Right            ; правее рамки - остатки прошлой раскладки
@@ -1018,9 +1008,9 @@ D_Ch1           db 3,CLR_NOTE, 1,CLR_BG, 1,CLR_INSTR, 1,CLR_ENVSHAPE, 1,CLR_ORNA
 ; РАМКИ И ПОДПИСИ (строки 7 и 35), при смене раскладки
 ; =========================================================================
 Draw_Frame
-        ld a,BOX_LT                 ; ├──┬──┤ - сверху шапка в общей рамке
+        ld a,BOX_TL                 ; ┌──┬──┐
         ld (HL_CornerL),a
-        ld a,BOX_RT
+        ld a,BOX_TR
         ld (HL_CornerR),a
         ld a,BOX_DOWN
         ld (HL_Junction),a
@@ -1141,20 +1131,11 @@ Draw_HLine
         jr .put
 .cl     ld a,(HL_CornerL)
         jr .put
-.cr     cp OUTER_X                  ; правый край паттерна: он же край рамки - угол,
-        jr z,.edge                  ; иначе стык, и линия идёт дальше до края
-        ld a,(HL_Junction)
+.cr     ld a,(HL_CornerR)
         jr .put
-.out    ld a,e                      ; правее паттерна: линия до края общей рамки
-        cp OUTER_X
-        jr z,.edge
-        ld a,BOX_H
-        jr c,.put
-        ld a,(THEME_ATTR+CLR_BG)    ; за краем - пусто
+.out    ld a,(THEME_ATTR+CLR_BG)
         ld c,a
         ld a,' '
-        jr .put
-.edge   ld a,(HL_CornerR)
 .put    call PutCh
         ld a,e
         cp LINE_W
