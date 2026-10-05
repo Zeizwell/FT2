@@ -93,6 +93,21 @@ tool_patview_end
     SAVEBIN     "srs/patview.bin",tool_patview,tool_patview_end-tool_patview
     display     "patview size",/d,tool_patview_end-tool_patview," bytes"
 
+    ; --- диск: переходник к FAT32 (страница PAGE_DISK_APP, работает в окне 2)
+    include     "srs/disk.asm"
+    SAVEBIN     "srs/disk.bin",disk_start,disk_end-disk_start
+    display     "disk adapter size",/d,disk_end-disk_start," bytes"
+
+    ; --- рабочая страница FAT32 (PAGE_FAT_WORK): нули + порт SD-ZC на #3900.
+    ;     Сам драйвер (PAGE_FAT_CODE) собирается отдельно: build.bat, drivers/fat32
+    org #C000
+fatwork
+    ds          FAT_PORT_TABLE,0
+    incbin      "drivers/fat32/build/port_sdzc.bin"
+    ds          fatwork+#4000-$,0
+fatwork_end
+    SAVEBIN     "srs/fatwork.bin",fatwork,fatwork_end-fatwork
+
     ; --- банк шрифтов (страница PAGE_FONTS): шрифты по слотам, в UI_GLYPH_SLOT - значки
     org #C000
 fontbank

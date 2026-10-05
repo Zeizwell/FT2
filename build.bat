@@ -8,6 +8,12 @@ set WorkDir=srs
 taskkill /f /im Unreal.exe >nul 2>&1
 
 :: 2. Компиляция и сборка spg
+:: FAT32 driver (drivers/fat32): code and SD-ZC port, before the main build
+pushd drivers\fat32
+if not exist build mkdir build
+sjasmplus.exe --nologo --inc=src --inc=include src\main.asm
+sjasmplus.exe --nologo --inc=src --inc=include ports\sdzc.asm
+popd
 sjasmplus.exe %WorkDir%\main.asm --lst=main.lst
 spgbld.exe -b %WorkDir%\spg.ini %WorkDir%\ft2.spg
 

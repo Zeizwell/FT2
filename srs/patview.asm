@@ -1610,6 +1610,7 @@ K_F7            equ #7F             ; F7 (#83) коре сводит в #7F
 K_F8            equ #0A
 K_E             equ #24
 K_T             equ #2C
+K_D             equ #23
 
 Hotkeys db K_F5,    0               ; общие клавиши вида; F5..F8, Esc - как в VT
         dw K_PlaySong               ; сонг с текущей позиции
@@ -1627,6 +1628,8 @@ Hotkeys db K_F5,    0               ; общие клавиши вида; F5..F8
         dw K_EnvNote                ; Alt+E - период огибающей нотой / числом
         db K_T,     KM_CTRL
         dw K_Timing                 ; Ctrl+T - полоса времени
+        db K_D,     KM_CTRL
+        dw K_DiskTest               ; Ctrl+D - проверка диска (временно)
         db 0
 
 ;-------- Все события клавиатуры за кадр: сначала полю в фокусе (навигация
@@ -1668,9 +1671,37 @@ Dbg_Show
         ld hl,Txt_Dbg_M
         call PutStr
         ld a,(SV_KEY_MODS)
+        call PutHex2
+        ld hl,Txt_Dbg_D             ; результат проверки диска: A и флаги
+        call PutStr
+        ld a,(Dbg_Disk+1)
+        call PutHex2
+        ld a,' '
+        call PutCh
+        ld a,(Dbg_Disk)
         jp PutHex2
 Txt_Dbg_K       db "K:",0
 Txt_Dbg_M       db " M:",0
+Txt_Dbg_D       db " D:",0
+
+;-------- ПРОВЕРКА ДИСКА (временно, Ctrl+D): смонтировать карту, найти в корне
+; папку TMPFT (туда build.bat кладёт ft2.spg). Только чтение. Результат -
+; в отладочной строке "D:AA FF": A и флаги последнего вызова драйвера.
+;   монтирование: A=0, Z - готово;  поиск: найдено - A=1, NZ, CF=0 (FF = ..00..);
+;   не найдено - Z, CF=0; ошибка - CF=1 (FF нечётный)
+Dbg_Disk        dw #FFFF            ; ещё не проверяли - "FF FF"
+Dt_Name         db #10,"TMPFT",0    ; #10 - ищем каталог
+
+K_DiskTest
+        call Disk_Mount
+        jr nz,.res
+        ld ix,DK_FIND+#100          ; IXH=1 - имя по HL скопировать к переходнику
+        ld hl,Dt_Name
+        call Disk_Call
+.res    push af
+        pop hl
+        ld (Dbg_Disk),hl
+        ret
 
 ; Роу курсора: по полотну (сонг) или по кругу (плей паттерна)
 K_RowUp call T_From_Cur

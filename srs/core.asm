@@ -195,4 +195,5 @@ dma_wait	ld bc,DMASTATUS
     include "srs/mouse.asm"
     include "srs/input.asm"
     include "srs/fields.asm"
+    include "srs/diskcall.asm"
     include "srs/colors.asm"
