@@ -19,7 +19,12 @@ HD_SCR_H        equ SCR_BASE_H+HD_BUF_LINE
 HD_W            equ 90              ; ширина шапки
 ; --- строка 0
 HD_TABS_Y       equ 0
-HD_TABS_X       equ 1               ; вкладки
+HD_TABS_X       equ 1               ; вкладки (вид паттерна - базовое окно, своей вкладки нет)
+HD_TAB_INSTR    equ HD_TABS_X
+HD_TAB_ORN      equ HD_TABS_X+6
+HD_TAB_FX       equ HD_TABS_X+10
+HD_TAB_DISK     equ HD_TABS_X+13
+HD_TAB_SETUP    equ HD_TABS_X+18
 HD_PLAY_Y       equ 0               ; кнопки транспорта - спрайты 16x16 (35..54, строки 0..1)
 HD_PLAY_X       equ 35
 HD_TRK_L        equ 57              ; "Track:"
@@ -165,12 +170,11 @@ Head_Draw
 
 ; Надписи: строка, колонка, роль цвета, текст, 0. Конец - #FF
 Hd_Static
-        db HD_TABS_Y,HD_TABS_X,CLR_TOP_HI,"Pattern",0
-        db HD_TABS_Y,HD_TABS_X+8,CLR_TOP_TEXT,"Instr",0
-        db HD_TABS_Y,HD_TABS_X+14,CLR_TOP_TEXT,"Orn",0
-        db HD_TABS_Y,HD_TABS_X+18,CLR_TOP_TEXT,"FX",0
-        db HD_TABS_Y,HD_TABS_X+21,CLR_TOP_TEXT,"Disk",0
-        db HD_TABS_Y,HD_TABS_X+26,CLR_TOP_TEXT,"Setup",0
+        db HD_TABS_Y,HD_TAB_INSTR,CLR_TOP_TEXT,"Instr",0
+        db HD_TABS_Y,HD_TAB_ORN,CLR_TOP_TEXT,"Orn",0
+        db HD_TABS_Y,HD_TAB_FX,CLR_TOP_TEXT,"FX",0
+        db HD_TABS_Y,HD_TAB_DISK,CLR_TOP_TEXT,"Disk",0
+        db HD_TABS_Y,HD_TAB_SETUP,CLR_TOP_TEXT,"Setup",0
         db HD_ROW_FILE,HD_FILE_L,CLR_TOP_TEXT,"File:",0
         db HD_TABS_Y,HD_TRK_L,CLR_TOP_TEXT,"Track:",0
         db HD_TABS_Y,HD_HELP_X,CLR_TOP_TEXT,"Help",0
@@ -509,7 +513,7 @@ Head_Fields
         FIELD HD_TRK_X+2,  HD_TABS_Y, 1,1, FF_HAND, Hd_Field, 0, 22          ; трек 2
         FIELD HD_HELP_X,   HD_TABS_Y, 4,1, FF_HAND, Hd_Field, 0, 23          ; Help - пока ничего
         FIELD HD_ABOUT_X,  HD_TABS_Y, 5,1, FF_HAND, Hd_Field, 0, 23          ; About - пока ничего
-        FIELD HD_TABS_X+21,HD_TABS_Y, 4,1, FF_HAND, Hd_Field, 0, 24          ; вкладка Disk
+        FIELD HD_TAB_DISK, HD_TABS_Y, 4,1, FF_HAND, Hd_Field, 0, 24          ; вкладка Disk
 Tr_Fields                           ; кнопки транспорта (спрайты Tr_*), подряд
         FIELD HD_PLAY_X,   HD_PLAY_Y, 4,2, FF_HAND, Hd_Field, 0, 15          ; ⇄ паттерн по кругу (F8)
         FIELD HD_PLAY_X+4, HD_PLAY_Y, 4,2, FF_HAND, Hd_Field, 0, 16          ; |◀ сонг с начала (F6)

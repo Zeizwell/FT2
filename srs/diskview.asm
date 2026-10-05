@@ -2,7 +2,7 @@
 ; ДИСК - тулза (окно 1, #4000, страница PAGE_TOOL_DISK): каталог, загрузка и
 ; сохранение трека FT2.
 ; =========================================================================
-; ЭКРАН (строки 0..3 - копия шапки из её буфера, кликается только вкладка Pattern):
+; ЭКРАН (строки 0..3 - копия шапки из её буфера; клик по ней - назад в вид паттерна):
 ;   слева  - рамка с путём, каталог: сначала папки, потом файлы; имя, размер, дата;
 ;   справа - выбранный файл: Name (поле ввода - под это имя сохраняем), тип,
 ;            размер, Song / By (FT2 и PT3 - из файла), кнопки Load, Save, сообщение.
@@ -193,20 +193,14 @@ Dv_Head
         ld de,DV_SCR_H*256
         ld bc,DV_TOP*256
         ldir
-        ld a,(THEME_ATTR+CLR_TOP_TEXT)  ; вкладки: Pattern - обычная, Disk - выбрана
-        ld hl,DV_TAB_PAT
-        ld b,7
-        call .attr
-        ld a,(THEME_ATTR+CLR_TOP_HI)
+        ld a,(THEME_ATTR+CLR_TOP_HI)    ; вкладка Disk - выбрана
         ld hl,DV_TAB_DISK
         ld b,4
-; B атрибутов A с адреса HL
 .attr   ld (hl),a
         inc l
         djnz .attr
         ret
-DV_TAB_PAT      equ DV_SCR_H*256+128+patview.HD_TABS_X      ; атрибут вкладки Pattern
-DV_TAB_DISK     equ DV_TAB_PAT+21                           ;   и Disk
+DV_TAB_DISK     equ DV_SCR_H*256+128+patview.HD_TAB_DISK     ; атрибут вкладки Disk
 
 ;-------- Строки DV_TOP..DV_LAST: пробелы цветом фона
 Dv_Clear
