@@ -1,7 +1,8 @@
 ; =========================================================================
 ; ШАПКА (строки 0..VIEW_LINE-1 над паттерном), свой фон CLR_HEAD_BG
-;   строка 0: вкладки экранов | кнопки транспорта (спрайты 16x16, строки 0..1) |
-;             время игры, Chip: тип и 3ch / 6ch
+;   строка 0 (светлая полоса): часы, вкладки | кнопки транспорта (спрайты 16x16,
+;             строки 0..1) |
+;             Chip: тип и 3ch / 6ch
 ;   строка 1: File: имя файла | ... | Stereo:, Tune:
 ;   строка 2: верхняя линия рамки, по ней: Song: имя, By: автор
 ;   строка 3: нижняя линия рамки, по ней - как пишем в паттерн: Speed:, Size:,
@@ -17,19 +18,20 @@ HD_SCR_H        equ SCR_BASE_H+HD_BUF_LINE
 HD_W            equ 90              ; ширина шапки
 ; --- строка 0
 HD_TABS_Y       equ 0
-HD_PLAY_X       equ 38              ; кнопки транспорта - спрайты 16x16 (38..57, строки 0..1)
-HD_TIME_X       equ 59              ; время игры "mm:ss"
-HD_CHIP_L       equ 65              ; "Chip:"
-HD_CHIP_X       equ 70              ; тип чипа (9 знаков)
-HD_CHAN_X       equ 80              ; "3ch" / "6ch"
+HD_TIME_X       equ 1               ; время игры "mm:ss" - в левом углу
+HD_TABS_X       equ 7               ; вкладки - за часами
+HD_PLAY_X       equ 40              ; кнопки транспорта - спрайты 16x16 (40..59, строки 0..1)
+HD_CHIP_L       equ 61              ; "Chip:"
+HD_CHIP_X       equ 66              ; тип чипа (9 знаков)
+HD_CHAN_X       equ 76              ; "3ch" / "6ch"
 ; --- строка 1
 HD_ROW_FILE     equ 1
 HD_FILE_L       equ 1               ; "File:"
 HD_FILE_X       equ 7               ; имя файла (30)
-HD_STEREO_L     equ 59              ; "Stereo:"
-HD_STEREO_X     equ 66              ; 3 знака
-HD_TUNE_L       equ 70              ; "Tune:"
-HD_TUNE_X       equ 75              ; 7 знаков
+HD_STEREO_L     equ 61              ; "Stereo:"
+HD_STEREO_X     equ 68              ; 3 знака
+HD_TUNE_L       equ 72              ; "Tune:"
+HD_TUNE_X       equ 77              ; 7 знаков
 ; --- строка 2: верх рамки
 HD_ROW_SONG     equ 2
 HD_SONG_L       equ 1               ; "Song:"
@@ -137,6 +139,14 @@ Head_Draw
         ld a,d
         cp HD_SCR_H+VIEW_LINE
         jr c,.f
+        ld a,(THEME_ATTR+CLR_HEAD_STRIP) ; строка 0 - светлая полоса (вкладки, часы)
+        ld c,a
+        ld d,HD_SCR_H+HD_TABS_Y
+        ld e,0
+.st     ld a,' '
+        call PutCh
+        bit 7,e
+        jr z,.st
         ld a,(THEME_ATTR+CLR_HEAD_LINE)
         ld c,a
         ld d,HD_SCR_H+HD_ROW_SONG   ; верх рамки: ┌───┐
@@ -159,12 +169,12 @@ Head_Draw
 
 ; Надписи: строка, колонка, роль цвета, текст, 0. Конец - #FF
 Hd_Static
-        db HD_TABS_Y,1,CLR_HEAD_HI,"Pattern",0
-        db HD_TABS_Y,10,CLR_HEAD_TEXT,"Instr",0
-        db HD_TABS_Y,17,CLR_HEAD_TEXT,"Orn",0
-        db HD_TABS_Y,22,CLR_HEAD_TEXT,"FX",0
-        db HD_TABS_Y,26,CLR_HEAD_TEXT,"Disk",0
-        db HD_TABS_Y,32,CLR_HEAD_TEXT,"Setup",0
+        db HD_TABS_Y,HD_TABS_X,CLR_HEAD_HI,"Pattern",0
+        db HD_TABS_Y,HD_TABS_X+8,CLR_HEAD_TEXT,"Instr",0
+        db HD_TABS_Y,HD_TABS_X+14,CLR_HEAD_TEXT,"Orn",0
+        db HD_TABS_Y,HD_TABS_X+18,CLR_HEAD_TEXT,"FX",0
+        db HD_TABS_Y,HD_TABS_X+21,CLR_HEAD_TEXT,"Disk",0
+        db HD_TABS_Y,HD_TABS_X+26,CLR_HEAD_TEXT,"Setup",0
         db HD_TABS_Y,HD_CHIP_L,CLR_HEAD_TEXT,"Chip:",0
         db HD_ROW_FILE,HD_FILE_L,CLR_HEAD_TEXT,"File:",0
         db HD_ROW_FILE,HD_FILE_X,CLR_HEAD_VALUE,"..............................",0
