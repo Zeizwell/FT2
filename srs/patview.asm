@@ -3046,9 +3046,13 @@ Hex_T   DUP 256,N                   ; 2 hex всегда
         db '0'+(N&15)+(((N&15)+6)>>4)*7
         EDUP
 
-HexD_T  db '.'                      ; 2 hex, 0 = ".."
+HexD_T  db '.'                      ; 2 hex, 0 = ".."; #20 (шум 0 - CHIP_NOISE) = "00"
         DUP 255,N
+        IF N+1 == #20
+        db '0'
+        ELSE
         db '0'+((N+1)>>4)+((((N+1)>>4)+6)>>4)*7
+        ENDIF
         EDUP
         db '.'
         DUP 255,N
