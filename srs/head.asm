@@ -13,11 +13,11 @@
 
 ; --- строка 0
 HD_TABS_Y       equ 0
-HD_PLAY_X       equ 41              ; ►Song ►Pat ►Row ■ (41..57)
-HD_TIME_X       equ 60              ; время игры "mm:ss"
-HD_CHIP_X       equ 67              ; вывод (10 знаков)
-HD_STEREO_X     equ 78              ; стерео (3 знака)
-HD_TUNE_X       equ 82              ; таблица нот (7 знаков)
+HD_PLAY_X       equ 38              ; кнопки транспорта - спрайты, по 4 знакоместа (38..57)
+HD_TIME_X       equ 59              ; время игры "mm:ss"
+HD_CHIP_X       equ 66              ; вывод (10 знаков)
+HD_STEREO_X     equ 77              ; стерео (3 знака)
+HD_TUNE_X       equ 81              ; таблица нот (7 знаков)
 ; --- одна рамка во всю ширину: верх - строка 1, бока - строки 2..6, низ - рамка паттерна
 HD_BOX_W        equ 90
 HD_FRAME_Y      equ 1
@@ -140,10 +140,6 @@ Hd_Static
         db HD_TABS_Y,22,CLR_HEADER,"FX",0
         db HD_TABS_Y,26,CLR_HEADER,"Disk",0
         db HD_TABS_Y,32,CLR_HEADER,"Setup",0
-        db HD_TABS_Y,HD_PLAY_X,CLR_BUTTON,ARROW_R,"Song",0
-        db HD_TABS_Y,HD_PLAY_X+6,CLR_BUTTON,ARROW_R,"Pat",0
-        db HD_TABS_Y,HD_PLAY_X+11,CLR_BUTTON,ARROW_R,"Row",0
-        db HD_TABS_Y,HD_PLAY_X+16,CLR_BUTTON,#FE,0      ; ■ (CP866)
         db HD_ROW_SONG,HD_NAME_X,CLR_EMPTY,"................................",0
         db HD_ROW_SONG,HD_BY_X,CLR_HEADER,"by",0
         db HD_ROW_SONG,HD_AUTH_X,CLR_EMPTY,"................................",0
@@ -239,6 +235,7 @@ Head_Show
         ld a,(Tm_Sec)
         call Hd_Dec2
         call Hd_Buttons             ; кнопки [-][+]
+        call Tr_Hover_Update        ; кнопки транспорта: светлая под мышью
         jp Hd_Hover                 ; подсветка поля под мышью
 
 ; A - номер, HL - таблица названий по B знаков, DE - куда. Цвет C
@@ -399,17 +396,19 @@ Head_Fields
         FIELD HD_ENVNOTE_L,HD_ROW_EDIT,HD_ENVNOTE_X-HD_ENVNOTE_L+1,1, 0, Hd_Field, 0, 12 ; Env as Note
         FIELD HD_AUTO_L,   HD_ROW_EDIT,HD_AUTO_X-HD_AUTO_L+1,1, 0, Hd_Field, 0, 13       ; Auto Env
         FIELD HD_STEP_L,   HD_ROW_EDIT,HD_STEPCHK_X-HD_STEP_L+1,1, 0, Hd_Field, 0, 14    ; шаг вкл/выкл
-        FIELD HD_PLAY_X,   HD_TABS_Y, 5,1, 0, Hd_Field, 0, 15          ; ►Song
-        FIELD HD_PLAY_X+6, HD_TABS_Y, 4,1, 0, Hd_Field, 0, 16          ; ►Pat
-        FIELD HD_PLAY_X+11,HD_TABS_Y, 4,1, 0, Hd_Field, 0, 17          ; ►Row
-        FIELD HD_PLAY_X+16,HD_TABS_Y, 1,1, 0, Hd_Field, 0, 18          ; ■
+Tr_Fields                           ; кнопки транспорта (спрайты Tr_*), подряд
+        FIELD HD_PLAY_X,   HD_TABS_Y, 4,1, 0, Hd_Field, 0, 15          ; ⇄ паттерн по кругу (F8)
+        FIELD HD_PLAY_X+4, HD_TABS_Y, 4,1, 0, Hd_Field, 0, 16          ; |◀ сонг с начала (F6)
+        FIELD HD_PLAY_X+8, HD_TABS_Y, 4,1, 0, Hd_Field, 0, 17          ; ▶ сонг с позиции (F5)
+        FIELD HD_PLAY_X+12,HD_TABS_Y, 4,1, 0, Hd_Field, 0, 18          ; ▷ паттерн с роу (F7)
+        FIELD HD_PLAY_X+16,HD_TABS_Y, 4,1, 0, Hd_Field, 0, 19          ; ■ стоп (Esc)
 Head_Fields_End
         db FLD_END
 
 Hd_Act  dw H_SpdDn, H_SpdUp, H_OctDn, H_OctUp, H_StepDn, H_StepUp
         dw H_LenDn, H_LenUp, H_RatUp
         dw H_Tune, H_Chip, H_Stereo, K_EnvNote, H_AutoEnv, H_AutoStep
-        dw K_PlaySong, K_PlayPat, K_PlayPatRow, K_Stop
+        dw K_PlayPat, K_PlayStart, K_PlaySong, K_PlayPatRow, K_Stop
 
 ;-------- Поле шапки: клик - действие (вид нажатой кнопки рисует Hd_Buttons)
 Hd_Field
@@ -520,3 +519,211 @@ Hd_Cycle
         xor a
         ld (hl),a
         ret
+
+; =========================================================================
+; КНОПКИ ТРАНСПОРТА - СПРАЙТЫ (как у Bitphase: светлый значок на скруглённой
+; подложке). Спрайт 16x8 = 4 знакоместа x 1 строка (пиксель спрайта - пол знакоместа
+; по ширине). Графика - в странице спрайтов: ряд тайлов 2 (строки 16..23) - обычные,
+; ряд 3 (строки 24..31) - под мышью. Описатели - SFILE, записи 0..4; стрелка мыши -
+; запись 5 (позже в списке - выше, srs/mouse.asm).
+; =========================================================================
+TR_BUTTONS      equ 5
+TR_ROW_N        equ 2               ; ряд тайлов: обычные
+TR_ROW_H        equ 3               ;             под мышью
+TR_PAL          equ #D0             ; палитра 13 (как у текста и стрелки)
+
+;-------- Раз при старте: графику - в страницу спрайтов, описатели - в SFILE
+Head_Sprites
+        SETPAGE3 PAGE_SPRITE
+        ld hl,Tr_Gfx_N
+        ld de,#C000+TR_ROW_N*8*256
+        call .copy
+        ld hl,Tr_Gfx_H
+        ld de,#C000+TR_ROW_H*8*256
+        call .copy
+        RESTPAGE3
+        ld a,#FF                    ; ни одна не под мышью
+        ld (Tr_Hover),a
+        jp Tr_Send
+; HL - значки подряд (по 8 строк x 8 байт), DE - строка битмапа: значок k - с байта 8k
+.copy   ld c,0                      ; C - смещение значка в строке битмапа
+.ic     push de
+        ld a,e
+        add a,c
+        ld e,a
+        ld b,8                      ; 8 строк по 8 байт (16 точек, 2 на байт)
+.row    push bc
+        push de
+        ld bc,8
+        ldir
+        pop de
+        inc d                       ; строка битмапа - 256 байт
+        pop bc
+        djnz .row
+        pop de
+        ld a,c
+        add a,8
+        ld c,a
+        cp TR_BUTTONS*8
+        jr c,.ic
+        ret
+
+;-------- Каждый кадр (Head_Show): кнопка под мышью - светлая картинка
+Tr_Hover        db #FF
+
+Tr_Hover_Update
+        ld b,#FF                    ; B - номер кнопки под мышью
+        ld ix,Tr_Fields
+        ld c,0
+.f      push ix
+        pop hl
+        ld de,(SV_HOVER)
+        or a
+        sbc hl,de
+        jr nz,.n
+        ld b,c
+.n      ld de,FLD_SIZE
+        add ix,de
+        inc c
+        ld a,c
+        cp TR_BUTTONS
+        jr c,.f
+        ld a,(Tr_Hover)             ; не сменилась - ничего
+        cp b
+        ret z
+        ld a,b
+        ld (Tr_Hover),a
+        ld hl,Tr_SAT+4              ; тайлы: под мышью - из ряда TR_ROW_H
+        ld c,0
+.t      ld a,c
+        cp b
+        ld a,TR_ROW_N*64
+        jr nz,$+4
+        ld a,TR_ROW_H*64
+        add a,c
+        add a,c
+        ld (hl),a
+        ld de,6
+        add hl,de
+        inc c
+        ld a,c
+        cp TR_BUTTONS
+        jr c,.t
+; Описатели кнопок - в SFILE (DMA, из основного цикла)
+Tr_Send
+        ld hl,Tr_Dma
+        jp set_ports
+
+; Описатели (SFILE: Y, флаги Y, X, флаги X, тайл, палитра | тайл ст.)
+        ALIGN 2
+Tr_SAT
+.k = 0
+        DUP TR_BUTTONS
+        db 0, SP_ACT|SP_SIZE8, (HD_PLAY_X+.k*4)*4, SP_SIZE16, TR_ROW_N*64+.k*2, TR_PAL
+.k = .k+1
+        EDUP
+Tr_SAT_End
+
+Tr_Dma  db high DMASADDRL, low (Tr_SAT-#4000)
+        db high DMASADDRH, high (Tr_SAT-#4000)
+        db high DMASADDRX, PAGE_TOOL_PATVIEW
+        db high DMADADDRL, 0        ; SFILE, запись 0
+        db high DMADADDRH, 0
+        db high DMADADDRX, 0
+        db high DMALEN, (Tr_SAT_End-Tr_SAT)/2-1
+        db high DMANUM, 0
+        db high DMACTR, DMA_RAM_SFILE
+        db #FF
+
+Tr_Gfx_N                            ; обычные: подложка #4, значок #6
+; LOOP
+        db #04,#44,#44,#44,#44,#44,#44,#40   ; .bbbbbbbbbbbbbb.
+        db #44,#44,#44,#44,#46,#44,#44,#44   ; bbbbbbbbbfbbbbbb
+        db #44,#44,#46,#66,#66,#64,#44,#44   ; bbbbbffffffbbbbb
+        db #44,#44,#44,#44,#46,#44,#44,#44   ; bbbbbbbbbfbbbbbb
+        db #44,#44,#44,#64,#44,#44,#44,#44   ; bbbbbbfbbbbbbbbb
+        db #44,#44,#46,#66,#66,#64,#44,#44   ; bbbbbffffffbbbbb
+        db #44,#44,#44,#64,#44,#44,#44,#44   ; bbbbbbfbbbbbbbbb
+        db #04,#44,#44,#44,#44,#44,#44,#40   ; .bbbbbbbbbbbbbb.
+; START
+        db #04,#44,#44,#44,#44,#44,#44,#40   ; .bbbbbbbbbbbbbb.
+        db #44,#44,#46,#44,#46,#44,#44,#44   ; bbbbbfbbbfbbbbbb
+        db #44,#44,#46,#44,#66,#44,#44,#44   ; bbbbbfbbffbbbbbb
+        db #44,#44,#46,#46,#66,#44,#44,#44   ; bbbbbfbfffbbbbbb
+        db #44,#44,#46,#46,#66,#44,#44,#44   ; bbbbbfbfffbbbbbb
+        db #44,#44,#46,#44,#66,#44,#44,#44   ; bbbbbfbbffbbbbbb
+        db #44,#44,#46,#44,#46,#44,#44,#44   ; bbbbbfbbbfbbbbbb
+        db #04,#44,#44,#44,#44,#44,#44,#40   ; .bbbbbbbbbbbbbb.
+; PLAY
+        db #04,#44,#44,#44,#44,#44,#44,#40   ; .bbbbbbbbbbbbbb.
+        db #44,#44,#44,#64,#44,#44,#44,#44   ; bbbbbbfbbbbbbbbb
+        db #44,#44,#44,#66,#44,#44,#44,#44   ; bbbbbbffbbbbbbbb
+        db #44,#44,#44,#66,#64,#44,#44,#44   ; bbbbbbfffbbbbbbb
+        db #44,#44,#44,#66,#64,#44,#44,#44   ; bbbbbbfffbbbbbbb
+        db #44,#44,#44,#66,#44,#44,#44,#44   ; bbbbbbffbbbbbbbb
+        db #44,#44,#44,#64,#44,#44,#44,#44   ; bbbbbbfbbbbbbbbb
+        db #04,#44,#44,#44,#44,#44,#44,#40   ; .bbbbbbbbbbbbbb.
+; FROM
+        db #04,#44,#44,#44,#44,#44,#44,#40   ; .bbbbbbbbbbbbbb.
+        db #44,#44,#44,#64,#44,#44,#44,#44   ; bbbbbbfbbbbbbbbb
+        db #44,#44,#44,#66,#44,#44,#44,#44   ; bbbbbbffbbbbbbbb
+        db #44,#44,#44,#64,#64,#44,#44,#44   ; bbbbbbfbfbbbbbbb
+        db #44,#44,#44,#64,#64,#44,#44,#44   ; bbbbbbfbfbbbbbbb
+        db #44,#44,#44,#66,#44,#44,#44,#44   ; bbbbbbffbbbbbbbb
+        db #44,#44,#44,#64,#44,#44,#44,#44   ; bbbbbbfbbbbbbbbb
+        db #04,#44,#44,#44,#44,#44,#44,#40   ; .bbbbbbbbbbbbbb.
+; STOP
+        db #04,#44,#44,#44,#44,#44,#44,#40   ; .bbbbbbbbbbbbbb.
+        db #44,#44,#44,#44,#44,#44,#44,#44   ; bbbbbbbbbbbbbbbb
+        db #44,#44,#44,#66,#66,#44,#44,#44   ; bbbbbbffffbbbbbb
+        db #44,#44,#44,#66,#66,#44,#44,#44   ; bbbbbbffffbbbbbb
+        db #44,#44,#44,#66,#66,#44,#44,#44   ; bbbbbbffffbbbbbb
+        db #44,#44,#44,#66,#66,#44,#44,#44   ; bbbbbbffffbbbbbb
+        db #44,#44,#44,#44,#44,#44,#44,#44   ; bbbbbbbbbbbbbbbb
+        db #04,#44,#44,#44,#44,#44,#44,#40   ; .bbbbbbbbbbbbbb.
+Tr_Gfx_H                            ; под мышью: подложка #7, значок #B
+; LOOP
+        db #07,#77,#77,#77,#77,#77,#77,#70   ; .bbbbbbbbbbbbbb.
+        db #77,#77,#77,#77,#7B,#77,#77,#77   ; bbbbbbbbbfbbbbbb
+        db #77,#77,#7B,#BB,#BB,#B7,#77,#77   ; bbbbbffffffbbbbb
+        db #77,#77,#77,#77,#7B,#77,#77,#77   ; bbbbbbbbbfbbbbbb
+        db #77,#77,#77,#B7,#77,#77,#77,#77   ; bbbbbbfbbbbbbbbb
+        db #77,#77,#7B,#BB,#BB,#B7,#77,#77   ; bbbbbffffffbbbbb
+        db #77,#77,#77,#B7,#77,#77,#77,#77   ; bbbbbbfbbbbbbbbb
+        db #07,#77,#77,#77,#77,#77,#77,#70   ; .bbbbbbbbbbbbbb.
+; START
+        db #07,#77,#77,#77,#77,#77,#77,#70   ; .bbbbbbbbbbbbbb.
+        db #77,#77,#7B,#77,#7B,#77,#77,#77   ; bbbbbfbbbfbbbbbb
+        db #77,#77,#7B,#77,#BB,#77,#77,#77   ; bbbbbfbbffbbbbbb
+        db #77,#77,#7B,#7B,#BB,#77,#77,#77   ; bbbbbfbfffbbbbbb
+        db #77,#77,#7B,#7B,#BB,#77,#77,#77   ; bbbbbfbfffbbbbbb
+        db #77,#77,#7B,#77,#BB,#77,#77,#77   ; bbbbbfbbffbbbbbb
+        db #77,#77,#7B,#77,#7B,#77,#77,#77   ; bbbbbfbbbfbbbbbb
+        db #07,#77,#77,#77,#77,#77,#77,#70   ; .bbbbbbbbbbbbbb.
+; PLAY
+        db #07,#77,#77,#77,#77,#77,#77,#70   ; .bbbbbbbbbbbbbb.
+        db #77,#77,#77,#B7,#77,#77,#77,#77   ; bbbbbbfbbbbbbbbb
+        db #77,#77,#77,#BB,#77,#77,#77,#77   ; bbbbbbffbbbbbbbb
+        db #77,#77,#77,#BB,#B7,#77,#77,#77   ; bbbbbbfffbbbbbbb
+        db #77,#77,#77,#BB,#B7,#77,#77,#77   ; bbbbbbfffbbbbbbb
+        db #77,#77,#77,#BB,#77,#77,#77,#77   ; bbbbbbffbbbbbbbb
+        db #77,#77,#77,#B7,#77,#77,#77,#77   ; bbbbbbfbbbbbbbbb
+        db #07,#77,#77,#77,#77,#77,#77,#70   ; .bbbbbbbbbbbbbb.
+; FROM
+        db #07,#77,#77,#77,#77,#77,#77,#70   ; .bbbbbbbbbbbbbb.
+        db #77,#77,#77,#B7,#77,#77,#77,#77   ; bbbbbbfbbbbbbbbb
+        db #77,#77,#77,#BB,#77,#77,#77,#77   ; bbbbbbffbbbbbbbb
+        db #77,#77,#77,#B7,#B7,#77,#77,#77   ; bbbbbbfbfbbbbbbb
+        db #77,#77,#77,#B7,#B7,#77,#77,#77   ; bbbbbbfbfbbbbbbb
+        db #77,#77,#77,#BB,#77,#77,#77,#77   ; bbbbbbffbbbbbbbb
+        db #77,#77,#77,#B7,#77,#77,#77,#77   ; bbbbbbfbbbbbbbbb
+        db #07,#77,#77,#77,#77,#77,#77,#70   ; .bbbbbbbbbbbbbb.
+; STOP
+        db #07,#77,#77,#77,#77,#77,#77,#70   ; .bbbbbbbbbbbbbb.
+        db #77,#77,#77,#77,#77,#77,#77,#77   ; bbbbbbbbbbbbbbbb
+        db #77,#77,#77,#BB,#BB,#77,#77,#77   ; bbbbbbffffbbbbbb
+        db #77,#77,#77,#BB,#BB,#77,#77,#77   ; bbbbbbffffbbbbbb
+        db #77,#77,#77,#BB,#BB,#77,#77,#77   ; bbbbbbffffbbbbbb
+        db #77,#77,#77,#BB,#BB,#77,#77,#77   ; bbbbbbffffbbbbbb
+        db #77,#77,#77,#77,#77,#77,#77,#77   ; bbbbbbbbbbbbbbbb
+        db #07,#77,#77,#77,#77,#77,#77,#70   ; .bbbbbbbbbbbbbb.

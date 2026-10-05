@@ -172,6 +172,7 @@ PluginMain
         call Test_Song              ; тестовые паттерны (данные + текст) и ордер
         call Head_Load              ; шапка: значения трека
         call Head_Draw              ; шапка: рамки, подписи, кнопки
+        call Head_Sprites           ; шапка: кнопки транспорта - спрайты
         call Build_Layout           ; раскладка (хук IM1 ещё не стоит)
         call Draw_Order
         call Build_Row_Tab
