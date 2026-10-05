@@ -469,7 +469,8 @@ Pc_Channel
         ld a,(ix+CS_NOTE)
         or a
         jr nz,.on
-        ld a,8                      ; молчит: громкость 0
+        ld a,(Pc_Idx)               ; молчит: громкость канала (R8+канал) - 0
+        add a,8
         call Pc_Reg_Addr
         ld (hl),0
         ret
