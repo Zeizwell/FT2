@@ -18,12 +18,11 @@ HD_TIME_X       equ 60              ; время игры "mm:ss"
 HD_CHIP_X       equ 67              ; вывод (10 знаков)
 HD_STEREO_X     equ 78              ; стерео (3 знака)
 HD_TUNE_X       equ 82              ; таблица нот (7 знаков)
-; --- блоки во всю ширину: рамка, строка значений, рамка
+; --- одна рамка во всю ширину: верх - строка 1, бока - строки 2..6, низ - рамка паттерна
 HD_BOX_W        equ 90
-HD_SONG_Y       equ 1               ; Song: строки 1..3
-HD_EDIT_Y       equ 4               ; Edit: строки 4..6
-HD_ROW_SONG     equ HD_SONG_Y+1
-HD_ROW_EDIT     equ HD_EDIT_Y+1
+HD_FRAME_Y      equ 1
+HD_ROW_SONG     equ 3               ; имя, автор, скорость
+HD_ROW_EDIT     equ 5               ; параметры ввода - ближе к паттерну
 ; --- Song
 HD_NAME_X       equ 2               ; имя (32)
 HD_BY_X         equ 35
@@ -33,15 +32,16 @@ HD_SPEED_X      equ 78              ; значение, [-][+] - сразу за
 ; --- Edit
 HD_OCT_L        equ 2               ; "Octave"
 HD_OCT_X        equ 9               ; 1 цифра, кнопки - +1
-HD_STEP_L       equ 16
-HD_STEP_X       equ 21              ; 2 знака, кнопки - +2
-HD_LEN_L        equ 29
-HD_LEN_X        equ 33
-HD_ENVNOTE_L    equ 42              ; "Env as Note" + галочка (вся надпись - поле)
-HD_ENVNOTE_X    equ 53
-HD_AUTO_L       equ 57              ; "Auto Env" + галочка
-HD_AUTO_X       equ 65
-HD_RATIO_X      equ 67              ; "1:1", кнопки - +3
+HD_STEP_L       equ 16              ; "Step" + галочка (шаг вкл/выкл)
+HD_STEPCHK_X    equ 20
+HD_STEP_X       equ 22              ; 2 знака, кнопки - +2
+HD_LEN_L        equ 30
+HD_LEN_X        equ 34
+HD_ENVNOTE_L    equ 43              ; "Env as Note" + галочка (вся надпись - поле)
+HD_ENVNOTE_X    equ 54
+HD_AUTO_L       equ 58              ; "Auto Env" + галочка
+HD_AUTO_X       equ 66
+HD_RATIO_X      equ 68              ; "1:1" - клик по кругу
 
 ; --- значения
 Song_Speed      db 3
@@ -50,6 +50,7 @@ Song_Device     db 1                ; TurboSound
 Song_Stereo     db 0
 Cur_Octave      db 4
 Auto_Env        db 0
+Auto_Step       db 1                ; шаг при вводе: 1 - курсор идёт на Cur_Step роу
 Auto_Ratio      db 0                ; номер в Hd_Ratios
 TUNINGS         equ 2
 DEVICES         equ 4
@@ -108,47 +109,28 @@ Hd_Save
 ; =========================================================================
 ;-------- Раз при старте: рамки блоков
 Head_Draw
-        ld d,SCR_BASE_H+HD_SONG_Y
-        ld hl,Txt_Hd_Song
-        call Hd_Box
-        ld d,SCR_BASE_H+HD_EDIT_Y
-        ld hl,Txt_Hd_Edit
-; Рамка во всю ширину: D - верхняя строка, HL - заголовок. Строки D, D+1, D+2
-Hd_Box
         ld a,(THEME_ATTR+CLR_TITLE)
         ld c,a
-        ld e,0                      ; верх: ┌Заголовок────┐
+        ld d,SCR_BASE_H+HD_FRAME_Y  ; верх: ┌──────┐
+        ld e,0
         ld a,BOX_TL
         call PutCh
-        call PutStr
-.top    ld a,e
-        cp HD_BOX_W-1
-        jr nc,.tr
-        ld a,BOX_H
+        ld b,HD_BOX_W-2
+.top    ld a,BOX_H
         call PutCh
-        jr .top
-.tr     ld a,BOX_TR
+        djnz .top
+        ld a,BOX_TR
         call PutCh
-        inc d                       ; бока
+        ld b,VIEW_LINE-HD_FRAME_Y-1 ; бока до рамки паттерна (она - низ)
+.side   inc d
         ld e,0
         ld a,BOX_V
         call PutCh
         ld e,HD_BOX_W-1
         ld a,BOX_V
         call PutCh
-        inc d                       ; низ: └─────┘
-        ld e,0
-        ld a,BOX_BL
-        call PutCh
-        ld b,HD_BOX_W-2
-.bot    ld a,BOX_H
-        call PutCh
-        djnz .bot
-        ld a,BOX_BR
-        jp PutCh
-
-Txt_Hd_Song     db "Song",0
-Txt_Hd_Edit     db "Edit",0
+        djnz .side
+        ret
 
 ; Надписи: строка, колонка, роль цвета, текст, 0. Конец - #FF
 Hd_Static
@@ -240,6 +222,9 @@ Head_Show
         call Hd_Name
         ld a,(Env_As_Note)          ; галочки
         ld de,HD_ENVNOTE_X+256*(SCR_BASE_H+HD_ROW_EDIT)
+        call Hd_Check
+        ld a,(Auto_Step)
+        ld de,HD_STEPCHK_X+256*(SCR_BASE_H+HD_ROW_EDIT)
         call Hd_Check
         ld a,(Auto_Env)
         ld de,HD_AUTO_X+256*(SCR_BASE_H+HD_ROW_EDIT)
@@ -407,13 +392,13 @@ Head_Fields
         FIELD HD_STEP_X+4, HD_ROW_EDIT,2,1, HF_BUTTON, Hd_Field, 0, 5  ;      +
         FIELD HD_LEN_X+2,  HD_ROW_EDIT,2,1, HF_BUTTON, Hd_Field, 0, 6  ; Len -
         FIELD HD_LEN_X+4,  HD_ROW_EDIT,2,1, HF_BUTTON, Hd_Field, 0, 7  ;     +
-        FIELD HD_RATIO_X+3,HD_ROW_EDIT,2,1, HF_BUTTON, Hd_Field, 0, 8  ; соотношение -
-        FIELD HD_RATIO_X+5,HD_ROW_EDIT,2,1, HF_BUTTON, Hd_Field, 0, 9  ;             +
-        FIELD HD_TUNE_X,   HD_TABS_Y, 7,1, 0, Hd_Field, 0, 10          ; таблица нот - по кругу
-        FIELD HD_CHIP_X,   HD_TABS_Y,10,1, 0, Hd_Field, 0, 11          ; вывод - по кругу
-        FIELD HD_STEREO_X, HD_TABS_Y, 3,1, 0, Hd_Field, 0, 12          ; стерео - по кругу
-        FIELD HD_ENVNOTE_L,HD_ROW_EDIT,HD_ENVNOTE_X-HD_ENVNOTE_L+1,1, 0, Hd_Field, 0, 13 ; Env as Note
-        FIELD HD_AUTO_L,   HD_ROW_EDIT,HD_AUTO_X-HD_AUTO_L+1,1, 0, Hd_Field, 0, 14       ; Auto Env
+        FIELD HD_RATIO_X,  HD_ROW_EDIT,3,1, 0, Hd_Field, 0, 8          ; соотношение - по кругу
+        FIELD HD_TUNE_X,   HD_TABS_Y, 7,1, 0, Hd_Field, 0, 9           ; таблица нот - по кругу
+        FIELD HD_CHIP_X,   HD_TABS_Y,10,1, 0, Hd_Field, 0, 10          ; вывод - по кругу
+        FIELD HD_STEREO_X, HD_TABS_Y, 3,1, 0, Hd_Field, 0, 11          ; стерео - по кругу
+        FIELD HD_ENVNOTE_L,HD_ROW_EDIT,HD_ENVNOTE_X-HD_ENVNOTE_L+1,1, 0, Hd_Field, 0, 12 ; Env as Note
+        FIELD HD_AUTO_L,   HD_ROW_EDIT,HD_AUTO_X-HD_AUTO_L+1,1, 0, Hd_Field, 0, 13       ; Auto Env
+        FIELD HD_STEP_L,   HD_ROW_EDIT,HD_STEPCHK_X-HD_STEP_L+1,1, 0, Hd_Field, 0, 14    ; шаг вкл/выкл
         FIELD HD_PLAY_X,   HD_TABS_Y, 5,1, 0, Hd_Field, 0, 15          ; ►Song
         FIELD HD_PLAY_X+6, HD_TABS_Y, 4,1, 0, Hd_Field, 0, 16          ; ►Pat
         FIELD HD_PLAY_X+11,HD_TABS_Y, 4,1, 0, Hd_Field, 0, 17          ; ►Row
@@ -422,8 +407,8 @@ Head_Fields_End
         db FLD_END
 
 Hd_Act  dw H_SpdDn, H_SpdUp, H_OctDn, H_OctUp, H_StepDn, H_StepUp
-        dw H_LenDn, H_LenUp, H_RatDn, H_RatUp
-        dw H_Tune, H_Chip, H_Stereo, K_EnvNote, H_AutoEnv
+        dw H_LenDn, H_LenUp, H_RatUp
+        dw H_Tune, H_Chip, H_Stereo, K_EnvNote, H_AutoEnv, H_AutoStep
         dw K_PlaySong, K_PlayPat, K_PlayPatRow, K_Stop
 
 ;-------- Поле шапки: клик - действие (вид нажатой кнопки рисует Hd_Buttons)
@@ -498,13 +483,6 @@ H_Len   ld a,(Cur_Pos)
 .cut    dec a
         ld (hl),a
 .ok     jp Song_Sync
-H_RatDn ld hl,Auto_Ratio            ; соотношение по кругу назад
-        ld a,(hl)
-        or a
-        jr nz,$+4
-        ld a,RATIOS
-        dec a
-        ld (hl),a
         ret
 H_RatUp ld hl,Auto_Ratio
         ld b,RATIOS
@@ -522,8 +500,12 @@ H_Stereo
         ld b,STEREOS
         call Hd_Cycle
         jp Hd_Save
+H_AutoStep
+        ld hl,Auto_Step
+        jr Hd_Toggle
 H_AutoEnv
         ld hl,Auto_Env
+Hd_Toggle                           ; (HL) = 0 <-> 1
         ld a,(hl)
         xor 1
         ld (hl),a
