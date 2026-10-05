@@ -106,6 +106,35 @@ SV_MOUSE_ROW    equ SYS_VARS+#12    ; 1  мышь: строка знакомес
 SV_MOUSE_BUT    equ SYS_VARS+#13    ; 1  мышь: кнопки, 0 - нажата: бит 0 левая, 1 правая, 2 средняя
                                     ; Пиксели - только для спрайта стрелки, работать - в знакоместах.
 SV_FRAME_HOOK   equ SYS_VARS+#14    ; 2  адрес процедуры сборки экрана, которую IM1 вызывает
+; --- ввод (ведёт IM1; читать - через Key_Get / Mouse_Btn, см. srs/input.asm)
+SV_FRAMES       equ SYS_VARS+#16    ; 2  счётчик кадров (+1 в каждом IM1)
+SV_KB_DELAY     equ SYS_VARS+#18    ; 1  автоповтор клавиш: задержка, кадров
+SV_KB_RATE      equ SYS_VARS+#19    ; 1  автоповтор клавиш: период, кадров
+SV_MS_DELAY     equ SYS_VARS+#1A    ; 1  автоповтор кнопок мыши: задержка
+SV_MS_RATE      equ SYS_VARS+#1B    ; 1  автоповтор кнопок мыши: период
+SV_MS_DBL       equ SYS_VARS+#1C    ; 1  двойной клик: не дольше, кадров
+SV_KEY_MODS     equ SYS_VARS+#1D    ; 1  модификаторы сейчас: KM_*
+SV_KEY_HEAD     equ SYS_VARS+#1E    ; 1  очередь клавиш: куда пишет IM1 (0..15)
+SV_KEY_TAIL     equ SYS_VARS+#1F    ; 1  очередь клавиш: откуда читают (0..15)
+SV_MS_COUNT     equ SYS_VARS+#20    ; 12 события кнопок мыши - СЧЁТЧИКИ (IM1 только
+                                    ;    увеличивает): по 4 байта на кнопку (левая,
+                                    ;    правая, средняя): нажатий, отпусканий,
+                                    ;    повторов, двойных
+SV_KEY_DOWN     equ SYS_VARS+#40    ; 32 карта нажатых: бит = код PS/2 (E0-коды +128)
+SV_KEY_Q        equ SYS_VARS+#60    ; 32 очередь клавиш: 16 x [код] [флаги KM_* | KF_REPEAT]
+
+KM_SHIFT        equ %00000001       ; модификаторы
+KM_CTRL         equ %00000010
+KM_ALT          equ %00000100
+KF_REPEAT       equ %10000000       ; в событии: автоповтор (иначе - нажатие)
+MB_LEFT         equ 0               ; номер кнопки мыши (смещение в SV_MS_COUNT / 4)
+MB_RIGHT        equ 1
+MB_MIDDLE       equ 2
+ME_PRESS        equ 0               ; смещение счётчика события у кнопки
+ME_RELEASE      equ 1
+ME_REPEAT       equ 2
+ME_DOUBLE       equ 3
+    ASSERT SV_KEY_Q+32 <= THEME_ATTR
                                     ;    каждый кадр (после мыши и музыки), 0 - нет.
                                     ;    Ставит активный редактор. В ней: только DMA через
                                     ;    set_ports_int и короткая запись, страницы - SETPAGE/RESTPAGE.

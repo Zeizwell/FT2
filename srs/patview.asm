@@ -1513,64 +1513,87 @@ Init_RowNum
 ; =========================================================================
 ; ВВОД
 ; =========================================================================
-; Клавиша: старший байт порта #xxFE, маска, обработчик. Конец - 0
-Key_Tab db #FB,%00001
-        dw K_RowUp                  ; Q
-        db #FD,%00001
-        dw K_RowDn                  ; A
-        db #DF,%00010
-        dw K_ChLeft                 ; O
-        db #DF,%00001
-        dw K_ChRight                ; P
-        db #BF,%00100
-        dw K_ChLeft                 ; K
-        db #BF,%00010
-        dw K_ChRight                ; L
-        db #FB,%00100
-        dw K_EnvOpen                ; E
-        db #F7,%00001
-        dw K_PlaySong               ; 1
-        db #F7,%00010
-        dw K_PlayPat                ; 2
-        db #F7,%00100
-        dw K_Stop                   ; 3
-        db #F7,%01000
-        dw K_Continue               ; 4
-        db #FB,%10000
-        dw K_Timing                 ; T
-        db 0
-KEYS_N          equ 12
-Keys_Prev       ds KEYS_N
+; Горячие клавиши вида паттерна: код PS/2 (E0-коды +128), модификаторы (KM_*,
+; точное совпадение), обработчик. Конец - 0. Автоповтор даёт коре (Key_Get).
+K_UP            equ #75+#80         ; стрелки, PgUp/PgDn - E0-коды
+K_DOWN          equ #72+#80
+K_LEFT          equ #6B+#80
+K_RIGHT         equ #74+#80
+K_PGUP          equ #7D+#80
+K_PGDN          equ #7A+#80
+K_TAB           equ #0D
+K_SPACE         equ #29
+K_F5            equ #03
+K_F6            equ #0B
+K_F7            equ #7F             ; F7 (#83) коре сводит в #7F
+K_F8            equ #0A
+K_E             equ #24
+K_T             equ #2C
 
+Hotkeys db K_UP,    0
+        dw K_RowUp
+        db K_DOWN,  0
+        dw K_RowDn
+        db K_PGUP,  0
+        dw K_PageUp
+        db K_PGDN,  0
+        dw K_PageDn
+        db K_LEFT,  0
+        dw K_ChLeft
+        db K_RIGHT, 0
+        dw K_ChRight
+        db K_TAB,   0
+        dw K_ChRight
+        db K_TAB,   KM_SHIFT
+        dw K_ChLeft
+        db K_F5,    0
+        dw K_PlaySong               ; сонг с начала позиции
+        db K_F6,    0
+        dw K_PlayPat                ; паттерн по кругу
+        db K_F7,    0
+        dw K_Continue               ; продолжить с места
+        db K_F8,    0
+        dw K_Stop
+        db K_SPACE, 0
+        dw K_StopCont               ; стоп / продолжить
+        db K_E,     KM_CTRL
+        dw K_EnvOpen                ; Ctrl+E - открыть Env чипа
+        db K_T,     KM_CTRL
+        dw K_Timing                 ; Ctrl+T - полоса времени
+        db 0
+
+;-------- Все события клавиатуры за кадр -> обработчики по таблице
 Handle_Keys
-        ld hl,Key_Tab
-        ld ix,Keys_Prev
-.k      ld a,(hl)
-        or a
+.k      call Key_Get                ; A - код, C - флаги; Z - пусто
         ret z
+        ld b,a
+        ld a,c
+        and KM_SHIFT|KM_CTRL|KM_ALT ; повтор/нажатие для таблицы одинаковы
+        ld c,a
+        ld hl,Hotkeys
+.f      ld a,(hl)                   ; код, 0 - конец таблицы
+        or a
+        jr z,.k                     ; не наше - следующее событие
+        cp b
+        jr nz,.n
         inc hl
-        in a,(#FE)
-        and (hl)
+        ld a,(hl)                   ; модификаторы
+        dec hl
+        cp c
+        jr nz,.n
+        inc hl
         inc hl
         ld e,(hl)
         inc hl
         ld d,(hl)
-        inc hl
-        jr z,.down
-        ld (ix+0),0
-        jr .next
-.down   ld a,(ix+0)                 ; только на нажатие, не на удержание
-        ld (ix+0),1
-        or a
-        jr nz,.next
-        push hl
-        push ix
         ex de,hl
         call .jp
-        pop ix
-        pop hl
-.next   inc ix
         jr .k
+.n      inc hl
+        inc hl
+        inc hl
+        inc hl
+        jr .f
 .jp     jp (hl)
 
 ; Роу курсора: по полотну (сонг) или по кругу (плей паттерна)
@@ -1596,6 +1619,22 @@ T_To_Cur
         ld (hl),a
         ld a,1                      ; позиция сменилась - перерисовать ордер
         ld (Order_Pending),a
+        ret
+
+PAGE_ROWS       equ 16              ; PgUp/PgDn - на столько роу (по полотну)
+K_PageUp
+        ld b,PAGE_ROWS
+.l      push bc
+        call K_RowUp
+        pop bc
+        djnz .l
+        ret
+K_PageDn
+        ld b,PAGE_ROWS
+.l      push bc
+        call K_RowDn
+        pop bc
+        djnz .l
         ret
 
 K_ChLeft
@@ -1646,6 +1685,10 @@ K_Stop  xor a                       ; стоп: остаёмся где стои
         inc a
         ld (Src_Mode),a
         ret
+K_StopCont                          ; пробел: играет - стоп, стоит - продолжить
+        ld a,(Playing)
+        or a
+        jr nz,K_Stop
 K_Continue                          ; продолжить сонг с текущего места
         ld a,1
         ld (Src_Mode),a
@@ -1679,22 +1722,22 @@ Int_Line_Set
         out (c),a
         ret
 
-;-------- Мышь: колесо - роу, с Symbol/Caps Shift (Ctrl/Shift) - канал.
-; Левая кнопка на [+]/[-] в заголовке - открыть / закрыть элемент
+;-------- Мышь. Колесо - роу, с Ctrl/Shift - канал.
+; Кнопки [+]/[-] в заголовке - как в Windows: нажал - кнопка вдавлена, увёл мышь -
+; отжалась, вернул - снова вдавлена, отпустил над ней - сработала.
+Ms_Seen_L       ds 4                ; события левой кнопки, которые уже видели
+Btn_Held        db ITEM_NONE        ; элемент, чью кнопку держат
+Btn_Shown       db 0                ; 1 - сейчас нарисована вдавленной
+
 Handle_Mouse
         call Mouse_Get_Wheel
         or a
         jr z,.button
         ld c,a
-        ld a,#7F                    ; Symbol Shift: порт #7FFE, бит 1
-        in a,(#FE)
-        and %00010
-        jr z,.ch
-        ld a,#FE                    ; Caps Shift: порт #FEFE, бит 0
-        in a,(#FE)
-        and %00001
-        jr z,.ch
-        ld a,c                      ; без модификатора - роу
+        ld a,(SV_KEY_MODS)          ; Ctrl или Shift - колесо по каналам
+        and KM_CTRL|KM_SHIFT
+        jr nz,.ch
+        ld a,c
         or a
         jp m,K_RowDn
         jp K_RowUp
@@ -1703,21 +1746,49 @@ Handle_Mouse
         jp m,K_ChRight
         jp K_ChLeft
 
-.button ld a,(SV_MOUSE_BUT)         ; бит 0 = 0 - левая нажата
-        cpl
-        and 1
-        ld hl,Mouse_Prev
-        ld c,(hl)
-        ld (hl),a
-        or a
-        ret z
-        ld a,c                      ; только на нажатие
-        or a
+.button ld a,MB_LEFT
+        ld hl,Ms_Seen_L
+        call Mouse_Btn              ; A - события + бит 7 "держат"
+        ld d,a
+        call Btn_Under              ; B - элемент, чья кнопка под мышью (или ITEM_NONE)
+        bit ME_PRESS,d              ; нажали - запомнить, чью кнопку
+        jr z,.nopress
+        ld a,b
+        ld (Btn_Held),a
+.nopress
+        ld a,(Btn_Held)
+        cp ITEM_NONE
+        ret z                       ; никакую не держат
+        ld e,a                      ; E - удерживаемая
+        bit ME_RELEASE,d
+        jr nz,.release
+        ld a,b                      ; держат: вдавлена, только пока мышь над ней
+        cp e
+        ld a,1
+        jr z,$+3
+        xor a
+        jp Btn_Show
+.release
+        ld a,ITEM_NONE
+        ld (Btn_Held),a
+        xor a                       ; отжать
+        push bc
+        push de
+        call Btn_Show
+        pop de
+        pop bc
+        ld a,b                      ; отпустили над той же - сработала
+        cp e
         ret nz
+        jp Btn_Action
+
+; B = элемент, чья кнопка (2 последних знака заголовка) под мышью, или ITEM_NONE
+Btn_Under
+        ld b,ITEM_NONE
         ld a,(SV_MOUSE_ROW)
         cp VIEW_LINE
         ret nz
-        ld a,(SV_MOUSE_COL)         ; кнопка - два последних знака элемента
+        ld a,(SV_MOUSE_COL)
         ld e,a
         ld b,0
 .it     ld a,b
@@ -1728,18 +1799,59 @@ Handle_Mouse
         ld hl,Item_W
         call Arr_Get
         add a,c
-        sub 2                       ; A - левая половина кнопки
+        sub 2                       ; левая половина кнопки
         cp e
-        jr z,.hit
+        ret z
         inc a                       ; правая
         cp e
-        jr z,.hit
+        ret z
         inc b
         ld a,b
         cp ITEMS
         jr c,.it
+        ld b,ITEM_NONE
         ret
-.hit    ld a,(Open_Item)            ; [-] у открытого - закрыть всё
+
+; Кнопка удерживаемого элемента (Btn_Held / E) вдавленной (A=1) или обычной (A=0).
+; Рисуем, только когда вид меняется
+Btn_Show
+        ld hl,Btn_Shown
+        cp (hl)
+        ret z
+        ld (hl),a
+        ld c,a                      ; C - вдавлена?
+        ld b,e
+        ld a,b
+        ld hl,Item_Col
+        call Arr_Get
+        ld e,a
+        ld a,b
+        ld hl,Item_W
+        call Arr_Get
+        add a,e
+        sub 2
+        ld e,a
+        ld d,SCR_BASE_H+VIEW_LINE
+        ld a,(Open_Item)            ; [-] у открытого, [+] у остальных
+        cp b
+        ld a,GLYPH_BTN_PLUS
+        jr nz,$+4
+        ld a,GLYPH_BTN_MINUS
+        bit 0,c
+        jr z,$+4
+        add a,BTN_PRESSED
+        ld b,a
+        ld a,(SV_DRAW_PAGE)         ; заголовок - прямо на экране (окно 3)
+        SETPAGE3 a
+        ld a,b
+        call PutBtn
+        RESTPAGE3
+        ret
+
+; Сработала кнопка элемента E: [-] у открытого - закрыть, [+] - открыть
+Btn_Action
+        ld b,e
+        ld a,(Open_Item)
         cp b
         jr z,.close
         ld a,b                      ; [+] - открыть: Env чипа или канал
@@ -1784,7 +1896,6 @@ Build_Layout_Keep
         ld (hl),a
         ret
 
-Mouse_Prev      db 0
 
 ;-------- Имитация проигрывания: роу каждые 3 кадра
 Play_Step

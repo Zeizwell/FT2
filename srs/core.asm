@@ -39,7 +39,9 @@ IM1_Handler
     ; 1. музыка - первой, в одной и той же точке кадра (здесь будет плеер)
     ; 2. мышь
     call Read_Mouse
-    ; 3. вывод активного редактора (паттерн и т.п.)
+    ; 3. клавиатура PS/2 и события кнопок мыши (srs/input.asm)
+    call Read_Input
+    ; 4. вывод активного редактора (паттерн и т.п.)
     ld hl,(SV_FRAME_HOOK)
     ld a,h
     or l
@@ -69,6 +71,7 @@ Core_Start
         ld hl,100
         ld de,100
         call Init_Mouse_Sprite
+        call Input_Init         ; лог клавиатуры PS/2, автоповтор, счётчики мыши
 
         xor a                   ; шрифт 0 и значки поверх
         call Set_Font
@@ -188,4 +191,5 @@ dma_wait	ld bc,DMASTATUS
 
 
     include "srs/mouse.asm"
+    include "srs/input.asm"
     include "srs/colors.asm"
