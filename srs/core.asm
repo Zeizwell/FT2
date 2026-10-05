@@ -196,4 +196,5 @@ dma_wait	ld bc,DMASTATUS
     include "srs/input.asm"
     include "srs/fields.asm"
     include "srs/diskcall.asm"
+    include "srs/instr.asm"
     include "srs/colors.asm"

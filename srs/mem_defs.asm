@@ -67,11 +67,12 @@ PAGE_VIEW_TPL EQU #BB                           ; 3 страницы шабло�
 PAGE_ROWNUM   EQU #BE                           ; номера роу
 PAGE_BENCH    EQU #BF                           ; замер DMA
 
-PAGES_PER_SONG EQU PATTERNS_MAX+8   ; полный трек: паттерн = страница (данные + текст) + инструменты
+PAGES_PER_SONG EQU PATTERNS_MAX+2   ; полный трек: паттерн = страница + страница инструментов/орнаментов + FX
+PAGE_INS1     EQU PAGE_POOL+PATTERNS_MAX ; инструменты и орнаменты трека 1 (пока место фиксировано)
     ASSERT PAGE_POOL == #4C
     ASSERT PAGES_COMPBUF*16384 >= COMPILED_MAX      ; откомпилированный влезает
     ASSERT PAGE_POOL_END-PAGE_POOL >= PAGES_PER_SONG ; один полный трек влезает
-; !!! НЕ РЕШЕНО: два полных трека (2 x 72 = 144 страницы) в пул (116) не влезают.
+; !!! НЕ РЕШЕНО: два полных трека (2 x 66 = 132 страницы) в пул (111) не влезают.
 ; Варианты: второй трек без текста роу / отдать под пул буфер файла / лимит.
 
 FONT_SIZE       equ #800    ; шрифт 256 символов x 8 байт

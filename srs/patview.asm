@@ -2539,6 +2539,7 @@ TEST_ORD_N      equ $-Test_Order
 ORDER_TEST_MAX  equ 64
 
 Test_Song
+        call Test_Instr             ; инструменты и орнаменты - в их страницу
         ld a,TEST_ORD_N-1
         ld (Ord_Last),a
         ld a,2                      ; повтор - с позиции 2
@@ -2559,6 +2560,101 @@ Test_Song
         ret
 
 TF_Pat          db 0
+
+;-------- Тестовые инструменты и орнаменты (формат FTC, sdk/plugin.asm) - в страницу
+; инструментов трека PAGE_INS1. Остальные номера - по умолчанию (Ins_Clear)
+Test_Instr
+        ld a,PAGE_INS1
+        call Ins_Clear
+        ld ix,Ti_List
+.l      ld l,(ix+0)                 ; блок, 0 - конец
+        ld h,(ix+1)
+        ld a,h
+        or l
+        ret z
+        ld e,(ix+2)                 ; смещение в странице
+        ld d,(ix+3)
+        ld c,(ix+4)                 ; длина
+        ld b,(ix+5)
+        ld a,PAGE_INS1
+        push ix
+        call Ins_Put
+        pop ix
+        ld de,6
+        add ix,de
+        jr .l
+
+Ti_List dw Ti_Pluck,  0*INS_BLOCK, TI_LEN   ; инструмент 1
+        dw Ti_Drum,   1*INS_BLOCK, TI_LEN   ; 2
+        dw Ti_Bass,   2*INS_BLOCK, TI_LEN   ; 3
+        dw Ti_Vib,    3*INS_BLOCK, TI_LEN   ; 4
+        dw To_Major,  ORN_BASE+0*ORN_BLOCK, TO_LEN  ; орнамент 1
+        dw To_Minor,  ORN_BASE+1*ORN_BLOCK, TO_LEN  ; 2
+        dw To_Octave, ORN_BASE+2*ORN_BLOCK, TO_LEN  ; 3
+        dw 0
+TI_LEN          equ INS_NAME+16     ; хвост дальше имени - нули (Ins_Clear)
+TO_LEN          equ ORN_NAME+16
+
+    ; Строка инструмента: шум (7 накопл, 6 ВЫКЛ, 4..0), тон мл, тон ст (7 накопл,
+    ; 6 ВЫКЛ, 4 ретриггер, 3..0), громкость (7 накопл огиб, 6 огиб ВКЛ, 5 слайд,
+    ; 4 вниз, 3..0), смещение огибающей
+    MACRO TI_TAIL blk,name
+        ds blk+INS_FX-$,0
+        db 0                        ; без FX
+        ds blk+INS_NAME-$,0
+        db name
+        ds blk+INS_NAME+16-$,' '
+    ENDM
+    MACRO TO_TAIL blk,name
+        ds blk+ORN_NAME-$,0
+        db name
+        ds blk+ORN_NAME+16-$,' '
+    ENDM
+
+Ti_Pluck                            ; затухание 15..0, цикл на тишине
+        db 15,15,15
+.v = 15
+        DUP 16
+        db #40,0,0,.v,0
+.v = .v-1
+        EDUP
+        TI_TAIL Ti_Pluck,"Pluck"
+Ti_Drum                             ; шум без тона, громкость вниз, шум растёт
+        db 7,7,7
+        db #00,0,#40,15,0
+        db #02,0,#40,13,0
+        db #04,0,#40,11,0
+        db #06,0,#40,9,0
+        db #08,0,#40,7,0
+        db #0A,0,#40,5,0
+        db #0C,0,#40,3,0
+        db #40,0,#40,0,0            ; тишина, цикл
+        TI_TAIL Ti_Drum,"Drum"
+Ti_Bass                             ; тон + огибающая
+        db 0,0,0
+        db #40,0,0,#40|15,0
+        TI_TAIL Ti_Bass,"EnvBass"
+Ti_Vib                              ; вибрато: тон накоплением +1 +1 -1 -1
+        db 3,0,3
+        db #40,#01,#80,15,0
+        db #40,#01,#80,15,0
+        db #40,#FF,#8F,15,0         ; -1 в 12 битах
+        db #40,#FF,#8F,15,0
+        TI_TAIL Ti_Vib,"Vibrato"
+
+    ; Строка орнамента: шум (7 накопл шума, 6 накопл ноты, 4..0), смещение ноты
+To_Major
+        db 2,0,2
+        db 0,0, 0,4, 0,7
+        TO_TAIL To_Major,"Major"
+To_Minor
+        db 2,0,2
+        db 0,0, 0,3, 0,7
+        TO_TAIL To_Minor,"Minor"
+To_Octave
+        db 1,0,1
+        db 0,0, 0,12
+        TO_TAIL To_Octave,"Octave"
 
 ; Паттерн в окне 2 (номер - TF_Pat): все 64 роу данных
 Test_Fill
