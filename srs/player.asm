@@ -132,6 +132,8 @@ Pl_Tick
         ld a,(SV_PLAY_STATE)
         or a
         ret z                       ; стоп
+        cp PS_PREVIEW               ; проба - только каналы
+        jp z,Pl_Channels
         ld a,(SV_PLAY_TICK)         ; 3. тик 0 - читаем роу
         or a
         jr nz,.chans
@@ -150,22 +152,28 @@ Pl_Cmd
         xor a
         ld (SV_PLAY_CMD),a
         ld a,b
+        cp PC_PREVIEW
+        jr z,Pl_Preview
         cp PC_STOP
         jr nz,.play
         xor a
         ld (SV_PLAY_STATE),a
         jp Pl_Mute
-.play   push af                     ; оба чипа - в тишину (второго может не быть в треке)
-        call Pl_Mute
-        pop af
-        ld (SV_PLAY_STATE),a        ; PC_SONG = PS_SONG, PC_PATTERN = PS_PATTERN
+.play   ld (SV_PLAY_STATE),a        ; PC_SONG = PS_SONG, PC_PATTERN = PS_PATTERN
         ld a,(SV_PLAY_CPOS)
         ld (SV_PLAY_POS),a
         ld a,(SV_PLAY_CROW)
         ld (SV_PLAY_ROW),a
         xor a
         ld (SV_PLAY_TICK),a         ; роу - сразу в этом тике
-        ld hl,Pl_Ch                 ; каналы - с нуля, громкость 15
+        call Pl_Reset
+        jp Pl_Pos_Info
+
+;-------- Тишина, каналы с нуля (громкость 15), сведения о треке
+Pl_Reset
+        call Pl_Mute                ; оба чипа (второго может не быть в треке)
+        xor a
+        ld hl,Pl_Ch
         ld b,CHANNELS*CS_SIZE
 .z      ld (hl),a
         inc hl
@@ -176,8 +184,45 @@ Pl_Cmd
 .v      ld (ix+CS_VOL),15
         add ix,de
         djnz .v
-        call Pl_Song_Info           ; скорость, страница инструментов, ордер
-        jp Pl_Pos_Info
+        jp Pl_Song_Info             ; скорость, страница инструментов, ордер
+
+;-------- Проба: строка Prv_Row (коре) - в канал A первого чипа, дальше тики без роу.
+; Период огибающей 0 - по ноте (1:1, период тона / 16)
+Pl_Preview
+        call Pl_Reset
+        ld a,1                      ; только первый чип (второй молчит)
+        ld (Pl_Chips),a
+        ld a,PS_PREVIEW
+        ld (SV_PLAY_STATE),a
+        ld a,low Prv_Row            ; роу - из коре
+        ld (Pr_Base),a
+        ld h,high Prv_Row
+        call Pl_Row_Chips
+        xor a
+        ld (Pr_Base),a
+        ld hl,(Prv_Row+CHIP_ENVPER) ; огибающая задана - всё
+        ld a,h
+        or l
+        ret nz
+        ld a,(Pl_Ch+CS_NOTE)        ; по ноте: период тона / 16
+        or a
+        ret z
+        dec a
+        add a,a
+        ld l,a
+        ld h,0
+        ld de,Note_Per
+        add hl,de
+        ld a,(hl)
+        inc hl
+        ld h,(hl)
+        ld l,a
+        ld b,4
+.sh     srl h
+        rr l
+        djnz .sh
+        ld (Pl_EnvBase),hl
+        ret
 
 ;-------- Из страницы трека: скорость, страница инструментов, последняя позиция, цикл
 Pl_Song_Info
@@ -258,14 +303,22 @@ Pl_Row
         ld a,(SV_PLAY_ROW)
         add a,#80                   ; роу = H в окне 2
         ld h,a
+        call Pl_Row_Chips
+        RESTPAGE2
+        ret
+
+;-------- Роу (H, начало - L = Pr_Base) -> состояние каналов всех чипов трека
+Pr_Base         db 0                ; L начала роу (паттерн - 0, проба - Prv_Row)
+Pl_Row_Chips
         ld ix,Pl_Ch
         xor a
         ld (Pr_Chip),a
 .chip   ld a,(Pr_Chip)              ; L - начало чипа
         or a
-        ld l,0
+        ld a,(Pr_Base)
         jr z,$+4
-        ld l,CHIP_SIZE
+        add a,CHIP_SIZE
+        ld l,a
         push hl                     ; заголовок чипа: период огибающей, шум
         ld e,(hl)                   ; CHIP_ENVPER
         inc l
@@ -328,7 +381,6 @@ Pl_Row
         cp (hl)
         pop hl
         jr c,.chip
-        RESTPAGE2
         ret
 
 ; HL - канал в роу паттерна, IX - его состояние

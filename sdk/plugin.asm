@@ -144,9 +144,11 @@ SV_TOOL_ARG     equ SYS_VARS+#3F    ; 1  параметр для тулзы из
 PC_SONG         equ 1               ; команды: сонг с позиции CPOS, роу CROW
 PC_PATTERN      equ 2               ;   паттерн позиции CPOS по кругу с роу CROW
 PC_STOP         equ 3               ;   стоп и тишина
+PC_PREVIEW      equ 4               ;   проба: одна нота из Prv_Row (коре), пока не PC_STOP
 PS_STOP         equ 0               ; состояния
 PS_SONG         equ 1
 PS_PATTERN      equ 2
+PS_PREVIEW      equ 3               ; играет проба (канал A первого чипа)
 PLAYER_INIT     equ #4000           ; входы плеера (его страница - в окне 1)
 PLAYER_TICK     equ #4003
 SV_KEY_DOWN     equ SYS_VARS+#40    ; 32 карта нажатых: бит = код PS/2 (E0-коды +128)

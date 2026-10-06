@@ -49,7 +49,7 @@ LOOP_P          equ 66
 BT_Y            equ IV_TOP+3        ; кнопки
 CAP_Y           equ IV_TOP+5        ; заголовки колонок
 ER_ROW0         equ IV_TOP+6        ; первая строка данных
-ER_ROWS         equ 24              ; строк на экране (до TL_LAST-2)
+ER_ROWS         equ 22              ; строк на экране (ниже - проба)
 ER_LOOP_X       equ 22              ; L
 ER_NUM_X        equ 23              ; номер строки
 ER_DATA_X       equ 26              ; данные
@@ -57,6 +57,17 @@ BAR_X           equ 49              ; инструмент: полоса гро�
 OB_X            equ 36              ; орнамент: полоса смещения ноты
 OB_MID          equ 52              ;   её середина (смещение 0), видно ±16
 OB_HALF         equ 16
+
+; --- проба ноты (низ редактора): ▶ нота  Oct  Orn/Ins  Vol  Env
+SEP_Y           equ ER_ROW0+ER_ROWS ; разделитель ├──┤
+PV_Y            equ SEP_Y+1         ; строка пробы
+    ASSERT PV_Y == TL_LAST-2
+PV_PLAY         equ 22              ; ▶ (2 знака)
+PV_NOTE         equ 25              ; нота (3 знака)
+PV_OCT          equ 29              ; подписи; [-] - +3, значение - +5, [+] - +6
+PV_ORN          equ 38
+PV_VOL          equ 47
+PV_ENV          equ 56
 
 ; --- библиотека (справа)
 LB_X            equ 70
@@ -127,6 +138,9 @@ Iv_Loop
         ld a,(Iv_Exit)              ; другая вкладка - выходим в коре
         or a
         jr nz,Iv_Leave
+        ld a,(Prv_Key)              ; проба с клавиатуры: отпустили - тишина
+        or a
+        call nz,Prv_Check
         ld a,(Iv_Dirty)
         or a
         call nz,Iv_Draw
@@ -137,6 +151,9 @@ Iv_Loop
 Iv_Leave
         xor a
         ld (Iv_Exit),a
+        ld a,(Prv_Key)              ; держали ноту пробы - тишина
+        or a
+        call nz,Prv_Stop
         call Tool_Clear             ; экран - под вид паттерна
         RESTPAGE2
         RESTPAGE3
@@ -345,6 +362,7 @@ Iv_Draw
         ld (Iv_Dirty),a
         call Iv_Draw_List
         call Iv_Draw_Top
+        call Prv_Draw
         jp Iv_Draw_Rows
 
 ;-------- Рамки и их заголовки
@@ -375,7 +393,8 @@ Iv_Frames
         call PutStr
         ld de,LB_X+2+256*(IV_SCR_H+IV_TOP)
         ld hl,Txt_Library
-        jp PutStr
+        call PutStr
+        jp Prv_Frame
 
 ;-------- Список: LI_ROWS строк с номера Iv_LTop
 Li_Idx          db 0
@@ -851,7 +870,10 @@ Iv_Buttons
         jr z,.text
         push de
         pop ix
-        ld e,(hl)                   ; колонка, значок
+        ld e,(hl)                   ; колонка, строка, значок
+        inc hl
+        ld a,(hl)
+        ld (Bg_Row),a
         inc hl
         ld b,(hl)
         inc hl
@@ -863,7 +885,9 @@ Iv_Buttons
         ld b,a
         ld a,(THEME_ATTR+CLR_BUTTON)
         ld c,a
-        ld d,IV_SCR_H+NM_Y
+        ld a,(Bg_Row)
+        add a,IV_SCR_H
+        ld d,a
         ld a,b
         call PutCh
         ld a,b
@@ -925,15 +949,32 @@ Btn_State
         scf
         ret
 
-Btn_Glyphs
+Bg_Row          db 0
+Btn_Glyphs                          ; поле; колонка, строка, значок
         dw F_LenM
-        db LEN_M, GLYPH_BTN_MINUS
+        db LEN_M, NM_Y, GLYPH_BTN_MINUS
         dw F_LenP
-        db LEN_P, GLYPH_BTN_PLUS
+        db LEN_P, NM_Y, GLYPH_BTN_PLUS
         dw F_LoopM
-        db LOOP_M, GLYPH_BTN_MINUS
+        db LOOP_M, NM_Y, GLYPH_BTN_MINUS
         dw F_LoopP
-        db LOOP_P, GLYPH_BTN_PLUS
+        db LOOP_P, NM_Y, GLYPH_BTN_PLUS
+        dw F_OctM
+        db PV_OCT+3, PV_Y, GLYPH_BTN_MINUS
+        dw F_OctP
+        db PV_OCT+6, PV_Y, GLYPH_BTN_PLUS
+        dw F_OrnM
+        db PV_ORN+3, PV_Y, GLYPH_BTN_MINUS
+        dw F_OrnP
+        db PV_ORN+6, PV_Y, GLYPH_BTN_PLUS
+        dw F_VolM
+        db PV_VOL+3, PV_Y, GLYPH_BTN_MINUS
+        dw F_VolP
+        db PV_VOL+6, PV_Y, GLYPH_BTN_PLUS
+        dw F_EnvM
+        db PV_ENV+3, PV_Y, GLYPH_BTN_MINUS
+        dw F_EnvP
+        db PV_ENV+6, PV_Y, GLYPH_BTN_PLUS
         dw 0
 Btn_Texts
         dw F_Clone
@@ -995,6 +1036,16 @@ F_Unloop IV_FIELD BU_X,BT_Y,8,1, FF_HAND, Iv_BtnEv, 8
 F_Prev  IV_FIELD BV_X,BT_Y,3,1, FF_HAND, Iv_BtnEv, 9                  ; < предыдущий
 F_Next  IV_FIELD BN_X,BT_Y,3,1, FF_HAND, Iv_BtnEv, 10                 ; > следующий
 F_Edit  IV_FIELD ED_IN_X,ER_ROW0,ED_IN_W,ER_ROWS, FF_FOCUS, Iv_EditEv, 0 ; строки
+F_Play  IV_FIELD PV_PLAY,PV_Y,2,1, FF_HAND, Prv_PlayEv, 0             ; ▶ - пока держат
+F_OctM  IV_FIELD PV_OCT+3,PV_Y,2,1, FF_HAND, Prv_BtnEv, 0             ; Oct -
+F_OctP  IV_FIELD PV_OCT+6,PV_Y,2,1, FF_HAND, Prv_BtnEv, 1             ;     +
+F_OrnM  IV_FIELD PV_ORN+3,PV_Y,2,1, FF_HAND, Prv_BtnEv, 2             ; Orn / Ins -
+F_OrnP  IV_FIELD PV_ORN+6,PV_Y,2,1, FF_HAND, Prv_BtnEv, 3             ;           +
+F_VolM  IV_FIELD PV_VOL+3,PV_Y,2,1, FF_HAND, Prv_BtnEv, 4             ; Vol -
+F_VolP  IV_FIELD PV_VOL+6,PV_Y,2,1, FF_HAND, Prv_BtnEv, 5             ;     +
+F_EnvM  IV_FIELD PV_ENV+3,PV_Y,2,1, FF_HAND, Prv_BtnEv, 6             ; Env -
+F_EnvP  IV_FIELD PV_ENV+6,PV_Y,2,1, FF_HAND, Prv_BtnEv, 7             ;     +
+F_Test  IV_FIELD ED_IN_X,PV_Y,ED_IN_W,1, FF_FOCUS, Prv_KeyEv, 0       ; строка пробы: пианино
         db FLD_END
 
 ;-------- Шапка: Instr / Orn - режим, Disk - тулза диска, остальное - вид паттерна
@@ -1226,14 +1277,20 @@ Iv_Keys
         ld a,b
         cp KEY_TAB
         jr nz,.k
-        ld hl,(SV_FOCUS)
+        ld hl,(SV_FOCUS)            ; строки -> проба -> имя -> строки
         ld de,F_Edit
         or a
         sbc hl,de
+        ld hl,F_Test
+        jr z,.set
+        ld hl,(SV_FOCUS)
+        ld de,F_Test
+        or a
+        sbc hl,de
         ld hl,F_Name
-        jr z,$+5
+        jr z,.set
         ld hl,F_Edit
-        call Fld_Set_Focus
+.set    call Fld_Set_Focus
         jr .k
 
 ; =========================================================================
@@ -1933,6 +1990,284 @@ Ins_Empty       db 1<<IRB_OFF,0,0,15,0
 Orn_Empty       db 0,0
 
 ; =========================================================================
+; ПРОБА НОТЫ: строка внизу редактора. В фокусе - пианино (держишь - звучит),
+; ▶ - текущая нота, пока держат кнопку мыши. Плееру - строка Prv_Row (коре) и
+; команда PC_PREVIEW, отпустили - PC_STOP. Инструмент - текущий (на вкладке Orn -
+; последний выбранный инструмент), орнамент - Orn пробы (на вкладке Orn - текущий).
+; =========================================================================
+Prv_Note        db 37               ; последняя нота (C-4)
+Prv_Oct         db 4                ; октава пианино 1..8
+Prv_Orn         db 0                ; орнамент пробы на вкладке Instr: 0 - нет, 1..16
+Prv_Vol         db 15               ; громкость 1..15
+Prv_Env         db 0                ; форма огибающей: 0 - выкл, 1..14
+Prv_Key         db 0                ; клавиша, которой играем (0 - нет)
+
+;-------- Рамка: разделитель ├──┤, ▶ и подписи (один раз)
+Prv_Frame
+        ld a,(THEME_ATTR+CLR_TITLE)
+        ld c,a
+        ld de,ED_X+256*(IV_SCR_H+SEP_Y)
+        ld a,#C3                    ; ├
+        call PutCh
+        ld b,ED_W-2
+.h      ld a,BOX_H
+        call PutCh
+        djnz .h
+        ld a,#B4                    ; ┤
+        call PutCh
+        ld a,(THEME_ATTR+CLR_BUTTON)
+        ld c,a
+        ld de,PV_PLAY+256*(IV_SCR_H+PV_Y)
+        ld a,GLYPH_BTN_PLAY
+        call PutCh
+        ld a,GLYPH_BTN_PLAY+1
+        call PutCh
+        ld a,(THEME_ATTR+CLR_TITLE)
+        ld c,a
+        ld e,PV_OCT
+        ld hl,Txt_Oct
+        call PutStr
+        ld e,PV_ORN
+        ld hl,Txt_Orn
+        ld a,(Iv_Mode)
+        or a
+        jr z,$+5
+        ld hl,Txt_Ins
+        call PutStr
+        ld e,PV_VOL
+        ld hl,Txt_Vol
+        call PutStr
+        ld e,PV_ENV
+        ld hl,Txt_Env
+        jp PutStr
+
+;-------- Значения: нота (в фокусе - цветом курсора), октава, Orn/Ins, громкость, форма
+Prv_Draw
+        ld hl,(SV_FOCUS)
+        ld de,F_Test
+        or a
+        sbc hl,de
+        ld a,(THEME_ATTR+CLR_NOTE)
+        jr nz,$+5
+        ld a,(THEME_ATTR+CLR_CURSOR)
+        ld c,a
+        ld de,PV_NOTE+256*(IV_SCR_H+PV_Y)
+        ld a,(Prv_Note)
+        call Note_Str
+        ld a,(THEME_ATTR+CLR_TEXT)
+        ld c,a
+        ld e,PV_OCT+5
+        ld a,(Prv_Oct)
+        add a,'0'
+        call PutCh
+        ld e,PV_ORN+5               ; Instr: орнамент ('0' - нет); Orn: инструмент
+        ld a,(Iv_Mode)
+        or a
+        jr nz,.ins
+        ld a,(Prv_Orn)
+        or a
+        ld a,'0'
+        jr z,.put
+        ld a,(Prv_Orn)
+        dec a
+        call Num_Sym
+        jr .put
+.ins    ld a,(Iv_Nums)
+        call Num_Sym
+.put    call PutCh
+        ld e,PV_VOL+5
+        ld a,(Prv_Vol)
+        call HexDigit
+        call PutCh
+        ld e,PV_ENV+5               ; форма: '-' - выкл
+        ld a,(Prv_Env)
+        or a
+        ld a,'-'
+        jr z,.env
+        ld a,(Prv_Env)
+        call HexDigit
+.env    jp PutCh
+
+; A - нота 1..96 -> 3 знака ("C-4"), E++
+Note_Str
+        dec a
+        ld b,'1'
+.o      cp 12
+        jr c,.n
+        sub 12
+        inc b
+        jr .o
+.n      add a,a
+        ld hl,Note_Names
+        call Hl_Add_A
+        ld a,(hl)
+        call PutCh
+        inc hl
+        ld a,(hl)
+        call PutCh
+        ld a,b
+        jp PutCh
+Note_Names      db "C-C#D-D#E-F-F#G-G#A-A#B-"
+
+;-------- Сыграть ноту A: Prv_Row (коре) - строка одного чипа, команда плееру
+Prv_Play
+        ld (Prv_Note),a
+        ld hl,Prv_Row               ; всё пусто
+        ld b,CHIP_SIZE
+.z      ld (hl),0
+        inc hl
+        djnz .z
+        ld a,#20                    ; шум 0 (в паттерне шум 0 - #20)
+        ld (Prv_Row+CHIP_NOISE),a
+        ld a,(Prv_Note)
+        ld (Prv_Row+CHIP_CH_A+CH_NOTE),a
+        ld a,(Iv_Mode)              ; инструмент и орнамент - номер+1 (орнамент 1 - пустой)
+        or a
+        jr nz,.orn
+        ld a,(Iv_Num)
+        inc a
+        ld (Prv_Row+CHIP_CH_A+CH_SAMPLE),a
+        ld a,(Prv_Orn)
+        inc a
+        jr .ost
+.orn    ld a,(Iv_Nums)
+        inc a
+        ld (Prv_Row+CHIP_CH_A+CH_SAMPLE),a
+        ld a,(Iv_Num)
+        add a,2
+.ost    ld (Prv_Row+CHIP_CH_A+CH_ORNAMENT),a
+        ld a,(Prv_Vol)
+        ld (Prv_Row+CHIP_CH_A+CH_VOLUME),a
+        ld a,(Prv_Env)              ; форма: 0 - выкл (в паттерне - 15)
+        or a
+        jr nz,$+4
+        ld a,15
+        ld (Prv_Row+CHIP_CH_A+CH_ENVSHAPE),a
+        ld a,PC_PREVIEW             ; команда - последней (IM1 может влезть)
+        ld (SV_PLAY_CMD),a
+        jp Iv_Changed
+
+;-------- Тишина
+Prv_Stop
+        ld a,PC_STOP
+        ld (SV_PLAY_CMD),a
+        ret
+
+;-------- Каждый кадр, пока играет клавиша: отпустили - тишина
+Prv_Check
+        call Key_Down               ; A - код; NZ - держат
+        ret nz
+        xor a
+        ld (Prv_Key),a
+        jr Prv_Stop
+
+;-------- ▶: нажали - текущая нота, отпустили - тишина
+Prv_PlayEv
+        cp EV_PRESS
+        jr nz,.rel
+        ld a,(Prv_Note)
+        jr Prv_Play
+.rel    cp EV_RELEASE
+        ret nz
+        jr Prv_Stop
+
+;-------- Строка пробы в фокусе: пианино (две октавы с Prv_Oct), автоповтор - мимо
+Prv_KeyEv
+        cp EV_FOCUS_IN
+        jp z,Iv_Changed
+        cp EV_FOCUS_OUT
+        jp z,Iv_Changed
+        cp EV_KEY
+        ret nz
+        ld hl,Piano
+.f      ld a,(hl)                   ; код, полутон; конец - 0
+        or a
+        ret z                       ; не пианино (CF = 0)
+        cp b
+        inc hl
+        ld a,(hl)
+        inc hl
+        jr nz,.f
+        bit 7,c                     ; KF_REPEAT - нота уже звучит
+        jr nz,.eat
+        ld e,a                      ; нота = (октава-1)*12 + полутон + 1
+        ld a,(Prv_Oct)
+        dec a
+        ld d,a
+        add a,a
+        add a,d
+        add a,a
+        add a,a
+        add a,e
+        inc a
+        cp NOTE_COUNT+1
+        jr nc,.eat
+        ld e,a
+        ld a,b
+        ld (Prv_Key),a
+        ld a,e
+        call Prv_Play
+.eat    scf
+        ret
+    ASSERT KF_REPEAT == #80
+
+; Пианино (PS/2): нижний ряд - октава Prv_Oct, верхний - следующая
+Piano   db #1A,0, #1B,1, #22,2, #23,3, #21,4, #2A,5, #34,6, #32,7, #33,8, #31,9
+        db #3B,10, #3A,11, #41,12, #4B,13, #49,14, #4C,15, #4A,16  ; Z..M , L . ; /
+        db #15,12, #1E,13, #1D,14, #26,15, #24,16, #2D,17, #2E,18, #2C,19
+        db #36,20, #35,21, #3D,22, #3C,23, #43,24, #46,25, #44,26, #45,27, #4D,28 ; Q..P
+        db 0
+
+;-------- Кнопки пробы: октава, орнамент / инструмент, громкость, форма
+Prv_BtnEv
+        cp EV_CLICK
+        ret nz
+        ld a,(ix+FLD_PARAM)
+        ld b,a
+        srl a                       ; что: 0 октава, 1 Orn/Ins, 2 громкость, 3 форма
+        add a,a
+        add a,a                     ; *4: переменная, минимум, максимум
+        ld hl,Prv_Lims
+        call Hl_Add_A
+        ld e,(hl)
+        inc hl
+        ld d,(hl)
+        inc hl
+        ld a,(Iv_Mode)              ; Orn/Ins на вкладке Orn - инструмент 0..31
+        or a
+        jr z,.go
+        ld a,b
+        srl a
+        cp 1
+        jr nz,.go
+        ld de,Iv_Nums
+        ld hl,Prv_Ins_Lim
+.go     ld a,(de)                   ; значение
+        bit 0,b
+        jr nz,.up
+        cp (hl)                     ; - : не меньше минимума
+        ret z
+        dec a
+        jr .st
+.up     inc hl
+        cp (hl)                     ; + : не больше максимума
+        ret z
+        inc a
+.st     ld (de),a
+        jp Iv_Changed
+
+Prv_Lims
+        dw Prv_Oct
+        db 1, 8
+        dw Prv_Orn
+        db 0, ORNAMENTS_MAX
+        dw Prv_Vol
+        db 1, 15
+        dw Prv_Env
+        db 0, 14
+Prv_Ins_Lim     db 0, SAMPLES_MAX-1
+
+; =========================================================================
 ; ТЕКСТЫ
 ; =========================================================================
 Txt_Instruments db "Instruments",0
@@ -1950,5 +2285,10 @@ Txt_Clear       db " Clear ",0
 Txt_Unloop      db " Unloop ",0
 Txt_Prev        db " < ",0
 Txt_Next        db " > ",0
+Txt_Oct         db "Oct",0
+Txt_Orn         db "Orn",0
+Txt_Ins         db "Ins",0
+Txt_Vol         db "Vol",0
+Txt_Env         db "Env",0
 
     ENDMODULE
