@@ -93,6 +93,15 @@ tool_disk_end
     SAVEBIN     "srs/diskview.bin",tool_disk,tool_disk_end-tool_disk
     display     "diskview size",/d,tool_disk_end-tool_disk," bytes"
 
+    ; --- тулза инструментов и орнаментов (страница PAGE_TOOL_INSTR)
+    org #4000
+tool_instr
+    include     "srs/instrview.asm"
+tool_instr_end
+    ASSERT tool_instr_end <= #8000
+    SAVEBIN     "srs/instrview.bin",tool_instr,tool_instr_end-tool_instr
+    display     "instrview size",/d,tool_instr_end-tool_instr," bytes"
+
     ; --- плеер (страница PAGE_PLAYER, окно 1 из IM1)
     include     "srs/player.asm"
     SAVEBIN     "srs/player.bin",player_start,player_end-player_start

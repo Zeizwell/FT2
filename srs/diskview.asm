@@ -24,18 +24,10 @@
 ; =========================================================================
     MODULE diskview
 
-DV_SCR_H        equ #C0             ; текстовая страница - в окне 3
-DV_HEAD_H       equ DV_SCR_H+patview.HD_BUF_LINE    ; буфер шапки (её рисует вид паттерна)
-DV_TOP          equ patview.VIEW_LINE               ; первая строка экрана тулзы
-DV_LAST         equ 35                              ; последняя видимая строка
-
-; --- рамки
-BOX_V           equ #B3             ; │
-BOX_H           equ #C4             ; ─
-BOX_TL          equ #DA             ; ┌
-BOX_TR          equ #BF             ; ┐
-BOX_BL          equ #C0             ; └
-BOX_BR          equ #D9             ; ┘
+DV_SCR_H        equ TL_SCR_H        ; текстовая страница - в окне 3 (srs/toolscr.asm)
+DV_HEAD_H       equ TL_HEAD_H       ; буфер шапки (её рисует вид паттерна)
+DV_TOP          equ TL_TOP          ; первая строка экрана тулзы
+DV_LAST         equ TL_LAST         ; последняя видимая строка
 
 ; --- каталог (слева)
 LS_X            equ 0               ; рамка: колонки 0..49, строки 4..34
@@ -118,7 +110,7 @@ Dv_Start
         ld a,(SV_DRAW_PAGE)         ; экран - в окно 3 на всё время работы
         SETPAGE3 a
         call Dv_Head
-        call Dv_Clear
+        call Tool_Clear
         call Tr_Active              ; кнопки транспорта - по плееру (без подсветки шапки)
         ld a,(Dv_Mounted)           ; карта: первый раз - подключить
         or a
@@ -159,7 +151,7 @@ Dv_Loop
 Dv_Leave
         xor a
         ld (Dv_Exit),a
-        call Dv_Clear               ; экран - под вид паттерна
+        call Tool_Clear               ; экран - под вид паттерна
         RESTPAGE3
         ret
 
@@ -189,34 +181,11 @@ Dv_Len          ds 4                ; размер выбранного файл
 ; =========================================================================
 ;-------- Шапка: её буфер (рисует вид паттерна) - в строки 0..3, один раз
 Dv_Head
-        ld hl,DV_HEAD_H*256
-        ld de,DV_SCR_H*256
-        ld bc,DV_TOP*256
-        ldir
-        ld a,(THEME_ATTR+CLR_TOP_HI)    ; вкладка Disk - выбрана
-        ld hl,DV_TAB_DISK
+        ld hl,DV_TAB_DISK           ; вкладка Disk - выбрана
         ld b,4
-.attr   ld (hl),a
-        inc l
-        djnz .attr
-        ret
+        jp Tool_Head
 DV_TAB_DISK     equ DV_SCR_H*256+128+patview.HD_TAB_DISK     ; атрибут вкладки Disk
 
-;-------- Строки DV_TOP..DV_LAST: пробелы цветом фона
-Dv_Clear
-        ld a,(THEME_ATTR+CLR_BG)
-        ld c,a
-        ld d,DV_SCR_H+DV_TOP
-.r      ld e,0
-.s      ld a,' '
-        call PutCh
-        bit 7,e
-        jr z,.s
-        inc d
-        ld a,d
-        cp DV_SCR_H+DV_LAST+1
-        jr c,.r
-        ret
 
 ;-------- Весь экран тулзы: рамки, каталог, файл
 Dv_Draw
@@ -232,7 +201,7 @@ Dv_Frames
         ld (Bx_X),a
         ld a,LS_W
         ld (Bx_W),a
-        call Dv_Box
+        call Tool_Box
         ld hl,(SV_FOCUS)            ; путь - ярче, когда список в фокусе
         ld de,F_List
         or a
@@ -248,67 +217,12 @@ Dv_Frames
         ld (Bx_X),a
         ld a,FP_W
         ld (Bx_W),a
-        call Dv_Box
+        call Tool_Box
         ld a,(THEME_ATTR+CLR_HEADER)
         ld c,a
         ld de,FP_X+2+256*(DV_SCR_H+DV_TOP)
         ld hl,Txt_File
         jp PutStr
-
-; Рамка: колонка Bx_X, ширина Bx_W, строки DV_TOP..DV_LAST-1. Внутри - пробелы
-Bx_X            db 0
-Bx_W            db 0
-Dv_Box
-        ld a,(THEME_ATTR+CLR_TITLE)
-        ld c,a
-        ld d,DV_SCR_H+DV_TOP        ; верх ┌──┐
-        ld a,BOX_TL
-        ld b,BOX_TR
-        call .line
-        ld d,DV_SCR_H+DV_LAST-1     ; низ └──┘
-        ld a,BOX_BL
-        ld b,BOX_BR
-        call .line
-        ld d,DV_SCR_H+DV_TOP+1      ; бока, внутри - пробелы
-.side   ld a,(THEME_ATTR+CLR_TITLE)
-        ld c,a
-        ld a,(Bx_X)
-        ld e,a
-        ld a,BOX_V
-        call PutCh
-        ld a,(THEME_ATTR+CLR_BG)
-        ld c,a
-        ld a,(Bx_W)
-        sub 2
-        ld b,a
-.sp     ld a,' '
-        call PutCh
-        djnz .sp
-        ld a,(THEME_ATTR+CLR_TITLE)
-        ld c,a
-        ld a,BOX_V
-        call PutCh
-        inc d
-        ld a,d
-        cp DV_SCR_H+DV_LAST-1
-        jr c,.side
-        ret
-; Линия рамки: A - левый угол, B - правый, D - строка
-.line   push bc
-        push af
-        ld a,(Bx_X)
-        ld e,a
-        pop af
-        call PutCh
-        ld a,(Bx_W)
-        sub 2
-        ld b,a
-.h      ld a,BOX_H
-        call PutCh
-        djnz .h
-        pop bc
-        ld a,b
-        jp PutCh
 
 ; HL - конец пути, который влезает в заголовок рамки (последние 44 знака)
 DV_PATH_SHOW    equ LS_W-6
@@ -591,11 +505,13 @@ Dv_Buttons
 ; ПОЛЯ
 ; =========================================================================
 Dv_Fields
-        DV_FIELD patview.HD_PLAY_X,   patview.HD_PLAY_Y,4,2, FF_HAND, Dv_TrEv, 0  ; ⇄ паттерн по кругу
-        DV_FIELD patview.HD_PLAY_X+4, patview.HD_PLAY_Y,4,2, FF_HAND, Dv_TrEv, 1  ; |◀ сонг с начала
-        DV_FIELD patview.HD_PLAY_X+8, patview.HD_PLAY_Y,4,2, FF_HAND, Dv_TrEv, 2  ; ▶ сонг
-        DV_FIELD patview.HD_PLAY_X+12,patview.HD_PLAY_Y,4,2, FF_HAND, Dv_TrEv, 3  ; ▷ паттерн с роу
-        DV_FIELD patview.HD_PLAY_X+16,patview.HD_PLAY_Y,4,2, FF_HAND, Dv_TrEv, 4  ; ■ стоп
+        DV_FIELD patview.HD_PLAY_X,   patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 0  ; ⇄ паттерн по кругу
+        DV_FIELD patview.HD_PLAY_X+4, patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 1  ; |◀ сонг с начала
+        DV_FIELD patview.HD_PLAY_X+8, patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 2  ; ▶ сонг
+        DV_FIELD patview.HD_PLAY_X+12,patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 3  ; ▷ паттерн с роу
+        DV_FIELD patview.HD_PLAY_X+16,patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 4  ; ■ стоп
+        DV_FIELD patview.HD_TAB_INSTR,patview.HD_TABS_Y,5,1, FF_HAND, Dv_TabPat, 1 ; Instr
+        DV_FIELD patview.HD_TAB_ORN,  patview.HD_TABS_Y,3,1, FF_HAND, Dv_TabPat, 2 ; Orn
         DV_FIELD 0,0,90,DV_TOP, 0, Dv_TabPat, 0                         ; остальная шапка: клик - назад
 F_List  DV_FIELD LS_X+1,LS_ROW0,LS_W-2,LS_ROWS, FF_FOCUS, Dv_ListEv, 0  ; каталог
 F_Name  DV_FIELD FP_V,NAME_Y,NAME_W,1, FF_FOCUS|FF_HAND, Dv_NameEv, 0   ; имя файла
@@ -603,52 +519,23 @@ F_Load  DV_FIELD LOAD_X,BTN_Y,BTN_W,1, FF_HAND, Dv_BtnEv, 0              ; Load
 F_Save  DV_FIELD SAVE_X,BTN_Y,BTN_W,1, FF_HAND, Dv_BtnEv, 1              ; Save
         db FLD_END
 
-;-------- Клик в шапку (вкладки, мимо экрана диска): назад в вид паттерна
+;-------- Клик в шапку: Instr / Orn - тулза инструментов, остальное - назад в вид паттерна
 Dv_TabPat
         cp EV_CLICK
         ret nz
-        ld a,PAGE_TOOL_PATVIEW
+        ld a,(ix+FLD_PARAM)         ; 0 - вид паттерна, 1 - Instr, 2 - Orn
+        ld b,PAGE_TOOL_PATVIEW
+        or a
+        jr z,.go
+        dec a                       ; режим тулзы инструментов: 0 / 1
+        ld (SV_TOOL_ARG),a
+        ld b,PAGE_TOOL_INSTR
+.go     ld a,b
         ld (SV_TOOL),a
         ld a,1
         ld (Dv_Exit),a
         ret
 
-;-------- Кнопки транспорта (общие для всех экранов). Позиция - та, что играла
-; последней (курсора паттерна здесь нет): ⇄ - её паттерн по кругу, |◀ - сонг с начала,
-; ▶ - сонг с её начала, ▷ - паттерн с её роу, ■ - стоп
-Dv_TrEv
-        cp EV_CLICK
-        ret nz
-        ld a,(SV_PLAY_POS)          ; откуда
-        ld (SV_PLAY_CPOS),a
-        xor a
-        ld (SV_PLAY_CROW),a
-        ld a,(ix+FLD_PARAM)
-        or a
-        ld b,PC_PATTERN
-        jr z,.cmd
-        dec a
-        jr nz,.play
-        ld (SV_PLAY_CPOS),a         ; |◀ - позиция 0
-        ld b,PC_SONG
-        jr .cmd
-.play   dec a
-        ld b,PC_SONG
-        jr z,.cmd
-        dec a
-        jr nz,.stop
-        ld a,(SV_PLAY_ROW)          ; ▷ - с роу
-        ld (SV_PLAY_CROW),a
-        ld b,PC_PATTERN
-        jr .cmd
-.stop   ld b,PC_STOP
-.cmd    ld a,b                      ; команда - последней (IM1 может влезть)
-        ld (SV_PLAY_CMD),a
-.wait   halt                        ; плеер взял команду - кнопки по состоянию
-        ld a,(SV_PLAY_CMD)
-        or a
-        jr nz,.wait
-        jp Tr_Active
 
 ;-------- Кнопки: Load - открыть выбранную запись, Save - сохранить под Name
 Dv_BtnEv
@@ -808,7 +695,7 @@ Dv_NameEv
         ret z
         or a                        ; E0-коды - не буквы (CF = 0: не наша)
         ret m
-        ld h,high Dv_Chars          ; код -> символ (0 - не символ)
+        ld h,high Key_Chars         ; код -> символ (0 - не символ)
         ld l,a
         ld a,(hl)
         or a
@@ -2023,15 +1910,5 @@ Txt_Empty       db "Empty dir",0
 Txt_DbgList     db "list ",0
 Txt_DbgFind     db "  find ",0
 
-; --- PS/2 код -> символ имени файла (0 - не символ). Shift - в Dv_NameEv
-        ALIGN 256
-Dv_Chars
-        ds #15,0
-        db 'q','1',0,0,0,'z','s','a','w','2',0           ; #15..#1F
-        db 0,'c','x','d','e','4','3',0,0,' ','v','f','t','r','5',0   ; #20..#2F
-        db 0,'n','b','h','g','y','6',0,0,0,'m','j','u','7','8',0      ; #30..#3F
-        db 0,0,'k','i','o','0','9',0,0,'.',0,'l',0,'p','-',0          ; #40..#4F
-        ds #80-#50,0
-    ASSERT $-Dv_Chars == #80
 
     ENDMODULE

@@ -243,6 +243,18 @@ dma_wait	ld bc,DMASTATUS
     include "srs/text.asm"
     include "srs/song.asm"
     include "srs/transport.asm"
+    include "srs/toolscr.asm"
     include "srs/diskcall.asm"
     include "srs/instr.asm"
     include "srs/colors.asm"
+;-------- PS/2 код -> символ (имена файлов, инструментов; 0 - не символ). Shift - у того,
+; кто берёт (заглавные, '_'). В конце коре: выравнивание на 256
+        ALIGN 256
+Key_Chars
+        ds #15,0
+        db 'q','1',0,0,0,'z','s','a','w','2',0           ; #15..#1F
+        db 0,'c','x','d','e','4','3',0,0,' ','v','f','t','r','5',0   ; #20..#2F
+        db 0,'n','b','h','g','y','6',0,0,0,'m','j','u','7','8',0      ; #30..#3F
+        db 0,0,'k','i','o','0','9',0,0,'.',0,'l',0,'p','-',0          ; #40..#4F
+        ds #80-#50,0
+    ASSERT $-Key_Chars == #80
