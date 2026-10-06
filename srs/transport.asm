@@ -43,12 +43,13 @@ Tr_SAT
         db patview.HD_PLAY_Y*8, SP_ACT|SP_SIZE16, (patview.HD_PLAY_X+.k*4)*4, SP_SIZE16, patview.TR_ROW*64+.k*2, patview.TR_PAL
 .k = .k+1
         EDUP
+        db patview.HD_PLAY_Y*8, SP_ACT|SP_SIZE16, patview.HD_LOGO_X*4, SP_SIZE48, patview.TR_ROW*64+patview.LOGO_TILE, patview.TR_PAL ; логотип
 Tr_SAT_End
 
 Tr_Dma  db high DMASADDRL, low Tr_SAT     ; коре: страница 0, окно 0
         db high DMASADDRH, high Tr_SAT
         db high DMASADDRX, PAGE_CORE0
-        db high DMADADDRL, patview.TR_SFILE_SLOT*6  ; SFILE: записи 0..4 (5 - стрелка мыши)
+        db high DMADADDRL, patview.TR_SFILE_SLOT*6  ; SFILE: 0..4 кнопки, 5 логотип (6 - стрелка)
         db high DMADADDRH, 0
         db high DMADADDRX, 0
         db high DMALEN, (Tr_SAT_End-Tr_SAT)/2-1
