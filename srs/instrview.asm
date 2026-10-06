@@ -1021,6 +1021,7 @@ Iv_Fields
         IV_FIELD patview.HD_TAB_INSTR,patview.HD_TABS_Y,5,1, FF_HAND, Iv_TabEv, 0   ; Instr
         IV_FIELD patview.HD_TAB_ORN,  patview.HD_TABS_Y,3,1, FF_HAND, Iv_TabEv, 1   ; Orn
         IV_FIELD patview.HD_TAB_DISK, patview.HD_TABS_Y,4,1, FF_HAND, Iv_TabEv, 2   ; Disk
+        IV_FIELD patview.HD_TAB_SETUP,patview.HD_TABS_Y,5,1, FF_HAND, Iv_TabEv, 4   ; Setup
         IV_FIELD 0,0,90,IV_TOP, 0, Iv_TabEv, 3                          ; остальная шапка: назад
 F_List  IV_FIELD LI_X+1,LI_ROW0,LI_W-2,LI_ROWS, 0, Iv_ListEv, 0       ; список
 F_Name  IV_FIELD NM_V,NM_Y,NAME_LEN,1, FF_FOCUS|FF_HAND, Iv_NameEv, 0 ; имя
@@ -1062,6 +1063,9 @@ Iv_TabEv
         ld hl,F_Edit
         jp Fld_Set_Focus
 .out    ld b,PAGE_TOOL_DISK
+        jr z,.go
+        ld b,PAGE_TOOL_OPT
+        cp 4
         jr z,.go
         ld b,PAGE_TOOL_PATVIEW
 .go     ld a,b

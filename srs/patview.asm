@@ -155,7 +155,7 @@ BAND_DMATEST    equ 8               ; замер: DMA-заливка 4К        
 ; СТАРТ И ОСНОВНОЙ ЦИКЛ
 ; =========================================================================
 PluginMain
-        ld hl,(Palette_Data)        ; цвет фона - для полосы времени
+        ld hl,(Pal_Bg)              ; цвет фона темы - для полосы времени
         ld (Band_Bg),hl
         ld a,(SV_DRAW_PAGE)
         SETPAGE3 a
@@ -1703,7 +1703,6 @@ K_F8            equ #0A
 K_E             equ #24
 K_T             equ #2C
 K_D             equ #23
-K_F             equ #2B
 
 Hotkeys db K_F5,    0               ; общие клавиши вида; F5..F8, Esc - как в VT
         dw K_PlaySong               ; сонг с текущей позиции
@@ -1723,8 +1722,6 @@ Hotkeys db K_F5,    0               ; общие клавиши вида; F5..F8
         dw K_Timing                 ; Ctrl+T - полоса времени
         db K_D,     KM_CTRL
         dw K_DiskTest               ; Ctrl+D - проверка диска (временно)
-        db K_F,     KM_CTRL
-        dw K_Font                   ; Ctrl+F - следующий шрифт (временно, проба)
         db 0
 
 ;-------- Все события клавиатуры за кадр: сначала полю в фокусе (навигация
@@ -1801,12 +1798,12 @@ Txt_Dbg_M       db " M:",0
 Txt_Dbg_D       db " D:",0
 
 ;-------- ПРОВЕРКА ДИСКА (временно, Ctrl+D): смонтировать карту, найти в корне
-; папку TMPFT (туда build.bat кладёт ft2.spg). Только чтение. Результат -
+; папку FT2 (туда build.bat кладёт ft2b.spg). Только чтение. Результат -
 ; в отладочной строке "D:AA FF": A и флаги последнего вызова драйвера.
 ;   монтирование: A=0, Z - готово;  поиск: найдено - A=1, NZ, CF=0 (FF = ..00..);
 ;   не найдено - Z, CF=0; ошибка - CF=1 (FF нечётный)
 Dbg_Disk        dw #FFFF            ; ещё не проверяли - "FF FF"
-Dt_Name         db #10,"TMPFT",0    ; #10 - ищем каталог
+Dt_Name         db #10,"FT2",0      ; #10 - ищем каталог
 
 K_DiskTest
         call Disk_Mount
@@ -1972,16 +1969,6 @@ K_Stop  xor a                       ; стоп: остаёмся где стои
         ret
 
 Play_Cmd        db 0
-
-;-------- Ctrl+F: следующий шрифт банка по кругу (временно, проба шрифтов)
-K_Font
-        ld a,(SV_FONT)
-        inc a                       ; следующий
-        cp FONTS_COUNT
-        jr c,.set
-        xor a                       ; после последнего - снова 0
-.set    call Set_Font
-        jp Apply_UI_Glyphs          ; значки поверх нового шрифта
 
 K_Timing
         ld hl,Timing

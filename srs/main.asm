@@ -102,6 +102,15 @@ tool_instr_end
     SAVEBIN     "srs/instrview.bin",tool_instr,tool_instr_end-tool_instr
     display     "instrview size",/d,tool_instr_end-tool_instr," bytes"
 
+    ; --- тулза настроек Setup (страница PAGE_TOOL_OPT)
+    org #4000
+tool_opt
+    include     "srs/optview.asm"
+tool_opt_end
+    ASSERT tool_opt_end <= #8000
+    SAVEBIN     "srs/optview.bin",tool_opt,tool_opt_end-tool_opt
+    display     "optview size",/d,tool_opt_end-tool_opt," bytes"
+
     ; --- плеер (страница PAGE_PLAYER, окно 1 из IM1)
     include     "srs/player.asm"
     SAVEBIN     "srs/player.bin",player_start,player_end-player_start

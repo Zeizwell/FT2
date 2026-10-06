@@ -512,6 +512,7 @@ Dv_Fields
         DV_FIELD patview.HD_PLAY_X+16,patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 4  ; ■ стоп
         DV_FIELD patview.HD_TAB_INSTR,patview.HD_TABS_Y,5,1, FF_HAND, Dv_TabPat, 1 ; Instr
         DV_FIELD patview.HD_TAB_ORN,  patview.HD_TABS_Y,3,1, FF_HAND, Dv_TabPat, 2 ; Orn
+        DV_FIELD patview.HD_TAB_SETUP,patview.HD_TABS_Y,5,1, FF_HAND, Dv_TabPat, 3 ; Setup
         DV_FIELD 0,0,90,DV_TOP, 0, Dv_TabPat, 0                         ; остальная шапка: клик - назад
 F_List  DV_FIELD LS_X+1,LS_ROW0,LS_W-2,LS_ROWS, FF_FOCUS, Dv_ListEv, 0  ; каталог
 F_Name  DV_FIELD FP_V,NAME_Y,NAME_W,1, FF_FOCUS|FF_HAND, Dv_NameEv, 0   ; имя файла
@@ -523,9 +524,12 @@ F_Save  DV_FIELD SAVE_X,BTN_Y,BTN_W,1, FF_HAND, Dv_BtnEv, 1              ; Save
 Dv_TabPat
         cp EV_CLICK
         ret nz
-        ld a,(ix+FLD_PARAM)         ; 0 - вид паттерна, 1 - Instr, 2 - Orn
+        ld a,(ix+FLD_PARAM)         ; 0 - вид паттерна, 1 - Instr, 2 - Orn, 3 - Setup
         ld b,PAGE_TOOL_PATVIEW
         or a
+        jr z,.go
+        ld b,PAGE_TOOL_OPT
+        cp 3
         jr z,.go
         dec a                       ; режим тулзы инструментов: 0 / 1
         ld (SV_TOOL_ARG),a
@@ -787,7 +791,7 @@ Dv_List
         ld a,(Dv_Count)             ; отладка: пусто - что вернул драйвер (A, флаги)
         or a
         ret nz
-        ld ix,DK_FIND+256           ; и поиск TMPFT по имени: A, флаги
+        ld ix,DK_FIND+256           ; и поиск FT2 по имени: A, флаги
         ld hl,Spec_TmpFT
         call Disk_Call
         push af
@@ -816,8 +820,8 @@ Dv_List
 
 Dl_Dump         ds 16               ; отладка: 12 байт буфера + CGPZ, CGFL
 
-Spec_TmpFT      db FD_DIR,"TMPFT",0
-Dl_Dbg2         dw 0                ; отладка: AF поиска TMPFT
+Spec_TmpFT      db FD_DIR,"FT2",0
+Dl_Dbg2         dw 0                ; отладка: AF поиска FT2
 
 Dl_Dbg          dw 0                ; отладка: AF последнего NXTETY
 

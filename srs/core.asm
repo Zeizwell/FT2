@@ -101,6 +101,12 @@ Core_Start
         xor a                   ; шрифт 0 и значки поверх
         call Set_Font
         call Apply_UI_Glyphs
+        xor a                   ; тема 0
+        call Set_Palette
+        ld a,OPT_LOAD           ; настройки из /FT2/FT2.INI (нет карты или файла - как есть)
+        ld (SV_TOOL_ARG),a
+        ld a,PAGE_TOOL_OPT
+        call Call_Tool
 
         ld a,PAGE_TOOL_PATVIEW  ; первым - вид паттерна
         ld (SV_TOOL),a
@@ -245,6 +251,7 @@ dma_wait	ld bc,DMASTATUS
     include "srs/song.asm"
     include "srs/transport.asm"
     include "srs/toolscr.asm"
+    include "srs/palettes.asm"
     include "srs/diskcall.asm"
     include "srs/instr.asm"
     include "srs/colors.asm"
