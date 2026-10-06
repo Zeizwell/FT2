@@ -175,6 +175,8 @@ Iv_Set_Mode
         ld (Ed_Col),a
         call Iv_Head
         call Tool_Clear
+        call Iv_Frames              ; рамки и заголовки колонок - один раз,
+        call Iv_Draw_Caps           ;   дальше только содержимое
         jp Iv_Select
 
 ; =========================================================================
@@ -349,10 +351,8 @@ IV_TAB_ORN      equ IV_SCR_H*256+128+patview.HD_TAB_ORN
 Iv_Draw
         xor a
         ld (Iv_Dirty),a
-        call Iv_Frames
         call Iv_Draw_List
         call Iv_Draw_Top
-        call Iv_Draw_Caps
         jp Iv_Draw_Rows
 
 ;-------- Рамки и их заголовки
@@ -522,12 +522,15 @@ Iv_Draw_Rows
         ld (Er_Idx),a
         ld d,IV_SCR_H+ER_ROW0
 .row    push de
-        call Er_Blank
         call Iv_End
         ld hl,Er_Idx
         cp (hl)
-        jr c,.next                  ; за концом
-        pop de
+        jr nc,.data
+        pop de                      ; за концом - пусто
+        push de
+        call Er_Blank
+        jr .next
+.data   pop de
         push de
         ld a,(hl)
         call Er_Head                ; E - на данные
@@ -672,13 +675,23 @@ Ir_Body
         ld a,(THEME_ATTR+CLR_VOLUME) ; полоса громкости
         ld c,a
         ld e,BAR_X
-        ld a,(ix+IR_VOL)
+        ld a,(ix+IR_VOL)            ; клетки - громкость, остальное до 15 - пробелы
         and #0F
-        ret z
         ld b,a
+        ld a,15
+        sub b
+        ld l,a
+        inc b
+        jr .bn
 .bar    ld a,GLYPH_VOL              ; клетка с зазором
         call PutCh
-        djnz .bar
+.bn     djnz .bar
+        ld b,l
+        inc b
+        jr .sn
+.sp     ld a,' '
+        call PutCh
+.sn     djnz .sp
         ret
 
 ;-------- Строка орнамента: IX - строка, DE - экран (колонка ER_DATA_X)
@@ -1120,12 +1133,11 @@ Iv_EditEv
         ld a,(Iv_Mode)              ; инструмент: полоса - громкость
         or a
         jp nz,Iv_Changed
-        ld a,c
-        sub BAR_X
+        ld a,c                      ; колонка перед полосой - 0, клетки - 1..15
+        sub BAR_X-1
         jp c,Iv_Changed
-        cp 15
+        cp 16
         jp nc,Iv_Changed
-        inc a
         ld b,a
         call Iv_Cur_Row
         ld a,(ix+IR_VOL)
