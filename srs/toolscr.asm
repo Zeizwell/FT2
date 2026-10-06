@@ -7,6 +7,8 @@ TL_SCR_H        equ #C0             ; текстовая страница - в �
 TL_HEAD_H       equ TL_SCR_H+patview.HD_BUF_LINE    ; буфер шапки
 TL_TOP          equ patview.VIEW_LINE               ; первая строка экрана тулзы
 TL_LAST         equ 35                              ; последняя видимая строка
+TL_TABS_ATTR    equ (TL_SCR_H+patview.HD_TABS_Y)*256+128+patview.HD_TABS_X ; атрибуты вкладок
+TL_TABS_W       equ patview.HD_TAB_SETUP+5-patview.HD_TABS_X    ; Instr .. Setup
 
 ; --- рамки
 BOX_V           equ #B3             ; │
@@ -17,7 +19,7 @@ BOX_BL          equ #C0             ; └
 BOX_BR          equ #D9             ; ┘
 
 ;-------- Шапка: её буфер - в строки 0..TL_TOP-1, вкладка тулзы - выбранной.
-; HL - атрибут вкладки на экране, B - её ширина
+; HL - атрибут вкладки на экране, B - её ширина (0 - без подсветки)
 Tool_Head
         push hl
         push bc
@@ -25,8 +27,17 @@ Tool_Head
         ld de,TL_SCR_H*256
         ld bc,TL_TOP*256
         ldir
+        ld a,(THEME_ATTR+CLR_TOP_TEXT)  ; вкладки - обычным цветом (в буфере могла
+        ld hl,TL_TABS_ATTR              ;   остаться подсветка от клика по ним)
+        ld b,TL_TABS_W
+.tabs   ld (hl),a
+        inc l
+        djnz .tabs
         pop bc
         pop hl
+        inc b
+        dec b
+        ret z
         ld a,(THEME_ATTR+CLR_TOP_HI)
 .attr   ld (hl),a
         inc l

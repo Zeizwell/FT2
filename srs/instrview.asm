@@ -334,18 +334,10 @@ ORN_COLS        equ ($-Orn_Cols)/CL_SIZE
 ; =========================================================================
 ; ЭКРАН
 ; =========================================================================
-;-------- Шапка: вкладка режима - выбранной
+;-------- Шапка - как есть, без подсветки вкладки (и так видно, что это редактор)
 Iv_Head
-        ld a,(Iv_Mode)
-        or a
-        ld hl,IV_TAB_INSTR
-        ld b,5
-        jr z,.go
-        ld hl,IV_TAB_ORN
-        ld b,3
-.go     jp Tool_Head
-IV_TAB_INSTR    equ IV_SCR_H*256+128+patview.HD_TAB_INSTR
-IV_TAB_ORN      equ IV_SCR_H*256+128+patview.HD_TAB_ORN
+        ld b,0
+        jp Tool_Head
 
 ;-------- Весь экран тулзы
 Iv_Draw
