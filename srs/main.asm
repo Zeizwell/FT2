@@ -117,6 +117,9 @@ fatwork_end
     org #C000
 fontbank
     incbin      "srs/fonts/866_code.fnt"        ; шрифт 0
+    incbin      "srs/fonts/ToshibaTxL1.fnt"     ; шрифт 1 - проба: латиница Toshiba, остальное 866
+    incbin      "srs/fonts/ToshibaTxL2.fnt"     ; шрифт 2 - проба
+    incbin      "srs/fonts/CompaqThin.fnt"      ; шрифт 3 - проба
     ds          fontbank+UI_GLYPH_SLOT*FONT_SIZE-$,0
     include     "srs/fonts/ui_glyphs.asm"
 fontbank_end

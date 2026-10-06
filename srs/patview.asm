@@ -1703,6 +1703,7 @@ K_F8            equ #0A
 K_E             equ #24
 K_T             equ #2C
 K_D             equ #23
+K_F             equ #2B
 
 Hotkeys db K_F5,    0               ; общие клавиши вида; F5..F8, Esc - как в VT
         dw K_PlaySong               ; сонг с текущей позиции
@@ -1722,6 +1723,8 @@ Hotkeys db K_F5,    0               ; общие клавиши вида; F5..F8
         dw K_Timing                 ; Ctrl+T - полоса времени
         db K_D,     KM_CTRL
         dw K_DiskTest               ; Ctrl+D - проверка диска (временно)
+        db K_F,     KM_CTRL
+        dw K_Font                   ; Ctrl+F - следующий шрифт (временно, проба)
         db 0
 
 ;-------- Все события клавиатуры за кадр: сначала полю в фокусе (навигация
@@ -1969,6 +1972,16 @@ K_Stop  xor a                       ; стоп: остаёмся где стои
         ret
 
 Play_Cmd        db 0
+
+;-------- Ctrl+F: следующий шрифт банка по кругу (временно, проба шрифтов)
+K_Font
+        ld a,(SV_FONT)
+        inc a                       ; следующий
+        cp FONTS_COUNT
+        jr c,.set
+        xor a                       ; после последнего - снова 0
+.set    call Set_Font
+        jp Apply_UI_Glyphs          ; значки поверх нового шрифта
 
 K_Timing
         ld hl,Timing
