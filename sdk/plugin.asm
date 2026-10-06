@@ -227,7 +227,8 @@ GLYPH_BTN_STOP  equ #0C             ; ■  стоп              (#0C-#0D)
 GLYPH_BTN_CLONE equ #0E             ; ордер: Clone         (#0E-#0F, нажатая #1E-#1F)
 GLYPH_BTN_RES1  equ #12             ; занято: нажатая [+]  (#12-#13)
 GLYPH_BTN_RES2  equ #14             ; занято: нажатая [-]  (#14-#15)
-GLYPH_BTN_RES3  equ #16             ;                      (#16-#17)
+GLYPH_VOL       equ #16             ; клетка полосы громкости
+GLYPH_BTN_RES3  equ #17             ; свободно              (#17)
 GLYPH_BTN_RES4  equ #1C             ;                      (#1C-#1D)
 GLYPH_ARROW_R   equ #10             ; ►  (CP866, не трогаем)
 GLYPH_ARROW_L   equ #11             ; ◄

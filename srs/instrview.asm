@@ -676,7 +676,7 @@ Ir_Body
         and #0F
         ret z
         ld b,a
-.bar    ld a,#DB                    ; █
+.bar    ld a,GLYPH_VOL              ; клетка с зазором
         call PutCh
         djnz .bar
         ret
