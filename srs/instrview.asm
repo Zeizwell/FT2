@@ -575,17 +575,38 @@ Er_Head
         ld a,(THEME_ATTR+CLR_LOOP)
         ld c,a
         ld e,ER_LOOP_X
-        ld a,(hl)
-        cp b
-        ld a,'L'
-        jr z,$+4
-        ld a,' '
+        call Loop_Char
         call PutCh
         ld a,(THEME_ATTR+CLR_ROW_NUM)
         ld c,a
         ld a,b
         call PutHex2
         ld e,ER_DATA_X
+        ret
+
+; Скобка цикла для строки B: HL - на OH_LOOP (за ним OH_END). A - символ:
+; ┌ - строка цикла, │ - внутри, └ - конец; цикл на конце - '[', вне цикла - пробел
+Loop_Char
+        ld a,b
+        cp (hl)                     ; выше цикла
+        ld a,' '
+        ret c
+        inc hl
+        ld a,(hl)                   ; ниже конца - не бывает (строк за концом не рисуем)
+        dec hl
+        cp b
+        jr z,.end
+        ld a,(hl)
+        cp b
+        ld a,BOX_V                  ; │
+        ret nz
+        ld a,BOX_TL                 ; ┌
+        ret
+.end    ld a,(hl)
+        cp b
+        ld a,BOX_BL                 ; └
+        ret nz
+        ld a,'['                    ; цикл из одной строки
         ret
 
 ;-------- Строка инструмента: IX - строка, DE - экран (колонка ER_DATA_X)
