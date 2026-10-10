@@ -582,17 +582,17 @@ Pc_Channel
         ld b,(hl)                   ; B - сдвиг ноты
         pop hl
         call Pc_Next_Orn            ; строка орнамента - следующая
-        ld a,c                      ; шум орнамента
+        ld a,c                      ; шум орнамента + накопленный (бит 7 - сохранить)
         and #1F
+        add a,(ix+CS_ONZ)
         bit 7,c
         jr z,.onz
-        add a,(ix+CS_ONZ)
         ld (ix+CS_ONZ),a
 .onz    ld (Pc_ONoise),a
-        ld a,b                      ; сдвиг ноты
+        ld a,b                      ; сдвиг ноты + накопленный (бит 6 - сохранить)
+        add a,(ix+CS_ONACC)
         bit 6,c
         jr z,.ont
-        add a,(ix+CS_ONACC)
         ld (ix+CS_ONACC),a
 .ont    add a,(ix+CS_NOTE)
 .note   dec a                       ; нота 1..96 -> 0..95, за краями - край
@@ -641,16 +641,16 @@ Pc_Channel
         jr z,$+4
         or #F0
         ld d,a
+        ld l,(ix+CS_TACC)           ; + накопленный (как в PT3: строка без флага его
+        ld h,(ix+CS_TACC+1)         ;   не забывает, флаг - сохранить сумму)
+        add hl,de
         ld a,(Pc_B2)
         bit 7,a
         jr z,.tnacc
-        ld l,(ix+CS_TACC)
-        ld h,(ix+CS_TACC+1)
-        add hl,de
         ld (ix+CS_TACC),l
         ld (ix+CS_TACC+1),h
-        ex de,hl
-.tnacc  ld a,(Pc_Note)              ; период ноты
+.tnacc  ex de,hl                     ; DE - смещение тона
+        ld a,(Pc_Note)              ; период ноты
         add a,a
         ld l,a
         ld h,0
@@ -688,13 +688,13 @@ Pc_Channel
         ld a,(Pc_B0)
         bit 6,a
         jr nz,.noff
-        and #1F                     ; смещение шума
+        and #1F                     ; смещение шума + накопленное
+        add a,(ix+CS_NACC)
         ld b,a
-        ld a,(Pc_B0)                ; бит 7 - накоплением
+        ld a,(Pc_B0)                ; бит 7 - сохранить сумму
         bit 7,a
         ld a,b
         jr z,.nnacc
-        add a,(ix+CS_NACC)
         ld (ix+CS_NACC),a
 .nnacc  ld hl,Pc_ONoise
         add a,(hl)
@@ -779,13 +779,13 @@ Pc_B4           db 0
 ; Период огибающей: база чипа - смещение строки (+ накопление) -> R11/R12
 Pc_Env
         push bc
-        ld a,(Pc_B4)
+        ld a,(Pc_B4)                ; смещение + накопленное
+        add a,(ix+CS_EACC)
         ld e,a
-        ld a,(Pc_B3)
+        ld a,(Pc_B3)                ; бит 7 - сохранить сумму
         bit 7,a
         ld a,e
         jr z,.nacc
-        add a,(ix+CS_EACC)
         ld (ix+CS_EACC),a
 .nacc   ld e,a                      ; DE - смещение со знаком
         rla
