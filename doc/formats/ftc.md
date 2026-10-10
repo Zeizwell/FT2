@@ -2,7 +2,7 @@
 
 Источники:
 - `docs/008! FTplayer.t` = `players/FT1-15player_src.asm` (CP866) — плеер
-  1.15 (Orion/DR, дизасм и доработка Sand/MhM);
+  1.15 (Orion/DR);
 - `docs/006! FT_help.t` — справка FT 1.15f;
 - `Trackers limitations.ru.txt`.
 

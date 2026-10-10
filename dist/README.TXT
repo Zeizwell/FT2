@@ -4,7 +4,7 @@ FAST TRACKER 2.01b - AY-трекер для ZX Evolution (TS-Config)
 Рабочая сборка (work in progress). Многое уже работает, но это ещё не готовый
 трекер: ввода нот и команд паттерна в плеере пока нет.
 
-Наследник Fast Tracker для ZX Spectrum (Sand/MhM, Orion/DR). Интерфейс - в духе
+Наследник Fast Tracker для ZX Spectrum. Интерфейс - в духе
 Bitphase и FastTracker 2 на ПК: текстовый режим 90x36, мышь, клавиатура PC.
 
 
@@ -88,7 +88,7 @@ Disk Setup, Help About. Ниже - шапка трека:
 
 АВТОРЫ И ЛИЦЕНЗИИ
 -----------------
-Fast Tracker 2 - Zeizwell.
+Fast Tracker 2 - Orion/DR.
 FAT32-драйвер - github.com/andrewinsidelazarev/FAT32-Driver-ZX-Evolution (MIT).
 Шрифты Toshiba TxL1 / TxL2, Compaq Thin - The Ultimate Oldschool PC Font Pack,
 int10h.org (CC BY-SA 4.0).

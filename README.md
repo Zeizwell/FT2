@@ -1,7 +1,7 @@
 # FT2 — Fast Tracker 2
 
 AY-трекер для ZX Evolution с TS-Config, на ассемблере Z80 (sjasmplus).
-Наследник Fast Tracker для ZX (Sand/MhM, Orion/DR). На экране — «Fast Tracker 2.01b».
+Наследник Fast Tracker для ZX Spectrum. На экране — «Fast Tracker 2.01b». Автор — Orion/DR.
 
 Целевое железо — своя плата на RP2350B: AY плюс блок, который формирует громкость
 выхода чипа (ЦАП) и даёт FX в духе Atari ST (PWM, SID, sync-buzzer) без дёргания
