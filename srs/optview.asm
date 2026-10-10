@@ -151,32 +151,260 @@ Ov_Frames
         djnz .box
         ret
 
-;-------- Help: рамка во всю ширину, клавиши - один раз
+;-------- Help: рамка во всю ширину, справка - из таблицы Hlp_Tab; клавиши действий - из
+; биндов (Bind_Tab, коре), поэтому после переназначения справка верна сама
 Hp_Frame
         ld hl,Hp_Box
         ld b,1
         call Ov_Frames.box
-        ld a,(THEME_ATTR+CLR_TEXT)  ; два столбца: паттерн | общие и Instr / Orn
+        ld a,(THEME_ATTR+CLR_TEXT)
         ld c,a
-        ld hl,Txt_Keys
-        ld a,KY_X+2
-        call Hp_List
-        ld hl,Txt_Keys2
-        ld a,KY_X+46
-; Строки HL (пустая - " ", конец - 0) в колонку A, с первой строки списка
-Hp_List
+        ld a,KY_X+2                 ; первый столбец
         ld (Hl_Col),a
         ld d,OV_SCR_H+LIST_Y
-.ky     ld a,(Hl_Col)
+        ld hl,Hlp_Tab
+.l      ld a,(hl)                   ; вид строки, 0 - конец
+        inc hl
+        or a
+        ret z
+        cp HL_COL
+        jr nz,.t
+        ld a,KY_X+46                ; второй столбец
+        ld (Hl_Col),a
+        ld d,OV_SCR_H+LIST_Y
+        jr .l
+.t      ld b,a
+        ld a,(Hl_Col)
         ld e,a
-        call PutStr
+        ld a,b
+        cp HL_TEXT
+        jr z,.txt
+        cp HL_ACT
+        ld a,(hl)                   ; действие (у диапазона - первое)
+        inc hl
+        ld (Hl_Act),a
+        jr z,.act
+        ld a,(hl)                   ; диапазон: последнее
+        inc hl
+        ld (Hl_Last),a
+        push hl
+        ld a,(Hl_Act)
+        call Key_Of                 ; первая клавиша первого ".." первая последнего
+        ld a,'.'
+        call PutCh
+        ld a,'.'
+        call PutCh
+        ld a,(Hl_Last)
+        call Key_Of
+        pop hl
+        jr .desc
+.act    push hl
+        ld a,(Hl_Act)
+        call Keys_Of
+        pop hl
+.desc   ld a,(Hl_Col)               ; описание - за колонкой клавиш
+        add a,HL_KEYW
+        ld e,a
+.txt    call PutStr
         inc hl
         inc d
+        jr .l
+Hl_Col          db 0
+Hl_Act          db 0
+Hl_Last         db 0
+HL_KEYW         equ 18              ; ширина колонки клавиш
+
+; A - действие: все его клавиши через ", " (с DE). Портит всё, кроме C, D
+Keys_Of
+        ld (Ko_Act),a
+        xor a
+        ld (Ko_N),a
+        ld hl,Bind_Tab
+.f      ld a,(hl)                   ; код, 0 - конец
+        or a
+        ret z
+        ld (Ko_Ptr),hl
+        inc hl
+        inc hl
+        inc hl
+        ld a,(Ko_Act)
+        cp (hl)
+        ld hl,(Ko_Ptr)
+        jr nz,.n
+        ld a,(Ko_N)                 ; не первая - через запятую
+        or a
+        jr z,.p
+        ld a,','
+        call PutCh
+        ld a,' '
+        call PutCh
+.p      ld hl,Ko_N
+        inc (hl)
+        ld hl,(Ko_Ptr)
+        call .one
+        ld hl,(Ko_Ptr)
+.n      inc hl
+        inc hl
+        inc hl
+        inc hl
+        jr .f
+.one    push hl                     ; HL - запись бинда: модификаторы, клавиша
+        inc hl
+        ld a,(hl)
+        call Mods_Put
+        pop hl
+        push hl
+        ld a,(hl)
+        call Key_Put
+        pop hl
+        ret
+Ko_Act          db 0
+Ko_N            db 0
+Ko_Ptr          dw 0
+
+; A - действие: его первая клавиша (с модификаторами). Нет бинда - "-"
+Key_Of
+        ld b,a
+        ld hl,Bind_Tab
+.f      ld a,(hl)
+        or a
+        jr z,.none
+        push hl
+        inc hl
+        inc hl
+        inc hl
+        ld a,(hl)
+        pop hl
+        cp b
+        jp z,Keys_Of.one
+        inc hl
+        inc hl
+        inc hl
+        inc hl
+        jr .f
+.none   ld a,'-'
+        jp PutCh
+
+; A - модификаторы KM_* -> "Ctrl+", "Shift+", "Alt+"
+Mods_Put
+        ld b,a
+        bit 1,b                     ; KM_CTRL
+        ld hl,Txt_Ctrl
+        call nz,PutStr
+        bit 0,b                     ; KM_SHIFT
+        ld hl,Txt_Shift
+        call nz,PutStr
+        bit 2,b                     ; KM_ALT
+        ld hl,Txt_Alt
+        call nz,PutStr
+        ret
+    ASSERT KM_SHIFT == 1 && KM_CTRL == 2 && KM_ALT == 4
+Txt_Ctrl        db "Ctrl+",0
+Txt_Shift       db "Shift+",0
+Txt_Alt         db "Alt+",0
+
+; A - код клавиши -> её имя: особые - по таблице, буквы и цифры - из Key_Chars (заглавные)
+Key_Put
+        ld b,a
+        ld hl,Key_Names
+.f      ld a,(hl)                   ; код, имя, 0; конец - 0
+        or a
+        jr z,.ch
+        inc hl
+        cp b
+        jp z,PutStr
+.s      ld a,(hl)                   ; мимо имени
+        inc hl
+        or a
+        jr nz,.s
+        jr .f
+.ch     ld a,b                      ; E0-коды без имени - "?"
+        or a
+        jp m,.q
+        ld h,high Key_Chars
+        ld l,a
         ld a,(hl)
         or a
-        jr nz,.ky
-        ret
-Hl_Col          db 0
+        jr z,.q
+        cp 'a'
+        jr c,.put
+        cp 'z'+1
+        jr nc,.put
+        sub 'a'-'A'
+.put    jp PutCh
+.q      ld a,'?'
+        jp PutCh
+
+Key_Names
+        db KEY_UP,"Up",0,       KEY_DOWN,"Down",0,   KEY_LEFT,"Left",0
+        db KEY_RIGHT,"Right",0, KEY_PGUP,"PgUp",0,   KEY_PGDN,"PgDn",0
+        db KEY_HOME,"Home",0,   KEY_END,"End",0,     KEY_TAB,"Tab",0
+        db KEY_ENTER,"Enter",0, KEY_BACK,"Bksp",0,   KEY_ESC,"Esc",0
+        db KEY_SPACE,"Space",0, KEY_DEL,"Del",0,     KEY_INS,"Ins",0
+        db KEY_F5,"F5",0,       KEY_F6,"F6",0,       KEY_F7,"F7",0
+        db KEY_F8,"F8",0,       KEY_KP_PLUS,"Num+",0, KEY_KP_MINUS,"Num-",0
+        db #69,"Num1",0, #72,"Num2",0, #7A,"Num3",0, #6B,"Num4",0
+        db #73,"Num5",0, #74,"Num6",0, #6C,"Num7",0, #75,"Num8",0
+        db 0
+
+; Справка: HL_TEXT текст / HL_ACT действие, описание / HL_RANGE первое, последнее, описание /
+; HL_COL - второй столбец. Конец - 0
+HL_TEXT         equ 1
+HL_ACT          equ 2
+HL_RANGE        equ 3
+HL_COL          equ 4
+Hlp_Tab
+        db HL_TEXT,"Pattern:",0
+        db HL_TEXT,"Z..M Q..P         notes (Shift - octave up)",0
+        db HL_TEXT,"A  K              note off / clear note",0
+        db HL_TEXT,"0-9 A-F           digits in fields",0
+        db HL_ACT,ACT_CLEAR,"clear field / selection",0
+        db HL_ACT,ACT_INS_TRK,"insert track line",0
+        db HL_ACT,ACT_DEL_TRK,"delete track line",0
+        db HL_ACT,ACT_INS_PAT,"insert row",0
+        db HL_ACT,ACT_DEL_PAT,"delete row",0
+        db HL_ACT,ACT_UNDO,"undo (in channel)",0
+        db HL_ACT,ACT_REDO,"redo",0
+        db HL_TEXT,"Shift+arrows, drag - select",0
+        db HL_ACT,ACT_SEL_ALL,"select all",0
+        db HL_ACT,ACT_COPY,"copy",0
+        db HL_ACT,ACT_CUT,"cut",0
+        db HL_ACT,ACT_PASTE,"paste",0
+        db HL_ACT,ACT_TR_UP,"transpose up",0
+        db HL_ACT,ACT_TR_DN,"transpose down",0
+        db HL_ACT,ACT_TR_OCT_UP,"octave up",0
+        db HL_ACT,ACT_TR_OCT_DN,"octave down",0
+        db HL_ACT,ACT_AUTOSTEP,"autostep on / off",0
+        db HL_RANGE,ACT_STEP_0,ACT_STEP_0+9,"step",0
+        db HL_RANGE,ACT_OCT_1,ACT_OCT_1+7,"input octave",0
+        db HL_ACT,ACT_ENTER,"play pattern (hold)",0
+        db HL_TEXT,"Left Right        fields",0
+        db HL_TEXT,"Click             cursor (Shift - select)",0
+        db HL_COL
+        db HL_ACT,ACT_PLAY_SONG,"play song from position",0
+        db HL_ACT,ACT_PLAY_START,"play song from start",0
+        db HL_ACT,ACT_PLAY_ROW,"play pattern from row",0
+        db HL_ACT,ACT_PLAY_PAT,"play pattern (loop)",0
+        db HL_ACT,ACT_STOP,"stop",0
+        db HL_ACT,ACT_ENV_OPEN,"open chip Env",0
+        db HL_ACT,ACT_ENV_NOTE,"envelope as note",0
+        db HL_ACT,ACT_TIMING,"time band",0
+        db HL_ACT,ACT_NEXT,"next channel",0
+        db HL_ACT,ACT_PREV,"previous channel",0
+        db HL_TEXT," ",0
+        db HL_TEXT,"Instr / Orn:",0
+        db HL_TEXT,"Arrows PgUp PgDn  cursor",0
+        db HL_TEXT,"0-9 A-F  - =      digits, sign",0
+        db HL_TEXT,"Space             flag on / off",0
+        db HL_TEXT,"Z..M Q..P         piano (preview row)",0
+        db HL_ACT,ACT_ENTER,"play preview (hold)",0
+        db HL_ACT,ACT_INS_TRK,"insert row",0
+        db HL_ACT,ACT_INS_PAT,"insert row",0
+        db HL_ACT,ACT_DEL_TRK,"delete row",0
+        db HL_ACT,ACT_DEL_PAT,"delete row",0
+        db HL_TEXT,"+  x              insert / delete (mouse)",0
+        db HL_TEXT,"Click L, number   loop to this row",0
+        db 0
 
 Ov_Boxes
         db PL_X,PL_W,"Palette",0
@@ -795,49 +1023,5 @@ Txt_Blink       db "Blink",0
 ; Имена шрифтов банка (как в srs/main.asm), по 14 знаков
 Font_Names      db "cp866         Toshiba TxL1  Toshiba TxL2  Compaq Thin   "
     ASSERT $-Font_Names == FONTS_COUNT*14
-
-; Справка: строки, пустая строка - " ", конец - 0
-Txt_Keys
-        db "Pattern:",0
-        db "Z..M Q..P  notes (Shift - octave up)",0
-        db "A off      K clear note",0
-        db "0-9 A-F    digits in fields",0
-        db "Delete     clear field / selection",0
-        db "Ins Bksp   insert / delete track line",0
-        db "Ctrl+I     insert row",0
-        db "Ctrl+Y     delete row (also Ctrl+Bksp)",0
-        db "Ctrl+Z     undo   Ctrl+Shift+Z redo",0
-        db "Shift+arrows, drag - select",0
-        db "Ctrl+A     select all",0
-        db "Ctrl+C X V copy / cut / paste",0
-        db "Num + -    transpose (Ctrl - octave)",0
-        db "Space      autostep on / off",0
-        db "Ctrl+0..9  step",0
-        db "Num 1..8   octave",0
-        db "Enter      play pattern (hold)",0
-        db "Left Right fields, Tab - channels",0
-        db "Click      cursor, Shift+click - select",0
-        db 0
-Txt_Keys2
-        db "F5        Play song from position",0
-        db "F6        Play song from start",0
-        db "F7        Play pattern from row",0
-        db "F8        Play pattern (loop)",0
-        db "Esc       Stop",0
-        db "Ctrl+E    Open chip Env column",0
-        db "Alt+E     Envelope as note",0
-        db "Ctrl+T    Time band",0
-        db " ",0
-        db "Instr / Orn:",0
-        db "Arrows, PgUp/PgDn, Home/End - cursor",0
-        db "0-9 A-F   digits",0
-        db "- =       sign (slide: down / up)",0
-        db "Space     flag on/off",0
-        db "Z..M Q..P piano (preview row, Tab)",0
-        db "Enter     play preview note (hold)",0
-        db "Ins Ctrl+I    insert row (or +)",0
-        db "Bksp Ctrl+Y   delete row (or x)",0
-        db "Click L, row number - loop here",0
-        db 0
 
     ENDMODULE
