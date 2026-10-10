@@ -1481,6 +1481,38 @@ Dv_Compare
 .ts     ld (cmpview.Cmp_TS),a
         call cmpview.Cmp_Run
         RESTPAGE3
+        call Cmp_Save               ; журнал - файлом FT2CMP.BIN в текущую папку
         ld a,1                      ; экран диска - заново
         ld (Dv_Dirty),a
         jp Dv_Head
+
+;-------- Журнал компаратора (буфер файла, страницы 1..3 = 48К) -> FT2CMP.BIN в текущую
+; папку (старый - удаляется). Ошибка диска - молча (это только для разбора на PC)
+Cs_Page         db 0
+Cmp_Save
+        ld ix,DK_DELETE+256
+        ld hl,Spec_Cmp
+        call Disk_Call
+        ld ix,DK_CREATE+256
+        ld hl,Spec_CmpNew
+        call Disk_Call
+        ret c
+        ret nz
+        ld a,cmpview.CM_LOG_PAGE
+        ld (Cs_Page),a
+.p      ld a,(Cs_Page)
+        SETPAGE3 a
+        ld ix,DK_APPEND
+        ld hl,#C000
+        ld bc,#4000
+        call Disk_Call
+        RESTPAGE3
+        ld hl,Cs_Page
+        inc (hl)
+        ld a,(hl)
+        cp cmpview.CM_LOG_PAGE+3
+        jr c,.p
+        ld ix,DK_CLOSE
+        jp Disk_Call
+Spec_Cmp        db FD_FILE,"FT2CMP.BIN",0
+Spec_CmpNew     db #20,0,0,0,0,"FT2CMP.BIN",0

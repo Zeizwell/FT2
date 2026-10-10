@@ -69,6 +69,7 @@ Cmp_Run
 .frame  call Cm_Tick_Our
         call Cm_Tick_Ref
         call Cm_Compare
+        call Cm_Log
         call Cm_Show
         ld hl,(Cm_Frame)
         inc hl
@@ -82,6 +83,7 @@ Cmp_Run
 .end    ld a,PC_STOP                ; наш плеер - стоп (возьмёт со следующим тиком IM1)
         ld (SV_PLAY_CMD),a
         call Cm_Result
+        call Cm_Log_Head
         RESTPAGE1
         ei
 .key    halt                        ; ждём клавишу (IM1 снова читает клавиатуру)
@@ -447,6 +449,141 @@ Cm_Diff ld e,a
         ld a,(SV_PLAY_ROW)
         ld (Cm_F_Row),a
         ret
+
+; =========================================================================
+; ЖУРНАЛ для разбора на PC: буфер файла, страницы 1..3 (48К; в странице 0 - модуль).
+; +0 заголовок 64 байта, дальше запись на кадр по 64 байта (первые CM_LOG_N кадров):
+;   +0 кадр (2), +2 позиция, +3 роу, +4 чипов, +5 1 - кадр разошёлся, +6 резерв (2),
+;   +8 эталон чип 1 R0..R13, +22 эталон чип 2, +36 наш чип 1, +50 наш чип 2
+;   (R13: #FF - в этом кадре не пишется, иначе значение). Тулза диска сохраняет его
+;   файлом FT2CMP.BIN в текущую папку
+; =========================================================================
+CM_LOG_PAGE     equ PAGE_FILEBUF+1
+CM_LOG_REC      equ 64
+CM_LOG_N        equ 3*16384/CM_LOG_REC-1    ; 767 кадров
+
+;-------- Запись кадра Cm_Frame (пока влезает)
+Cm_Log  ld hl,(Cm_Frame)
+        ld de,CM_LOG_N
+        or a
+        sbc hl,de
+        ret nc
+        ld hl,(Cm_Frame)            ; адрес: (кадр+1)*64 от начала журнала
+        inc hl
+        call Cm_Log_Addr            ; E - страница, HL - запись (окно 2)
+        ld (Cm_LP),hl
+        SETPAGE2 e
+        ld hl,(Cm_LP)
+        ld de,(Cm_Frame)
+        ld (hl),e
+        inc hl
+        ld (hl),d
+        inc hl
+        ld a,(SV_PLAY_POS)
+        ld (hl),a
+        inc hl
+        ld a,(SV_PLAY_ROW)
+        ld (hl),a
+        inc hl
+        ld a,(Cmp_Chips)
+        ld (hl),a
+        inc hl
+        ld a,(Cm_Bad)
+        ld (hl),a
+        inc hl
+        inc hl
+        inc hl
+        ex de,hl                    ; регистры эталона: оба чипа
+        ld hl,pts.VARS1+pts.VRS.AYREGS
+        ld bc,PR_SIZE
+        ldir
+        ld hl,pts.VARS2+pts.VRS.AYREGS
+        ld bc,PR_SIZE
+        ldir
+        ld hl,Pl_Regs               ; наши; R13 - как у эталона (#FF - не пишется)
+        ld bc,PR_SIZE
+        ldir
+        ld a,(Pl_R13W)
+        call .r13
+        ld hl,Pl_Regs+PR_SIZE
+        ld bc,PR_SIZE
+        ldir
+        ld a,(Pl_R13W+1)
+        call .r13
+        RESTPAGE2
+        ret
+.r13    or a                        ; DE - за R13 записанного чипа
+        ret nz
+        dec de
+        ld a,#FF
+        ld (de),a
+        inc de
+        ret
+
+; HL - номер записи (0 - заголовок) -> E - страница журнала, HL - адрес в окне 2.
+; SETPAGE - у вызывающего (он кладёт страницу на стек)
+Cm_LP           dw 0
+Cm_Log_Addr
+        add hl,hl                   ; *64
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        ld a,h                      ; страница = адрес / 16К
+        rlca
+        rlca
+        and 3
+        add a,CM_LOG_PAGE
+        ld e,a
+        ld a,h
+        and #3F
+        or #80
+        ld h,a
+        ret
+
+;-------- Заголовок журнала (+0): "FT2CMP1",0; +8 кадров (2), +10 разошлось (2), +12 есть
+; первое; +13 его кадр (2), +15 позиция, +16 роу, +17 чип, +18 регистр, +19 эталон, +20 наш;
+; +21 первый звук наш, +22 эталон; +23 конец эталона (2), +25 конец наш (2); +27 чипов,
+; +28 PT3 0 / PT2 1, +29 режим TS
+Cm_Log_Head
+        ld hl,0
+        call Cm_Log_Addr
+        ld (Cm_LP),hl
+        SETPAGE2 e
+        ld de,(Cm_LP)
+        ld hl,Txt_Sig
+        ld bc,8
+        ldir
+        ld hl,Cm_Frame
+        ld bc,2+2+1
+        ldir                        ; кадров, разошлось, есть первое
+        ld hl,Cm_F_Frame
+        ld bc,2+6
+        ldir                        ; первое: кадр, позиция, роу, чип, регистр, эталон, наш
+        ld a,(Cm_Our0)
+        ld (de),a
+        inc de
+        ld a,(Cm_Ref0)
+        ld (de),a
+        inc de
+        ld hl,Cm_EndRef
+        ld bc,4
+        ldir
+        ld a,(Cmp_Chips)
+        ld (de),a
+        inc de
+        ld a,(Cmp_Kind)
+        ld (de),a
+        inc de
+        ld a,(Cmp_TS)
+        ld (de),a
+        RESTPAGE2
+        ret
+Txt_Sig         db "FT2CMP1",0
+    ASSERT Cm_Diffs == Cm_Frame+2 && Cm_First == Cm_Diffs+2
+    ASSERT Cm_F_Pos == Cm_F_Frame+2 && Cm_F_Our == Cm_F_Frame+7
+    ASSERT Cm_EndOur == Cm_EndRef+2
 
 ; =========================================================================
 ; ЭКРАН (текстовая страница - в окне 2 на время вывода)
