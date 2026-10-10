@@ -912,7 +912,10 @@ Pr_Row
 .cmd    call Pt_Get
         or a
         jr nz,.go
-        scf                         ; #00 - конец трека
+        ld a,(Pp_Ch)                ; #00: в канале A - конец паттерна, в B и C - пустая
+        or a                        ;   спецкоманда (у плеера PT3 - C_NOP), читаем дальше
+        jr nz,.cmd
+        scf
         ret
 .go     cp #10
         jr c,.spec
