@@ -29,6 +29,7 @@ LIST_Y          equ OV_TOP+2        ; первая строка списков
 SAVE_Y          equ OV_TOP+10       ; кнопка Save (рамка Palette)
 SAVE_X          equ 2
 MSG_Y           equ OV_TOP+12       ; сообщение
+MEM_Y           equ OV_TOP+14       ; свободная память
 
 ; --- файл
 INI_BUF         equ #C000           ; окно 3: страница PAGE_FILEBUF
@@ -136,10 +137,21 @@ Ov_Boxes
         db FN_X,FN_W,"Font",0
         db KY_X,KY_W,"Keys",0
 
-;-------- Списки (выбранное - выделением) и сообщение
+;-------- Списки (выбранное - выделением), свободная память, сообщение
 Ov_Draw
         xor a
         ld (Ov_Dirty),a
+        call Mem_Free               ; "Free: NNN/143 pages"
+        push af
+        ld a,(THEME_ATTR+CLR_TEXT)
+        ld c,a
+        ld de,SAVE_X+256*(OV_SCR_H+MEM_Y)
+        ld hl,Txt_Free
+        call PutStr
+        pop af
+        call Put_Dec3
+        ld hl,Txt_Free2
+        call PutStr
         ld hl,Pal_Names             ; темы: имена по 8
         ld a,(Cur_Palette)
         ld c,a

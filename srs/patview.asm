@@ -199,6 +199,7 @@ Main_Loop
         BAND_M BAND_INPUT
         call Handle_Keys
         call Head_Show              ; шапка: значения (srs/head.asm)
+        call Mem_Show               ; свободная память - в нижней строке
         call Time_Tick              ; время игры
         call Fld_Update             ; мышь и колесо - полям (коре, srs/fields.asm)
         ld a,(Pv_Exit)              ; выбрали другую вкладку - выходим в коре
@@ -1719,6 +1720,21 @@ Hotkeys db K_F5,    0               ; общие клавиши вида; F5..F8
         db K_T,     KM_CTRL
         dw K_Timing                 ; Ctrl+T - полоса времени
         db 0
+
+;-------- Нижняя строка справа: "Free: NNN/143 pages" - свободные страницы пула (Mem_Free)
+MEM_X           equ 90-18
+Mem_Show
+        call Mem_Free
+        push af
+        ld a,(THEME_ATTR+CLR_HEADER)
+        ld c,a
+        ld de,MEM_X+256*(SCR_BASE_H+BOTTOM_LINE)
+        ld hl,Txt_Free
+        call PutStr
+        pop af
+        call Put_Dec3
+        ld hl,Txt_Free2
+        jp PutStr
 
 ;-------- Все события клавиатуры за кадр: сначала полю в фокусе (навигация
 ; паттерна или ордера), не съело - общей таблице Hotkeys

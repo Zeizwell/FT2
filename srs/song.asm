@@ -36,3 +36,62 @@ Song_Clear
         RESTPAGE2
         ret
 Txt_Sign        db "FT2S"
+
+;-------- Свободная память: страниц пула, не занятых треком (паттерны из каталога трека,
+; страница инструментов). Выход: A - сколько. Портит BC, HL
+POOL_PAGES      equ PAGE_POOL_END-PAGE_POOL
+Mem_Free_N      db 0
+Mem_Free
+        ld a,PAGE_SONG1
+        SETPAGE2 a
+        ld hl,#8000+PAT_CATALOG
+        ld b,PATTERNS_MAX
+        ld c,POOL_PAGES-1           ; минус страница инструментов
+.l      ld a,(hl)                   ; PC_PAGE: 0 - паттерна нет
+        or a
+        jr z,$+3
+        dec c
+        inc hl
+        inc hl
+        djnz .l
+        ld a,c
+        ld (Mem_Free_N),a           ; (RESTPAGE портит A)
+        RESTPAGE2
+        ld a,(Mem_Free_N)
+        ret
+    ASSERT PC_SIZE == 2 && PC_PAGE == 0
+Txt_Free        db "Free:",0                    ; "Free: NNN/143 pages" (коре: видят все тулзы)
+Txt_Free2       db "/",POOL_PAGES/100+"0",(POOL_PAGES/10)%10+"0",POOL_PAGES%10+"0"," pages",0
+
+;-------- A (0..255) - три десятичные цифры в DE (ведущие нули - пробелы). Цвет C
+Put_Dec3
+        ld b,'0'-1                  ; сотни
+.h      inc b
+        sub 100
+        jr nc,.h
+        add a,100
+        push af
+        ld a,b
+        cp '0'
+        jr nz,$+4
+        ld a,' '
+        ld h,a                      ; H - была ли цифра (не пробел); PutCh портит A
+        call PutCh
+        pop af
+        ld b,'0'-1                  ; десятки
+.t      inc b
+        sub 10
+        jr nc,.t
+        add a,10+'0'
+        push af
+        ld a,b
+        cp '0'
+        jr nz,.d
+        ld a,h
+        cp ' '
+        ld a,'0'
+        jr nz,.d
+        ld a,' '
+.d      call PutCh
+        pop af
+        jp PutCh
