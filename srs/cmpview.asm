@@ -69,7 +69,13 @@ Cmp_Run
         ld (Cm_First),a
 .frame  call Cm_Tick_Our
         call Cm_Tick_Ref
-        call Cm_Compare
+        ld hl,(Cm_EndRef)           ; трек уже кончился у кого-то - кадры не сравниваем
+        ld a,h                      ;   (наш ушёл на цикл, эталон молчит), ждём конец
+        or l                        ;   у второго: видна только разница в длине
+        ld hl,(Cm_EndOur)
+        or h
+        or l
+        call z,Cm_Compare
         call Cm_Log
         call Cm_Show
         ld hl,(Cm_Frame)
