@@ -450,7 +450,7 @@ Hlp_Tab
         db HL_ACT,ACT_DEL_PAT,"delete row",0
         db HL_ACT,ACT_UNDO,"undo (in channel)",0
         db HL_ACT,ACT_REDO,"redo",0
-        db HL_TEXT,"Shift+arrows, drag - select",0
+        db HL_TEXT,"Shift+arrows, Shift+click - select",0
         db HL_ACT,ACT_SEL_ALL,"select all",0
         db HL_ACT,ACT_COPY,"copy",0
         db HL_ACT,ACT_CUT,"cut",0
