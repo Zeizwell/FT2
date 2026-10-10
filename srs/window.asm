@@ -177,8 +177,8 @@ Wd_N            db 0                ; строк окна ещё можно
 Wd_Fn           dw Wd_Text          ; как рисовать строки: Wd_Text / Wd_Menu
 
 ;-------- Рамка, фон и строки окна (экран - в окне 3)
-Win_Draw
-        ld a,(THEME_ATTR+CLR_HEAD_LINE)
+Win_Draw                            ; рамка - цветом фона окна (не мелькает поверх паттерна)
+        ld a,(THEME_ATTR+CLR_TOP_BG)
         ld c,a
         ld a,(Win_Y)
         add a,WIN_SCR_H
@@ -193,7 +193,7 @@ Win_Draw
         inc d
         ld a,(Win_X)
         ld e,a
-        ld a,(THEME_ATTR+CLR_HEAD_LINE)
+        ld a,(THEME_ATTR+CLR_TOP_BG)
         ld c,a
         ld a,WB_V
         call PutCh
@@ -205,7 +205,7 @@ Win_Draw
 .sp     ld a,' '
         call PutCh
         djnz .sp
-        ld a,(THEME_ATTR+CLR_HEAD_LINE)
+        ld a,(THEME_ATTR+CLR_TOP_BG)
         ld c,a
         ld a,WB_V
         call PutCh
@@ -393,7 +393,7 @@ Wd_Menu
         cp WM_SEP
         jr nz,.it
         push hl                     ; разделитель: ├───┤
-        ld a,(THEME_ATTR+CLR_HEAD_LINE)
+        ld a,(THEME_ATTR+CLR_TOP_BG)
         ld c,a
         ld a,(Win_X)
         ld e,a
