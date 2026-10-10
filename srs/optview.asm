@@ -30,6 +30,7 @@ SAVE_Y          equ OV_TOP+10       ; кнопка Save (рамка Palette)
 SAVE_X          equ 2
 MSG_Y           equ OV_TOP+12       ; сообщение
 MEM_Y           equ OV_TOP+14       ; свободная память
+IMR_Y           equ OV_TOP+15       ; IM1: повторных входов (должно быть 00)
 
 ; --- файл
 INI_BUF         equ #C000           ; окно 3: страница PAGE_FILEBUF
@@ -146,6 +147,11 @@ Ov_Draw
         ld de,SAVE_X+256*(OV_SCR_H+MEM_Y)
         ld hl,Txt_Free
         call PutStr
+        ld de,SAVE_X+256*(OV_SCR_H+IMR_Y)
+        ld hl,Txt_ImRe
+        call PutStr
+        ld a,(Im_Reenter)
+        call PutHex2
         ld hl,Pal_Names             ; темы: имена по 8
         ld a,(Cur_Palette)
         ld c,a
@@ -578,6 +584,7 @@ Txt_IniHead     db "; Fast Tracker 2.01b settings",13,10,0
 Txt_Save        db " Save ",0
 Txt_Saved       db "Saved \\FT2\\FT2.INI",0
 Txt_DiskErr     db "Disk error",0
+Txt_ImRe        db "IM1 re-entry: ",0
 
 ; Имена шрифтов банка (как в srs/main.asm), по 14 знаков
 Font_Names      db "cp866         Toshiba TxL1  Toshiba TxL2  Compaq Thin   "

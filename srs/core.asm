@@ -3,6 +3,11 @@
     org #0038   ; im1
     di
     push af
+    ld a,(Im_Busy)      ; IM1 уже идёт (кто-то внутри разрешил прерывания) - не входим,
+    or a                ;   только считаем такие случаи (Im_Reenter)
+    jr nz,Im_Again
+    inc a
+    ld (Im_Busy),a
     push bc
     push de
     push hl
@@ -15,6 +20,8 @@
     push de
     push hl
     call IM1_Handler
+    xor a               ; IM1 кончился
+    ld (Im_Busy),a
     pop hl
     pop de
     pop bc
@@ -29,8 +36,19 @@
     pop af
     ei
     ret
+Im_Again
+    ld a,(Im_Reenter)
+    inc a
+    jr z,$+5           ; до 255 и стоп
+    ld (Im_Reenter),a
+    pop af
+    ei
+    ret
 
     org #0100   ;пропускаем нми и др парашу
+
+Im_Busy         db 0    ; 1 - IM1 работает (ставит и снимает сам обработчик)
+Im_Reenter      db 0    ; сколько раз IM1 пришёл, пока шёл прошлый (должно быть 0; видно в Setup)
 
 ; Порядок в кадре фиксированный: музыка -> мышь -> вывод. Прерывание ничего не
 ; решает само - делает по переменным, которые меняет основной цикл.
