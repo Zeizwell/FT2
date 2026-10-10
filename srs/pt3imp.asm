@@ -34,6 +34,7 @@ PL_ROWS         equ 0               ; паттерн длиннее 64 роу
 PL_PATS         equ 1               ; паттернов больше 64 (позиции обрезаны)
 PL_CMDS         equ 2               ; больше двух команд в клетке
 PL_LEN          equ 3               ; сэмпл / орнамент длиннее 64
+PL_INS          equ 4               ; TurboSound: сэмплам / орнаментам модуля 2 не хватило номеров
 
 Pt_Lost         db 0
 Pt_Base         dw 0                ; начало модуля в файле
@@ -81,7 +82,7 @@ Pt_Done
         call Str_Copy
         ld hl,Pt_Lost_Words
         ld a,(Pt_Lost)
-        ld b,4
+        ld b,5
 .w      rrca
         push af
         call c,Str_Copy
@@ -93,7 +94,7 @@ Pt_Done
 
 Pt_Msg          ds 40
 Pt_Cut_Txt      dw 0
-Pt_Lost_Words   db " rows",0," pats",0," cmds",0," len",0   ; по битам PL_*
+Pt_Lost_Words   db " rows",0," pats",0," cmds",0," len",0," ins",0   ; по битам PL_*
 
 ;-------- TurboSound: в конце файла "02TS" - два модуля, второй - с размер1;
 ; иначе - может быть PT 3.7 (Pt_TS37_Check)
@@ -677,55 +678,79 @@ Pp_N            db 0                ; наш паттерн
 Pp_Rows         db 0                ; длина (по каналу A модуля 1)
 
 Pt_Patterns
-        xor a
+        call Remap_Clear
+        xor a                       ; проход 1: модуль 1 - чип 1, длина - по его каналу A
         ld (Pp_N),a
+        ld (Pp_Chip),a
 .p      ld a,(Pm_Count)
         ld hl,Pp_N
         cp (hl)
-        ret z
+        jr z,.chip2
         ld a,(hl)
         call Pat_Page
         SETPAGE2 a
         call Pat_Zero
-        ld a,PAT_ROWS_MAX           ; модуль 1 - чип 1, длина - по его каналу A
+        ld a,PAT_ROWS_MAX
         ld (Pp_Max),a
-        xor a
-        ld (Pp_Chip),a
         ld a,(Pp_N)
         ld hl,Pm_P1
         call Arr_Get
         call Pp_Decode
-        ld (Pp_Rows),a
-        ld a,(Pp_Rows)              ; модуль 2 - чип 2, столько же роу
-        or a
-        jr z,.len
-        ld a,(Pp_N)
-        ld hl,Pm_P2
-        call Arr_Get
-        cp #FF
-        jr z,.len
-        ld (Pp_P),a
-        ld a,(Pp_Rows)
-        ld (Pp_Max),a
-        ld a,CHIP_SIZE
-        ld (Pp_Chip),a
-        call Pt_Mod2
-        ld a,(Pp_P)
-        call Pp_Decode
-        call Pt_Mod1
-.len    ld a,(Pp_Rows)              ; длина: пустой паттерн - 1 роу
-        or a
+        or a                        ; длина: пустой паттерн - 1 роу
         jr nz,$+3
         inc a
-        ld hl,Pm_Len
         ld c,a
         ld a,(Pp_N)
+        ld hl,Pm_Len
         call Hl_Add_A
         ld (hl),c
         RESTPAGE2
         ld hl,Pp_N
         inc (hl)
-        jp .p
+        jr .p
+.chip2  ld a,(Pt_Chips)             ; проход 2: модуль 2 - чип 2, столько же роу.
+        cp 2                        ;   Сэмплы и орнаменты модуля 1 уже отмечены -
+        ret c                       ;   модулю 2 - свободные номера
+        ld a,(Pt_TS37)              ; PT 3.7: модуль тот же - раскладка не нужна
+        or a
+        ld a,1
+        jr z,$+3
+        xor a
+        ld (Pm_Remap),a
+        ld a,CHIP_SIZE
+        ld (Pp_Chip),a
+        xor a
+        ld (Pp_N),a
+.p2     ld a,(Pm_Count)
+        ld hl,Pp_N
+        cp (hl)
+        jr z,.done
+        ld a,(hl)
+        ld hl,Pm_P2
+        call Arr_Get
+        cp #FF
+        jr z,.n2
+        ld (Pp_P),a
+        ld a,(Pp_N)
+        call Pat_Page
+        SETPAGE2 a
+        ld a,(Pp_N)
+        ld hl,Pm_Len
+        call Arr_Get
+        ld (Pp_Max),a
+        ld a,(Pm_Remap)             ; два модуля - читаем второй
+        or a
+        call nz,Pt_Mod2
+        ld a,(Pp_P)
+        call Pp_Decode
+        call Pt_Mod1
+        RESTPAGE2
+.n2     ld hl,Pp_N
+        inc (hl)
+        jr .p2
+.done   xor a
+        ld (Pm_Remap),a
+        ret
 
 Pp_P            db 0
 
@@ -947,8 +972,7 @@ Pr_Row
         call Pr_Put
         jp .cmd
 .smp    sub #D0                     ; #D1..#EF: сэмпл
-        ld c,CH_SAMPLE
-        call Pr_Put
+        call Pr_Smp
         jp .cmd
 .note   sub #50-NOTE_FIRST          ; #50..#AF: нота, конец строки
         jr .putn
@@ -1008,15 +1032,192 @@ Pr_Chip_Fld
 ; Сэмпл из байта smp*2: 0 ("W") -> 32
 Pr_Smp2 srl a
         or a
-        jr nz,$+4
+        jr nz,Pr_Smp
         ld a,SAMPLES_MAX
+; Сэмпл A (1..32) - через раскладку модуля 2 (TurboSound)
+Pr_Smp  call Smp_Map
         ld c,CH_SAMPLE
         jp Pr_Put
 
 ; Орнамент A (0..15): в паттерне - номер+1
-Pr_Orn  inc a
+Pr_Orn  call Orn_Map
+        inc a
         ld c,CH_ORNAMENT
         jp Pr_Put
+
+; =========================================================================
+; TURBOSOUND, ДВА МОДУЛЯ: у второго свои сэмплы и орнаменты. Модуль 1 - как есть
+; (номера 1..32 / 1..15), его занятые номера отмечаем при разборе. Сэмплы и
+; орнаменты, которые играет модуль 2, - в свободные номера (Sm_Used / Or_Used = 0),
+; номер в канале - новый. Места нет - пусто и Pt_Lost (PL_INS)
+; =========================================================================
+Pm_Remap        db 0                ; 1 - разбираем модуль 2 (раскладка)
+Sm_Used         ds SAMPLES_MAX+1    ; номер занят: 1 - модуль 1, 2 - отдан модулю 2
+Sm_Map          ds SAMPLES_MAX+1    ; сэмпл модуля 2 -> наш номер (0 - ещё нет)
+Or_Used         ds ORNAMENTS_MAX+1
+Or_Map          ds ORNAMENTS_MAX+1
+
+;-------- Обнулить раскладку (перед импортом)
+Remap_Clear
+        xor a
+        ld (Pm_Remap),a
+        ld hl,Sm_Used
+        ld b,2*(SAMPLES_MAX+1)+2*(ORNAMENTS_MAX+1)
+.z      ld (hl),a
+        inc hl
+        djnz .z
+        ret
+
+;-------- Сэмпл A (1..32): модуль 1 - отметить, модуль 2 - наш номер. HL, BC, DE целы
+Smp_Map push hl
+        push de
+        push bc
+        ld e,a
+        ld a,(Pm_Remap)
+        or a
+        jr nz,.m2
+        ld hl,Sm_Used
+        ld a,e
+        call Hl_Add_A
+        ld (hl),1
+        ld a,e
+        jr .out
+.m2     ld hl,Sm_Map
+        ld a,e
+        call Hl_Add_A
+        ld a,(hl)
+        or a
+        jr nz,.out
+        push hl
+        call Smp_Alloc              ; A - наш номер (0 - места нет)
+        pop hl
+        ld (hl),a
+.out    pop bc
+        pop de
+        pop hl
+        ret
+
+; Сэмпл E модуля 2 -> свободный номер, сэмпл - туда. A - номер, 0 - места нет
+Smp_Alloc
+        ld hl,Sm_Used+1
+        ld c,1
+.f      ld a,(hl)
+        or a
+        jr z,.got
+        inc hl
+        inc c
+        ld a,c
+        cp SAMPLES_MAX+1
+        jr c,.f
+        ld hl,Pt_Lost
+        set PL_INS,(hl)
+        xor a
+        ret
+.got    ld (hl),2
+        push bc
+        ld a,e                      ; смещение сэмпла E (32 - это 0) в модуле 2
+        and SAMPLES_MAX-1
+        add a,a
+        ld l,a
+        ld h,0
+        ld de,PT_SAMPLES
+        add hl,de
+        call Pt_Get16
+        pop bc
+        ld a,d
+        or e
+        ld a,c
+        ret z                       ; нет сэмпла - номер всё равно наш (пустой)
+        push bc
+        dec a                       ; блок: #8000 + (номер-1)*384
+        ld l,a
+        ld h,0
+        ld b,h
+        ld c,l
+        add hl,hl
+        add hl,bc
+        ld h,l
+        ld l,0
+        srl h
+        rr l
+        set 7,h
+        ex de,hl
+        call Ps_Sample
+        pop bc
+        ld a,c
+        ret
+
+;-------- Орнамент A (0..15; 0 - пустой): модуль 1 - отметить, модуль 2 - наш номер
+Orn_Map or a
+        ret z
+        push hl
+        push de
+        push bc
+        ld e,a
+        ld a,(Pm_Remap)
+        or a
+        jr nz,.m2
+        ld hl,Or_Used
+        ld a,e
+        call Hl_Add_A
+        ld (hl),1
+        ld a,e
+        jr .out
+.m2     ld hl,Or_Map
+        ld a,e
+        call Hl_Add_A
+        ld a,(hl)
+        or a
+        jr nz,.out
+        push hl
+        call Orn_Alloc
+        pop hl
+        ld (hl),a
+.out    pop bc
+        pop de
+        pop hl
+        ret
+
+; Орнамент E модуля 2 -> свободный номер 1..16, орнамент - туда. A - номер, 0 - нет
+Orn_Alloc
+        ld hl,Or_Used+1
+        ld c,1
+.f      ld a,(hl)
+        or a
+        jr z,.got
+        inc hl
+        inc c
+        ld a,c
+        cp ORNAMENTS_MAX+1
+        jr c,.f
+        ld hl,Pt_Lost
+        set PL_INS,(hl)
+        xor a
+        ret
+.got    ld (hl),2
+        push bc
+        ld a,e
+        add a,a
+        ld l,a
+        ld h,0
+        ld de,PT_ORNS
+        add hl,de
+        call Pt_Get16
+        pop bc
+        ld a,d
+        or e
+        ld a,c
+        ret z
+        push bc
+        dec a                       ; блок: #8000 + ORN_BASE + (номер-1)*256
+        add a,#80+high ORN_BASE
+        ld h,a
+        ld l,0
+        ex de,hl
+        call Po_Orn
+        pop bc
+        ld a,c
+        ret
 
 ; Огибающая выключена: форма 15
 Pr_EnvOff

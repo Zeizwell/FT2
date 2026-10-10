@@ -876,13 +876,18 @@ Pc_Next_Orn
 ; ВЫВОД В AY: чип 0, чип 1 (TurboSound: выбор - #FF / #FE в #FFFD)
 ; =========================================================================
 Pl_Out
-        ld a,#FF
+        ld a,#FF                    ; чип 1 - #FF, чип 2 - #FE (TurboSound)
         ld hl,Pl_Regs
         ld de,Pl_R13W
         call .chip
         ld a,#FE
         ld hl,Pl_Regs+PR_SIZE
         ld de,Pl_R13W+1
+        call .chip
+        ld a,#FF                    ; в конце выбран чип 1 (как после сброса)
+        ld bc,#FFFD
+        out (c),a
+        ret
 .chip   ld bc,#FFFD                 ; выбрать чип
         out (c),a
         xor a                       ; R0..R12
