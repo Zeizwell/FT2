@@ -154,6 +154,20 @@ Bind_Tab
         db KEY_Y,     KM_CTRL,  0, ACT_DEL_PAT
         db KEY_Z,     KM_CTRL,  0, ACT_UNDO
         db KEY_Z,     KM_CTRL|KM_SHIFT, 0, ACT_REDO
+        db KEY_UP,    KM_SHIFT, 0, ACT_SEL_UP
+        db KEY_DOWN,  KM_SHIFT, 0, ACT_SEL_DOWN
+        db KEY_LEFT,  KM_SHIFT, 0, ACT_SEL_LEFT
+        db KEY_RIGHT, KM_SHIFT, 0, ACT_SEL_RIGHT
+        db KEY_PGUP,  KM_SHIFT, 0, ACT_SEL_PGUP
+        db KEY_PGDN,  KM_SHIFT, 0, ACT_SEL_PGDN
+        db KEY_A,     KM_CTRL,  0, ACT_SEL_ALL
+        db KEY_C,     KM_CTRL,  0, ACT_COPY
+        db KEY_X,     KM_CTRL,  0, ACT_CUT
+        db KEY_V,     KM_CTRL,  0, ACT_PASTE
+        db KEY_KP_PLUS, 0,      0, ACT_TR_UP
+        db KEY_KP_MINUS, 0,     0, ACT_TR_DN
+        db KEY_KP_PLUS, KM_CTRL, 0, ACT_TR_OCT_UP
+        db KEY_KP_MINUS, KM_CTRL, 0, ACT_TR_OCT_DN
         db #69,       0,        0, ACT_OCT_1    ; Numpad 1..8 - октава
         db #72,       0,        0, ACT_OCT_1+1
         db #7A,       0,        0, ACT_OCT_1+2

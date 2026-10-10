@@ -229,6 +229,20 @@ ACT_DEL_TRK     equ 43              ; Backspace - удалить строку т
 ACT_DEL_PAT     equ 44              ; Ctrl+Backspace, Ctrl+Y - удалить строку паттерна
 ACT_UNDO        equ 45              ; Ctrl+Z - отмена (в пределах канала)
 ACT_REDO        equ 46              ; Ctrl+Shift+Z - повтор
+ACT_SEL_UP      equ 47              ; Shift+стрелки, PgUp / PgDn - выделение
+ACT_SEL_DOWN    equ 48
+ACT_SEL_LEFT    equ 49
+ACT_SEL_RIGHT   equ 50
+ACT_SEL_PGUP    equ 51
+ACT_SEL_PGDN    equ 52
+ACT_SEL_ALL     equ 53              ; Ctrl+A
+ACT_COPY        equ 54              ; Ctrl+C
+ACT_CUT         equ 55              ; Ctrl+X
+ACT_PASTE       equ 56              ; Ctrl+V
+ACT_TR_UP       equ 57              ; Numpad + - полутон вверх
+ACT_TR_DN       equ 58              ; Numpad - - вниз
+ACT_TR_OCT_UP   equ 59              ; Ctrl+Numpad + - октава вверх
+ACT_TR_OCT_DN   equ 60              ; Ctrl+Numpad - - вниз
 MB_LEFT         equ 0               ; номер кнопки мыши (смещение в SV_MS_COUNT / 4)
 MB_RIGHT        equ 1
 MB_MIDDLE       equ 2

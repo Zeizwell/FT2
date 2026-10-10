@@ -270,7 +270,8 @@ Compose
         call Draw_Attrs             ; 2. атрибуты из шаблонов
         BAND_I BAND_SEPS
         call Draw_Seps              ; 3. разделители, цвет номеров роу
-        call Draw_Cursor            ; 4. курсор - поверх
+        call Draw_Sel               ; 4. выделение
+        call Draw_Cursor            ; 5. курсор - поверх
         RESTPAGE3
         ld a,(Timing)               ; вернуть цвет основного цикла
         or a
@@ -2187,7 +2188,7 @@ Ord_Go  ld (Cur_Pos),a
 ;-------- Паттерн: колесо - роу (с Ctrl/Shift - каналы), клавиши навигации
 Pat_Field
         cp EV_PRESS
-        jp z,Pat_Press
+        jp z,Pat_Click
         cp EV_WHEEL
         jr z,.wheel
         cp EV_KEY
@@ -2954,6 +2955,538 @@ Ud_Swap
         ld (Order_Pending),a
         jp Need_Layout
 
+;-------- ВЫДЕЛЕНИЕ И БУФЕР ОБМЕНА (как VT, по клеткам: канал или Env чипа целиком).
+; Выделение - прямоугольник в паттерне позиции Sel_Pos: роу A..B, элементы A..B (0..7).
+; Shift + стрелки / PgUp / PgDn, Shift + клик - выделить; Ctrl+A - весь паттерн;
+; движение без Shift - снять. Ctrl+C / X / V, Delete, Numpad +/- (Ctrl - октава) - над
+; выделением (нет - над клеткой курсора). Буфер обмена - в PAGE_EDBUF за отменой
+CLIP_HDR        equ #DF00           ; окно 3: строк, элементов, вид элементов (8)
+CLIP_DATA       equ #E000           ;   клетки: роу по 8 элементов по 16 байт
+CLIP_ROW        equ 8*CH_SIZE
+    ASSERT UD_BASE+UD_N*UD_REC <= CLIP_HDR && CLIP_DATA+PAT_ROWS_MAX*CLIP_ROW <= #10000
+
+Sel_On          db 0                ; 1 - есть выделение
+Sel_Pos         db 0                ; в паттерне какой позиции
+Sel_RA          db 0                ; угол A (откуда начали): роу, элемент
+Sel_IA          db 0
+Sel_RB          db 0                ; угол B (курсор): роу, элемент
+Sel_IB          db 0
+Rg_R0           db 0                ; кусок для операции: роу R0..R1, элементы I0..I1
+Rg_R1           db 0
+Rg_I0           db 0
+Rg_I1           db 0
+
+;-------- A - элемент под курсором (как Calc_Open, но сразу, без раскладки)
+Cur_Item
+        ld a,(Cur_Chan)             ; канал -> элемент: 0..2 -> 1..3, 3..5 -> 5..7
+        inc a
+        cp 4
+        jr c,$+3
+        inc a
+        ld b,a
+        ld a,(Env_Open)
+        or a
+        ld a,b
+        ret z
+        and 4                       ; Env этого чипа: 0 или 4
+        ret
+
+; A - элемент 0..7 -> A - начало в роу, B - размер (Env - заголовок чипа, канал - CH_SIZE)
+Item_Ofs
+        ld c,0                      ; чип
+        cp 4
+        jr c,.c
+        sub 4
+        ld c,CHIP_SIZE
+.c      or a
+        jr nz,.ch
+        ld a,c
+        ld b,CHIP_HDR_SIZE
+        ret
+.ch     dec a                       ; канал: CHIP_CH_A + n*CH_SIZE
+        add a,a
+        add a,a
+        add a,a
+        add a,a
+        add a,CHIP_CH_A
+        add a,c
+        ld b,CH_SIZE
+        ret
+
+;-------- Снять / начать / продолжить выделение
+Sel_Off
+        xor a
+        ld (Sel_On),a
+        ret
+Sel_Begin
+        ld a,(Sel_On)
+        or a
+        ret nz
+        inc a
+        ld (Sel_On),a
+        ld a,(Cur_Pos)
+        ld (Sel_Pos),a
+        ld a,(Cur_Row)
+        ld (Sel_RA),a
+        call Cur_Item
+        ld (Sel_IA),a
+; Угол B - курсор (ушёл в другую позицию - выделение снять)
+Sel_Ext
+        ld a,(Cur_Pos)
+        ld hl,Sel_Pos
+        cp (hl)
+        jr nz,Sel_Off
+        ld a,(Cur_Row)
+        ld (Sel_RB),a
+        call Cur_Item
+        ld (Sel_IB),a
+        ret
+
+; Движение без Shift - снять выделение и двигать
+K_Up    call Sel_Off
+        jp K_RowUp
+K_Down  call Sel_Off
+        jp K_RowDn
+K_PgUpN call Sel_Off
+        jp K_PageUp
+K_PgDnN call Sel_Off
+        jp K_PageDn
+K_Left  call Sel_Off
+        jp K_FieldLeft
+K_Right call Sel_Off
+        jp K_FieldRight
+; С Shift - выделять: строки - роу, влево / вправо - по элементам
+K_SelUp call Sel_Begin
+        call K_RowUp
+        jr Sel_Ext
+K_SelDn call Sel_Begin
+        call K_RowDn
+        jr Sel_Ext
+K_SelPU call Sel_Begin
+        call K_PageUp
+        jr Sel_Ext
+K_SelPD call Sel_Begin
+        call K_PageDn
+        jr Sel_Ext
+K_SelLt call Sel_Begin
+        call Cur_Item
+        or a
+        jr z,Sel_Ext
+        dec a
+        call Item_Go
+        jr Sel_Ext
+K_SelRt call Sel_Begin
+        call Cur_Item
+        inc a
+        ld hl,Vis_Items
+        cp (hl)
+        jr nc,Sel_Ext
+        call Item_Go
+        jr Sel_Ext
+;-------- Ctrl+A: весь паттерн
+K_SelAll
+        ld a,1
+        ld (Sel_On),a
+        ld a,(Cur_Pos)
+        ld (Sel_Pos),a
+        xor a
+        ld (Sel_RA),a
+        ld (Sel_IA),a
+        call Ln_Page                ; Ln_Len
+        ld a,(Ln_Len)
+        dec a
+        ld (Sel_RB),a
+        ld a,(Vis_Items)
+        dec a
+        ld (Sel_IB),a
+        ret
+
+;-------- Кусок для операции -> Rg_*: выделение (углы по порядку, роу - не за длиной)
+; или клетка курсора. Ln_Len, Ln_Pat - паттерна позиции
+Rg_Get
+        call Ln_Page
+        ld a,(Sel_On)
+        or a
+        jr z,.cur
+        ld a,(Sel_Pos)
+        ld hl,Cur_Pos
+        cp (hl)
+        jr nz,.cur
+        ld a,(Sel_RA)
+        ld b,a
+        ld a,(Sel_RB)
+        call .ord
+        ld (Rg_R0),a
+        ld a,c
+        ld (Rg_R1),a
+        ld a,(Sel_IA)
+        ld b,a
+        ld a,(Sel_IB)
+        call .ord
+        ld (Rg_I0),a
+        ld a,c
+        ld (Rg_I1),a
+        ld a,(Ln_Len)               ; роу - не за длиной паттерна
+        dec a
+        ld hl,Rg_R1
+        cp (hl)
+        ret nc
+        ld (hl),a
+        ret
+.cur    ld a,(Cur_Row)
+        ld (Rg_R0),a
+        ld (Rg_R1),a
+        call Cur_Item
+        ld (Rg_I0),a
+        ld (Rg_I1),a
+        ret
+; A, B -> A - меньший, C - больший
+.ord    cp b
+        ld c,b
+        ret c
+        ld c,a
+        ld a,b
+        ret
+
+; Перед правкой куска: один элемент и он под курсором - отмена его колонки, иначе - без отмены
+Rg_Undo
+        ld a,(Rg_I0)
+        ld hl,Rg_I1
+        cp (hl)
+        jp nz,Ud_Reset
+        ld b,a
+        call Cur_Item
+        cp b
+        jp nz,Ud_Reset
+        jp Ud_Save
+
+;-------- Обход куска Rg_*: на каждую клетку Rg_Op(HL - клетка в паттерне (окно 2), DE - она
+; в буфере обмена (окно 3), B - размер, C - элемент 0..7). Потом текст роу куска заново
+Rg_Op           dw 0
+Rg_Walk
+        ld a,(Ln_Pat)
+        call Pat_Page
+        SETPAGE2 a
+        ld a,PAGE_EDBUF
+        SETPAGE3 a
+        ld a,(Rg_R0)
+        ld (Rw_R),a
+.r      ld a,(Rg_I0)
+        ld (Rw_I),a
+.i      ld a,(Rw_I)
+        call Item_Ofs               ; A - начало, B - размер
+        ld (Rw_Ofs),a
+        ld a,(Rw_R)                 ; буфер: (роу - R0) * CLIP_ROW + (элемент - I0) * 16
+        ld hl,Rg_R0
+        sub (hl)
+        ld l,a
+        ld h,0
+        add hl,hl                   ; *128
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        ld a,(Rw_I)
+        ld de,Rg_I0
+        ex de,hl
+        sub (hl)
+        ex de,hl
+        add a,a
+        add a,a
+        add a,a
+        add a,a
+        ld e,a
+        ld d,CLIP_DATA/256
+        add hl,de
+        ex de,hl                    ; DE - буфер
+        ld a,(Rw_R)
+        add a,PAT_BASE_H
+        ld h,a
+        ld a,(Rw_Ofs)
+        ld l,a                      ; HL - клетка
+        ld a,(Rw_I)
+        ld c,a
+        ld ix,(Rg_Op)
+        call .op
+        ld a,(Rw_I)
+        ld hl,Rg_I1
+        cp (hl)
+        inc a
+        ld (Rw_I),a
+        jr c,.i
+        ld a,(Rw_R)
+        ld hl,Rg_R1
+        cp (hl)
+        inc a
+        ld (Rw_R),a
+        jr c,.r
+        RESTPAGE3
+        ld a,(Rg_R0)                ; текст роу куска
+        add a,PAT_BASE_H
+        ld h,a
+.t      call Row_To_Text
+        inc h
+        ld a,(Rg_R1)
+        add a,PAT_BASE_H+1
+        cp h
+        jr nz,.t
+        RESTPAGE2
+        ret
+.op     jp (ix)
+Rw_R            db 0
+Rw_I            db 0
+Rw_Ofs          db 0
+    ASSERT CLIP_ROW == 128 && (CLIP_DATA & 255) == 0
+
+; Клетки: в буфер / нули / транспонировать ноту (канал, нота 1..96)
+Op_ToClip
+        ld c,b
+        ld b,0
+        ldir
+        ret
+Op_Zero
+        ld (hl),0
+        inc l
+        djnz Op_Zero
+        ret
+Op_Transp
+        ld a,c                      ; Env - нот нет
+        and 3
+        ret z
+        ld a,(hl)                   ; CH_NOTE: 1..96, остальное (пусто, off) - мимо
+        or a
+        ret z
+        cp NOTE_LAST+1
+        ret nc
+        ld b,a
+        ld a,(Tr_Delta)
+        add a,b
+        cp NOTE_FIRST
+        ret c                       ; ниже C-1 - не трогаем (и перенос через 0)
+        cp NOTE_LAST+1
+        ret nc                      ; выше B-8 - не трогаем
+        ld (hl),a
+        ret
+Tr_Delta        db 0
+    ASSERT CH_NOTE == 0
+
+;-------- Ctrl+C: кусок - в буфер (заголовок: строк, элементов, вид каждого: Env или канал)
+K_Copy
+        call Rg_Get
+Clip_Save
+        ld a,PAGE_EDBUF
+        SETPAGE3 a
+        ld a,(Rg_R1)
+        ld hl,Rg_R0
+        sub (hl)
+        inc a
+        ld (CLIP_HDR),a
+        ld a,(Rg_I1)
+        ld hl,Rg_I0
+        sub (hl)
+        inc a
+        ld (CLIP_HDR+1),a
+        ld b,a                      ; вид: элемент & 3 (0 - Env)
+        ld a,(Rg_I0)
+        ld hl,CLIP_HDR+2
+.k      ld c,a
+        and 3
+        ld (hl),a
+        inc hl
+        ld a,c
+        inc a
+        djnz .k
+        RESTPAGE3
+        ld hl,Op_ToClip
+        ld (Rg_Op),hl
+        jp Rg_Walk
+
+;-------- Ctrl+X: в буфер и нули
+K_Cut
+        call Rg_Get
+        call Clip_Save
+        call Rg_Undo
+        jr Rg_Clear
+;-------- Delete: есть выделение - кусок нули, нет - поле курсора (K_Clear)
+K_Del
+        ld a,(Sel_On)
+        or a
+        jp z,K_Clear
+        call Rg_Get
+        call Rg_Undo
+Rg_Clear
+        ld hl,Op_Zero
+        ld (Rg_Op),hl
+        jp Rg_Walk
+
+;-------- Numpad + / - (Ctrl - на октаву): ноты куска
+K_TrUp  ld a,1
+        jr K_Tr
+K_TrDn  ld a,-1
+        jr K_Tr
+K_TrOU  ld a,12
+        jr K_Tr
+K_TrOD  ld a,-12
+K_Tr    ld (Tr_Delta),a
+        call Rg_Get
+        call Rg_Undo
+        ld hl,Op_Transp
+        ld (Rg_Op),hl
+        jp Rg_Walk
+
+;-------- Ctrl+V: буфер - с клетки курсора вправо и вниз; элемент - только того же вида
+; (Env в Env, канал в канал), за длиной паттерна и за видимыми элементами - мимо
+K_Paste
+        call Ln_Page
+        ld a,PAGE_EDBUF             ; размер буфера
+        SETPAGE3 a
+        ld a,(CLIP_HDR)
+        ld (Ps_Rows),a
+        ld a,(CLIP_HDR+1)
+        ld (Ps_Items),a
+        RESTPAGE3
+        ld a,(Ps_Rows)
+        or a
+        ret z                       ; пусто
+        cp PAT_ROWS_MAX+1
+        ret nc                      ; не наш (страницу затёрла загрузка)
+        ld a,(Ps_Items)
+        or a
+        ret z
+        cp 9
+        ret nc
+        ld a,(Cur_Row)              ; кусок назначения: роу, элементы
+        ld (Rg_R0),a
+        ld hl,Ps_Rows
+        add a,(hl)
+        dec a
+        ld hl,Ln_Len
+        cp (hl)
+        jr c,$+4
+        ld a,(hl)
+        dec a
+        ld (Rg_R1),a
+        call Cur_Item
+        ld (Rg_I0),a
+        ld hl,Ps_Items
+        add a,(hl)
+        dec a
+        ld hl,Vis_Items
+        cp (hl)
+        jr c,$+4
+        ld a,(hl)
+        dec a
+        ld (Rg_I1),a
+        call Rg_Undo
+        ld hl,Op_Paste
+        ld (Rg_Op),hl
+        jp Rg_Walk
+Ps_Rows         db 0
+Ps_Items        db 0
+; Клетка из буфера (DE) - в паттерн (HL), если вид тот же: Env в Env, канал в канал
+Op_Paste
+        push hl
+        ld a,c                      ; вид в буфере: CLIP_HDR+2 + (элемент - I0)
+        ld hl,Rg_I0
+        sub (hl)
+        add a,low (CLIP_HDR+2)
+        ld l,a
+        ld h,high CLIP_HDR
+        ld a,(hl)                   ; 0 - Env
+        or a
+        ld a,c
+        jr z,.env
+        and 3                       ; из канала - только в канал
+        pop hl
+        ret z
+        jr .cp
+.env    and 3                       ; из Env - только в Env
+        pop hl
+        ret nz
+.cp     ex de,hl
+        ld c,b
+        ld b,0
+        ldir
+        ret
+
+;-------- Клик в паттерн: с Shift - выделить от курсора до клика, без - снять выделение
+Pat_Click
+        ld a,(SV_KEY_MODS)
+        and KM_SHIFT
+        jr z,.n
+        call Sel_Begin
+        call Pat_Press
+        jp Sel_Ext
+.n      call Sel_Off
+        jp Pat_Press
+
+;-------- 4. Выделение (IM1, экран - в окне 3): клетки куска - цветом выделения. Роу паттерна
+; позиции курсора стоят от строки редактирования подряд: роу r - строка EDIT_LINE + r - курсор
+Ds_X0           db 0
+Ds_W            db 0
+Draw_Sel
+        ld a,(Sel_On)
+        or a
+        ret z
+        ld a,(Sel_Pos)
+        ld hl,Cur_Pos
+        cp (hl)
+        ret nz
+        ld a,(Sel_IA)               ; колонки: от первого элемента до конца последнего
+        ld b,a
+        ld a,(Sel_IB)
+        call Rg_Get.ord             ; A - первый, C - последний
+        ld (Ds_X0),a
+        ld a,c
+        ld hl,Item_W
+        call Arr_Get
+        ld b,a
+        ld a,c
+        ld hl,Item_Col
+        call Arr_Get
+        add a,b                     ; за последним
+        ld b,a
+        ld a,(Ds_X0)
+        ld hl,Item_Col
+        call Arr_Get
+        ld (Ds_X0),a
+        ld c,a
+        ld a,b
+        sub c
+        ld (Ds_W),a
+        ld a,(Sel_RA)               ; роу
+        ld b,a
+        ld a,(Sel_RB)
+        call Rg_Get.ord
+        ld b,a                      ; B - роу, C - последняя
+.r      ld a,EDIT_LINE              ; строка экрана; не видна - мимо
+        add a,b
+        ld hl,Cur_Row
+        sub (hl)
+        cp FIRST_LINE
+        jr c,.n
+        cp FIRST_LINE+VIEW_ROWS
+        jr nc,.n
+        add a,SCR_BASE_H
+        ld h,a
+        ld a,(Ds_X0)
+        add a,SCR_ATTR
+        ld l,a
+        ld a,(Ds_W)
+        ld d,a
+        ld a,(THEME_ATTR+CLR_SELECT)
+.c      ld (hl),a
+        inc l
+        dec d
+        jr nz,.c
+.n      ld a,b
+        cp c
+        inc b
+        jr c,.r
+        ret
+
 ;-------- Numpad 1..8: октава ввода (номер - из сработавшего действия)
 K_Oct   ld a,(Kt_Act)
         sub ACT_OCT_1-1
@@ -3081,23 +3614,51 @@ Field_At
 ; Навигация по паттерну - только когда он в фокусе
 Pat_Keys
         db ACT_UP
-        dw K_RowUp
+        dw K_Up
         db ACT_DOWN
-        dw K_RowDn
+        dw K_Down
         db ACT_PGUP
-        dw K_PageUp
+        dw K_PgUpN
         db ACT_PGDN
-        dw K_PageDn
+        dw K_PgDnN
         db ACT_LEFT
-        dw K_FieldLeft
+        dw K_Left
         db ACT_RIGHT
-        dw K_FieldRight
+        dw K_Right
+        db ACT_SEL_UP               ; выделение, буфер обмена, транспонирование
+        dw K_SelUp
+        db ACT_SEL_DOWN
+        dw K_SelDn
+        db ACT_SEL_LEFT
+        dw K_SelLt
+        db ACT_SEL_RIGHT
+        dw K_SelRt
+        db ACT_SEL_PGUP
+        dw K_SelPU
+        db ACT_SEL_PGDN
+        dw K_SelPD
+        db ACT_SEL_ALL
+        dw K_SelAll
+        db ACT_COPY
+        dw K_Copy
+        db ACT_CUT
+        dw K_Cut
+        db ACT_PASTE
+        dw K_Paste
+        db ACT_TR_UP
+        dw K_TrUp
+        db ACT_TR_DN
+        dw K_TrDn
+        db ACT_TR_OCT_UP
+        dw K_TrOU
+        db ACT_TR_OCT_DN
+        dw K_TrOD
         db ACT_NEXT
         dw K_ChRight
         db ACT_PREV
         dw K_ChLeft
         db ACT_CLEAR
-        dw K_Clear
+        dw K_Del                    ; выделение - кусок, нет - поле
         db ACT_AUTOSTEP
         dw H_AutoStep               ; Space - автошаг (как кнопка Step в шапке)
         db ACT_UNDO
