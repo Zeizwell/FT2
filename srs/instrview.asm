@@ -148,6 +148,7 @@ Iv_Loop
         or a
         call nz,Iv_Draw
         call Iv_Buttons             ; кнопки - каждый кадр (под мышью - подсветка)
+        call Er_Icons_All           ; иконки строк - так же
         jr Iv_Loop
 
 ;-------- Выход в коре (страница следующей тулзы - уже в SV_TOOL)
@@ -572,15 +573,47 @@ Iv_Draw_Rows
         jr c,.row
         jp Er_Cursor
 
-; Иконки строки D: + (вставить) и крестик (удалить)
+;-------- Иконки всех видимых строк с данными - каждый кадр (под мышью - подсветка)
+Er_Icons_All
+        call Iv_End
+        ld hl,Ed_Top
+        sub (hl)                    ; строк с данными на экране - 1
+        ret c
+        cp ER_ROWS
+        jr c,$+4
+        ld a,ER_ROWS-1
+        inc a
+        ld b,a
+        ld d,IV_SCR_H+ER_ROW0
+.r      push bc
+        call Er_Icons
+        pop bc
+        inc d
+        djnz .r
+        ret
+
+; Иконки строки D: + (вставить) и крестик (удалить). Портит B, C, E
 Er_Icons
-        ld a,(THEME_ATTR+CLR_BUTTON)
-        ld c,a
         ld e,ER_INS_X
         ld a,'+'
-        call PutCh
+        call Er_Icon
         ld e,ER_DEL_X
         ld a,GLYPH_DEL
+; Значок A в колонку E строки D: под мышью - CLR_HOVER
+Er_Icon
+        ld b,a
+        ld a,(THEME_ATTR+CLR_BUTTON)
+        ld c,a
+        ld a,(SV_MOUSE_COL)
+        cp e
+        jr nz,.put
+        ld a,(SV_MOUSE_ROW)
+        add a,IV_SCR_H
+        cp d
+        jr nz,.put
+        ld a,(THEME_ATTR+CLR_HOVER)
+        ld c,a
+.put    ld a,b
         jp PutCh
 
 ; Строка D (внутри рамки) - пробелы. E - на начало, DE сохраняет
@@ -1183,8 +1216,8 @@ Iv_EditEv
         jr z,.ins
         cp ER_DEL_X
         jr z,.del
-        cp ER_LOOP_X                ; колонка L - цикл сюда
-        jr nz,.col
+        cp ER_NUM_X+2               ; колонка L и номер строки - цикл сюда
+        jr nc,.col
         call Iv_Block
         inc hl
         ld (hl),b
