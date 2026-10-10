@@ -1,10 +1,12 @@
 ; =========================================================================
-; ОКНА (часть коре): прямоугольник поверх экрана - About, потом меню и вопросы.
-; Модально: пока окно открыто, клавиатура и мышь - ему (Win_Wait).
-; Вид паттерна собирает экран каждый кадр в IM1, поэтому окно снимается в буфер
-; (Win_Img) и кладётся поверх в конце кадра (Win_Blit). Под окном - Win_Save,
-; при закрытии возвращается (тулзам, которые экран каждый кадр не рисуют).
-; Экран - SV_DRAW_PAGE в окне 3: строка = #C0 + y, символы 0..127, атрибуты +128.
+; ОКНА (часть коре): прямоугольник поверх экрана - About, меню, потом вопросы.
+; Модально: пока окно открыто, клавиатура и мышь - ему (Win_Wait, Win_Menu).
+; Вид паттерна собирает экран каждый кадр в IM1, поэтому окно снимается в страницу
+; PAGE_WINIMG и кладётся поверх в конце кадра DMA (Win_Blit). Что было под окном -
+; в PAGE_WINSAVE, при закрытии возвращается. Обе страницы - в раскладке экрана
+; (строка 256 байт: символы, атрибуты +128), поэтому пересылка - DMA прямоугольником
+; (символы и атрибуты), колонка и ширина окна - чётные (DMA ходит словами).
+; Экран - SV_DRAW_PAGE; рисуем процессором в окне 3: строка = #C0 + y.
 ; =========================================================================
 WIN_W_MAX       equ 48
 WIN_H_MAX       equ 24
@@ -23,8 +25,6 @@ Win_X           db 0
 Win_Y           db 0
 Win_W           db 0
 Win_H           db 0
-Win_Save        ds WIN_W_MAX*WIN_H_MAX*2    ; что было под окном: строки - символы, атрибуты
-Win_Img         ds WIN_W_MAX*WIN_H_MAX*2    ; само окно
 
 ;-------- Открыть окно HL: x, y, w, h, строки (роль цвета CLR_*, текст, 0), конец - WIN_END
 Win_Open
@@ -40,16 +40,23 @@ Win_Open
 Win_Show
         ld a,1
         ld (Win_Busy),a
+        ld a,(Win_X)                ; DMA: колонка и ширина - чётные
+        and #FE
+        ld (Win_X),a
+        ld a,(Win_W)
+        inc a
+        and #FE
+        ld (Win_W),a
+        ld a,(SV_DRAW_PAGE)         ; что под окном - в PAGE_WINSAVE
+        ld (Wd_Src),a
+        ld a,PAGE_WINSAVE
+        ld (Wd_Dst),a
+        call Win_DmaM
         ld a,(SV_DRAW_PAGE)
         SETPAGE3 a
-        xor a                       ; что под окном - в Win_Save
-        ld hl,Win_Save
-        call Win_Rect
         call Win_Draw
-        xor a                       ; окно - в Win_Img
-        ld hl,Win_Img
-        call Win_Rect
         RESTPAGE3
+        call Win_Snap               ; окно - в PAGE_WINIMG
         ld a,1
         ld (Win_On),a
         xor a
@@ -57,30 +64,97 @@ Win_Show
         ret
 Wo_Text         dw 0
 
+;-------- Окно с экрана - в PAGE_WINIMG (после рисования)
+Win_Snap
+        ld a,(SV_DRAW_PAGE)
+        ld (Wd_Src),a
+        ld a,PAGE_WINIMG
+        ld (Wd_Dst),a
+        jp Win_DmaM
+
 ;-------- Закрыть: под окном - как было
 Win_Close
         ld a,1
         ld (Win_Busy),a
         xor a
         ld (Win_On),a
+        ld a,PAGE_WINSAVE
+        ld (Wd_Src),a
         ld a,(SV_DRAW_PAGE)
-        SETPAGE3 a
-        ld a,1
-        ld hl,Win_Save
-        call Win_Rect
-        RESTPAGE3
+        ld (Wd_Dst),a
+        call Win_DmaM
         xor a
         ld (Win_Busy),a
         ret
 
-;-------- Конец кадра вида паттерна (IM1, экран - в окне 3): окно - поверх
+;-------- Конец кадра вида паттерна (IM1): окно - поверх, DMA из PAGE_WINIMG
 Win_Blit
         ld a,(Win_On)
         or a
         ret z
+        ld a,PAGE_WINIMG
+        ld (Wd_Src),a
+        ld a,(SV_DRAW_PAGE)
+        ld (Wd_Dst),a
+        xor a                       ; из прерывания: без DI
+        jr Win_Dma
+
+;-------- Прямоугольник окна: страница Wd_Src -> Wd_Dst, те же строки и колонки, символы и
+; атрибуты - две DMA. Win_DmaM - из основной программы: порты - при DI, ждём конца
+Wd_Src          db 0
+Wd_Dst          db 0
+Wd_Main         db 0                ; 1 - из основной программы
+Win_DmaM
         ld a,1
-        ld hl,Win_Img
-        jp Win_Rect
+        call Win_Dma
+        jp dma_wait                 ; данные нужны сразу (рисуем поверх / снимаем)
+Win_Dma
+        ld (Wd_Main),a
+        ld a,(Win_X)
+        call .one
+        ld a,(Win_X)
+        add a,128
+.one    ld l,a
+        call dma_wait               ; ждём при EI (долго - только тут)
+        ld a,(Wd_Main)
+        or a
+        jr z,.go
+        di
+        call dma_wait               ; IM1 мог успеть запустить свою
+.go     ld c,#AF
+        ld a,(Wd_Src)
+        ld b,high DMASADDRX
+        out (c),a
+        ld a,(Wd_Dst)
+        ld b,high DMADADDRX
+        out (c),a
+        ld a,l                      ; колонка
+        ld b,high DMASADDRL
+        out (c),a
+        ld b,high DMADADDRL
+        out (c),a
+        ld a,(Win_Y)                ; строка
+        ld b,high DMASADDRH
+        out (c),a
+        ld b,high DMADADDRH
+        out (c),a
+        ld a,(Win_W)                ; слов в строке - 1
+        srl a
+        dec a
+        ld b,high DMALEN
+        out (c),a
+        ld a,(Win_H)                ; строк - 1
+        dec a
+        ld b,high DMANUM
+        out (c),a
+        ld a,DMA_RAM|DMA_SALGN|DMA_DALGN
+        ld b,high DMACTR
+        out (c),a                   ; пуск
+        ld a,(Wd_Main)
+        or a
+        ret z
+        ei
+        ret
 
 ;-------- Ждать (About): клавиша или клик мимо окна - закрыть; клик в окне - ничего.
 ; Клики за время окна - его, полям под ним не достаются (Win_End)
@@ -132,47 +206,6 @@ Win_In
 .no     or a
         ret
 
-;-------- Прямоугольник окна (экран - в окне 3): A = 0 - экран -> буфер HL, 1 - буфер -> экран
-Win_Rect
-        ld (Wr_Dir),a
-        ld (Wr_Buf),hl
-        ld a,(Win_Y)
-        add a,WIN_SCR_H
-        ld (Wr_Row),a
-        ld a,(Win_H)
-        ld b,a
-.r      push bc
-        ld a,(Wr_Row)               ; символы строки, потом атрибуты
-        ld d,a
-        ld a,(Win_X)
-        ld e,a
-        call .pl
-        ld a,(Win_X)
-        add a,128
-        ld e,a
-        call .pl
-        ld hl,Wr_Row
-        inc (hl)
-        pop bc
-        djnz .r
-        ret
-.pl     ld hl,(Wr_Buf)              ; DE - экран, HL - буфер
-        ld a,(Win_W)
-        ld c,a
-        ld b,0
-        ld a,(Wr_Dir)
-        or a
-        jr nz,.to
-        ex de,hl                    ; экран -> буфер
-        ldir
-        ex de,hl
-        jr .n
-.to     ldir                        ; буфер -> экран
-.n      ld (Wr_Buf),hl
-        ret
-Wr_Dir          db 0
-Wr_Buf          dw 0
-Wr_Row          db 0
 Wd_N            db 0                ; строк окна ещё можно
 Wd_Fn           dw Wd_Text          ; как рисовать строки: Wd_Text / Wd_Menu
 
@@ -482,7 +515,7 @@ Wm_At
 .no     ld a,#FF
         ret
 
-; Окно заново, пункт Wm_Sel - цветом выделения, снимок - в Win_Img
+; Окно заново, пункт Wm_Sel - цветом выделения, снимок - в PAGE_WINIMG
 Wm_Redraw
         ld a,1
         ld (Win_Busy),a
@@ -506,10 +539,8 @@ Wm_Redraw
 .c      ld (hl),a
         inc l
         djnz .c
-.s      xor a
-        ld hl,Win_Img
-        call Win_Rect
-        RESTPAGE3
+.s      RESTPAGE3
+        call Win_Snap
         xor a
         ld (Win_Busy),a
         ret

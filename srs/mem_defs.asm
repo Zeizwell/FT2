@@ -75,6 +75,8 @@ PAGE_POOL_END EQU #BB                           ; дальше - служебн�
 PAGE_VIEW_TPL EQU #BB                           ; 3 страницы шаблонов: тусклый, активный, редактирование
 PAGE_ROWNUM   EQU #BE                           ; номера роу
 PAGE_EDBUF    EQU #20                           ; отмена и буфер обмена редактора (из #20-#27)
+PAGE_WINIMG   EQU #21                           ; окно (его вид) - в раскладке экрана
+PAGE_WINSAVE  EQU #22                           ; что под окном
 
 PAGES_PER_SONG EQU PATTERNS_MAX+2   ; полный трек: паттерн = страница + страница инструментов/орнаментов + FX
 PAGE_INS1     EQU PAGE_POOL+PATTERNS_MAX ; инструменты и орнаменты трека 1 (пока место фиксировано)
