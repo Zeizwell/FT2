@@ -10,8 +10,9 @@
 ; загрузить), колесо - листать. Backspace в каталоге - в папку выше.
 ;
 ; ПАМЯТЬ:
-;   PAGE_DIRLIST - каталог: записи по DR_SIZE (флаг, размер, дата, имя), хвост
-;                  страницы - буфер записи драйвера (NXTETY) и кластер каталога;
+;   PAGE_DIRLIST - каталог: таблица адресов записей (DR_MAX слов), за ней записи
+;                  переменной длины (флаг, размер, дата, имя, 0); хвост страницы -
+;                  буфер записи драйвера (NXTETY) и кластер каталога;
 ;   PAGE_FILEBUF.. - файл трека целиком (32 страницы = 512К).
 ;
 ; ФАЙЛ FT2 (как в памяти, без разбора):
@@ -57,14 +58,15 @@ CMP_X           equ FP_L+20         ; [ Compare ]: после загрузки P
 CMP_W           equ 11
 MSG_Y           equ DV_TOP+10       ; сообщение
 
-; --- запись каталога в PAGE_DIRLIST
+; --- запись каталога в PAGE_DIRLIST (переменной длины, адрес - из таблицы, Dl_Ofs)
 DR_FLAG         equ 0               ; 0 - папка, #10 - файл (как отдаёт драйвер)
 DR_LEN          equ 1               ; 4 размер
 DR_DATE         equ 5               ; 2 дата FAT
 DR_NAME         equ 8               ; имя, 0 на конце
-DR_NAME_MAX     equ 119             ; длинные имена (LFN): 55 не хватало (56 знаков с .pt3)
-DR_SIZE         equ 128
-DR_MAX          equ 124             ; записей: #C000..#FDFF
+DR_NAME_MAX     equ 119             ; длиннее - обрезаем (LFN до 255)
+DR_MAX          equ 640             ; записей не больше (номера - 16 бит)
+DR_DATA         equ DR_MAX*2        ; записи - за таблицей адресов (смещения от начала страницы)
+DR_END          equ DL_TMP-#C000    ;   и до буфера драйвера
 DL_TMP          equ #FE00           ; окно 3: запись от драйвера (до 13+255 байт):
 NX_LEN          equ 4               ;   +0 кластер (4), +4 размер (4), +8 дата, +10 время,
 NX_DATE         equ 8
@@ -75,7 +77,7 @@ DR_IS_DIR       equ #00             ; DR_FLAG (и проход каталога)
 DR_IS_FILE      equ #10
 FD_DIR          equ #10             ; флаг поиска (FIND, DELETE): папка / файл -
 FD_FILE         equ #00             ;   у драйвера он обратный флагу записи
-    ASSERT DR_MAX*DR_SIZE <= DL_TMP-#C000
+    ASSERT DR_DATA < DR_END
 
 ; --- файл трека
 FT2_PAT_ROW     equ PAT_DATA_SIZE   ; байт роу паттерна в файле (только данные)
@@ -162,9 +164,11 @@ Dv_Mounted      db 0                ; 1 - карта подключена
 Dv_Cmp          db 0                ; 1 - Compare: после загрузки сравнить наш плеер с эталоном
 Dv_Exit         db 0                ; 1 - выйти в коре
 Dv_Dirty        db 0                ; 1 - перерисовать экран
-Dv_Count        db 0                ; записей в каталоге
-Dv_Top          db 0                ; первая видимая запись
-Dv_Sel          db 0                ; выбранная запись
+Dv_Count        dw 0                ; записей в каталоге (номера - 16 бит)
+Dv_Top          dw 0                ; первая видимая запись
+Dv_Sel          dw 0                ; выбранная запись
+Dv_Full         db 0                ; 1 - каталог не влез (показаны не все)
+Dl_Free         dw 0                ; куда писать следующую запись (смещение в странице)
 Dv_Msg          dw 0                ; сообщение (0 - нет)
 Dv_Msg_Clr      db 0                ; его цвет: роль CLR_*
 Dv_Msg_Code     db 0                ; код ошибки драйвера (печатается за сообщением)
@@ -241,14 +245,15 @@ Dv_Path_Tail
 Dv_Draw_List
         ld a,PAGE_DIRLIST           ; записи - в окно 2
         SETPAGE2 a
-        ld a,(Dv_Top)
-        ld (Dl_Idx),a
+        ld hl,(Dv_Top)
+        ld (Dl_Idx),hl
         ld d,DV_SCR_H+LS_ROW0
 .row    push de
         call Dv_List_Row
         pop de
-        ld hl,Dl_Idx
-        inc (hl)
+        ld hl,(Dl_Idx)
+        inc hl
+        ld (Dl_Idx),hl
         inc d
         ld a,d
         cp DV_SCR_H+LS_ROW0+LS_ROWS
@@ -256,20 +261,20 @@ Dv_Draw_List
         RESTPAGE2
         ret
 
-Dl_Idx          db 0
+Dl_Idx          dw 0
 Dl_Tail         db 0                ; длинное имя: где последние 4 знака
 
 ; Строка D: запись Dl_Idx (за концом - пустая). Каталог - в окне 2
 Dv_List_Row
         ld e,LS_X+1
-        ld a,(Dl_Idx)
-        ld hl,Dv_Count
-        cp (hl)
+        ld hl,(Dl_Idx)              ; за концом - пустая
+        ld bc,(Dv_Count)
+        or a
+        sbc hl,bc
         jp nc,.empty
-        call Dl_Ofs                 ; запись
-        ld a,h
-        or #80
-        ld h,a
+        ld hl,(Dl_Idx)
+        ld a,#80                    ; запись (каталог - в окне 2)
+        call Dl_Ofs
         ld (Dl_Rec),hl
         ld a,(hl)                   ; цвет строки: папка - ярче
         cp DR_IS_DIR
@@ -277,9 +282,12 @@ Dv_List_Row
         jr nz,$+5
         ld a,(THEME_ATTR+CLR_NOTE)
         ld c,a
-        ld a,(Dl_Idx)               ; выбранная - курсором (список в фокусе - ярким)
-        ld hl,Dv_Sel
-        cp (hl)
+        push de                     ; выбранная - курсором (список в фокусе - ярким)
+        ld hl,(Dl_Idx)
+        ld de,(Dv_Sel)
+        or a
+        sbc hl,de
+        pop de
         jr nz,.fill
         ld hl,(SV_FOCUS)
         push de
@@ -620,12 +628,9 @@ Dv_ListEv
         ret
 .press  ld a,(SV_MOUSE_ROW)         ; строка -> запись
         sub LS_ROW0
-        ld hl,Dv_Top
-        add a,(hl)
-        ld hl,Dv_Count
-        cp (hl)
-        ret nc
-        jp Dv_Select
+        ld hl,(Dv_Top)
+        call Hl_Add_A
+        jp Dv_Sel_Chk
 .wheel  ld a,c                      ; вниз (C < 0) - следующая
         or a
         jp m,Dv_Next
@@ -652,56 +657,75 @@ List_Keys
         dw Dv_Parent
         db 0
 
-Dv_Prev ld a,(Dv_Sel)
-        or a
+Dv_Prev ld hl,(Dv_Sel)
+        ld a,h
+        or l
         ret z
-        dec a
-        jp Dv_Select
-Dv_Next ld a,(Dv_Sel)
-        inc a
-        ld hl,Dv_Count
-        cp (hl)
-        ret nc
-        jp Dv_Select
-Dv_PgUp ld a,(Dv_Sel)
-        sub LS_ROWS
-        jr nc,$+3
-        xor a
-        jp Dv_Select
-Dv_PgDn ld a,(Dv_Sel)
-        add a,LS_ROWS
-        jr c,Dv_End
-        ld hl,Dv_Count
-        cp (hl)
-        jp c,Dv_Select
-Dv_End  ld a,(Dv_Count)
+        dec hl
+        jr Dv_Select
+Dv_Next ld hl,(Dv_Sel)
+        inc hl
+        jr Dv_Sel_Chk
+Dv_PgUp ld hl,(Dv_Sel)
+        ld de,LS_ROWS
         or a
+        sbc hl,de
+        jr nc,Dv_Select
+Dv_Home ld hl,0
+        jr Dv_Select
+Dv_PgDn ld hl,(Dv_Sel)
+        ld de,LS_ROWS
+        add hl,de
+        call Dv_In_List
+        jr c,Dv_Select
+Dv_End  ld hl,(Dv_Count)
+        ld a,h
+        or l
         ret z
-        dec a
-        jp Dv_Select
-Dv_Home xor a
-        jp Dv_Select
+        dec hl
+        jr Dv_Select
 
-;-------- Выбрать запись A: курсор виден, имя - в поле Name, сведения о файле
+; HL - номер: в списке - выбрать, нет - ничего
+Dv_Sel_Chk
+        call Dv_In_List
+        ret nc
+        jr Dv_Select
+; HL < Dv_Count? CF - да. HL цел, портит DE
+Dv_In_List
+        ld de,(Dv_Count)
+        or a
+        sbc hl,de
+        add hl,de
+        ret
+
+;-------- Выбрать запись HL: курсор виден, имя - в поле Name, сведения о файле
 Dv_Select
-        ld (Dv_Sel),a
-        ld hl,Dv_Top                ; выше видимых - список вверх
-        cp (hl)
+        ld (Dv_Sel),hl
+        ld de,(Dv_Top)              ; выше видимых - список вверх
+        or a
+        sbc hl,de
+        add hl,de
         jr nc,.below
-        ld (hl),a
+        ld (Dv_Top),hl
         jr .info
-.below  sub LS_ROWS-1               ; ниже - вниз
+.below  ld de,LS_ROWS-1             ; ниже - вниз: верх = номер - (LS_ROWS-1)
+        or a
+        sbc hl,de
         jr c,.info
-        cp (hl)
+        ld de,(Dv_Top)
+        or a
+        sbc hl,de
+        add hl,de
         jr c,.info
-        ld (hl),a
+        ld (Dv_Top),hl
 .info   ld a,1
         ld (Dv_Dirty),a
         call Dv_Clear_Info
-        ld a,(Dv_Count)
-        or a
+        ld hl,(Dv_Count)
+        ld a,h
+        or l
         ret z
-        ld a,(Dv_Sel)               ; запись - в Dv_Spec (флаг, имя)
+        ld hl,(Dv_Sel)              ; запись - в Dv_Spec (флаг, имя)
         call Dv_Spec_Rec
         ld a,(Dv_Spec)              ; папка - сведений нет
         cp FD_DIR
@@ -822,10 +846,14 @@ Dv_Keys
 Dl_Want         db 0                ; какой флаг берём в этом проходе
 
 Dv_List
+        ld hl,0
+        ld (Dv_Count),hl
+        ld (Dv_Top),hl
+        ld (Dv_Sel),hl
+        ld hl,DR_DATA               ; записи - за таблицей адресов
+        ld (Dl_Free),hl
         xor a
-        ld (Dv_Count),a
-        ld (Dv_Top),a
-        ld (Dv_Sel),a
+        ld (Dv_Full),a
         ld a,PAGE_DIRLIST           ; записи - в окне 3 (там же ждёт буфер драйвер)
         SETPAGE3 a
         ld ix,DK_GET_CLUS           ; кластер каталога - чтобы читать его дважды
@@ -839,8 +867,13 @@ Dv_List
         ld a,1                      ; курсор - на первой, поле Name не трогаем
         ld (Dv_Dirty),a
         call Dv_Clear_Info
-        ld a,(Dv_Count)             ; отладка: пусто - что вернул драйвер (A, флаги)
+        ld a,(Dv_Full)              ; не влез - сказать
         or a
+        ld hl,Txt_Full
+        call nz,Dv_Error
+        ld hl,(Dv_Count)            ; отладка: пусто - что вернул драйвер (A, флаги)
+        ld a,h
+        or l
         ret nz
         ld ix,DK_FIND+256           ; и поиск FT2 по имени: A, флаги
         ld hl,Spec_TmpFT
@@ -882,9 +915,11 @@ Dl_Pass
         ld ix,DK_SET_CLUS           ; с начала каталога
         ld hl,DL_CLUS
         call Disk_Call
-.next   ld a,(Dv_Count)
-        cp DR_MAX
-        ret nc
+.next   ld hl,(Dv_Count)            ; таблица полна - дальше не читаем
+        ld de,DR_MAX
+        or a
+        sbc hl,de
+        jp nc,.full
         ld ix,DK_NEXT               ; следующая запись
         ld de,DL_TMP
         call Disk_Call
@@ -906,12 +941,32 @@ Dl_Pass
         ld a,(hl)
         or a
         jr z,.next
-.keep   ld a,(Dv_Count)             ; запись: флаг, размер, дата, имя
-        call Dl_Ofs
+.keep   ld hl,DL_TMP+NX_NAME        ; место: запись = заголовок + имя (до DR_NAME_MAX) + 0
+        call Str_Len
+        cp DR_NAME_MAX+1
+        jr c,$+4
+        ld a,DR_NAME_MAX
+        add a,DR_NAME+1
+        ld e,a
+        ld d,0
+        ld hl,(Dl_Free)
+        add hl,de
+        ld de,DR_END+1              ; за DR_END - не влезла
+        or a
+        sbc hl,de
+        jr nc,.full
+        ld hl,(Dv_Count)            ; адрес записи - в таблицу
+        add hl,hl
         ld a,h
         or #C0
         ld h,a
-        ex de,hl
+        ld de,(Dl_Free)
+        ld (hl),e
+        inc hl
+        ld (hl),d
+        ld a,d                      ; DE - запись (окно 3): флаг, размер, дата, имя
+        or #C0
+        ld d,a
         ld a,(DL_TMP+NX_FLAG)
         ld (de),a                   ; DR_FLAG
         inc de
@@ -932,31 +987,45 @@ Dl_Pass
         djnz .nm
 .end    xor a
         ld (de),a
-        ld hl,Dv_Count
-        inc (hl)
-        jr .next
+        inc de
+        ld a,d                      ; следующая - сразу за ней
+        and #3F
+        ld d,a
+        ld (Dl_Free),de
+        ld hl,(Dv_Count)
+        inc hl
+        ld (Dv_Count),hl
+        jp .next
+.full   ld a,1                      ; не влез - показываем, что есть
+        ld (Dv_Full),a
+        ret
 
-; A - номер записи -> HL - её смещение в странице каталога (A*128)
+; HL - номер записи, A - старший байт окна со страницей каталога (#80 / #C0) ->
+; HL - адрес записи (из таблицы). Портит C
 Dl_Ofs
-        ld l,0
-        srl a
-        rr l
+        ld c,a
+        add hl,hl                   ; таблица: слово на запись
+        or h
+        ld h,a
+        ld a,(hl)
+        inc hl
+        ld h,(hl)
+        ld l,a
+        ld a,c
+        or h
         ld h,a
         ret
-    ASSERT DR_SIZE == 128
 
-;-------- Запись A -> Dv_Spec: флаг поиска (FD_*), имя, 0 - так её ищет драйвер
+;-------- Запись HL -> Dv_Spec: флаг поиска (FD_*), имя, 0 - так её ищет драйвер
 Dv_Spec         ds 1+DR_NAME_MAX+1
 
 Dv_Spec_Rec
-        ld (Dl_Idx),a
+        ld (Dl_Idx),hl
         ld a,PAGE_DIRLIST
         SETPAGE2 a
-        ld a,(Dl_Idx)
+        ld hl,(Dl_Idx)
+        ld a,#80                    ; каталог - в окне 2
         call Dl_Ofs
-        ld a,h
-        or #80
-        ld h,a
         ld a,(hl)                   ; флаг записи -> флаг поиска
         xor DR_IS_FILE^FD_FILE
         ld (Dv_Spec),a
@@ -975,10 +1044,11 @@ Dv_Spec_Rec
 
 ;-------- Открыть выбранное: папка - войти, файл - загрузить
 Dv_Open
-        ld a,(Dv_Count)
-        or a
+        ld hl,(Dv_Count)
+        ld a,h
+        or l
         ret z
-        ld a,(Dv_Sel)
+        ld hl,(Dv_Sel)
         call Dv_Spec_Rec
         ld a,(Dv_Spec)
         cp FD_DIR
@@ -2018,6 +2088,7 @@ Txt_NoName      db "Type a name",0
 Txt_Saved       db "Saved",0
 Txt_DiskErr     db "Disk error #",0
 Txt_Empty       db "Empty dir",0
+Txt_Full        db "Too many files: not all shown",0
 Txt_DbgList     db "list ",0
 Txt_DbgFind     db "  find ",0
 
