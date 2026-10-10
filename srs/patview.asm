@@ -225,6 +225,8 @@ Main_Loop
 Pv_Leave
         xor a
         ld (Pv_Exit),a
+        call Band_Main              ; полоса времени: фон - обычный (иначе в тулзах он
+                                    ;   остаётся цветом последнего шага)
         di
         ld hl,0
         ld (SV_FRAME_HOOK),hl
