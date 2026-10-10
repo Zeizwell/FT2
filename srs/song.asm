@@ -37,6 +37,10 @@ Song_Clear
         ret
 Txt_Sign        db "FT2S"
 
+;-------- Огибающая трека: 0 FT, 1 PT (SH_ENVMODE). Одна на всех: шапка переключает (и пишет
+; в трек), плеер берёт каждый тик. Из трека - Head_Load и старт сонга в плеере
+Song_EnvMode    db 0
+
 ;-------- Свободная память - постоянная (FREE_PAGES, srs/mem_defs.asm): "Free: NN pages"
 Txt_Free        db "Free: ",FREE_PAGES/10+"0",FREE_PAGES%10+"0"," pages",0
     ASSERT FREE_PAGES < 100

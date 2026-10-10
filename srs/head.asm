@@ -77,7 +77,6 @@ Song_Tuning     db 0
 Song_Device     db 0                ; тип чипа: AY
 Song_Chips      db 2                ; чипов: 1 (3 канала) или 2 (6 каналов)
 Song_Stereo     db 0
-Song_EnvMode    db 0                ; огибающая: 0 FT, 1 PT (SH_ENVMODE)
 Cur_Octave      db 4
 Auto_Env        db 0
 Auto_Step       db 1                ; шаг при вводе: 1 - курсор идёт на Cur_Step роу
@@ -654,7 +653,7 @@ H_Stereo
         ld b,STEREOS
         call Hd_Cycle
         jp Hd_Save
-H_EnvMode                           ; огибающая трека: FT <-> PT (плеер возьмёт при старте)
+H_EnvMode                           ; огибающая трека: FT <-> PT (плеер берёт сразу, Song_EnvMode)
         ld hl,Song_EnvMode
         ld b,ENVMODES
         call Hd_Cycle

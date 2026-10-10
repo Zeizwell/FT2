@@ -51,7 +51,6 @@ Pl_OrdLast      db 0
 Pl_OrdLoop      db 0
 Pl_Chips        db CHIPS_MAX        ; чипов у трека (SH_CHIPS): 1 - только первый
 Pl_Looped       db 0                ; 1 - сонг дошёл до конца ордера и ушёл на цикл
-Pl_EnvPT        db 0                ; огибающая трека (SH_ENVMODE): 0 FT, 1 PT
 
 ;-------- Старт: таблица громкости, тишина
 Pl_Init
@@ -246,8 +245,8 @@ Pl_Song_Info
         jr z,$+5
         ld hl,Note_177
         ld (Pl_NoteTab),hl
-        ld a,(#8000+SH_ENVMODE)     ; огибающая: FT / PT
-        ld (Pl_EnvPT),a
+        ld a,(#8000+SH_ENVMODE)     ; огибающая FT / PT - в общую переменную (коре)
+        ld (Song_EnvMode),a
         ld a,(#8000+ORD_LAST)
         ld (Pl_OrdLast),a
         ld a,(#8000+SH_CHIPS)
@@ -559,7 +558,7 @@ Pl_Channels
         add hl,de
         ld a,(Pc_Mix)
         ld (hl),a
-        ld a,(Pl_EnvPT)             ; PT: период огибающей - после всех каналов чипа,
+        ld a,(Song_EnvMode)         ; PT: период огибающей - после всех каналов чипа,
         or a                        ;   база минус сумма смещений (пишется всегда)
         ld a,(Pc_ESum)
         call nz,Pc_EPer
@@ -777,7 +776,7 @@ Pc_Channel
         ld l,a
         ld h,high Vol_T
         ld b,(hl)
-        ld a,(Pl_EnvPT)             ; PT: смещение огибающей копит каждый канал
+        ld a,(Song_EnvMode)         ; PT: смещение огибающей копит каждый канал
         or a
         call nz,Pc_EPtAdd
         ld a,(Pc_B3)                ; огибающая: в строке включена и канал с огибающей
@@ -789,7 +788,7 @@ Pc_Channel
         ld a,b
         or #10
         ld b,a
-        ld a,(Pl_EnvPT)             ; FT: период - этот канал (PT - после чипа)
+        ld a,(Song_EnvMode)         ; FT: период - этот канал (PT - после чипа)
         or a
         call z,Pc_Env
 .vout   ld a,(Pc_Idx)
