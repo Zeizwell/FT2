@@ -54,7 +54,7 @@ LOAD_X          equ FP_L
 SAVE_X          equ FP_L+10
 BTN_W           equ 8
 CMP_X           equ FP_L+20         ; [ Compare ]: после загрузки PT3 / PT2 - сравнить плееры
-CMP_W           equ 13
+CMP_W           equ 9
 MSG_Y           equ DV_TOP+10       ; сообщение
 
 ; --- запись каталога в PAGE_DIRLIST
@@ -492,6 +492,14 @@ Dv_Buttons
         or a
         jr z,.one
         ld hl,Txt_CmpOn
+        call .one                   ; включено - поверх цветом выделения
+        ld a,(THEME_ATTR+CLR_SELECT)
+        ld hl,CMP_X+128+256*(DV_SCR_H+BTN_Y)
+        ld b,CMP_W
+.sel    ld (hl),a
+        inc l
+        djnz .sel
+        ret
 .one    push hl
         push ix                     ; цвет: нажата / под мышью / обычная
         pop hl
@@ -1970,8 +1978,8 @@ Txt_By          db "By:",0
 Txt_Size        db "Size:",0
 Txt_Load        db "[ Load ]",0
 Txt_Save        db "[ Save ]",0
-Txt_CmpOff      db "[ Compare  ]",0
-Txt_CmpOn       db "[ Compare + ]",0
+Txt_CmpOff      db GLYPH_CHK_OFF," Compare",0    ; одной длины: старое не остаётся
+Txt_CmpOn       db GLYPH_CHK_ON," Compare",0
 Txt_Dir         db "  <DIR>",0
 Txt_FT2         db "FT2",0
 Txt_PT3         db "PT3",0
