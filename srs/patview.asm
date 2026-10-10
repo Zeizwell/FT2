@@ -201,6 +201,7 @@ Main_Loop
         call Mem_Show               ; свободная память - в нижней строке
         call Time_Tick              ; время игры
         call Fld_Update             ; мышь и колесо - полям (коре, srs/fields.asm)
+        call Drag_Tick              ; протяжка мышью в паттерне - выделение
         ld a,(Pv_Exit)              ; выбрали другую вкладку - выходим в коре
         or a
         jr nz,Pv_Leave
@@ -3420,7 +3421,8 @@ Pat_Click
         call Pat_Press
         jp Sel_Ext
 .n      call Sel_Off
-        jp Pat_Press
+        call Pat_Press
+        jp Dg_Start                 ; протяжка - выделение
 
 ;-------- 4. Выделение (IM1, экран - в окне 3): клетки куска - цветом выделения. Роу паттерна
 ; позиции курсора стоят от строки редактирования подряд: роу r - строка EDIT_LINE + r - курсор
@@ -3485,6 +3487,99 @@ Draw_Sel
         cp c
         inc b
         jr c,.r
+        ret
+
+;-------- Протяжка мышью: после клика в паттерн, пока левая зажата, угол B выделения - роу
+; и элемент под мышью (курсор стоит). Ушли с клетки клика - выделение есть
+Dg_On           db 0                ; 1 - левую держат после клика в паттерн
+Dg_Start
+        ld a,(Cur_Pos)              ; угол A - клетка клика (курсор уже там)
+        ld (Sel_Pos),a
+        ld a,(Cur_Row)
+        ld (Sel_RA),a
+        ld (Sel_RB),a
+        call Cur_Item
+        ld (Sel_IA),a
+        ld (Sel_IB),a
+        ld a,1
+        ld (Dg_On),a
+        ret
+Drag_Tick
+        ld a,(Dg_On)
+        or a
+        ret z
+        ld a,(SV_MOUSE_BUT)         ; бит 0: 0 - левая нажата
+        rrca
+        jr nc,.held
+        xor a                       ; отпустили
+        ld (Dg_On),a
+        ret
+.held   call Ln_Page                ; Ln_Len
+        ld a,(SV_MOUSE_ROW)         ; роу под мышью: курсор +- от строки редактирования
+        sub EDIT_LINE
+        jr c,.up
+        ld hl,Cur_Row
+        add a,(hl)
+        ld b,a
+        ld a,(Ln_Len)               ; не дальше последней
+        dec a
+        cp b
+        jr nc,.rok
+        ld b,a
+        jr .rok
+.up     neg                         ; выше: не раньше 0
+        ld b,a
+        ld a,(Cur_Row)
+        sub b
+        jr nc,$+3
+        xor a
+        ld b,a
+.rok    ld a,(SV_MOUSE_COL)         ; элемент под мышью (нет - не трогаем)
+        ld c,a
+        call Item_At
+        ret nc
+        ld (Sel_IB),a
+        ld a,b
+        ld (Sel_RB),a
+        ld a,(Sel_RA)               ; ушли с клетки клика - выделение есть
+        cp b
+        jr nz,.on
+        ld a,(Sel_IA)
+        ld hl,Sel_IB
+        cp (hl)
+        ret z
+.on     ld a,1
+        ld (Sel_On),a
+        ret
+
+; C - колонка экрана -> A - элемент в её колонках, CF - есть. B цел
+Item_At
+        push bc
+        ld a,(Vis_Items)
+        ld b,a
+        ld e,0
+.it     ld a,e
+        ld hl,Item_Col
+        call Arr_Get
+        ld d,a
+        ld a,c
+        sub d
+        jr c,.nx
+        ld d,a
+        ld a,e
+        ld hl,Item_W
+        call Arr_Get
+        cp d
+        jr z,.nx
+        jr c,.nx
+        ld a,e
+        pop bc
+        scf
+        ret
+.nx     inc e
+        djnz .it
+        pop bc
+        or a
         ret
 
 ;-------- Numpad 1..8: октава ввода (номер - из сработавшего действия)
