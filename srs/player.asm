@@ -51,6 +51,7 @@ Pl_OrdLast      db 0
 Pl_OrdLoop      db 0
 Pl_Chips        db CHIPS_MAX        ; чипов у трека (SH_CHIPS): 1 - только первый
 Pl_Looped       db 0                ; 1 - сонг дошёл до конца ордера и ушёл на цикл
+Pl_EnvPT        db 0                ; огибающая трека (SH_ENVMODE): 0 FT, 1 PT
 
 ;-------- Старт: таблица громкости, тишина
 Pl_Init
@@ -245,6 +246,8 @@ Pl_Song_Info
         jr z,$+5
         ld hl,Note_177
         ld (Pl_NoteTab),hl
+        ld a,(#8000+SH_ENVMODE)     ; огибающая: FT / PT
+        ld (Pl_EnvPT),a
         ld a,(#8000+ORD_LAST)
         ld (Pl_OrdLast),a
         ld a,(#8000+SH_CHIPS)
@@ -524,6 +527,7 @@ Pc_Regs         dw 0                ; регистры чипа
 Pc_Note         db 0
 Pc_ONoise       db 0
 Pc_Chip         db 0
+Pc_ESum         db 0                ; PT: сумма смещений огибающей каналов чипа
 
 Pl_Channels
         ld a,(Pl_InsPage)
@@ -541,6 +545,7 @@ Pl_Channels
         ld (Pc_Mix),a
         xor a
         ld (Pc_Idx),a
+        ld (Pc_ESum),a              ; PT: сумма смещений огибающей чипа
 .ch     call Pc_Channel
         ld de,CS_SIZE
         add ix,de
@@ -554,6 +559,10 @@ Pl_Channels
         add hl,de
         ld a,(Pc_Mix)
         ld (hl),a
+        ld a,(Pl_EnvPT)             ; PT: период огибающей - после всех каналов чипа,
+        or a                        ;   база минус сумма смещений (пишется всегда)
+        ld a,(Pc_ESum)
+        call nz,Pc_EPer
         ld a,(Pc_Chip)
         inc a
         ld (Pc_Chip),a
@@ -768,6 +777,9 @@ Pc_Channel
         ld l,a
         ld h,high Vol_T
         ld b,(hl)
+        ld a,(Pl_EnvPT)             ; PT: смещение огибающей копит каждый канал
+        or a
+        call nz,Pc_EPtAdd
         ld a,(Pc_B3)                ; огибающая: в строке включена и канал с огибающей
         bit 6,a
         jr z,.vout
@@ -777,7 +789,9 @@ Pc_Channel
         ld a,b
         or #10
         ld b,a
-        call Pc_Env
+        ld a,(Pl_EnvPT)             ; FT: период - этот канал (PT - после чипа)
+        or a
+        call z,Pc_Env
 .vout   ld a,(Pc_Idx)
         add a,8
         call Pc_Reg_Addr
@@ -789,18 +803,38 @@ Pc_B2           db 0
 Pc_B3           db 0
 Pc_B4           db 0
 
-; Период огибающей: база чипа - смещение строки (+ накопление) -> R11/R12
-Pc_Env
-        push bc
+; PT: смещение огибающей канала - в сумму чипа. Только строки с выключенным шумом:
+; у PT3 это одно поле (шум или огибающая), импорт кладёт его в огибающую. B не портит
+Pc_EPtAdd
+        ld a,(Pc_B0)
+        bit IRB_OFF,a
+        ret z
+        call Pc_EOffs
+        ld hl,Pc_ESum
+        add a,(hl)
+        ld (hl),a
+        ret
+
+; Смещение огибающей строки: IR_ENV + накопленное (бит 7 громкости - сохранить) -> A.
+; Портит E
+Pc_EOffs
         ld a,(Pc_B4)                ; смещение + накопленное
         add a,(ix+CS_EACC)
         ld e,a
         ld a,(Pc_B3)                ; бит 7 - сохранить сумму
         bit 7,a
         ld a,e
-        jr z,.nacc
+        ret z
         ld (ix+CS_EACC),a
-.nacc   ld e,a                      ; DE - смещение со знаком
+        ret
+
+; Период огибающей: база чипа - смещение строки (+ накопление) -> R11/R12
+Pc_Env
+        call Pc_EOffs
+; A - смещение со знаком -> R11/R12 = база чипа - A
+Pc_EPer
+        push bc
+        ld e,a                      ; DE - смещение со знаком
         rla
         sbc a,a
         ld d,a

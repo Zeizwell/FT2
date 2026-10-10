@@ -376,6 +376,8 @@ SH_PATTERNS     equ SONG_HDR+#0C    ; 1  число паттернов
 SH_SAMPLES      equ SONG_HDR+#0D    ; 1  число сэмплов (инструментов)
 SH_ORNAMENTS    equ SONG_HDR+#0E    ; 1  число орнаментов
 SH_FXS          equ SONG_HDR+#0F    ; 1  число FX
+SH_ENVMODE      equ SONG_HDR+#10    ; 1  огибающая: 0 FT - период ведёт канал с огибающей, 1 PT - смещения
+                                    ;    сэмплов всех каналов чипа складываются (как PT3)
 SH_NAME         equ SONG_HDR+#20    ; 32 имя трека
 SH_AUTHOR       equ SONG_HDR+#40    ; 32 автор
 SH_FILE         equ SONG_HDR+#60    ; 32 имя файла (последний Load / Save), 0 на конце

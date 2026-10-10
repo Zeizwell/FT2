@@ -180,6 +180,8 @@ Pt_Header
         ld (#8000+SH_SPEED),a
         ld a,(Ph_Tune)
         ld (#8000+SH_TUNING),a
+        ld a,1                      ; огибающая как в PT3: смещения всех каналов - в сумму
+        ld (#8000+SH_ENVMODE),a
         ld a,(Pt_Chips)
         ld (#8000+SH_CHIPS),a
         ld hl,#8000+ORDER_LIST      ; ордер и каталоги - нули
