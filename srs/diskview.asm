@@ -1031,7 +1031,7 @@ Path_Up
 
 ;-------- Сведения о файле Dv_Spec: тип по расширению; FT2, PT3 - Song / By из файла
 Dv_File_Info
-        call Dv_Ext                 ; A - тип: 1 FT2, 2 PT3, 3 PT2, 0 - другой
+        call Dv_Ext                 ; A - тип: 1 FT2, 2 PT3, 3 PT2, 4 FTC, 0 - другой
         or a
         jr nz,.known
         ld hl,Txt_Other
@@ -1048,7 +1048,7 @@ Dv_File_Info
         ld l,a
         ld (Dv_Type),hl
         ld a,(Fi_Type)
-        cp 3                        ; PT2 - имени не читаем
+        cp 3                        ; PT2, FTC - имени не читаем
         ret nc
         ld hl,Dv_Spec               ; первый сектор файла - в буфер файла
         call Dv_Find
@@ -1091,9 +1091,9 @@ Dv_File_Info
         ret
 
 Fi_Type         db 0
-Fi_Names        dw Txt_FT2,Txt_PT3,Txt_PT2
+Fi_Names        dw Txt_FT2,Txt_PT3,Txt_PT2,Txt_FTCn
 
-; Расширение имени Dv_Spec -> A: 1 FT2, 2 PT3, 3 PT2, 0 - другое
+; Расширение имени Dv_Spec -> A: 1 FT2, 2 PT3, 3 PT2, 4 FTC, 0 - другое
 Dv_Ext
         ld hl,Dv_Spec+1             ; последняя точка
         ld de,0
@@ -1123,6 +1123,10 @@ Dv_Ext
         call Ext_Cmp
         ld a,3
         ret z
+        ld de,Ext_FTC
+        call Ext_Cmp
+        ld a,4
+        ret z
         xor a
         ret
 
@@ -1147,6 +1151,7 @@ Ext_Cmp
 Ext_FT2         db "ft2"
 Ext_PT3         db "pt3"
 Ext_PT2         db "pt2"
+Ext_FTC         db "ftc"
 
 ; =========================================================================
 ; ЗАГРУЗКА И СОХРАНЕНИЕ FT2
@@ -1160,6 +1165,8 @@ Dv_Load
         cp 2
         jr z,.kind
         cp 3
+        jr z,.kind
+        cp 4
         jr z,.kind
         ld hl,Txt_CantLoad
         jp Dv_Error
@@ -1252,6 +1259,8 @@ Dv_Load
         jp z,Pt_Import
         cp 3
         jp z,Pt2_Import
+        cp 4
+        jp z,Ftc_Import
         ld a,PAGE_FILEBUF           ; подпись трека
         SETPAGE3 a
         ld hl,(#C000+SH_SIGN)
@@ -1716,6 +1725,7 @@ Fs_Step
 
     include "srs/pt3imp.asm"
     include "srs/pt2imp.asm"
+    include "srs/ftcimp.asm"
 
 ; =========================================================================
 ; СООБЩЕНИЯ
@@ -1906,12 +1916,13 @@ Txt_Dir         db "  <DIR>",0
 Txt_FT2         db "FT2",0
 Txt_PT3         db "PT3",0
 Txt_PT2         db "PT2",0
+Txt_FTCn        db "FTC",0
 Txt_Other       db "-",0
 Txt_NoCard      db "No SD card / no FAT32",0
 Txt_NotFound    db "Not found",0
 Txt_NotFT2      db "Not an FT2 file",0
 Txt_TooBig      db "File too big",0
-Txt_CantLoad    db "Load: FT2, PT3, PT2 only",0
+Txt_CantLoad    db "Load: FT2 PT3 PT2 FTC only",0
 Txt_NoName      db "Type a name",0
 Txt_Saved       db "Saved",0
 Txt_DiskErr     db "Disk error #",0
