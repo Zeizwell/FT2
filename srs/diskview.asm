@@ -1159,6 +1159,8 @@ Dv_Load
         jr z,.kind
         cp 2
         jr z,.kind
+        cp 3
+        jr z,.kind
         ld hl,Txt_CantLoad
         jp Dv_Error
 .kind   ld hl,Dv_Spec
@@ -1178,9 +1180,9 @@ Dv_Load
         jr z,.fits
 .big    ld hl,Txt_TooBig
         jp Dv_Error
-.fits   ld a,(Ld_Kind)              ; PT3 - хотя бы заголовок и ордер
+.fits   ld a,(Ld_Kind)              ; PT3, PT2 - хотя бы заголовок и ордер
         cp 2
-        jr nz,.ft2min
+        jr c,.ft2min
         ld a,e
         or h
         jr nz,.pages
@@ -1248,6 +1250,8 @@ Dv_Load
 .check  ld a,(Ld_Kind)              ; PT3 - импорт
         cp 2
         jp z,Pt_Import
+        cp 3
+        jp z,Pt2_Import
         ld a,PAGE_FILEBUF           ; подпись трека
         SETPAGE3 a
         ld hl,(#C000+SH_SIGN)
@@ -1711,6 +1715,7 @@ Fs_Step
         ret
 
     include "srs/pt3imp.asm"
+    include "srs/pt2imp.asm"
 
 ; =========================================================================
 ; СООБЩЕНИЯ
@@ -1906,7 +1911,7 @@ Txt_NoCard      db "No SD card / no FAT32",0
 Txt_NotFound    db "Not found",0
 Txt_NotFT2      db "Not an FT2 file",0
 Txt_TooBig      db "File too big",0
-Txt_CantLoad    db "Load: FT2 or PT3 only",0
+Txt_CantLoad    db "Load: FT2, PT3, PT2 only",0
 Txt_NoName      db "Type a name",0
 Txt_Saved       db "Saved",0
 Txt_DiskErr     db "Disk error #",0

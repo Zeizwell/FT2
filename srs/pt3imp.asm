@@ -62,6 +62,12 @@ Pt_Import
         call Pt_Ornaments
         call Pt_Order               ; ордер -> наши паттерны
         call Pt_Patterns
+        ld hl,Txt_Pt3Cut
+
+;-------- Общий конец импорта (PT3, PT2...): ордер и каталог - в трек, имя файла, сообщение.
+; HL - начало сообщения о потерях ("PT3 cut:")
+Pt_Done
+        ld (Pt_Cut_Txt),hl
         call Pt_Song_Order          ; ордер и каталог - в страницу трека
         ld hl,Dv_Spec+1             ; имя файла - в трек (шапка)
         call Dv_Song_File
@@ -70,7 +76,7 @@ Pt_Import
         ld a,(Pt_Lost)              ; без потерь - экран диска закрываем
         or a
         jp z,Dv_Loaded
-        ld hl,Txt_Pt3Cut            ; что обрезали - словами за сообщением
+        ld hl,(Pt_Cut_Txt)          ; что обрезали - словами за сообщением
         ld de,Pt_Msg
         call Str_Copy
         ld hl,Pt_Lost_Words
@@ -86,6 +92,7 @@ Pt_Import
         jp Dv_Ok
 
 Pt_Msg          ds 40
+Pt_Cut_Txt      dw 0
 Pt_Lost_Words   db " rows",0," pats",0," cmds",0," len",0   ; по битам PL_*
 
 ;-------- TurboSound: в конце файла "02TS" - два модуля, второй - с размер1;
@@ -308,6 +315,7 @@ Ps_Head
         call Pt_Get                 ; loop
         ld (Ph_Loop),a
         call Pt_Get                 ; длина (0 - как 1)
+Ps_Head_Len                         ; вход с длиной в A (loop - уже в Ph_Loop)
         or a
         jr nz,$+3
         inc a
@@ -467,6 +475,7 @@ Pt_Ornaments
 ;-------- Орнамент: HL - в модуле (loop, длина, полутоны), DE - наш блок (окно 2)
 Po_Orn
         call Ps_Head
+Po_Orn_Rows                         ; строки: HL - в модуле, заголовок блока уже есть
         ld a,(Ps_Page)
         SETPAGE2 a
 .row    call Pt_Get                 ; полутоны
