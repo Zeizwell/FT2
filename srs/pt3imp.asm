@@ -75,7 +75,7 @@ Pt_Done
         call Dv_Song_File
         ld a,1                      ; вид паттерна перечитает трек при входе
         ld (SV_SONG_NEW),a
-        ld a,(Dv_Cmp)               ; Compare - сравнить плееры (PT3 / PT2 / FTC до 16К)
+        ld a,(Dv_Cmp)               ; Compare - сравнить плееры (PT3 / PT2 / FTC до 32К)
         or a
         call nz,Dv_Compare
         ld a,(Pt_Lost)              ; без потерь - экран диска закрываем
@@ -1447,18 +1447,18 @@ Str_Skip
         ret
 
 ;-------- Compare: наш плеер против эталона (srs/cmpview.asm, страница PAGE_CMP в окне 3).
-; PT3, PT2 (эталон Бульбы) и FTC (плеер FT 1.15), модуль до 16К (лежит целиком в первой странице буфера файла)
+; PT3, PT2 (эталон Бульбы) и FTC (плеер FT 1.15), модуль до 32К (две первые страницы буфера файла)
 Dv_Compare
         ld a,(Ld_Kind)              ; 2 - PT3, 3 - PT2, 4 - FTC
         cp 2
         ret c
         cp 5
         ret nc
-        ld a,(Ld_Size+2)            ; не больше 16К
+        ld a,(Ld_Size+2)            ; не больше 32К (окна 1 и 2 у компаратора)
         or a
         ret nz
         ld hl,(Ld_Size)
-        ld de,#4001
+        ld de,cmpview.CM_MOD_MAX+1
         or a
         sbc hl,de
         ret nc
@@ -1499,7 +1499,7 @@ Dv_Compare
         ld (Dv_Dirty),a
         jp Dv_Head
 
-;-------- Журнал компаратора (буфер файла, страницы 1..3 = 48К) -> FT2CMP.BIN в текущую
+;-------- Журнал компаратора (буфер файла, страницы 2..3 = 32К) -> FT2CMP.BIN в текущую
 ; папку (старый - удаляется). Ошибка диска - молча (это только для разбора на PC)
 Cs_Page         db 0
 Cmp_Save
@@ -1523,7 +1523,7 @@ Cmp_Save
         ld hl,Cs_Page
         inc (hl)
         ld a,(hl)
-        cp cmpview.CM_LOG_PAGE+3
+        cp cmpview.CM_LOG_PAGE+2
         jr c,.p
         ld ix,DK_CLOSE
         jp Disk_Call

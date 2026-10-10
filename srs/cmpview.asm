@@ -1,8 +1,9 @@
 ; =========================================================================
 ; КОМПАРАТОР ПЛЕЕРА: наш плеер против эталона (плеер PT2/PT3/TS С.В. Бульбы,
-; srs/ptsplay.asm), для FTC - плеер Fast Tracker 1.15 (srs/ftplay.asm). Страница PAGE_CMP, работает в ОКНЕ 3 (#C000): окно 1 занимает
-; наш плеер, окно 2 - модуль (буфер файла) или экран на время вывода.
-; Зовёт тулза диска после импорта PT3 / PT2 с галочкой Compare (модуль до 16К).
+; srs/ptsplay.asm), для FTC - плеер Fast Tracker 1.15 (srs/ftplay.asm). Страница PAGE_CMP,
+; работает в ОКНЕ 3 (#C000): окно 1 - наш плеер, на время кадра эталона окна 1 и 2 -
+; модуль (буфер файла, до 32К); окно 2 ещё - экран на время вывода.
+; Зовёт тулза диска после импорта PT3 / PT2 / FTC с галочкой Compare (модуль до 32К).
 ; =========================================================================
 ; Как сравниваем:
 ;   - эталон играет оригинал модуля, наш - то, что из него импортировали;
@@ -20,7 +21,8 @@
     MODULE cmpview
 
 CM_SCR_H        equ #80             ; экран - в окне 2 (на время вывода)
-CM_MOD          equ #8000           ; модуль - в окне 2
+CM_MOD          equ #4000           ; модуль - в окнах 1 и 2 на время эталона (до 32К)
+CM_MOD_MAX      equ #8000
 CM_FRAMES_MAX   equ #FFFF
 CM_ALIGN_MAX    equ 16              ; ищем первый звук в стольких кадрах
 CM_Y_TITLE      equ 2               ; строки экрана: под кнопками транспорта (строки 0..1)
@@ -36,7 +38,7 @@ CM_NOFX         equ 1               ; 1 - у эталона команды па�
 CK_FTC          equ 2
 Cmp_Kind        db 0                ; 0 - PT3, 1 - PT2 (эталон Бульбы), CK_FTC - FTC (плеер FT)
 Cmp_TS          db 0                ; режим TS эталона: 0, 16 - два модуля, 32 - PT 3.7 / автопоиск
-Cmp_Mod2        dw 0                ; второй модуль (два модуля TS), адрес в окне 2
+Cmp_Mod2        dw 0                ; второй модуль (два модуля TS), адрес от CM_MOD
 Cmp_Chips       db 1                ; сколько чипов сравнивать
 Cmp_Name        ds 33               ; имя файла модуля (для экрана)
 
@@ -125,9 +127,19 @@ Cm_Init
         ld a,PC_SONG
         ld (SV_PLAY_CMD),a
         call Pl_Song_Info           ; таблица нот трека (Pl_NoteTab) - уже сейчас
+        ld hl,(Pl_NoteTab)          ; наши таблицы - к себе: окно 1 (плеер) займёт модуль
+        ld de,Cm_NoteT
+        ld bc,96*2
+        ldir
+        ld hl,Vol_T+16
+        ld de,Cm_VolT
+        ld bc,256-16
+        ldir
         xor a                       ; эталон ещё не дошёл до конца
         ld (Cm_RLoop),a
-        ld a,PAGE_FILEBUF
+        ld a,PAGE_FILEBUF           ; модуль - в окна 1 и 2
+        SETPAGE1 a
+        ld a,PAGE_FILEBUF+1
         SETPAGE2 a
         ld a,(Cmp_Kind)
         cp CK_FTC
@@ -143,11 +155,11 @@ Cm_Init
         ld hl,CM_MOD
         ld de,(Cmp_Mod2)
         call pts.START+3
-        ld hl,(Pl_NoteTab)          ; наши таблицы - поверх его
+        ld hl,Cm_NoteT              ; наши таблицы - поверх его
         ld de,pts.NT_
         ld bc,96*2
         ldir
-        ld hl,Vol_T+16
+        ld hl,Cm_VolT
         ld de,pts.VT_+16
         jr .vol
 .ft     xor a                       ; FTC: плеер FT 1.15
@@ -155,25 +167,30 @@ Cm_Init
         ld a,CM_NOFX
         ld (ftp.NoFx),a
         call ftp.InitModule
-        ld hl,(Pl_NoteTab)          ; наши таблицы - поверх его
+        ld hl,Cm_NoteT              ; наши таблицы - поверх его
         ld de,ftp.ToneTable_Place
         ld bc,96*2
         ldir
-        ld hl,Vol_T+16
+        ld hl,Cm_VolT
         ld de,ftp.VolumeTable+16
 .vol    ld bc,256-16
         ldir
         RESTPAGE2
+        RESTPAGE1
         ret
+Cm_NoteT        ds 96*2             ; таблица нот трека (копия: при эталоне плеера в окне 1 нет)
+Cm_VolT         ds 256-16           ; таблица громкости без строки 0
 
-;-------- Тик нашего плеера (без прерываний) / кадр эталона (модуль - в окне 2).
+;-------- Тик нашего плеера (без прерываний) / кадр эталона (модуль - в окнах 1 и 2).
 ; Регистры эталона после кадра - в Cm_RRegs (R13 #FF - не писали), конец трека - Cm_RLoop
 Cm_RRegs        ds PR_SIZE*2        ; регистры эталона: чип 1, чип 2
 Cm_RLoop        db 0                ; не 0 - эталон прошёл точку цикла
 Cm_Tick_Our
         jp PLAYER_TICK
 Cm_Tick_Ref
-        ld a,PAGE_FILEBUF
+        ld a,PAGE_FILEBUF           ; модуль - в окна 1 и 2 (наш плеер вернётся в окно 1)
+        SETPAGE1 a
+        ld a,PAGE_FILEBUF+1
         SETPAGE2 a
         ld a,(Cmp_Kind)
         cp CK_FTC
@@ -201,6 +218,7 @@ Cm_Tick_Ref
         ld a,(ftp.Looped)
 .end    ld (Cm_RLoop),a
         RESTPAGE2
+        RESTPAGE1
         ret
 
 ;-------- Конец трека: эталон прошёл точку цикла (Cm_RLoop), наш - метка
@@ -559,9 +577,9 @@ Cm_Diff ld e,a
 ;   (R13: #FF - в этом кадре не пишется, иначе значение). Тулза диска сохраняет его
 ;   файлом FT2CMP.BIN в текущую папку
 ; =========================================================================
-CM_LOG_PAGE     equ PAGE_FILEBUF+1
+CM_LOG_PAGE     equ PAGE_FILEBUF+2         ; страницы 0, 1 - модуль
 CM_LOG_REC      equ 64
-CM_LOG_N        equ 3*16384/CM_LOG_REC-1    ; 767 кадров
+CM_LOG_N        equ 2*16384/CM_LOG_REC-1    ; 511 кадров
 
 ;-------- Запись кадра Cm_Frame (пока влезает)
 Cm_Log  ld hl,(Cm_Frame)
