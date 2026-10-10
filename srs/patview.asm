@@ -3431,9 +3431,8 @@ Pat_Menu
         ld hl,Pat_Keys
         jp Act_Run
 Pm_Items
-        db 34, 19                   ; ширина, строк
+        db 34, 18                   ; ширина, строк
         db ACT_UNDO,"Undo",0
-        db ACT_REDO,"Redo",0
         db WM_SEP
         db ACT_COPY,"Copy",0
         db ACT_CUT,"Cut",0
