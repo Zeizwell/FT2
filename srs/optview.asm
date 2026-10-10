@@ -141,16 +141,10 @@ Ov_Boxes
 Ov_Draw
         xor a
         ld (Ov_Dirty),a
-        call Mem_Free               ; "Free: NNN/143 pages"
-        push af
-        ld a,(THEME_ATTR+CLR_TEXT)
+        ld a,(THEME_ATTR+CLR_TEXT)  ; "Free: NN pages"
         ld c,a
         ld de,SAVE_X+256*(OV_SCR_H+MEM_Y)
         ld hl,Txt_Free
-        call PutStr
-        pop af
-        call Put_Dec3
-        ld hl,Txt_Free2
         call PutStr
         ld hl,Pal_Names             ; темы: имена по 8
         ld a,(Cur_Palette)

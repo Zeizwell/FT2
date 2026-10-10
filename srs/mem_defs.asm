@@ -79,6 +79,9 @@ PAGES_PER_SONG EQU PATTERNS_MAX+2   ; полный трек: паттерн = с
 PAGE_INS1     EQU PAGE_POOL+PATTERNS_MAX ; инструменты и орнаменты трека 1 (пока место фиксировано)
     ASSERT PAGES_COMPBUF*16384 >= COMPILED_MAX      ; откомпилированный влезает
     ASSERT PAGE_POOL_END-PAGE_POOL >= SONGS_MAX*PAGES_PER_SONG ; два полных трека влезают (143 >= 132)
+; Свободно (никому не отдано): остаток пула за двумя треками + #05, #07, #1E, #1F.
+; Распределение жёсткое: у каждого трека свои PAGES_PER_SONG страниц, без динамики
+FREE_PAGES      EQU PAGE_POOL_END-PAGE_POOL-SONGS_MAX*PAGES_PER_SONG+4
 
 FONT_SIZE       equ #800    ; шрифт 256 символов x 8 байт
 FONTS_COUNT     equ 4      ; сколько шрифтов в банке (слоты 0..)

@@ -1721,19 +1721,13 @@ Hotkeys db K_F5,    0               ; общие клавиши вида; F5..F8
         dw K_Timing                 ; Ctrl+T - полоса времени
         db 0
 
-;-------- Нижняя строка справа: "Free: NNN/143 pages" - свободные страницы пула (Mem_Free)
-MEM_X           equ 90-18
+;-------- Нижняя строка справа: "Free: NN pages" - свободные страницы (постоянное число)
+MEM_X           equ 90-15
 Mem_Show
-        call Mem_Free
-        push af
         ld a,(THEME_ATTR+CLR_HEADER)
         ld c,a
         ld de,MEM_X+256*(SCR_BASE_H+BOTTOM_LINE)
         ld hl,Txt_Free
-        call PutStr
-        pop af
-        call Put_Dec3
-        ld hl,Txt_Free2
         jp PutStr
 
 ;-------- Все события клавиатуры за кадр: сначала полю в фокусе (навигация
