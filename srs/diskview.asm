@@ -553,6 +553,7 @@ Dv_Fields
         DV_FIELD patview.HD_TAB_ORN,  patview.HD_TABS_Y,3,1, FF_HAND, Dv_TabPat, 2 ; Orn
         DV_FIELD patview.HD_TAB_SETUP,patview.HD_TABS_Y,5,1, FF_HAND, Dv_TabPat, 3 ; Setup
         DV_FIELD patview.HD_HELP_X,   patview.HD_TABS_Y,4,1, FF_HAND, Dv_TabPat, 4 ; Help
+        DV_FIELD patview.HD_ABOUT_X,  patview.HD_TABS_Y,5,1, FF_HAND, Win_AboutEv, 0 ; About
         DV_FIELD 0,0,90,DV_TOP, 0, Dv_TabPat, 0                         ; остальная шапка: клик - назад
 F_List  DV_FIELD LS_X+1,LS_ROW0,LS_W-2,LS_ROWS, FF_FOCUS, Dv_ListEv, 0  ; каталог
 F_Name  DV_FIELD FP_V,NAME_Y,NAME_W,1, FF_FOCUS|FF_HAND, Dv_NameEv, 0   ; имя файла

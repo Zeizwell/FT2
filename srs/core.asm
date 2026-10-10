@@ -271,6 +271,7 @@ dma_wait	ld bc,DMASTATUS
     include "srs/input.asm"
     include "srs/fields.asm"
     include "srs/text.asm"
+    include "srs/window.asm"       ; окна поверх экрана (About, меню)
     include "srs/song.asm"
     include "srs/transport.asm"
     include "srs/toolscr.asm"

@@ -678,6 +678,7 @@ Ov_Fields
         OV_FIELD patview.HD_TAB_ORN,  patview.HD_TABS_Y,3,1, FF_HAND, Ov_TabEv, 2  ; Orn
         OV_FIELD patview.HD_TAB_DISK, patview.HD_TABS_Y,4,1, FF_HAND, Ov_TabEv, 3  ; Disk
         OV_FIELD patview.HD_HELP_X,   patview.HD_TABS_Y,4,1, FF_HAND, Ov_TabEv, 5  ; Help
+        OV_FIELD patview.HD_ABOUT_X,  patview.HD_TABS_Y,5,1, FF_HAND, Win_AboutEv, 0 ; About
         OV_FIELD 0,0,90,OV_TOP, 0, Ov_TabEv, 0                          ; остальное - назад
         OV_FIELD PL_X+2,LIST_Y,8,PALETTES, FF_HAND, Ov_PalEv, 0          ; темы
         OV_FIELD FN_X+2,LIST_Y,14,FONTS_COUNT, FF_HAND, Ov_FontEv, 0     ; шрифты
@@ -685,6 +686,7 @@ Ov_Fields
 Hp_Fields
         OV_FIELD HP_TAB1,HP_TAB_Y,6,1, FF_HAND, Hp_TabEv, 0             ; закладки
         OV_FIELD HP_TAB2,HP_TAB_Y,10,1, FF_HAND, Hp_TabEv, 1
+        OV_FIELD patview.HD_ABOUT_X,  patview.HD_TABS_Y,5,1, FF_HAND, Win_AboutEv, 0 ; About
         OV_FIELD patview.HD_PLAY_X,   patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 0
         OV_FIELD patview.HD_PLAY_X+4, patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 1
         OV_FIELD patview.HD_PLAY_X+8, patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 2

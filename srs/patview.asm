@@ -259,6 +259,9 @@ Compose
         ld a,(Layout_Busy)
         or a
         ret nz
+        ld a,(Win_Busy)             ; окно рисуют - кадр пропустить
+        or a
+        ret nz
         ld a,(SV_DRAW_PAGE)         ; экран - в окно 3 (для прохода процессором)
         SETPAGE3 a
         ld a,(Tpl_Repl)             ; раскладка сменилась - размножить шаблоны
@@ -273,6 +276,7 @@ Compose
         call Draw_Seps              ; 3. разделители, цвет номеров роу
         call Draw_Sel               ; 4. выделение
         call Draw_Cursor            ; 5. курсор - поверх
+        call Win_Blit               ; 6. окно (About, меню) - поверх всего
         RESTPAGE3
         ld a,(Timing)               ; вернуть цвет основного цикла
         or a

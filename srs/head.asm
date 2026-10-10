@@ -542,7 +542,7 @@ Head_Fields
         FIELD HD_TRK_X,    HD_ROW_SONG, 1,1, FF_HAND, Hd_Field, 0, 21          ; трек 1
         FIELD HD_TRK_X+2,  HD_ROW_SONG, 1,1, FF_HAND, Hd_Field, 0, 22          ; трек 2
         FIELD HD_HELP_X,   HD_TABS_Y, 4,1, FF_HAND, Hd_Field, 0, 28          ; Help - клавиши
-        FIELD HD_ABOUT_X,  HD_TABS_Y, 5,1, FF_HAND, Hd_Field, 0, 23          ; About - пока ничего
+        FIELD HD_ABOUT_X,  HD_TABS_Y, 5,1, FF_HAND, Hd_Field, 0, 23          ; About - окно (коре)
         FIELD HD_TAB_DISK, HD_TABS_Y, 4,1, FF_HAND, Hd_Field, 0, 24          ; вкладка Disk
         FIELD HD_TAB_INSTR,HD_TABS_Y, 5,1, FF_HAND, Hd_Field, 0, 25          ; вкладка Instr
         FIELD HD_TAB_ORN,  HD_TABS_Y, 3,1, FF_HAND, Hd_Field, 0, 26          ; вкладка Orn
@@ -560,7 +560,7 @@ Hd_Act  dw H_SpdDn, H_SpdUp, H_OctDn, H_OctUp, H_StepDn, H_StepUp
         dw H_LenDn, H_LenUp, H_RatUp
         dw H_Tune, H_Chip, H_Stereo, K_EnvNote, H_AutoEnv, H_AutoStep
         dw K_PlayPat, K_PlayStart, K_PlaySong, K_PlayPatRow, K_Stop
-        dw H_Chips, H_Trk1, H_Trk2, Hd_Nop, H_TabDisk, H_TabInstr, H_TabOrn, H_TabSetup
+        dw H_Chips, H_Trk1, H_Trk2, Win_About, H_TabDisk, H_TabInstr, H_TabOrn, H_TabSetup
         dw H_TabHelp, H_EnvMode
 
 ;-------- Поле шапки: клик - действие (вид нажатой кнопки рисует Hd_Buttons)
@@ -677,7 +677,6 @@ H_Trk   ld hl,SV_SONG_NUM
         ld (SV_SONG_NEW),a
         ld a,PAGE_TOOL_PATVIEW
         jr H_TabGo
-Hd_Nop  ret                         ; About - пока ничего
 H_TabInstr                          ; вкладки Instr / Orn: тулза инструментов, режим -
         xor a                       ;   в SV_TOOL_ARG
         jr H_TabIns
