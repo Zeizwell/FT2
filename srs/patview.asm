@@ -2597,6 +2597,160 @@ Ln_Check
         ld (SV_PLAY_CMD),a
         ret
 
+;-------- Строки (как VT): Insert - вставить строку трека, Backspace - удалить строку трека;
+; Ctrl+I и Ctrl+Backspace, Ctrl+Y - то же для всей роу паттерна. Строки ниже курсора
+; сдвигаются в пределах длины паттерна (за длиной - пропадает / приходит пустая)
+Ln_Ofs          db 0                ; кусок роу: начало
+Ln_Size         db 0                ;   длина
+Ln_Len          db 0                ; длина паттерна
+Ln_Pat          db 0                ; номер паттерна позиции
+K_InsTrk
+        call Trk_Part
+        jr Ln_Ins
+K_InsPat
+        call Pat_Part
+        jr Ln_Ins
+K_DelTrk
+        call Trk_Part
+        jp Ln_Del
+K_DelPat
+        call Pat_Part
+        jp Ln_Del
+
+; Кусок - элемент курсора: канал (CH_SIZE) или заголовок чипа (Env)
+Trk_Part
+        ld a,(Cur_Chan)
+        ld b,0
+        cp 3
+        jr c,.c
+        sub 3
+        ld b,CHIP_SIZE
+.c      ld c,a
+        ld a,(Env_Open)
+        or a
+        ld a,b
+        ld e,CHIP_HDR_SIZE
+        jr nz,.s
+        ld a,c                      ; канал: *CH_SIZE
+        add a,a
+        add a,a
+        add a,a
+        add a,a
+        add a,b
+        add a,CHIP_CH_A
+        ld e,CH_SIZE
+.s      ld (Ln_Ofs),a
+        ld a,e
+        ld (Ln_Size),a
+        ret
+; Кусок - вся роу (данные обоих чипов)
+Pat_Part
+        xor a
+        ld (Ln_Ofs),a
+        ld a,PAT_DATA_SIZE
+        ld (Ln_Size),a
+        ret
+
+; Номер и длина паттерна позиции -> Ln_Pat, Ln_Len; A - его страница
+Ln_Page
+        ld a,(Cur_Pos)
+        ld hl,Ord_List
+        call Arr_Get
+        ld (Ln_Pat),a
+        ld hl,Pat_Len
+        call Arr_Get
+        ld (Ln_Len),a
+        ld a,(Ln_Pat)
+        jp Pat_Page
+
+;-------- Вставить: роу r = роу r-1 для r = длина-1 .. курсор+1, роу курсора - пусто
+Ln_Ins
+        call Ln_Page
+        SETPAGE2 a
+        ld a,(Ln_Len)
+        dec a
+        ld b,a                      ; B - роу r
+.m      ld a,(Cur_Row)
+        cp b
+        jr nc,.clr                  ; r <= курсора - всё
+        ld a,b
+        add a,PAT_BASE_H
+        ld d,a
+        dec a
+        ld h,a
+        call Ln_Copy
+        dec b
+        jr .m
+.clr    ld a,(Cur_Row)
+        call Ln_Zero
+        call Ln_Text
+        RESTPAGE2
+        ret
+
+;-------- Удалить: роу r = роу r+1 для r = курсор .. длина-2, последняя - пусто
+Ln_Del
+        call Ln_Page
+        SETPAGE2 a
+        ld a,(Cur_Row)
+        ld b,a                      ; B - роу r
+.m      ld a,(Ln_Len)
+        dec a
+        cp b
+        jr z,.clr                   ; r = последней - всё
+        jr c,.clr
+        ld a,b
+        add a,PAT_BASE_H
+        ld d,a
+        inc a
+        ld h,a
+        call Ln_Copy
+        inc b
+        jr .m
+.clr    ld a,(Ln_Len)
+        dec a
+        call Ln_Zero
+        call Ln_Text
+        RESTPAGE2
+        ret
+
+; Кусок роу H -> роу D (страница - в окне 2). B цел
+Ln_Copy
+        push bc
+        ld a,(Ln_Ofs)
+        ld l,a
+        ld e,a
+        ld a,(Ln_Size)
+        ld c,a
+        ld b,0
+        ldir
+        pop bc
+        ret
+; Кусок роу A - нули
+Ln_Zero
+        add a,PAT_BASE_H
+        ld h,a
+        ld a,(Ln_Ofs)
+        ld l,a
+        ld a,(Ln_Size)
+        ld b,a
+.z      ld (hl),0
+        inc l
+        djnz .z
+        ret
+; Текст роу от курсора до конца паттерна - заново
+Ln_Text
+        ld a,(Cur_Row)
+        add a,PAT_BASE_H
+        ld h,a
+.t      call Row_To_Text            ; H цел
+        inc h
+        ld a,(Ln_Len)
+        add a,PAT_BASE_H
+        cp h
+        jr z,.e
+        jr nc,.t
+.e      ret
+
 ;-------- Numpad 1..8: октава ввода (номер - из сработавшего действия)
 K_Oct   ld a,(Kt_Act)
         sub ACT_OCT_1-1
@@ -2743,6 +2897,14 @@ Pat_Keys
         dw K_Clear
         db ACT_AUTOSTEP
         dw H_AutoStep               ; Space - автошаг (как кнопка Step в шапке)
+        db ACT_INS_TRK
+        dw K_InsTrk
+        db ACT_INS_PAT
+        dw K_InsPat
+        db ACT_DEL_TRK
+        dw K_DelTrk
+        db ACT_DEL_PAT
+        dw K_DelPat
         db ACT_ENTER
         dw K_PlayHold               ; Enter - паттерн с курсора, пока держат
         db ACT_OCT_1

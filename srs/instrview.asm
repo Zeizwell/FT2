@@ -1378,6 +1378,14 @@ Ed_Keys db ACT_UP
         dw Ed_EndK
         db ACT_ENTER
         dw Ed_Enter
+        db ACT_INS_TRK              ; вставить / удалить строку (как VT: Insert, Ctrl+I /
+        dw Row_Ins                  ;   Backspace, Ctrl+Y)
+        db ACT_INS_PAT
+        dw Row_Ins
+        db ACT_DEL_TRK
+        dw Row_Del
+        db ACT_DEL_PAT
+        dw Row_Del
         db 0
 
 ;-------- Enter: нота строки пробы (Prv_Note), пока держат (отпустили - Prv_Check).

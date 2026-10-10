@@ -223,6 +223,10 @@ ACT_CLEAR       equ 21              ; Delete - поле / выделение - �
 ACT_AUTOSTEP    equ 22              ; Space - автошаг вкл / выкл
 ACT_OCT_1       equ 23              ; Numpad 1..8 - октава ввода (23..30)
 ACT_STEP_0      equ 31              ; Ctrl+0..9 - шаг (31..40)
+ACT_INS_TRK     equ 41              ; Insert - вставить строку трека (Instr / Orn - строку)
+ACT_INS_PAT     equ 42              ; Ctrl+I - вставить строку паттерна (Instr / Orn - строку)
+ACT_DEL_TRK     equ 43              ; Backspace - удалить строку трека (Instr / Orn - строку)
+ACT_DEL_PAT     equ 44              ; Ctrl+Backspace, Ctrl+Y - удалить строку паттерна
 MB_LEFT         equ 0               ; номер кнопки мыши (смещение в SV_MS_COUNT / 4)
 MB_RIGHT        equ 1
 MB_MIDDLE       equ 2

@@ -147,6 +147,11 @@ Bind_Tab
         db KEY_T,     KM_CTRL,  0, ACT_TIMING
         db KEY_DEL,   0,        0, ACT_CLEAR
         db KEY_SPACE, 0,        0, ACT_AUTOSTEP
+        db KEY_INS,   0,        0, ACT_INS_TRK
+        db KEY_I,     KM_CTRL,  0, ACT_INS_PAT
+        db KEY_BACK,  0,        0, ACT_DEL_TRK
+        db KEY_BACK,  KM_CTRL,  0, ACT_DEL_PAT
+        db KEY_Y,     KM_CTRL,  0, ACT_DEL_PAT
         db #69,       0,        0, ACT_OCT_1    ; Numpad 1..8 - октава
         db #72,       0,        0, ACT_OCT_1+1
         db #7A,       0,        0, ACT_OCT_1+2
