@@ -152,8 +152,9 @@ P2_Sample
         ld e,a
         call P2_Row
         pop hl
-        ld hl,Ps_Rows
-        dec (hl)
+        ld a,(Ps_Rows)              ; строк осталось (HL - позиция в модуле, не трогаем)
+        dec a
+        ld (Ps_Rows),a
         jr nz,.row
         RESTPAGE2
         ret

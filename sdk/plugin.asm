@@ -516,7 +516,7 @@ CMD_SPEED       equ #B          ; скорость: параметр - тико�
     ASSERT CH_CMD+CH_CMDS*CMD_SIZE <= CH_SIZE
 
 NOTE_EMPTY      equ 0
-NOTE_FIRST      equ 1           ; C-0, 12 нот x 8 октав
+NOTE_FIRST      equ 1           ; C-1 (как PT3/VT), 12 нот x 8 октав: C-1..B-8
 NOTE_COUNT      equ 12*8
 NOTE_LAST       equ NOTE_FIRST+NOTE_COUNT-1
 NOTE_CMD        equ NOTE_LAST+1
