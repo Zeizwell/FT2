@@ -3417,42 +3417,41 @@ Op_Paste
         ldir
         ret
 
-;-------- Правая кнопка: меню (как VT) - пункт = действие редактора
+;-------- Правая кнопка: меню (как Bitphase) - пункт = действие, выполняется по той же
+; таблице, что и клавиши (Pat_Keys); клавиши справа - из биндов
 Pat_Menu
         ld hl,Pm_Items
         call Win_Menu               ; A - пункт, #FF - ничего
         cp #FF
         ret z
-        add a,a
-        ld hl,Pm_Act
-        add a,l
-        ld l,a
-        jr nc,$+3
-        inc h
-        ld a,(hl)
-        inc hl
-        ld h,(hl)
-        ld l,a
-        jp (hl)
+        ld hl,Pm_Items
+        call Wm_Item_Act            ; A - действие (0 - разделитель)
+        or a
+        ret z
+        ld hl,Pat_Keys
+        jp Act_Run
 Pm_Items
-        db 21, 13                   ; ширина, пунктов
-        db CLR_TOP_TEXT,"Copy",0
-        db CLR_TOP_TEXT,"Cut",0
-        db CLR_TOP_TEXT,"Paste",0
-        db CLR_TOP_TEXT,"Delete",0
-        db CLR_TOP_TEXT,"Insert track line",0
-        db CLR_TOP_TEXT,"Delete track line",0
-        db CLR_TOP_TEXT,"Insert row",0
-        db CLR_TOP_TEXT,"Delete row",0
-        db CLR_TOP_TEXT,"Transpose +1",0
-        db CLR_TOP_TEXT,"Transpose -1",0
-        db CLR_TOP_TEXT,"Octave up",0
-        db CLR_TOP_TEXT,"Octave down",0
-        db CLR_TOP_TEXT,"Select all",0
+        db 34, 19                   ; ширина, строк
+        db ACT_UNDO,"Undo",0
+        db ACT_REDO,"Redo",0
+        db WM_SEP
+        db ACT_COPY,"Copy",0
+        db ACT_CUT,"Cut",0
+        db ACT_PASTE,"Paste",0
+        db ACT_CLEAR,"Delete",0
+        db WM_SEP
+        db ACT_INS_TRK,"Insert track line",0
+        db ACT_DEL_TRK,"Delete track line",0
+        db ACT_INS_PAT,"Insert row",0
+        db ACT_DEL_PAT,"Delete row",0
+        db WM_SEP
+        db ACT_TR_UP,"Transpose +1",0
+        db ACT_TR_DN,"Transpose -1",0
+        db ACT_TR_OCT_UP,"Octave up",0
+        db ACT_TR_OCT_DN,"Octave down",0
+        db WM_SEP
+        db ACT_SEL_ALL,"Select all",0
         db WIN_END
-Pm_Act  dw K_Copy, K_Cut, K_Paste, K_Del, K_InsTrk, K_DelTrk, K_InsPat, K_DelPat
-        dw K_TrUp, K_TrDn, K_TrOU, K_TrOD, K_SelAll
-    ASSERT ($-Pm_Act)/2 == 13
 
 ;-------- Клик в паттерн: с Shift - выделить от курсора до клика, без - снять выделение
 Pat_Click

@@ -84,6 +84,26 @@ Kt_Key          db 0                ; нажатое: код
 Kt_Mods         db 0                ;   модификаторы (KM_*)
 Kt_Act          db 0                ; сработавшее действие (ACT_*)
 
+;-------- Действие A по таблице тулзы HL (действие, обработчик): нашли - выполнить (меню)
+Act_Run
+        ld c,a
+        ld (Kt_Act),a
+.f      ld a,(hl)
+        or a
+        ret z
+        cp c
+        jr z,.hit
+        inc hl
+        inc hl
+        inc hl
+        jr .f
+.hit    inc hl
+        ld e,(hl)
+        inc hl
+        ld d,(hl)
+        ex de,hl
+        jp (hl)
+
 ; A - действие: Z - нажатое (Kt_Key, Kt_Mods) - его бинд. HL, BC целы
 Act_Has
         push hl

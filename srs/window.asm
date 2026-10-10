@@ -7,7 +7,7 @@
 ; Экран - SV_DRAW_PAGE в окне 3: строка = #C0 + y, символы 0..127, атрибуты +128.
 ; =========================================================================
 WIN_W_MAX       equ 48
-WIN_H_MAX       equ 16
+WIN_H_MAX       equ 24
 WIN_SCR_H       equ #C0
 WIN_END         equ #FF             ; конец строк окна
 WB_TL           equ #DA             ; рамка: ┌ ┐ └ ┘ ─ │
@@ -30,6 +30,8 @@ Win_Img         ds WIN_W_MAX*WIN_H_MAX*2    ; само окно
 Win_Open
         ld a,1                      ; пока рисуем - вид паттерна кадр не собирает
         ld (Win_Busy),a
+        ld de,Wd_Text               ; строки - текст (HL - описание, не трогаем)
+        ld (Wd_Fn),de
         ld de,Win_X                 ; x, y, w, h
         ld bc,4
         ldir
@@ -172,6 +174,7 @@ Wr_Dir          db 0
 Wr_Buf          dw 0
 Wr_Row          db 0
 Wd_N            db 0                ; строк окна ещё можно
+Wd_Fn           dw Wd_Text          ; как рисовать строки: Wd_Text / Wd_Menu
 
 ;-------- Рамка, фон и строки окна (экран - в окне 3)
 Win_Draw
@@ -182,7 +185,7 @@ Win_Draw
         ld d,a
         ld a,WB_TL                  ; верх
         ld b,WB_TR
-        call .line
+        call Wd_Line
         ld a,(Win_H)                ; бока, внутри - пробелы фоном окна
         sub 2
         ld b,a
@@ -211,8 +214,13 @@ Win_Draw
         inc d                       ; низ
         ld a,WB_BL
         ld b,WB_BR
-        call .line
-        ld a,(Win_H)                ; строки: с x+2, своим цветом; не больше, чем влезает
+        call Wd_Line
+        ld hl,(Wd_Fn)               ; строки: текст (About) или пункты меню
+        jp (hl)
+
+; Строки текста: роль цвета, текст, 0. С x+2, не больше, чем влезает
+Wd_Text
+        ld a,(Win_H)
         sub 2
         ld (Wd_N),a
         ld a,(Win_Y)
@@ -242,7 +250,7 @@ Win_Draw
         inc d
         jr .t
 ; строка рамки D: A - левый угол, B - правый, между - ─
-.line   push bc
+Wd_Line push bc
         push af
         ld a,(Win_X)
         ld e,a
@@ -259,7 +267,7 @@ Win_Draw
         jp PutCh
     ASSERT (THEME_ATTR & 255) == 0 || (THEME_ATTR & 255) + 128 <= 256
 
-;-------- Меню у мыши: HL - ширина, пунктов, строки пунктов (роль, текст, 0). Пункт под
+;-------- Меню у мыши: HL - ширина, пунктов, пункты (действие ACT_*, текст, 0; WM_SEP). Пункт под
 ; мышью - подсвечен, Up / Down - тоже; клик или Enter - выбрать, Esc, правая, клик мимо -
 ; закрыть. Выход: A - пункт 0.., #FF - ничего
 Wm_N            db 0                ; пунктов
@@ -297,6 +305,8 @@ Win_Menu
         ld (Win_Y),a
         ld a,#FF
         ld (Wm_Sel),a
+        ld hl,Wd_Menu               ; строки - пункты меню
+        ld (Wd_Fn),hl
         call Win_Show
         ld a,MB_LEFT                ; старые события кнопок - мимо
         ld hl,Ww_Seen
@@ -357,6 +367,94 @@ Win_Menu
         ld (Wm_Sel),a
 .pick   call Win_End                ; клики за время меню - не полям
         ld a,(Wm_Sel)
+        ret
+
+;-------- Пункты меню: действие ACT_*, текст, 0 (WM_SEP - разделитель). Справа - первая
+; клавиша действия из биндов (как в Help): переназначили - меню показывает новую
+WM_SEP          equ #FE
+WM_KEYW         equ 12              ; колонка клавиш (Ctrl+Shift+Z) - от правого края
+Wd_Menu
+        ld a,(Win_H)
+        sub 2
+        ld (Wd_N),a
+        ld a,(Win_Y)
+        add a,WIN_SCR_H+1
+        ld d,a
+        ld hl,(Wo_Text)
+.t      ld a,(Wd_N)
+        or a
+        ret z
+        dec a
+        ld (Wd_N),a
+        ld a,(hl)
+        cp WIN_END
+        ret z
+        inc hl
+        cp WM_SEP
+        jr nz,.it
+        push hl                     ; разделитель: ├───┤
+        ld a,(THEME_ATTR+CLR_HEAD_LINE)
+        ld c,a
+        ld a,(Win_X)
+        ld e,a
+        ld a,#C3
+        call PutCh
+        ld a,(Win_W)
+        sub 2
+        ld b,a
+.h      ld a,WB_H
+        call PutCh
+        djnz .h
+        ld a,#B4
+        call PutCh
+        pop hl
+        inc d
+        jr .t
+.it     ld (Wm_Act),a
+        ld a,(THEME_ATTR+CLR_TOP_TEXT)  ; текст
+        ld c,a
+        ld a,(Win_X)
+        add a,2
+        ld e,a
+        call PutStr
+        inc hl
+        push hl
+        ld a,(THEME_ATTR+CLR_TOP_VALUE) ; клавиша
+        ld c,a
+        ld a,(Win_X)
+        ld b,a
+        ld a,(Win_W)
+        add a,b
+        sub WM_KEYW+1
+        ld e,a
+        ld a,(Wm_Act)
+        call Key_Of
+        pop hl
+        inc d
+        jr .t
+Wm_Act          db 0
+
+;-------- Пункт A меню HL (ширина, пунктов, пункты) -> A - его действие (0 - разделитель)
+Wm_Item_Act
+        inc hl
+        inc hl
+        ld b,a
+        inc b
+.f      dec b
+        jr z,.got
+        ld a,(hl)                   ; мимо пункта
+        inc hl
+        cp WM_SEP
+        jr z,.f
+.s      ld a,(hl)
+        inc hl
+        or a
+        jr nz,.s
+        jr .f
+.got    ld a,(hl)
+        cp WM_SEP
+        ret nz
+        xor a
         ret
 
 ; A - пункт под мышью (#FF - не над пунктом)
@@ -451,3 +549,137 @@ Win_About_D
 Wa_Date db "DD.MM.YYYY",0
         db WIN_END
 Wa_Raw  db __DATE__                ; дата сборки от ассемблера: "YYYY-MM-DD"
+
+;-------- Имена клавиш по биндам (Help, меню): из Bind_Tab, вывод - PutCh / PutStr с DE, цвет C
+; A - действие: все его клавиши через ", " (с DE). Портит всё, кроме C, D
+Keys_Of
+        ld (Ko_Act),a
+        xor a
+        ld (Ko_N),a
+        ld hl,Bind_Tab
+.f      ld a,(hl)                   ; код, 0 - конец
+        or a
+        ret z
+        ld (Ko_Ptr),hl
+        inc hl
+        inc hl
+        inc hl
+        ld a,(Ko_Act)
+        cp (hl)
+        ld hl,(Ko_Ptr)
+        jr nz,.n
+        ld a,(Ko_N)                 ; не первая - через запятую
+        or a
+        jr z,.p
+        ld a,','
+        call PutCh
+        ld a,' '
+        call PutCh
+.p      ld hl,Ko_N
+        inc (hl)
+        ld hl,(Ko_Ptr)
+        call .one
+        ld hl,(Ko_Ptr)
+.n      inc hl
+        inc hl
+        inc hl
+        inc hl
+        jr .f
+.one    push hl                     ; HL - запись бинда: модификаторы, клавиша
+        inc hl
+        ld a,(hl)
+        call Mods_Put
+        pop hl
+        push hl
+        ld a,(hl)
+        call Key_Put
+        pop hl
+        ret
+Ko_Act          db 0
+Ko_N            db 0
+Ko_Ptr          dw 0
+
+; A - действие: его первая клавиша (с модификаторами). Нет бинда - "-"
+Key_Of
+        ld b,a
+        ld hl,Bind_Tab
+.f      ld a,(hl)
+        or a
+        jr z,.none
+        push hl
+        inc hl
+        inc hl
+        inc hl
+        ld a,(hl)
+        pop hl
+        cp b
+        jp z,Keys_Of.one
+        inc hl
+        inc hl
+        inc hl
+        inc hl
+        jr .f
+.none   ld a,'-'
+        jp PutCh
+
+; A - модификаторы KM_* -> "Ctrl+", "Shift+", "Alt+"
+Mods_Put
+        ld b,a
+        bit 1,b                     ; KM_CTRL
+        ld hl,Txt_Ctrl
+        call nz,PutStr
+        bit 0,b                     ; KM_SHIFT
+        ld hl,Txt_Shift
+        call nz,PutStr
+        bit 2,b                     ; KM_ALT
+        ld hl,Txt_Alt
+        call nz,PutStr
+        ret
+    ASSERT KM_SHIFT == 1 && KM_CTRL == 2 && KM_ALT == 4
+Txt_Ctrl        db "Ctrl+",0
+Txt_Shift       db "Shift+",0
+Txt_Alt         db "Alt+",0
+
+; A - код клавиши -> её имя: особые - по таблице, буквы и цифры - из Key_Chars (заглавные)
+Key_Put
+        ld b,a
+        ld hl,Key_Names
+.f      ld a,(hl)                   ; код, имя, 0; конец - 0
+        or a
+        jr z,.ch
+        inc hl
+        cp b
+        jp z,PutStr
+.s      ld a,(hl)                   ; мимо имени
+        inc hl
+        or a
+        jr nz,.s
+        jr .f
+.ch     ld a,b                      ; E0-коды без имени - "?"
+        or a
+        jp m,.q
+        ld h,high Key_Chars
+        ld l,a
+        ld a,(hl)
+        or a
+        jr z,.q
+        cp 'a'
+        jr c,.put
+        cp 'z'+1
+        jr nc,.put
+        sub 'a'-'A'
+.put    jp PutCh
+.q      ld a,'?'
+        jp PutCh
+
+Key_Names
+        db KEY_UP,"Up",0,       KEY_DOWN,"Down",0,   KEY_LEFT,"Left",0
+        db KEY_RIGHT,"Right",0, KEY_PGUP,"PgUp",0,   KEY_PGDN,"PgDn",0
+        db KEY_HOME,"Home",0,   KEY_END,"End",0,     KEY_TAB,"Tab",0
+        db KEY_ENTER,"Enter",0, KEY_BACK,"Bksp",0,   KEY_ESC,"Esc",0
+        db KEY_SPACE,"Space",0, KEY_DEL,"Del",0,     KEY_INS,"Ins",0
+        db KEY_F5,"F5",0,       KEY_F6,"F6",0,       KEY_F7,"F7",0
+        db KEY_F8,"F8",0,       KEY_KP_PLUS,"Num+",0, KEY_KP_MINUS,"Num-",0
+        db #69,"Num1",0, #72,"Num2",0, #7A,"Num3",0, #6B,"Num4",0
+        db #73,"Num5",0, #74,"Num6",0, #6C,"Num7",0, #75,"Num8",0
+        db 0
