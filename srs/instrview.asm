@@ -133,6 +133,7 @@ Iv_Loop
         call nz,Iv_Draw
         call Iv_Buttons             ; кнопки - каждый кадр (под мышью - подсветка)
         call Er_Icons_All           ; иконки строк - так же
+        call Prv_Btn                ; ▶ - горит, пока звучит проба
         jr Iv_Loop
 
 ;-------- Выход в коре (страница следующей тулзы - уже в SV_TOOL)
@@ -2296,6 +2297,20 @@ Prv_Play
         ld (SV_PLAY_CMD),a
         jp Iv_Changed
 
+;-------- Кнопка ▶ (каждый кадр): звучит проба (мышь, пианино, Enter) - цветом курсора
+Prv_Btn
+        ld a,(SV_PLAY_STATE)
+        cp PS_PREVIEW
+        ld a,(THEME_ATTR+CLR_BUTTON)
+        jr nz,$+5
+        ld a,(THEME_ATTR+CLR_CURSOR)
+        ld c,a
+        ld de,PV_PLAY+256*(IV_SCR_H+PV_Y)
+        ld a,GLYPH_BTN_PLAY
+        call PutCh
+        ld a,GLYPH_BTN_PLAY+1
+        jp PutCh
+
 ;-------- Тишина
 Prv_Stop
         ld a,PC_STOP
@@ -2315,7 +2330,7 @@ Prv_PlayEv
         cp EV_PRESS
         jr nz,.rel
         ld a,(Prv_Note)
-        jr Prv_Play
+        jp Prv_Play
 .rel    cp EV_RELEASE
         ret nz
         jr Prv_Stop
