@@ -974,7 +974,7 @@ Pl_Out
 Po_Buf          ds PR_SIZE
 Po_Src          dw 0
 Po_Map          dw 0
-Po_Maps         db 0,1,2, 0,2,1, 1,0,2, 1,2,0, 2,0,1, 2,1,0  ; ABC ACB BAC BCA CAB CBA (Hd_Stereos)
+Po_Maps         db 0,1,2, 0,2,1, 1,0,2, 1,2,0, 2,0,1  ; ABC ACB BAC BCA CAB - как в VT (Hd_Stereos)
 Po_Stereo
         ld (Po_Src),hl
         ld de,Po_Buf                ; шум, огибающая, R13 - как есть

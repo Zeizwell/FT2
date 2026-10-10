@@ -82,7 +82,7 @@ Auto_Step       db 1                ; шаг при вводе: 1 - курсор
 Auto_Ratio      db 0                ; номер в Hd_Ratios
 TUNINGS         equ 2
 DEVICES         equ 4
-STEREOS         equ 6
+STEREOS         equ 5
 ENVMODES        equ 2
 RATIOS          equ 8
 
@@ -93,7 +93,7 @@ Hd_Devices      db "AY       "
                 db "YM       "
                 db "AYX-32   "
                 db "FT2 board"
-Hd_Stereos      db "ABC","ACB","BAC","BCA","CAB","CBA"         ; как Po_Maps в плеере
+Hd_Stereos      db "ABC","ACB","BAC","BCA","CAB"         ; как Po_Maps в плеере
 Hd_EnvModes     db "FT","PT"
 ; Соотношения автоогибающей A:B - как в Vortex Tracker II (StdAutoEnv, main.pas).
 ; Период огибающей = период ноты * A / B / 16 (пила, формы 8 и 12) или / 32
