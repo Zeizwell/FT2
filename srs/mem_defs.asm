@@ -35,7 +35,7 @@
 ; #BB-#BD  шаблоны вида паттерна: строки 0..26 - атрибуты тусклого / активного /
 ;          строки редактирования (в #BB ещё символы пустой роу)
 ; #BE      номера роу 00..3F (строка r = "rr")
-; #BF      замер DMA (полоса времени)
+; #BF      свободна
 ; #C0-#FF  система: RAM-диск vDOS, буферы и FAT-движок TS-BIOS, вирт. ПЗУ - не трогаем
 ; =========================================================================
 
@@ -73,15 +73,14 @@ PAGE_POOL     EQU PAGE_FILEBUF+PAGES_FILEBUF    ; пул: паттерны, ин
 PAGE_POOL_END EQU #BB                           ; дальше - служебные страницы вида
 PAGE_VIEW_TPL EQU #BB                           ; 3 страницы шаблонов: тусклый, активный, редактирование
 PAGE_ROWNUM   EQU #BE                           ; номера роу
-PAGE_BENCH    EQU #BF                           ; замер DMA
 
 PAGES_PER_SONG EQU PATTERNS_MAX+2   ; полный трек: паттерн = страница + страница инструментов/орнаментов + FX
 PAGE_INS1     EQU PAGE_POOL+PATTERNS_MAX ; инструменты и орнаменты трека 1 (пока место фиксировано)
     ASSERT PAGES_COMPBUF*16384 >= COMPILED_MAX      ; откомпилированный влезает
     ASSERT PAGE_POOL_END-PAGE_POOL >= SONGS_MAX*PAGES_PER_SONG ; два полных трека влезают (143 >= 132)
-; Свободно (никому не отдано): остаток пула за двумя треками + #05, #07, #1E, #1F.
+; Свободно (никому не отдано): остаток пула за двумя треками + #05, #07, #1E, #1F, #BF.
 ; Распределение жёсткое: у каждого трека свои PAGES_PER_SONG страниц, без динамики
-FREE_PAGES      EQU PAGE_POOL_END-PAGE_POOL-SONGS_MAX*PAGES_PER_SONG+4
+FREE_PAGES      EQU PAGE_POOL_END-PAGE_POOL-SONGS_MAX*PAGES_PER_SONG+5
 
 FONT_SIZE       equ #800    ; шрифт 256 символов x 8 байт
 FONTS_COUNT     equ 4      ; сколько шрифтов в банке (слоты 0..)

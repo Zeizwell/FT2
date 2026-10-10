@@ -136,7 +136,6 @@ BAND_SEPS       equ 3               ; IM1: разделители, номера 
 BAND_INPUT      equ 4               ; ввод, таблица роу             - синий
 BAND_LAYOUT     equ 5               ; смена раскладки               - фиолетовый
 BAND_ORDER      equ 7               ; ордер                         - белый
-BAND_DMATEST    equ 8               ; замер: DMA-заливка 4К         - оранжевый
 
     MACRO BAND_I n                  ; из IM1
         ld a,(Timing)
@@ -193,9 +192,6 @@ PluginMain
 Main_Loop
         BAND_M BAND_BG
         halt
-        ld a,(Timing)               ; замер: DMA-заливка 4К (оранжевый)
-        or a
-        call nz,Bench_Dma_Fill
         BAND_M BAND_INPUT
         call Handle_Keys
         call Head_Show              ; шапка: значения (srs/head.asm)
@@ -2491,26 +2487,9 @@ Pat_Copy
         jp dma_wait
 
 ; =========================================================================
-; ПОЛОСА ВРЕМЕНИ И ЗАМЕР DMA
+; ПОЛОСА ВРЕМЕНИ
 ; =========================================================================
 BAND_W          equ PALET_NUM*16    ; слово CRAM
-
-;-------- Замер: DMA FILL 4К (16 строк по 256) в свободную страницу, фон оранжевый
-Bench_Dma_Fill
-        BAND_M BAND_DMATEST
-        ld hl,Bench_T
-        call set_ports
-        call dma_wait
-        BAND_M BAND_BG
-        ret
-
-Bench_T db high DMASADDRL,(Bench_Zero-#4000)&255, high DMASADDRH,(Bench_Zero-#4000)>>8
-        db high DMASADDRX,PAGE_TOOL_PATVIEW
-        db high DMADADDRL,0, high DMADADDRH,0, high DMADADDRX,PAGE_BENCH
-        db high DMALEN,127, high DMANUM,15, high DMACTR,DMA_FILL|DMA_DALGN, #FF
-
-        ALIGN 2
-Bench_Zero      dw 0
 
 ; A - цвет. Из IM1 (своя таблица DMA)
 Band_Int
