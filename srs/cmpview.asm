@@ -23,6 +23,10 @@ CM_SCR_H        equ #80             ; экран - в окне 2 (на врем�
 CM_MOD          equ #8000           ; модуль - в окне 2
 CM_FRAMES_MAX   equ #FFFF
 CM_ALIGN_MAX    equ 16              ; ищем первый звук в стольких кадрах
+CM_Y_TITLE      equ 2               ; строки экрана: под кнопками транспорта (строки 0..1)
+CM_Y_FILE       equ 3
+CM_Y_STAT       equ 5
+CM_Y_RES        equ 7
 CM_NOFX         equ 1               ; 1 - у эталона команды паттерна выкл (кроме темпа):
                                     ;   наш плеер их пока не умеет. Научим - 0
 
@@ -33,6 +37,7 @@ Cmp_Kind        db 0                ; 0 - PT3, 1 - PT2
 Cmp_TS          db 0                ; режим TS эталона: 0, 16 - два модуля, 32 - PT 3.7 / автопоиск
 Cmp_Mod2        dw 0                ; второй модуль (два модуля TS), адрес в окне 2
 Cmp_Chips       db 1                ; сколько чипов сравнивать
+Cmp_Name        ds 33               ; имя файла модуля (для экрана)
 
 ; --- результат
 Cm_Frame        dw 0                ; кадр сравнения
@@ -54,7 +59,13 @@ Cmp_Run
         SETPAGE1 a
         call Cm_Clear_Screen
         ld hl,Txt_Title
-        ld de,1+256*(CM_SCR_H+1)
+        ld de,1+256*(CM_SCR_H+CM_Y_TITLE)
+        call Cm_Text
+        ld hl,Txt_File              ; имя модуля
+        ld de,1+256*(CM_SCR_H+CM_Y_FILE)
+        call Cm_Text
+        ld hl,Cmp_Name
+        ld de,7+256*(CM_SCR_H+CM_Y_FILE)
         call Cm_Text
         call Cm_Align               ; сдвиг старта
         call Cm_Init                ; заново, со сдвигом
@@ -483,6 +494,13 @@ Cm_Diff ld e,a
         ld (Cm_F_Pos),a
         ld a,(SV_PLAY_ROW)
         ld (Cm_F_Row),a
+        push hl                     ; снимок; регистры - как были (B, C ещё нужны)
+        push de
+        push bc
+        call Cm_Snap
+        pop bc
+        pop de
+        pop hl
         ret
 
 ; =========================================================================
@@ -620,6 +638,162 @@ Txt_Sig         db "FT2CMP1",0
     ASSERT Cm_F_Pos == Cm_F_Frame+2 && Cm_F_Our == Cm_F_Frame+7
     ASSERT Cm_EndOur == Cm_EndRef+2
 
+
+; =========================================================================
+; СНИМОК ПЕРВОГО РАСХОЖДЕНИЯ: регистры обоих плееров и каналы чипа, где разошлось
+; =========================================================================
+Cm_SRef         ds PR_SIZE*2        ; регистры эталона (чип 1, чип 2)
+Cm_SOur         ds PR_SIZE*2        ;   наши
+Cm_SOurCh       ds 3*CS_SIZE        ; наши каналы чипа Cm_F_Chip (CS_*)
+    ASSERT CS_SIZE == 16
+Cm_SRefCh       ds 3*pts.CHP        ; каналы эталона (CHP.*)
+
+Cm_Snap
+        ld hl,pts.VARS1+pts.VRS.AYREGS
+        ld de,Cm_SRef
+        ld bc,PR_SIZE
+        ldir
+        ld hl,pts.VARS2+pts.VRS.AYREGS
+        ld bc,PR_SIZE
+        ldir
+        ld hl,Pl_Regs               ; наши: оба чипа подряд
+        ld de,Cm_SOur
+        ld bc,PR_SIZE*2
+        ldir
+        ld a,(Cm_Chip)              ; каналы чипа, где разошлось
+        or a
+        ld hl,Pl_Ch
+        ld de,pts.VARS1+pts.VRS.ChanA
+        jr z,.c
+        ld hl,Pl_Ch+3*CS_SIZE
+        ld de,pts.VARS2+pts.VRS.ChanA
+.c      ld (Cs_Ref),de
+        ld de,Cm_SOurCh
+        ld bc,3*CS_SIZE
+        ldir
+        ld hl,(Cs_Ref)
+        ld de,Cm_SRefCh
+        ld bc,3*pts.CHP
+        ldir
+        ret
+Cs_Ref          dw 0
+
+;-------- Вывод снимка (экран - уже в окне 2, C - цвет):
+;   Ref / Our: R0..R13 чипа; каналы: нота, строка сэмпла, строка орнамента, громкость, слайд
+Cm_Snap_Show
+        ld a,(THEME_ATTR+CLR_TEXT)
+        ld c,a
+        ld de,1+256*(CM_SCR_H+CM_Y_RES+5)
+        ld hl,Txt_SRef
+        call PutStr
+        ld hl,Cm_SRef
+        call .regs
+        ld de,1+256*(CM_SCR_H+CM_Y_RES+6)
+        ld hl,Txt_SOur
+        call PutStr
+        ld hl,Cm_SOur
+        call .regs
+        ld de,1+256*(CM_SCR_H+CM_Y_RES+7)  ; подписи колонок каналов
+        ld hl,Txt_SCap
+        call PutStr
+        ld b,0                      ; B - канал
+.ch     push bc
+        ld a,b                      ; строка экрана
+        add a,CM_SCR_H+CM_Y_RES+8
+        ld d,a
+        ld e,1
+        ld a,b
+        add a,'A'
+        call PutCh
+        ld a,' '
+        call PutCh
+        ld a,b                      ; наш канал: IX
+        add a,a
+        add a,a
+        add a,a
+        add a,a
+        ld hl,Cm_SOurCh
+        call Cm_HlA
+        push hl
+        pop ix
+        ld a,(ix+CS_NOTE)
+        call .h
+        ld a,(ix+CS_IROW)
+        call .h
+        ld a,(ix+CS_OROW)
+        call .h
+        ld a,(ix+CS_VOL)
+        call .h
+        ld a,(ix+CS_SLIDE)
+        call .h
+        ld a,'|'
+        call PutCh
+        ld a,' '
+        call PutCh
+        pop bc
+        push bc
+        ld hl,Cm_SRefCh             ; канал эталона: IX = + канал*CHP
+        ld a,b
+        or a
+        jr z,.r0
+        ld de,pts.CHP
+.rr     add hl,de
+        djnz .rr
+.r0     push hl
+        pop ix
+        pop bc
+        push bc
+        ld a,b                      ; строка экрана - снова (DE портили)
+        add a,CM_SCR_H+CM_Y_RES+8
+        ld d,a
+        ld e,1+2+5*3+2
+        ld a,(ix+pts.CHP.Note)
+        call .h
+        ld a,(ix+pts.CHP.PsInSm)
+        call .h
+        ld a,(ix+pts.CHP.PsInOr)
+        call .h
+        ld a,(ix+pts.CHP.Volume)    ; громкость - в старшем полубайте
+        rrca
+        rrca
+        rrca
+        rrca
+        and #0F
+        call .h
+        ld a,(ix+pts.CHP.CrAmSl)
+        call .h
+        pop bc
+        inc b
+        ld a,b
+        cp 3
+        jp c,.ch
+        ret
+.h      call PutHex2                ; байт и пробел
+        ld a,' '
+        jp PutCh
+; 14 регистров чипа Cm_F_Chip с HL
+.regs   ld a,(Cm_F_Chip)
+        or a
+        jr z,.rg
+        ld a,PR_SIZE
+        call Cm_HlA
+.rg     ld b,PR_SIZE
+.r      ld a,(hl)
+        inc hl
+        call .h
+        djnz .r
+        ret
+
+; HL += A
+Cm_HlA  add a,l
+        ld l,a
+        ret nc
+        inc h
+        ret
+
+Txt_SRef        db "Ref regs: ",0
+Txt_SOur        db "Our regs: ",0
+Txt_SCap        db "  our: note smp orn vol sld | ref: note smp orn vol sld",0
 ; =========================================================================
 ; ЭКРАН (текстовая страница - в окне 2 на время вывода)
 ; =========================================================================
@@ -642,7 +816,7 @@ Cm_Show
         SETPAGE2 a
         ld a,(THEME_ATTR+CLR_TEXT)
         ld c,a
-        ld de,1+256*(CM_SCR_H+3)
+        ld de,1+256*(CM_SCR_H+CM_Y_STAT)
         ld hl,Txt_Frame
         call PutStr
         ld a,(Cm_Frame+1)
@@ -678,7 +852,7 @@ Cm_Result
         SETPAGE2 a
         ld a,(THEME_ATTR+CLR_TEXT)
         ld c,a
-        ld de,1+256*(CM_SCR_H+5)    ; сдвиг: первый звук - эталон / наш
+        ld de,1+256*(CM_SCR_H+CM_Y_RES)    ; сдвиг: первый звук - эталон / наш
         ld hl,Txt_Start
         call PutStr
         ld a,(Cm_Ref0)
@@ -687,7 +861,7 @@ Cm_Result
         call PutCh
         ld a,(Cm_Our0)
         call PutHex2
-        ld de,1+256*(CM_SCR_H+6)    ; конец трека: кадр у эталона / у нас (0 - не дошёл)
+        ld de,1+256*(CM_SCR_H+CM_Y_RES+1)  ; конец трека: кадр у эталона / у нас (0 - не дошёл)
         ld hl,Txt_End
         call PutStr
         ld a,(Cm_EndRef+1)
@@ -700,7 +874,7 @@ Cm_Result
         call PutHex2
         ld a,(Cm_EndOur)
         call PutHex2
-        ld de,1+256*(CM_SCR_H+7)
+        ld de,1+256*(CM_SCR_H+CM_Y_RES+2)
         ld a,(Cm_First)
         or a
         jr nz,.diff
@@ -725,7 +899,7 @@ Cm_Result
         call PutStr
         ld a,(Cm_F_Row)
         call PutHex2
-        ld de,1+256*(CM_SCR_H+8)
+        ld de,1+256*(CM_SCR_H+CM_Y_RES+3)
         ld hl,Txt_Chip
         call PutStr
         ld a,(Cm_F_Chip)
@@ -743,9 +917,10 @@ Cm_Result
         call PutStr
         ld a,(Cm_F_Our)
         call PutHex2
+        call Cm_Snap_Show           ; регистры и каналы в этот кадр
 .key    ld a,(THEME_ATTR+CLR_TEXT)
         ld c,a
-        ld de,1+256*(CM_SCR_H+10)
+        ld de,1+256*(CM_SCR_H+CM_Y_RES+13)
         ld hl,Txt_Key
         call PutStr
         RESTPAGE2
@@ -787,6 +962,7 @@ Cm_Text ld (Ct_HL),hl
         ret
 
 Txt_Title       db "Player compare: FT2 player vs reference (S.V.Bulba PT2/PT3/TS)",0
+Txt_File        db "File:",0
 Txt_Frame       db "Frame ",0
 Txt_Pos         db "  Pos ",0
 Txt_Pat         db "  Pat ",0

@@ -1463,6 +1463,12 @@ Dv_Compare
         ld a,(Ld_Kind)
         sub 2
         ld (cmpview.Cmp_Kind),a
+        ld hl,Dv_Spec+1             ; имя файла - для экрана сравнения
+        ld de,cmpview.Cmp_Name
+        ld bc,32
+        ldir
+        xor a
+        ld (de),a
         ld a,(Pt_Chips)
         ld (cmpview.Cmp_Chips),a
         ld a,(Ld_Kind)              ; PT2 - без TS
