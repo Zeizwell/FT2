@@ -577,7 +577,7 @@ Ini_Dir_Back
 Spec_Dir        db FD_DIR,"FT2",0
 Spec_Ini        db FD_FILE,"FT2.INI",0
 Spec_New        db #20,0,0,0,0,"FT2.INI",0      ; CREATE: атрибут, размер 0, имя
-Spec_MkDir      db #10,0,0,0,0,"FT2",0          ; MKDIR: папка
+Spec_MkDir      db "FT2",0                      ; MKDIR: [имя, 0] (README драйвера)
 Key_Palette     db "palette=",0
 Key_Font        db "font=",0
 Txt_IniHead     db "; Fast Tracker 2.01b settings",13,10,0
