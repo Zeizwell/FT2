@@ -958,7 +958,7 @@ Pr_Row
         call Pt_Get
         call Pr_Smp2
         jp .cmd
-.e1x    sub #11                     ; #11..#1F: форма x-1, период, сэмпл
+.e1x    sub #10                     ; #11..#1F: форма = байт-#10 (1..15), период, сэмпл
         call Pr_Env
         call Pt_Get
         call Pr_Smp2
