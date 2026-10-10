@@ -21,6 +21,7 @@
 ; --- заголовок модуля
 PT_NAME         equ 30              ; 32 имя
 PT_AUTHOR       equ 66              ; 32 автор
+PT_TONES        equ 99              ; номер таблицы нот (0..3)
 PT_TEMPO        equ 100
 PT_LOOP         equ 102
 PT_PATS         equ 103             ; 2 смещение таблицы паттернов (по 6 байт: A, B, C)
@@ -163,10 +164,19 @@ Pt_Header
         jr nz,$+4
         ld a,NEW_SONG_SPEED
         ld (Ph_Tempo),a
+        ld hl,PT_TONES              ; таблица нот модуля: 1 (Sound Tracker) - 1.77 МГц,
+        call Pt_Get                 ;   остальные - 1.75
+        cp 1
+        ld a,0
+        jr nz,$+3
+        inc a
+        ld (Ph_Tune),a
         ld a,(SV_SONG_PAGE)
         SETPAGE2 a
         ld a,(Ph_Tempo)
         ld (#8000+SH_SPEED),a
+        ld a,(Ph_Tune)
+        ld (#8000+SH_TUNING),a
         ld a,(Pt_Chips)
         ld (#8000+SH_CHIPS),a
         ld hl,#8000+ORDER_LIST      ; ордер и каталоги - нули
@@ -190,6 +200,7 @@ Pt_Header
         ret
 
 Ph_Tempo        db 0
+Ph_Tune         db 0                ; SH_TUNING из модуля
 
 ; =========================================================================
 ; ЧТЕНИЕ МОДУЛЯ: смещение от начала модуля (Pt_Base) -> байт из буфера файла

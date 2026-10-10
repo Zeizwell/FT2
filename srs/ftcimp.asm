@@ -20,6 +20,7 @@
 
 ; --- заголовок модуля
 FC_NAME         equ #08             ; 42 имя (32) + автор
+FC_TONES        equ #32             ; таблица нот: 2 - 1.75 МГц, иначе классика
 FC_TEMPO        equ #45
 FC_LOOP         equ #46
 FC_PATS         equ #4B             ; 2 смещение таблицы паттернов (по 6 байт: A, B, C)
@@ -63,10 +64,19 @@ Fc_Header
         jr nz,$+4
         ld a,NEW_SONG_SPEED
         ld (Ph_Tempo),a
+        ld hl,FC_TONES              ; таблица нот: 2 - 1.75 МГц, иначе классика (1.77)
+        call Pt_Get
+        cp 2
+        ld a,0
+        jr z,$+3
+        inc a
+        ld (Ph_Tune),a
         ld a,(SV_SONG_PAGE)
         SETPAGE2 a
         ld a,(Ph_Tempo)
         ld (#8000+SH_SPEED),a
+        ld a,(Ph_Tune)
+        ld (#8000+SH_TUNING),a
         ld a,1
         ld (#8000+SH_CHIPS),a
         ld hl,#8000+ORDER_LIST

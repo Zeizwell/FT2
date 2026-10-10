@@ -85,7 +85,7 @@ RATIOS          equ 8
 
 ; Названия - по фиксированной ширине
 Hd_Tunings      db "1.75MHz"
-                db "Classic"
+                db "1.77MHz"
 Hd_Devices      db "AY       "
                 db "YM       "
                 db "AYX-32   "
