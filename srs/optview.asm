@@ -9,7 +9,7 @@
 ; тему и шрифт и сразу вернуться, без экрана.
 ;
 ; FT2.INI - текст, строки "ключ=число" (пробелов нет, ';' - комментарий):
-;   palette=0..5   font=0..3
+;   palette=0..5   font=0..3   mouse_speed=0..9   mouse_accel=0..8
 ; Диск - через Disk_Call (коре). Буферы драйвера - в окне 3 (PAGE_FILEBUF). Текущий
 ; каталог драйвера потом возвращаем (им живёт тулза диска).
 ; =========================================================================
@@ -31,6 +31,11 @@ SAVE_X          equ 2
 MSG_Y           equ OV_TOP+12       ; сообщение
 MEM_Y           equ OV_TOP+14       ; свободная память
 IMR_Y           equ OV_TOP+15       ; IM1: повторных входов (должно быть 00)
+MS_Y            equ LIST_Y+FONTS_COUNT+2 ; мышь: заголовок, скорость, ускорение (рамка Font)
+MS_X            equ FN_X+2
+MS_BAR_X        equ MS_X+6          ; полоса - за подписью
+MS_SPEED_MAX    equ 9               ; MOUSE_SPEED 0..9 (5 - 100%)
+MS_ACCEL_MAX    equ 8               ; MOUSE_ACCEL 0..8 (0 - выкл)
 
 ; --- файл
 INI_BUF         equ #C000           ; окно 3: страница PAGE_FILEBUF
@@ -164,6 +169,7 @@ Ov_Draw
         ld b,FONTS_COUNT
         ld e,FN_X+2
         call Ov_List14
+        call Ov_Mouse
         ld a,(THEME_ATTR+CLR_BG)    ; сообщение
         ld c,a
         ld de,1+256*(OV_SCR_H+MSG_Y)
@@ -221,6 +227,51 @@ Ol_W            db 0
 Ol_Sel          db 0
 Ol_I            db 0
 
+;-------- Мышь: заголовок и две полосы
+Ov_Mouse
+        ld a,(THEME_ATTR+CLR_HEADER)
+        ld c,a
+        ld de,MS_X+256*(OV_SCR_H+MS_Y)
+        ld hl,Txt_Mouse
+        call PutStr
+        ld de,MS_X+256*(OV_SCR_H+MS_Y+1)
+        ld hl,Txt_Speed
+        ld a,(MOUSE_SPEED)
+        ld b,MS_SPEED_MAX
+        call Ov_Bar
+        ld de,MS_X+256*(OV_SCR_H+MS_Y+2)
+        ld hl,Txt_Accel
+        ld a,(MOUSE_ACCEL)
+        ld b,MS_ACCEL_MAX
+
+; Полоса: HL - подпись (6 знаков), A - значение (столько клеток горит), B - клеток всего,
+; DE - место. За полосой - значение цифрой
+Ov_Bar
+        ld (Ob_V),a
+        ld a,(THEME_ATTR+CLR_TEXT)
+        ld c,a
+        call PutStr
+        ld a,(Ob_V)
+        ld l,a                      ; L - сколько клеток ещё горит
+.c      ld a,(THEME_ATTR+CLR_VOLUME) ; горит - клетка цветом громкости
+        ld c,a
+        ld a,GLYPH_VOL
+        dec l
+        jp p,.put
+        ld a,(THEME_ATTR+CLR_EMPTY) ; нет - точка, как пустое поле
+        ld c,a
+        ld a,'.'
+.put    call PutCh
+        djnz .c
+        ld a,(THEME_ATTR+CLR_TEXT)
+        ld c,a
+        ld a,' '
+        call PutCh
+        ld a,(Ob_V)
+        add a,'0'
+        jp PutCh
+Ob_V            db 0
+
 ;-------- Кнопка Save: под мышью / нажата - другим цветом
 Ov_Button
         ld hl,F_Save
@@ -257,6 +308,8 @@ Ov_Fields
         OV_FIELD PL_X+2,LIST_Y,8,PALETTES, FF_HAND, Ov_PalEv, 0          ; темы
         OV_FIELD FN_X+2,LIST_Y,14,FONTS_COUNT, FF_HAND, Ov_FontEv, 0     ; шрифты
 F_Save  OV_FIELD SAVE_X,SAVE_Y,6,1, FF_HAND, Ov_SaveEv, 0                ; Save
+        OV_FIELD MS_X,MS_Y+1,6+MS_SPEED_MAX,1, FF_HAND, Ov_MouseEv, 0    ; мышь: скорость
+        OV_FIELD MS_X,MS_Y+2,6+MS_ACCEL_MAX,1, FF_HAND, Ov_MouseEv, 1    ;   ускорение
         db FLD_END
 
 ;-------- Шапка: 0 - вид паттерна, 1/2 - Instr/Orn, 3 - Disk
@@ -302,6 +355,28 @@ Ov_Changed
         ld a,1
         ld (Ov_Dirty),a
         ret
+
+;-------- Мышь: клик по клетке k - значение k+1, по подписи - 0. Таблицу скорости - сразу
+Ov_MouseEv
+        cp EV_PRESS
+        ret nz
+        ld a,(SV_MOUSE_COL)         ; клетка: колонка - начало полосы
+        sub MS_BAR_X
+        jr nc,$+4
+        ld a,-1                     ; подпись - 0
+        inc a
+        ld b,a
+        ld a,(ix+FLD_PARAM)
+        or a
+        ld a,b
+        jr nz,.acc
+        ld (MOUSE_SPEED),a
+        jr .set
+.acc    ld (MOUSE_ACCEL),a
+.set    push ix                     ; Mouse_Scale портит IX
+        call Mouse_Scale
+        pop ix
+        jp Ov_Changed
 
 ;-------- Save: настройки - в \FT2\FT2.INI
 Ov_SaveEv
@@ -384,13 +459,32 @@ Ini_Parse
         jr .next
 .font   ld de,Key_Font              ; font=
         call Ini_Key
-        jr nz,.next
+        jr nz,.mspd
         call Ini_Num
         cp FONTS_COUNT
         jr nc,.next
         push hl
         call Set_Font
         call Apply_UI_Glyphs
+        pop hl
+        jr .next
+.mspd   ld de,Key_MSpeed            ; mouse_speed=
+        call Ini_Key
+        jr nz,.macc
+        call Ini_Num
+        cp MS_SPEED_MAX+1
+        jr nc,.next
+        ld (MOUSE_SPEED),a
+        jr .mset
+.macc   ld de,Key_MAccel            ; mouse_accel=
+        call Ini_Key
+        jr nz,.next
+        call Ini_Num
+        cp MS_ACCEL_MAX+1
+        jr nc,.next
+        ld (MOUSE_ACCEL),a
+.mset   push hl                     ; таблица скорости - заново
+        call Mouse_Scale
         pop hl
 .next   ld a,(hl)                   ; до конца строки
         or a
@@ -489,6 +583,14 @@ Ini_Text
         call Str_Put
         ld a,(SV_FONT)
         call Dec_Put
+        ld hl,Key_MSpeed
+        call Str_Put
+        ld a,(MOUSE_SPEED)
+        call Dec_Put
+        ld hl,Key_MAccel
+        call Str_Put
+        ld a,(MOUSE_ACCEL)
+        call Dec_Put
         ex de,hl                    ; длина = конец - начало
         ld bc,INI_BUF
         or a
@@ -580,11 +682,16 @@ Spec_New        db #20,0,0,0,0,"FT2.INI",0      ; CREATE: атрибут, раз
 Spec_MkDir      db "FT2",0                      ; MKDIR: [имя, 0] (README драйвера)
 Key_Palette     db "palette=",0
 Key_Font        db "font=",0
+Key_MSpeed      db "mouse_speed=",0
+Key_MAccel      db "mouse_accel=",0
 Txt_IniHead     db "; Fast Tracker 2.01b settings",13,10,0
 Txt_Save        db " Save ",0
 Txt_Saved       db "Saved \\FT2\\FT2.INI",0
 Txt_DiskErr     db "Disk error",0
 Txt_ImRe        db "IM1 re-entry: ",0
+Txt_Mouse       db "Mouse",0
+Txt_Speed       db "Speed ",0
+Txt_Accel       db "Accel ",0
 
 ; Имена шрифтов банка (как в srs/main.asm), по 14 знаков
 Font_Names      db "cp866         Toshiba TxL1  Toshiba TxL2  Compaq Thin   "
