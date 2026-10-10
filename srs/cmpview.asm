@@ -29,7 +29,7 @@ CM_Y_TITLE      equ 2               ; строки экрана: под кноп
 CM_Y_FILE       equ 3
 CM_Y_STAT       equ 5
 CM_Y_BAR        equ 6               ; полоса: позиция из всех в ордере
-CM_BAR_W        equ 64
+CM_BAR_W        equ 50              ; клетка - 2%
 CM_Y_RES        equ 7
 CM_NOFX         equ 1               ; 1 - у эталона команды паттерна выкл (кроме темпа):
                                     ;   наш плеер их пока не умеет. Научим - 0
@@ -972,8 +972,9 @@ Cm_Show
         ret
 Cm_Pat          db 0
 
-;-------- Полоса прогресса: клеток = позиция * CM_BAR_W / позиций в ордере (длина в кадрах
-; заранее не известна - скорость меняется). Только когда позиция сменилась. Экран - в окне 2
+;-------- Полоса прогресса, как в Windows: CM_BAR_W клеток и проценты. Процент = позиция * 100 /
+; позиций в ордере (длина в кадрах заранее не известна - скорость меняется). Только когда
+; позиция сменилась. Экран - в окне 2
 Cm_BarPos       db #FF              ; позиция, для которой нарисована (#FF - ещё нет)
 Cm_Bar
         ld a,(SV_PLAY_POS)
@@ -981,26 +982,37 @@ Cm_Bar
         cp (hl)
         ret z
         ld (hl),a
-        ld l,a                      ; HL = позиция * 64
+        ld l,a                      ; HL = позиция * 100 (4 + 32 + 64)
         ld h,0
         add hl,hl
         add hl,hl
+        ld b,h
+        ld c,l
         add hl,hl
         add hl,hl
         add hl,hl
+        ld d,h
+        ld e,l
         add hl,hl
-    ASSERT CM_BAR_W == 64
-        ld a,(Pl_OrdLast)           ; DE - позиций (последняя + 1)
+        add hl,de
+        add hl,bc
+        ld a,(Pl_OrdLast)           ; DE - позиций (последняя + 1, до 256)
         ld e,a
         ld d,0
         inc de
-        ld b,0                      ; B - клеток: HL / DE
+        xor a                       ; A - процент: HL / DE
 .div    or a
         sbc hl,de
-        jr c,.draw
-        inc b
+        jr c,Cm_Bar_Draw
+        inc a
         jr .div
-.draw   ld a,CM_BAR_W
+
+; A - процент 0..100: клетки (по 2%) и "NN%"
+Cm_Bar_Draw
+        ld (Cb_Pct),a
+        srl a                       ; клеток пройдено
+        ld b,a
+        ld a,CM_BAR_W
         sub b
         ld (Cb_Rest),a
         ld de,1+256*(CM_SCR_H+CM_Y_BAR)
@@ -1020,14 +1032,52 @@ Cm_Bar
 .r      ld a,'.'
         call PutCh
 .rn     djnz .r
-        ret
+        ld a,(THEME_ATTR+CLR_TEXT)  ; проценты: 3 знака, без ведущих нулей
+        ld c,a
+        ld a,' '
+        call PutCh
+        ld a,(Cb_Pct)
+        ld b,'0'-1                  ; сотни
+.h      inc b
+        sub 100
+        jr nc,.h
+        add a,100
+        ld (Cb_Rest),a              ; остаток - в памяти (PutCh может портить)
+        ld a,b
+        cp '0'
+        jr nz,$+4
+        ld a,' '
+        call PutCh
+        ld a,(Cb_Rest)
+        ld b,'0'-1                  ; десятки (у 100 - "0")
+.t      inc b
+        sub 10
+        jr nc,.t
+        add a,10+'0'
+        ld (Cb_Rest),a              ; остаток - в памяти (PutCh может портить)
+        ld a,b
+        cp '0'
+        jr nz,.tp
+        ld a,(Cb_Pct)               ; 0..9 - пробел, у 100 - ноль
+        cp 100
+        ld a,' '
+        jr c,.tp
+        ld a,'0'
+.tp     call PutCh
+        ld a,(Cb_Rest)
+        call PutCh
+        ld a,'%'
+        jp PutCh
 Cb_Rest         db 0
+Cb_Pct          db 0
 
 ;-------- Итог: сдвиг старта, первое расхождение или "совпало"
 Cm_Result
         call Cm_Show
         ld a,(SV_DRAW_PAGE)
         SETPAGE2 a
+        ld a,100                    ; сравнение кончилось - полоса полная
+        call Cm_Bar_Draw
         ld a,(THEME_ATTR+CLR_TEXT)
         ld c,a
         ld de,1+256*(CM_SCR_H+CM_Y_RES)    ; сдвиг: первый звук - эталон / наш
