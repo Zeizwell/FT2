@@ -54,7 +54,7 @@ LOAD_X          equ FP_L
 SAVE_X          equ FP_L+10
 BTN_W           equ 8
 CMP_X           equ FP_L+20         ; [ Compare ]: после загрузки PT3 / PT2 - сравнить плееры
-CMP_W           equ 9
+CMP_W           equ 11
 MSG_Y           equ DV_TOP+10       ; сообщение
 
 ; --- запись каталога в PAGE_DIRLIST
@@ -1978,8 +1978,8 @@ Txt_By          db "By:",0
 Txt_Size        db "Size:",0
 Txt_Load        db "[ Load ]",0
 Txt_Save        db "[ Save ]",0
-Txt_CmpOff      db GLYPH_CHK_OFF," Compare",0    ; одной длины: старое не остаётся
-Txt_CmpOn       db GLYPH_CHK_ON," Compare",0
+Txt_CmpOff      db "[ ] Compare",0  ; одной длины: старое не остаётся; #FB - галочка CP866
+Txt_CmpOn       db "[",#FB,"] Compare",0
 Txt_Dir         db "  <DIR>",0
 Txt_FT2         db "FT2",0
 Txt_PT3         db "PT3",0
