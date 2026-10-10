@@ -2196,7 +2196,9 @@ Pat_Field
         ret nz
 .focus  jp Draw_Frame               ; заголовок элемента под курсором - ярче в фокусе
 .key    ld hl,Pat_Keys
-        jp Keys_Table
+        call Keys_Table
+        ret c
+        jp Pat_Type                 ; не навигация - ввод в клетку
 .wheel  ld a,(SV_KEY_MODS)          ; Ctrl или Shift - колесо по каналам
         and KM_CTRL|KM_SHIFT
         jr nz,.ch
@@ -2208,6 +2210,103 @@ Pat_Field
         or a
         jp m,K_ChRight
         jp K_ChLeft
+
+;-------- Ввод в клетку под курсором: клавиша B, флаги C. CF - наша.
+; Поле ноты (как VT): пианино - октава из шапки (Cur_Octave), Shift - на октаву выше;
+; A - off, K - стереть ноту. Потом курсор вниз на шаг (Step, если включён)
+Pat_Type
+        ld a,(Env_Open)
+        or a
+        ret nz
+        ld a,(Cur_Field)
+        or a
+        ret nz                      ; пока - только поле ноты
+        ld a,b
+        cp KEY_A
+        jr z,.off
+        cp KEY_K
+        jr z,.clr
+        push bc
+        call Piano_Get              ; A - полутон
+        pop bc
+        ret nc
+        ld e,a                      ; нота = (октава-1)*12 + полутон + NOTE_FIRST
+        ld a,(Cur_Octave)
+        dec a
+        ld d,a
+        add a,a
+        add a,d
+        add a,a
+        add a,a
+        add a,e
+        bit 0,c                     ; Shift (KM_SHIFT) - на октаву выше
+        jr z,$+4
+        add a,12
+        cp NOTE_COUNT
+        ret nc                      ; выше B-8 - мимо
+        add a,NOTE_FIRST
+        jr .put
+.off    ld a,NOTE_OFF
+        jr .put
+.clr    xor a                       ; NOTE_EMPTY
+.put    ld (Cp_Val),a
+        ld a,CH_NOTE
+        call Cell_Put
+        call Step_Cur
+        scf
+        ret
+    ASSERT KM_SHIFT == 1 && NOTE_EMPTY == 0
+
+;-------- Cp_Val -> поле A (CH_*) канала курсора, роу Cur_Row паттерна текущей позиции;
+; текст роу - заново (экран подхватит в следующем кадре)
+Cp_Val          db 0
+Cp_Fld          db 0
+Cell_Put
+        ld (Cp_Fld),a
+        ld a,(Cur_Pos)              ; страница паттерна позиции
+        ld hl,Ord_List
+        call Arr_Get
+        call Pat_Page
+        SETPAGE2 a
+        ld a,(Cur_Chan)             ; канал -> смещение в роу: чип, канал в чипе, поле
+        ld b,0
+        cp 3
+        jr c,.c
+        sub 3
+        ld b,CHIP_SIZE
+.c      add a,a                     ; *CH_SIZE
+        add a,a
+        add a,a
+        add a,a
+        add a,b
+        add a,CHIP_CH_A
+        ld hl,Cp_Fld
+        add a,(hl)
+        ld l,a
+        ld a,(Cur_Row)
+        add a,PAT_BASE_H
+        ld h,a
+        ld a,(Cp_Val)
+        ld (hl),a
+        call Row_To_Text            ; H - роу
+        RESTPAGE2
+        ret
+    ASSERT CH_SIZE == 16
+
+;-------- После ввода: курсор вниз на Cur_Step роу (если шаг включён - Auto_Step)
+Step_Cur
+        ld a,(Auto_Step)
+        or a
+        ret z
+        ld a,(Cur_Step)
+        or a
+        ret z
+        ld b,a
+.s      push bc
+        call K_RowDn
+        pop bc
+        djnz .s
+        ret
 
 ;-------- Клик в паттерн (как в Bitphase): по Y - роу едут на столько, насколько клик выше
 ; или ниже строки редактирования; по X - курсор в поле под мышью (другой элемент - открыть)

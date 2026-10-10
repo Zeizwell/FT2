@@ -185,6 +185,8 @@ KEY_F7          equ #7F             ; F7 (#83) коре сводит в #7F
 KEY_F8          equ #0A
 KEY_E           equ #24
 KEY_T           equ #2C
+KEY_A           equ #1C             ; паттерн: off (как VT)
+KEY_K           equ #42             ;   стереть ноту
 
 ; --- Действия (бинды, doc/architecture.md): клавиши к ним - таблица Bind_Tab в коре
 ; (умолчания - как VT, doc/trackers.md), тулзы перечисляют действия, а не клавиши.
