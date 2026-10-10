@@ -1,11 +1,11 @@
 ; =========================================================================
 ; ШАПКА (строки 0..VIEW_LINE-1 над паттерном), один свой фон CLR_TOP_BG
-;   строка 0: вкладки | кнопки транспорта по центру (спрайты 16x16, строки 0..1) |
-;             трек 1 / 2 | Help, About, стерео (ABC) - в правом углу, без подписи
-;   строка 1: File: имя файла | (кнопки) | Chip:, Tune:
+;   строка 0: тёмная полоса (CLR_BAR): "Fast Tracker 2.01b", Help, About | кнопки
+;             транспорта (спрайты 16x16, строки 0..1) | вкладки - справа
+;   строка 1: File: имя файла, Track: 1 2 | (кнопки) | Chip:, Tune:
 ;   строка 2: Song: имя, By: автор
 ;   строка 3: как пишем в паттерн: Speed:, Size:, Octave:, Step:, Env as Note,
-;             Auto Env, 3ch / 6ch (вплотную к паттерну)
+;             Auto Env, 3ch / 6ch, стерео ABC (вплотную к паттерну)
 ; Данные трека (трек 1 / 2 переключает их все): файл, имя, автор, Chip, Tune,
 ; стерео, Speed, 3ch / 6ch. Остальное в строке 3 - общие настройки ввода.
 ; Подписи - CLR_TOP_TEXT, значения - CLR_TOP_VALUE, на том же фоне.
@@ -19,25 +19,23 @@ HD_SCR_H        equ SCR_BASE_H+HD_BUF_LINE
 HD_W            equ 90              ; ширина шапки
 ; --- строка 0
 HD_TABS_Y       equ 0
-HD_TABS_X       equ 1               ; вкладки (вид паттерна - базовое окно, своей вкладки нет)
+HD_TABS_X       equ 66              ; вкладки справа (вид паттерна - базовое окно, своей вкладки нет)
+HD_TITLE_X      equ 1               ; название "Fast Tracker 2.01b"
 HD_TAB_INSTR    equ HD_TABS_X
 HD_TAB_ORN      equ HD_TABS_X+6
 HD_TAB_FX       equ HD_TABS_X+10
 HD_TAB_DISK     equ HD_TABS_X+13
 HD_TAB_SETUP    equ HD_TABS_X+18
 HD_PLAY_Y       equ 0               ; кнопки транспорта - спрайты 16x16 (35..54, строки 0..1)
-HD_PLAY_X       equ 36              ; кнопки транспорта (левее - логотип)
-HD_LOGO_X       equ 24              ; логотип "Fast Tracker 2.01b": спрайт 48x16 (12 знакомест)
-    ASSERT HD_LOGO_X+12 <= HD_PLAY_X
-HD_TRK_L        equ 57              ; "Track:"
-HD_TRK_X        equ 64              ; трек "1 2" (выбранный - выделен)
-HD_HELP_X       equ 76              ; "Help"
-HD_ABOUT_X      equ 81              ; "About"
-HD_STEREO_X     equ 87              ; стерео "ABC" - в правом углу
+HD_PLAY_X       equ 36              ; кнопки транспорта
+HD_HELP_X       equ 24              ; "Help" - строка 0, между названием и кнопками
+HD_ABOUT_X      equ 29              ; "About"
 ; --- строка 1
 HD_ROW_FILE     equ 1
 HD_FILE_L       equ 1               ; "File:"
 HD_FILE_X       equ 7               ; имя файла (28)
+HD_TRK_L        equ 24              ; "Track:" - строка 1, левее кнопок
+HD_TRK_X        equ 31              ; трек "1 2" (выбранный - выделен)
 HD_CHIP_L       equ 56              ; "Chip:"
 HD_CHIP_X       equ 62              ; тип чипа (9 знаков)
 HD_TUNE_L       equ 73              ; "Tune:"
@@ -65,6 +63,7 @@ HD_AUTO_L       equ 64              ; "Auto Env" - так же
 HD_AUTO_W       equ 8
 HD_RATIO_X      equ 73              ; "1:1" - клик по кругу
 HD_CHAN_X       equ 80              ; "3ch" / "6ch"
+HD_STEREO_X     equ 84              ; стерео "ABC" - за числом каналов
     ASSERT VIEW_LINE == HD_ROW_EDIT+1 ; шапка - строки 0..3, паттерн - сразу под ней
 
 ; --- значения
@@ -130,8 +129,8 @@ Head_Load
 Hd_Song         ds 32               ; имя трека (32 знака, хвост - пробелы или 0)
 Hd_Author       ds 32
 Hd_File         ds 32               ; имя файла, 0 на конце
-HD_FILE_W       equ 16              ; видно знаков имени файла (8.3 влезает; правее - логотип)
-    ASSERT HD_FILE_X+HD_FILE_W <= HD_LOGO_X
+HD_FILE_W       equ 16              ; видно знаков имени файла (8.3 влезает; правее - Track)
+    ASSERT HD_FILE_X+HD_FILE_W <= HD_TRK_L
 
 ;-------- Значения трека - в страницу трека (поменяли в шапке)
 Hd_Save
@@ -169,19 +168,27 @@ Head_Draw
         ld a,d
         cp HD_SCR_H+VIEW_LINE
         jr c,.f
+        ld a,(THEME_ATTR+CLR_BAR)   ; строка 0 - тёмная полоса
+        ld c,a
+        ld de,256*HD_SCR_H
+.bar    ld a,' '
+        call PutCh
+        bit 7,e
+        jr z,.bar
         ret
 
 ; Надписи: строка, колонка, роль цвета, текст, 0. Конец - #FF
 Hd_Static
-        db HD_TABS_Y,HD_TAB_INSTR,CLR_TOP_TEXT,"Instr",0
-        db HD_TABS_Y,HD_TAB_ORN,CLR_TOP_TEXT,"Orn",0
-        db HD_TABS_Y,HD_TAB_FX,CLR_TOP_TEXT,"FX",0
-        db HD_TABS_Y,HD_TAB_DISK,CLR_TOP_TEXT,"Disk",0
-        db HD_TABS_Y,HD_TAB_SETUP,CLR_TOP_TEXT,"Setup",0
+        db HD_TABS_Y,HD_TITLE_X,CLR_BAR_TITLE,"Fast Tracker 2.01b",0
+        db HD_TABS_Y,HD_TAB_INSTR,CLR_BAR,"Instr",0
+        db HD_TABS_Y,HD_TAB_ORN,CLR_BAR,"Orn",0
+        db HD_TABS_Y,HD_TAB_FX,CLR_BAR,"FX",0
+        db HD_TABS_Y,HD_TAB_DISK,CLR_BAR,"Disk",0
+        db HD_TABS_Y,HD_TAB_SETUP,CLR_BAR,"Setup",0
         db HD_ROW_FILE,HD_FILE_L,CLR_TOP_TEXT,"File:",0
-        db HD_TABS_Y,HD_TRK_L,CLR_TOP_TEXT,"Track:",0
-        db HD_TABS_Y,HD_HELP_X,CLR_TOP_TEXT,"Help",0
-        db HD_TABS_Y,HD_ABOUT_X,CLR_TOP_TEXT,"About",0
+        db HD_ROW_FILE,HD_TRK_L,CLR_TOP_TEXT,"Track:",0
+        db HD_TABS_Y,HD_HELP_X,CLR_BAR,"Help",0
+        db HD_TABS_Y,HD_ABOUT_X,CLR_BAR,"About",0
         db HD_ROW_FILE,HD_CHIP_L,CLR_TOP_TEXT,"Chip:",0
         db HD_ROW_FILE,HD_TUNE_L,CLR_TOP_TEXT,"Tune:",0
         db HD_ROW_SONG,HD_SONG_L,CLR_TOP_TEXT,"Song:",0
@@ -275,7 +282,7 @@ Head_Show
         ld a,(Song_Stereo)          ; стерео, таблица нот
         ld hl,Hd_Stereos
         ld b,3
-        ld de,HD_STEREO_X+256*(HD_SCR_H+HD_TABS_Y)
+        ld de,HD_STEREO_X+256*(HD_SCR_H+HD_ROW_EDIT)
         call Hd_Name
         ld a,(Song_Tuning)
         ld hl,Hd_Tunings
@@ -335,7 +342,7 @@ Hd_Track
         ld a,c
 .put    ld c,b                      ; "1" - цветом B
         ld b,a                      ; "2" - цветом A
-        ld de,HD_TRK_X+256*(HD_SCR_H+HD_TABS_Y)
+        ld de,HD_TRK_X+256*(HD_SCR_H+HD_ROW_FILE)
         ld a,'1'
         call PutCh
         inc e
@@ -508,12 +515,12 @@ Head_Fields
         FIELD HD_TUNE_X,   HD_ROW_FILE,7,1, FF_HAND, Hd_Field, 0, 9           ; таблица нот - по кругу
         FIELD HD_CHIP_X,   HD_ROW_FILE,9,1, FF_HAND, Hd_Field, 0, 10          ; тип чипа - по кругу
         FIELD HD_CHAN_X,   HD_ROW_EDIT,3,1, FF_HAND, Hd_Field, 0, 20          ; 3 / 6 каналов
-        FIELD HD_STEREO_X, HD_TABS_Y,  3,1, FF_HAND, Hd_Field, 0, 11          ; стерео - по кругу
+        FIELD HD_STEREO_X, HD_ROW_EDIT, 3,1, FF_HAND, Hd_Field, 0, 11          ; стерео - по кругу
         FIELD HD_ENVNOTE_L,HD_ROW_EDIT,HD_ENVNOTE_W,1, FF_HAND, Hd_Field, 0, 12 ; Env as Note
         FIELD HD_AUTO_L,   HD_ROW_EDIT,HD_AUTO_W,1, FF_HAND, Hd_Field, 0, 13    ; Auto Env
         FIELD HD_STEP_L,   HD_ROW_EDIT,HD_STEP_W,1, FF_HAND, Hd_Field, 0, 14    ; шаг вкл/выкл
-        FIELD HD_TRK_X,    HD_TABS_Y, 1,1, FF_HAND, Hd_Field, 0, 21          ; трек 1
-        FIELD HD_TRK_X+2,  HD_TABS_Y, 1,1, FF_HAND, Hd_Field, 0, 22          ; трек 2
+        FIELD HD_TRK_X,    HD_ROW_FILE, 1,1, FF_HAND, Hd_Field, 0, 21          ; трек 1
+        FIELD HD_TRK_X+2,  HD_ROW_FILE, 1,1, FF_HAND, Hd_Field, 0, 22          ; трек 2
         FIELD HD_HELP_X,   HD_TABS_Y, 4,1, FF_HAND, Hd_Field, 0, 23          ; Help - пока ничего
         FIELD HD_ABOUT_X,  HD_TABS_Y, 5,1, FF_HAND, Hd_Field, 0, 23          ; About - пока ничего
         FIELD HD_TAB_DISK, HD_TABS_Y, 4,1, FF_HAND, Hd_Field, 0, 24          ; вкладка Disk
@@ -723,31 +730,6 @@ Tr_Icons
         db %00100000,%00110000,%00101000,%00100100,%00100100,%00101000,%00110000,%00100000
         db %00000000,%01111110,%01111110,%01111110,%01111110,%01111110,%01111110,%00000000
 
-
-; Логотип "Fast Tracker 2.01b": 48x16, 4 бита на точку (старший полубайт - левая), 0 -
-; прозрачно. Буквы - тёмные с градиентом, светлая тень на точку вниз-вправо (вдавленные в
-; светлую шапку), версия - янтарная. Сделано scratchpad/logo.ps1 (палитра темы: 1, 3, 7 - синие,
-; A - янтарь, B - белый). Тайлы - ряд TR_ROW с колонки LOGO_TILE (правее наборов кнопок)
-LOGO_W          equ 48
-LOGO_TILE       equ 40
-    ASSERT LOGO_TILE*8 >= TR_SET_W*4*2   ; не налезает на наборы кнопок
-Logo_Pix
-        db #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00  ; ................................................
-        db #01,#11,#00,#00,#00,#00,#00,#10,#00,#11,#10,#00,#00,#00,#00,#00,#00,#10,#00,#00,#00,#00,#00,#00  ; .###..........#...###.............#.............
-        db #01,#BB,#B0,#11,#00,#11,#01,#11,#00,#01,#BB,#10,#10,#01,#10,#01,#10,#1B,#10,#01,#00,#10,#10,#00  ; .#---.##..##.###...#--#.#..##..##.#-#..#..#.#...
-        db #03,#30,#03,#03,#B3,#3B,#B0,#3B,#B0,#03,#B0,#33,#0B,#30,#3B,#30,#BB,#33,#0B,#33,#30,#33,#0B,#00  ; .##..#.#-##--.#--..#-.##.-#.#-#.--##.-###.##.-..
-        db #03,#BB,#03,#B3,#B0,#33,#00,#3B,#00,#03,#B0,#3B,#B0,#3B,#3B,#3B,#00,#3B,#30,#3B,#BB,#3B,#B0,#00  ; .#--.#-#-.##..#-...#-.#--.#-#-#-..#-#.#---#--...
-        db #07,#B0,#00,#77,#B7,#7B,#B0,#07,#00,#07,#B0,#7B,#00,#07,#7B,#07,#70,#7B,#7B,#07,#70,#7B,#00,#00  ; .#-...##-##--..#...#-.#-...##-.##.#-#-.##.#-....
-        db #00,#B0,#00,#0B,#B0,#BB,#00,#00,#B0,#00,#B0,#0B,#00,#00,#BB,#00,#BB,#0B,#0B,#00,#BB,#0B,#00,#00  ; ..-....--.--....-...-..-....--..--.-.-..--.-....
-        db #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00  ; ................................................
-        db #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00  ; ................................................
-        db #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#AA,#00,#00,#0A,#00,#0A,#00,#A0,#00,#00  ; ............................##.....#...#..#.....
-        db #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#0B,#A0,#00,#A0,#A0,#AA,#B0,#AB,#00,#00  ; .............................-#...#.#.##-.#-....
-        db #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#0A,#0B,#00,#AB,#AB,#0A,#B0,#AA,#00,#00  ; .............................#.-..#-#-.#-.##....
-        db #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#A0,#B0,#00,#AB,#AB,#0A,#B0,#AB,#A0,#00  ; ............................#.-...#-#-.#-.#-#...
-        db #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#AA,#A0,#A0,#0A,#0B,#AA,#A0,#AA,#0B,#00  ; ............................###.#..#.-###.##.-..
-        db #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#0B,#BB,#0B,#00,#B0,#0B,#BB,#0B,#B0,#00  ; .............................---.-..-..---.--...
-        db #00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00,#00  ; ................................................
 Tg_Face db 0                        ; цвет грани набора
 Tg_Press db 0                       ; 1 - нажатый набор
 Tg_R    db 0                        ; строка кнопки 0..15
@@ -775,17 +757,6 @@ Head_Sprites
         pop hl
         pop bc
         djnz .set
-        ld hl,Logo_Pix              ; логотип - правее наборов кнопок
-        ld de,#C000+TR_ROW*8*256+LOGO_TILE*4
-        ld b,16
-.logo   push bc
-        push de
-        ld bc,LOGO_W/2
-        ldir
-        pop de
-        inc d                       ; следующая строка битмапа (256 байт)
-        pop bc
-        djnz .logo
         RESTPAGE3
         jp Tr_Send
 

@@ -27,7 +27,7 @@ Tool_Head
         ld de,TL_SCR_H*256
         ld bc,TL_TOP*256
         ldir
-        ld a,(THEME_ATTR+CLR_TOP_TEXT)  ; вкладки - обычным цветом (в буфере могла
+        ld a,(THEME_ATTR+CLR_BAR)       ; вкладки - обычным цветом (в буфере могла
         ld hl,TL_TABS_ATTR              ;   остаться подсветка от клика по ним)
         ld b,TL_TABS_W
 .tabs   ld (hl),a

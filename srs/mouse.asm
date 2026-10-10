@@ -88,7 +88,7 @@ Sprite_init_table
                 db #FF                                                ;конец таблы
 ;------mouse sprite settings 
 
-MOUSE_SFILE_SLOT equ    6         ; стрелка - запись 6 SFILE (после кнопок и логотипа): позже в списке - поверх
+MOUSE_SFILE_SLOT equ    5         ; стрелка - запись 5 SFILE: позже в списке - поверх (проверено)
                                   ; (кнопки транспорта - записи 0..4, srs/head.asm)
 MOUSE_Y_MASK    equ     %00100010 ; Флаги Y: ACT=1, размер 16 пикселей (#32)
 MOUSE_X_MASK    equ     %00000010 ; Флаги X: размер 16 пикселей (#02)
