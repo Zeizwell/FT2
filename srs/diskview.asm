@@ -1175,7 +1175,10 @@ Dv_Load
         ret c
         ld (Ld_Size),hl
         ld (Ld_Size+2),de
-        ld a,d                      ; размер: не меньше двух страниц, не больше буфера
+        ld a,(Ld_Kind)              ; FT2 - потоком: размер любой (не меньше двух страниц)
+        cp 1
+        jr z,.ft2min
+        ld a,d                      ; модуль - целиком в буфер: не больше 64К
         or a
         jr nz,.big
         ld a,e
@@ -1187,10 +1190,7 @@ Dv_Load
         jr z,.fits
 .big    ld hl,Txt_TooBig
         jp Dv_Error
-.fits   ld a,(Ld_Kind)              ; PT3, PT2 - хотя бы заголовок и ордер
-        cp 2
-        jr c,.ft2min
-        ld a,e
+.fits   ld a,e                      ; модуль - хотя бы заголовок и ордер
         or h
         jr nz,.pages
         ld a,l
@@ -1230,7 +1230,10 @@ Dv_Load
         or a
         jr nz,.wst
         call Tr_Active              ; кнопки транспорта - не горят
-        xor a                       ; файл - в буфер, по странице
+        ld a,(Ld_Kind)              ; FT2 - потоком
+        cp 1
+        jp z,Ft2_Load
+        xor a                       ; модуль - в буфер, по странице
         ld (Ld_Page),a
 .read   ld a,(Ld_Page)
         add a,PAGE_FILEBUF
@@ -1254,13 +1257,30 @@ Dv_Load
         ld a,(Ld_Pages)
         cp (hl)
         jr nz,.read
-.check  ld a,(Ld_Kind)              ; PT3 - импорт
+.check  ld a,(Ld_Kind)              ; импорт по типу
         cp 2
         jp z,Pt_Import
         cp 3
         jp z,Pt2_Import
-        cp 4
-        jp z,Ftc_Import
+        jp Ftc_Import
+.err    ld a,(Ld_Res)
+        jp Dv_Disk_Code
+
+Ld_Kind         db 0                ; 1 FT2, 2 PT3 (Dv_Ext)
+Ld_Size         ds 4                ; размер файла
+Ld_Pages        db 0                ; страниц в файле
+Ld_Page         db 0                ; прочитано страниц
+Ld_Res          db 0
+Ld_Err          db 0
+
+;-------- FT2 - потоком через одну страницу буфера (файл открыт Dv_Find):
+; 16К - страница трека, 16К - инструменты и орнаменты, дальше паттерны по роу
+Ft2_Load
+        xor a                       ; поток - чтение
+        ld (Fs_Mode),a
+        ld (Fs_Err),a
+        call Fs_Fill                ; страница трека
+        jp c,.err
         ld a,PAGE_FILEBUF           ; подпись трека
         SETPAGE3 a
         ld hl,(#C000+SH_SIGN)
@@ -1273,36 +1293,31 @@ Dv_Load
         ex de,hl
         ld bc,"2"+"S"*256
         sbc hl,bc
-        jr z,Ld_Unpack
+        jr nz,.bad
+        ld a,PAGE_FILEBUF
+        ld (Pg_File),a
+        ld (Fs_Page),a
+        ld a,PAGE_SONG1
+        ld (Pg_Mem),a
+        call Pg_Get
+        call Fs_Fill                ; инструменты и орнаменты
+        jr c,.err
+        ld a,PAGE_INS1
+        ld (Pg_Mem),a
+        call Pg_Get
+        call Fs_Fill                ; дальше - паттерны
+        jr c,.err
+        ld hl,#C000
+        ld (Fs_Ptr),hl
+        jr Ld_Unpack
 .bad    ld hl,Txt_NotFT2
         jp Dv_Error
 .err    ld a,(Ld_Res)
         jp Dv_Disk_Code
 
-Ld_Kind         db 0                ; 1 FT2, 2 PT3 (Dv_Ext)
-Ld_Size         ds 4                ; размер файла
-Ld_Pages        db 0                ; страниц в файле
-Ld_Page         db 0                ; прочитано страниц
-Ld_Res          db 0
-Ld_Err          db 0
-
-;-------- Буфер файла -> трек: страница трека, инструменты, паттерны
+;-------- Паттерны из потока - в трек
 Ld_Unpack
-        ld a,PAGE_FILEBUF           ; страница трека
-        ld (Pg_File),a
-        ld a,PAGE_SONG1
-        ld (Pg_Mem),a
-        call Pg_Get
-        ld a,PAGE_FILEBUF+1         ; инструменты и орнаменты
-        ld (Pg_File),a
-        ld a,PAGE_INS1
-        ld (Pg_Mem),a
-        call Pg_Get
         call Cat_Get                ; каталог паттернов: страницы - на наши места
-        ld a,PAGE_FILEBUF+2         ; паттерны - потоком
-        ld (Fs_Page),a
-        ld hl,#C000
-        ld (Fs_Ptr),hl
         xor a
         ld (Cat_N),a
 .pat    call Cat_Len                ; A - длина, Z - паттерна нет
@@ -1327,7 +1342,12 @@ Ld_Unpack
         ld a,(hl)
         cp PATTERNS_MAX
         jr c,.pat
-        ld hl,Dv_Spec+1             ; имя файла - в трек (шапка)
+        ld a,(Fs_Err)               ; диск подвёл посреди паттернов
+        or a
+        jr z,.ok
+        ld a,(Ld_Res)
+        jp Dv_Disk_Code
+.ok     ld hl,Dv_Spec+1             ; имя файла - в трек (шапка)
         call Dv_Song_File
         ld a,1                      ; вид паттерна перечитает трек при входе
         ld (SV_SONG_NEW),a
@@ -1440,7 +1460,6 @@ Dv_Save
 .name   call Name_Ext
         ld hl,Dv_Name               ; имя файла - в трек (и в файл)
         call Dv_Song_File
-        call Sv_Pack                ; трек -> буфер файла
         ld hl,Dv_Spec               ; такой файл есть? - пишем во временный
         ld (hl),FD_FILE
         ld hl,Dv_Name
@@ -1465,22 +1484,7 @@ Dv_Save
         ld hl,Sv_Spec
         call Disk_Call
         jp nz,Dv_Disk_Err
-        xor a                       ; страницы буфера - на диск
-        ld (Ld_Page),a
-.page   ld a,(Ld_Page)
-        ld hl,Sv_Full
-        cp (hl)
-        jr nc,.last
-        ld hl,#4000
-        call Sv_Append
-        ret c
-        ld hl,Ld_Page
-        inc (hl)
-        jr .page
-.last   ld hl,(Sv_Tail)             ; хвост - неполная страница
-        ld a,h
-        or l
-        call nz,Sv_Append
+        call Sv_Stream              ; трек - в файл потоком
         ret c
         ld ix,DK_CLOSE
         call Disk_Call
@@ -1501,11 +1505,10 @@ Dv_Save
         ld hl,Txt_Saved
         jp Dv_Ok
 
-; Страница буфера Ld_Page - на диск, HL байт с её начала. CF - ошибка (сообщение стоит)
+; Страница буфера файла - на диск, HL байт с её начала. CF - ошибка (сообщение стоит)
 Sv_Append
         ld (Sv_N),hl
-        ld a,(Ld_Page)
-        add a,PAGE_FILEBUF
+        ld a,PAGE_FILEBUF
         SETPAGE3 a
         ld ix,DK_APPEND
         ld hl,#C000
@@ -1522,8 +1525,6 @@ Sv_Append
 
 Sv_Repl         db 0                ; 1 - файл был, пишем через временный
 Sv_N            dw 0
-Sv_Full         db 0                ; полных страниц в буфере
-Sv_Tail         dw 0                ; байт в последней, неполной
 Sv_Spec         db #20,0,0,0,0      ; CREATE: атрибут (архивный), размер 0, имя
                 ds NAME_W+1
 Spec_Tmp        db FD_FILE
@@ -1551,19 +1552,28 @@ Name_Ext
         ret
 Txt_Ft2Ext      db ".ft2",0
 
-;-------- Трек -> буфер файла: страница трека, инструменты, паттерны потоком.
-; Sv_Full / Sv_Tail - сколько получилось
-Sv_Pack
+;-------- Трек -> файл (создан, открыт) потоком через одну страницу буфера: страница
+; трека, инструменты, паттерны по роу. CF - ошибка (сообщение стоит)
+Sv_Stream
+        ld a,1                      ; поток - запись
+        ld (Fs_Mode),a
+        xor a
+        ld (Fs_Err),a
         ld a,PAGE_FILEBUF
         ld (Pg_File),a
+        ld (Fs_Page),a
         ld a,PAGE_SONG1
         ld (Pg_Mem),a
         call Pg_Put
-        ld a,PAGE_FILEBUF+1
-        ld (Pg_File),a
+        ld hl,#4000
+        call Sv_Append
+        ret c
         ld a,PAGE_INS1
         ld (Pg_Mem),a
         call Pg_Put
+        ld hl,#4000
+        call Sv_Append
+        ret c
         ld a,PAGE_SONG1             ; каталог паттернов - как есть
         SETPAGE2 a
         ld hl,#8000+PAT_CATALOG
@@ -1571,8 +1581,6 @@ Sv_Pack
         ld bc,PATTERNS_MAX*PC_SIZE
         ldir
         RESTPAGE2
-        ld a,PAGE_FILEBUF+2
-        ld (Fs_Page),a
         ld hl,#C000
         ld (Fs_Ptr),hl
         xor a
@@ -1602,15 +1610,17 @@ Sv_Pack
         ld a,(hl)
         cp PATTERNS_MAX
         jr c,.pat
-        ld a,(Fs_Page)              ; размер: полные страницы + хвост
-        sub PAGE_FILEBUF
-        ld (Sv_Full),a
-        ld hl,(Fs_Ptr)
+        ld a,(Fs_Err)               ; полные страницы уже на диске (Fs_Step)
+        or a
+        scf
+        ret nz
+        ld hl,(Fs_Ptr)              ; хвост - неполная страница
         ld a,h
         sub #C0
         ld h,a
-        ld (Sv_Tail),hl
-        ret
+        or l
+        ret z
+        jp Sv_Append
 
 ;-------- Страница целиком: Pg_Get - из буфера файла в память, Pg_Put - обратно
 Pg_File         db 0                ; страница буфера файла
@@ -1712,15 +1722,46 @@ Fs_Chunk
         or 1                        ; NZ
         ret
 
-; После куска: HL - адрес в потоке за ним; конец страницы - следующая
+; После куска: HL - адрес в потоке за ним. Страница кончилась: чтение - следующие 16К
+; файла в неё же, запись - она на диск. Ошибка диска - Fs_Err (дальше не читаем и не пишем)
 Fs_Step
         ld a,h
         or l
         jr nz,.st
-        ld hl,Fs_Page
-        inc (hl)
-        ld hl,#C000
+        ld a,(Fs_Err)
+        or a
+        jr nz,.re
+        ld a,(Fs_Mode)
+        or a
+        jr nz,.w
+        call Fs_Fill
+        jr .chk
+.w      ld hl,#4000
+        call Sv_Append
+.chk    jr nc,.re
+        ld a,1
+        ld (Fs_Err),a
+.re     ld hl,#C000
 .st     ld (Fs_Ptr),hl
+        ret
+
+Fs_Mode         db 0                ; 0 - чтение, 1 - запись
+Fs_Err          db 0                ; 1 - диск подвёл
+
+;-------- Следующие 16К файла - в страницу буфера. CF - ошибка (Ld_Res - код)
+Fs_Fill
+        ld a,PAGE_FILEBUF
+        SETPAGE3 a
+        ld ix,DK_READ
+        ld hl,#C000
+        ld b,32
+        call Disk_Call
+        ld (Ld_Res),a
+        sbc a,a                     ; CF -> память: RESTPAGE портит флаги
+        ld (Ld_Err),a
+        RESTPAGE3
+        ld a,(Ld_Err)
+        rra                         ; CF - ошибка
         ret
 
     include "srs/pt3imp.asm"
