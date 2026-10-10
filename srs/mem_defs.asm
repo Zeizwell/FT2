@@ -77,6 +77,8 @@ PAGE_ROWNUM   EQU #BE                           ; номера роу
 PAGE_EDBUF    EQU #20                           ; отмена и буфер обмена редактора (из #20-#27)
 PAGE_WINIMG   EQU #21                           ; окно (его вид) - в раскладке экрана
 PAGE_WINSAVE  EQU #22                           ; что под окном
+PAGE_SPLASH   EQU #20                           ; заставка при старте: экран #20..#28 (потом - буферы)
+PAGE_SPLASH_PAL EQU #26                         ;   её палитра (до заливки фона)
 
 PAGES_PER_SONG EQU PATTERNS_MAX+2   ; полный трек: паттерн = страница + страница инструментов/орнаментов + FX
 PAGE_INS1     EQU PAGE_POOL+PATTERNS_MAX ; инструменты и орнаменты трека 1 (пока место фиксировано)
