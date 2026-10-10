@@ -111,6 +111,15 @@ tool_opt_end
     SAVEBIN     "srs/optview.bin",tool_opt,tool_opt_end-tool_opt
     display     "optview size",/d,tool_opt_end-tool_opt," bytes"
 
+    ; --- компаратор плеера (страница PAGE_CMP, работает в окне 3)
+    org #C000
+tool_cmp
+    include     "srs/cmpview.asm"
+tool_cmp_end
+    ASSERT tool_cmp_end <= #10000
+    SAVEBIN     "srs/cmpview.bin",tool_cmp,tool_cmp_end-tool_cmp
+    display     "cmpview size",/d,tool_cmp_end-tool_cmp," bytes"
+
     ; --- плеер (страница PAGE_PLAYER, окно 1 из IM1)
     include     "srs/player.asm"
     SAVEBIN     "srs/player.bin",player_start,player_end-player_start

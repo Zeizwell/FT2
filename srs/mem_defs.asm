@@ -24,7 +24,7 @@
 ; #19      плеер (srs/player.asm, окно 1 на время тика в IM1)
 ; #1A      тулза диска (srs/diskview.asm)
 ; #1B      каталог тулзы диска
-; #1C-#1F  тулзы и плагины
+; #1C-#1F  тулзы и плагины (#1E - компаратор плеера)
 ; #20-#27  буферы обмена / отмены
 ; #28-#2B  буфер файла, 4 страницы = 64К: модуль (PT3, PT2, FTC) читается целиком,
 ;          FT2 - потоком через одну страницу; он же - буфер компиляции (PT3)
@@ -49,6 +49,7 @@ PAGE_TOOL_DISK    equ #1A   ; тулза диска: каталог, загру�
 PAGE_DIRLIST      equ #1B   ; каталог для тулзы диска (окно 3)
 PAGE_TOOL_INSTR   equ #1C   ; тулза инструментов и орнаментов (окно 1)
 PAGE_TOOL_OPT     equ #1D   ; тулза настроек Setup (окно 1)
+PAGE_CMP          equ #1E   ; компаратор плеера и эталон PT3 (окно 3, srs/cmpview.asm)
 PAGE_SPRITE equ #08         ; Спрайты
 ; Внимательно смотрим сборщик и тд, куда кто грузится через spg!
 PAGE_TEXT   EQU #10         ; Текст режим, 128 символов+128 атр на строку
@@ -78,9 +79,9 @@ PAGES_PER_SONG EQU PATTERNS_MAX+2   ; полный трек: паттерн = с
 PAGE_INS1     EQU PAGE_POOL+PATTERNS_MAX ; инструменты и орнаменты трека 1 (пока место фиксировано)
     ASSERT PAGES_COMPBUF*16384 >= COMPILED_MAX      ; откомпилированный влезает
     ASSERT PAGE_POOL_END-PAGE_POOL >= SONGS_MAX*PAGES_PER_SONG ; два полных трека влезают (143 >= 132)
-; Свободно (никому не отдано): остаток пула за двумя треками + #05, #07, #1E, #1F, #BF.
+; Свободно (никому не отдано): остаток пула за двумя треками + #05, #07, #1F, #BF.
 ; Распределение жёсткое: у каждого трека свои PAGES_PER_SONG страниц, без динамики
-FREE_PAGES      EQU PAGE_POOL_END-PAGE_POOL-SONGS_MAX*PAGES_PER_SONG+5
+FREE_PAGES      EQU PAGE_POOL_END-PAGE_POOL-SONGS_MAX*PAGES_PER_SONG+4
 
 FONT_SIZE       equ #800    ; шрифт 256 символов x 8 байт
 FONTS_COUNT     equ 4      ; сколько шрифтов в банке (слоты 0..)

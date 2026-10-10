@@ -50,6 +50,7 @@ Pl_NoteTab      dw Note_175         ; таблица нот трека (SH_TUNIN
 Pl_OrdLast      db 0
 Pl_OrdLoop      db 0
 Pl_Chips        db CHIPS_MAX        ; чипов у трека (SH_CHIPS): 1 - только первый
+Pl_Looped       db 0                ; 1 - сонг дошёл до конца ордера и ушёл на цикл
 
 ;-------- Старт: таблица громкости, тишина
 Pl_Init
@@ -175,6 +176,8 @@ Pl_Cmd
 Pl_Reset
         ld a,(SV_SONG_PAGE)
         ld (SV_PLAY_SONG),a
+        xor a                       ; метка конца трека - заново
+        ld (Pl_Looped),a
         call Pl_Mute                ; оба чипа (второго может не быть в треке)
         xor a
         ld hl,Pl_Ch
@@ -296,6 +299,8 @@ Pl_Next_Row
         ld a,(SV_PLAY_POS)
         cp b
         jr c,.inc
+        ld a,1                      ; трек кончился - метка (компаратор, проверка длины)
+        ld (Pl_Looped),a
         ld a,(Pl_OrdLoop)
         jr .pos
 .inc    inc a

@@ -75,6 +75,9 @@ Pt_Done
         call Dv_Song_File
         ld a,1                      ; вид паттерна перечитает трек при входе
         ld (SV_SONG_NEW),a
+        ld a,(Dv_Cmp)               ; Compare - сравнить плееры (PT3 / PT2 до 16К)
+        or a
+        call nz,Dv_Compare
         ld a,(Pt_Lost)              ; без потерь - экран диска закрываем
         or a
         jp z,Dv_Loaded
@@ -1434,3 +1437,50 @@ Str_Skip
         or a
         jr nz,Str_Skip
         ret
+
+;-------- Compare: наш плеер против эталона (srs/cmpview.asm, страница PAGE_CMP в окне 3).
+; Только PT3 и PT2, модуль до 16К (лежит целиком в первой странице буфера файла)
+Dv_Compare
+        ld a,(Ld_Kind)              ; 2 - PT3, 3 - PT2
+        cp 2
+        ret c
+        cp 4
+        ret nc
+        ld a,(Ld_Size+2)            ; не больше 16К
+        or a
+        ret nz
+        ld hl,(Ld_Size)
+        ld de,#4001
+        or a
+        sbc hl,de
+        ret nc
+        ld a,PAGE_CMP
+        SETPAGE3 a
+        ld a,(Ld_Kind)
+        sub 2
+        ld (cmpview.Cmp_Kind),a
+        ld a,(Pt_Chips)
+        ld (cmpview.Cmp_Chips),a
+        ld a,(Ld_Kind)              ; PT2 - без TS
+        cp 3
+        ld a,0
+        jr z,.ts
+        ld a,(Pt_Chips)             ; PT3: два модуля - режим 16 и адрес второго
+        cp 2
+        ld a,32                     ;   иначе - автопоиск PT 3.7 TS
+        jr c,.ts
+        ld a,(Pt_TS37)
+        or a
+        ld a,32
+        jr nz,.ts
+        ld hl,(Pt_Base2)
+        ld de,cmpview.CM_MOD
+        add hl,de
+        ld (cmpview.Cmp_Mod2),hl
+        ld a,16
+.ts     ld (cmpview.Cmp_TS),a
+        call cmpview.Cmp_Run
+        RESTPAGE3
+        ld a,1                      ; экран диска - заново
+        ld (Dv_Dirty),a
+        jp Dv_Head

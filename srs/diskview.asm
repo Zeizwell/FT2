@@ -53,6 +53,8 @@ BTN_Y           equ DV_TOP+8        ; [ Load ]  [ Save ]
 LOAD_X          equ FP_L
 SAVE_X          equ FP_L+10
 BTN_W           equ 8
+CMP_X           equ FP_L+20         ; [ Compare ]: после загрузки PT3 / PT2 - сравнить плееры
+CMP_W           equ 13
 MSG_Y           equ DV_TOP+10       ; сообщение
 
 ; --- запись каталога в PAGE_DIRLIST
@@ -157,6 +159,7 @@ Dv_Leave
 
 ; --- состояние
 Dv_Mounted      db 0                ; 1 - карта подключена
+Dv_Cmp          db 0                ; 1 - Compare: после загрузки сравнить наш плеер с эталоном
 Dv_Exit         db 0                ; 1 - выйти в коре
 Dv_Dirty        db 0                ; 1 - перерисовать экран
 Dv_Count        db 0                ; записей в каталоге
@@ -481,6 +484,14 @@ Dv_Buttons
         ld ix,F_Save
         ld de,SAVE_X+256*(DV_SCR_H+BTN_Y)
         ld hl,Txt_Save
+        call .one
+        ld ix,F_Cmp                 ; Compare: вкл / выкл
+        ld de,CMP_X+256*(DV_SCR_H+BTN_Y)
+        ld hl,Txt_CmpOff
+        ld a,(Dv_Cmp)
+        or a
+        jr z,.one
+        ld hl,Txt_CmpOn
 .one    push hl
         push ix                     ; цвет: нажата / под мышью / обычная
         pop hl
@@ -518,6 +529,7 @@ F_List  DV_FIELD LS_X+1,LS_ROW0,LS_W-2,LS_ROWS, FF_FOCUS, Dv_ListEv, 0  ; кат
 F_Name  DV_FIELD FP_V,NAME_Y,NAME_W,1, FF_FOCUS|FF_HAND, Dv_NameEv, 0   ; имя файла
 F_Load  DV_FIELD LOAD_X,BTN_Y,BTN_W,1, FF_HAND, Dv_BtnEv, 0              ; Load
 F_Save  DV_FIELD SAVE_X,BTN_Y,BTN_W,1, FF_HAND, Dv_BtnEv, 1              ; Save
+F_Cmp   DV_FIELD CMP_X,BTN_Y,CMP_W,1, FF_HAND, Dv_BtnEv, 2              ; Compare
         db FLD_END
 
 ;-------- Клик в шапку: Instr / Orn - тулза инструментов, остальное - назад в вид паттерна
@@ -548,7 +560,12 @@ Dv_BtnEv
         ld a,(ix+FLD_PARAM)
         or a
         jp z,Dv_Open
-        jp Dv_Save
+        dec a
+        jp z,Dv_Save
+        ld a,(Dv_Cmp)               ; Compare - переключить
+        xor 1
+        ld (Dv_Cmp),a
+        ret
 
 ;-------- Каталог: клик - выбрать, двойной - открыть, колесо, клавиши
 Dv_ListEv
@@ -1953,6 +1970,8 @@ Txt_By          db "By:",0
 Txt_Size        db "Size:",0
 Txt_Load        db "[ Load ]",0
 Txt_Save        db "[ Save ]",0
+Txt_CmpOff      db "[ Compare  ]",0
+Txt_CmpOn       db "[ Compare + ]",0
 Txt_Dir         db "  <DIR>",0
 Txt_FT2         db "FT2",0
 Txt_PT3         db "PT3",0
