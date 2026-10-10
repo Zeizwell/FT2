@@ -406,18 +406,10 @@ Ps_Row
         add a,a
         add a,a
         ld (Ps_EAcc),a
-.tone   inc hl                      ; IR_TONE: 12 бит со знаком, флаги в старшем
-        ld a,d                      ; DE > 2047 -> 2047, < -2048 -> -2048
-        bit 7,a
-        jr nz,.neg
-        cp 8
-        jr c,.tok
-        ld de,2047
-        jr .tok
-.neg    cp #F8
-        jr nc,.tok
-        ld de,-2048
-.tok    ld (hl),e
+.tone   inc hl                      ; IR_TONE: 12 бит со знаком, флаги в старшем.
+        ld (hl),e                   ;   У PT3 смещение 16 бит, но период тона у AY -
+                                    ;   12 бит: берём младшие 12 (по модулю 4096 звук
+                                    ;   тот же, -3147 = +949), не обрезаем до ±2047
         inc hl
         ld a,d
         and #0F
