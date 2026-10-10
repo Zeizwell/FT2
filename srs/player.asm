@@ -247,6 +247,8 @@ Pl_Song_Info
         ld (Pl_NoteTab),hl
         ld a,(#8000+SH_ENVMODE)     ; огибающая FT / PT - в общую переменную (коре)
         ld (Song_EnvMode),a
+        ld a,(#8000+SH_STEREO)      ; стерео - тоже
+        ld (Song_Stereo),a
         ld a,(#8000+ORD_LAST)
         ld (Pl_OrdLast),a
         ld a,(#8000+SH_CHIPS)
@@ -934,7 +936,12 @@ Pl_Out
         ld bc,#FFFD
         out (c),a
         ret
-.chip   ld bc,#FFFD                 ; выбрать чип
+.chip   push af
+        push de
+        call Po_Stereo              ; каналы - по стерео (HL - уже Po_Buf)
+        pop de
+        pop af
+        ld bc,#FFFD                 ; выбрать чип
         out (c),a
         xor a                       ; R0..R12
 .r      ld b,#FF
@@ -959,6 +966,87 @@ Pl_Out
         ld b,#BF
         ld a,(hl)
         out (c),a
+        ret
+
+;-------- Стерео: регистры чипа HL -> Po_Buf, каналы переставлены по Song_Stereo: выход p
+; получает канал Po_Maps[режим][p] (тон, громкость, биты тона и шума в микшере).
+; Выход: HL = Po_Buf. Портит AF, BC, DE
+Po_Buf          ds PR_SIZE
+Po_Src          dw 0
+Po_Map          dw 0
+Po_Maps         db 0,1,2, 2,1,0, 0,2,1  ; ABC, CBA, ACB (Hd_Stereos в шапке)
+Po_Stereo
+        ld (Po_Src),hl
+        ld de,Po_Buf                ; шум, огибающая, R13 - как есть
+        ld bc,PR_SIZE
+        ldir
+        ld a,(Song_Stereo)
+        or a
+        jr z,.out                   ; ABC - каналы на своих местах
+        ld b,a                      ; таблица режима: *3
+        add a,a
+        add a,b
+        ld hl,Po_Maps
+        call Po_HlA
+        ld (Po_Map),hl
+        ld a,(Po_Buf+7)             ; микшер: биты каналов соберём заново
+        and #C0
+        ld (Po_Buf+7),a
+        ld c,0                      ; C - выход
+.ch     ld hl,(Po_Map)              ; B - канал для него
+        ld a,c
+        call Po_HlA
+        ld b,(hl)
+        ld hl,(Po_Src)              ; тон
+        ld a,b
+        add a,a
+        call Po_HlA
+        ld e,(hl)
+        inc hl
+        ld d,(hl)
+        ld hl,Po_Buf
+        ld a,c
+        add a,a
+        call Po_HlA
+        ld (hl),e
+        inc hl
+        ld (hl),d
+        ld hl,(Po_Src)              ; громкость
+        ld a,b
+        add a,8
+        call Po_HlA
+        ld e,(hl)
+        ld hl,Po_Buf+8
+        ld a,c
+        call Po_HlA
+        ld (hl),e
+        ld hl,(Po_Src)              ; микшер: биты канала (тон, шум) - на место выхода
+        ld de,7
+        add hl,de
+        ld a,(hl)
+        inc b
+        jr .s1
+.r1     rrca
+.s1     djnz .r1
+        and %00001001
+        ld b,c
+        inc b
+        jr .s2
+.l2     add a,a
+.s2     djnz .l2
+        ld hl,Po_Buf+7
+        or (hl)
+        ld (hl),a
+        inc c
+        ld a,c
+        cp 3
+        jr c,.ch
+.out    ld hl,Po_Buf
+        ret
+Po_HlA  add a,l
+        ld l,a
+        ret nc
+        inc h
         ret
 
 ; =========================================================================

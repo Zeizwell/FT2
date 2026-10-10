@@ -41,6 +41,10 @@ Txt_Sign        db "FT2S"
 ; в трек), плеер берёт каждый тик. Из трека - Head_Load и старт сонга в плеере
 Song_EnvMode    db 0
 
+;-------- Стерео трека (SH_STEREO): 0 ABC, 1 CBA, 2 ACB - какой канал на какой выход чипа.
+; Одна на всех: шапка переключает (и пишет в трек), плеер переставляет каналы при выводе
+Song_Stereo     db 0
+
 ;-------- Свободная память - постоянная (FREE_PAGES, srs/mem_defs.asm): "Free: NN pages"
 Txt_Free        db "Free: ",FREE_PAGES/10+"0",FREE_PAGES%10+"0"," pages",0
     ASSERT FREE_PAGES < 100
