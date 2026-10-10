@@ -28,6 +28,8 @@ CM_ALIGN_MAX    equ 16              ; ищем первый звук в стол
 CM_Y_TITLE      equ 2               ; строки экрана: под кнопками транспорта (строки 0..1)
 CM_Y_FILE       equ 3
 CM_Y_STAT       equ 5
+CM_Y_BAR        equ 6               ; полоса: позиция из всех в ордере
+CM_BAR_W        equ 64
 CM_Y_RES        equ 7
 CM_NOFX         equ 1               ; 1 - у эталона команды паттерна выкл (кроме темпа):
                                     ;   наш плеер их пока не умеет. Научим - 0
@@ -58,6 +60,8 @@ Cm_Bad          db 0                ; в этом кадре было расхо
 ;-------- Сравнение целиком. Прерывания выключены на всё время, в конце - включены
 Cmp_Run
         di
+        ld a,#FF                    ; полоса прогресса - нарисовать заново
+        ld (Cm_BarPos),a
         xor a                       ; новый модуль: FT ещё не переставлял его адреса
         ld (ftp.Relocated),a
         ld a,PAGE_PLAYER            ; наш плеер - в окне 1 на всё время
@@ -963,9 +967,61 @@ Cm_Show
         call PutHex2
         ld a,(Cm_Diffs)
         call PutHex2
+        call Cm_Bar
         RESTPAGE2
         ret
 Cm_Pat          db 0
+
+;-------- Полоса прогресса: клеток = позиция * CM_BAR_W / позиций в ордере (длина в кадрах
+; заранее не известна - скорость меняется). Только когда позиция сменилась. Экран - в окне 2
+Cm_BarPos       db #FF              ; позиция, для которой нарисована (#FF - ещё нет)
+Cm_Bar
+        ld a,(SV_PLAY_POS)
+        ld hl,Cm_BarPos
+        cp (hl)
+        ret z
+        ld (hl),a
+        ld l,a                      ; HL = позиция * 64
+        ld h,0
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+    ASSERT CM_BAR_W == 64
+        ld a,(Pl_OrdLast)           ; DE - позиций (последняя + 1)
+        ld e,a
+        ld d,0
+        inc de
+        ld b,0                      ; B - клеток: HL / DE
+.div    or a
+        sbc hl,de
+        jr c,.draw
+        inc b
+        jr .div
+.draw   ld a,CM_BAR_W
+        sub b
+        ld (Cb_Rest),a
+        ld de,1+256*(CM_SCR_H+CM_Y_BAR)
+        ld a,(THEME_ATTR+CLR_VOLUME) ; пройдено - клетки
+        ld c,a
+        inc b
+        jr .fn
+.f      ld a,GLYPH_VOL
+        call PutCh
+.fn     djnz .f
+        ld a,(THEME_ATTR+CLR_EMPTY) ; осталось - точки
+        ld c,a
+        ld a,(Cb_Rest)
+        ld b,a
+        inc b
+        jr .rn
+.r      ld a,'.'
+        call PutCh
+.rn     djnz .r
+        ret
+Cb_Rest         db 0
 
 ;-------- Итог: сдвиг старта, первое расхождение или "совпало"
 Cm_Result
