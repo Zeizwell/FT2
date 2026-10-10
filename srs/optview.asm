@@ -156,11 +156,19 @@ Hp_Frame
         ld hl,Hp_Box
         ld b,1
         call Ov_Frames.box
-        ld a,(THEME_ATTR+CLR_TEXT)
+        ld a,(THEME_ATTR+CLR_TEXT)  ; два столбца: паттерн | общие и Instr / Orn
         ld c,a
         ld hl,Txt_Keys
+        ld a,KY_X+2
+        call Hp_List
+        ld hl,Txt_Keys2
+        ld a,KY_X+46
+; Строки HL (пустая - " ", конец - 0) в колонку A, с первой строки списка
+Hp_List
+        ld (Hl_Col),a
         ld d,OV_SCR_H+LIST_Y
-.ky     ld e,KY_X+2
+.ky     ld a,(Hl_Col)
+        ld e,a
         call PutStr
         inc hl
         inc d
@@ -168,6 +176,7 @@ Hp_Frame
         or a
         jr nz,.ky
         ret
+Hl_Col          db 0
 
 Ov_Boxes
         db PL_X,PL_W,"Palette",0
@@ -789,6 +798,27 @@ Font_Names      db "cp866         Toshiba TxL1  Toshiba TxL2  Compaq Thin   "
 
 ; Справка: строки, пустая строка - " ", конец - 0
 Txt_Keys
+        db "Pattern:",0
+        db "Z..M Q..P  notes (Shift - octave up)",0
+        db "A off      K clear note",0
+        db "0-9 A-F    digits in fields",0
+        db "Delete     clear field / selection",0
+        db "Ins Bksp   insert / delete track line",0
+        db "Ctrl+I     insert row",0
+        db "Ctrl+Y     delete row (also Ctrl+Bksp)",0
+        db "Ctrl+Z     undo   Ctrl+Shift+Z redo",0
+        db "Shift+arrows, drag - select",0
+        db "Ctrl+A     select all",0
+        db "Ctrl+C X V copy / cut / paste",0
+        db "Num + -    transpose (Ctrl - octave)",0
+        db "Space      autostep on / off",0
+        db "Ctrl+0..9  step",0
+        db "Num 1..8   octave",0
+        db "Enter      play pattern (hold)",0
+        db "Left Right fields, Tab - channels",0
+        db "Click      cursor, Shift+click - select",0
+        db 0
+Txt_Keys2
         db "F5        Play song from position",0
         db "F6        Play song from start",0
         db "F7        Play pattern from row",0
@@ -797,8 +827,6 @@ Txt_Keys
         db "Ctrl+E    Open chip Env column",0
         db "Alt+E     Envelope as note",0
         db "Ctrl+T    Time band",0
-        db "Left Right  cursor by fields",0
-        db "Tab       next channel (Shift - prev)",0
         db " ",0
         db "Instr / Orn:",0
         db "Arrows, PgUp/PgDn, Home/End - cursor",0
@@ -807,8 +835,9 @@ Txt_Keys
         db "Space     flag on/off",0
         db "Z..M Q..P piano (preview row, Tab)",0
         db "Enter     play preview note (hold)",0
-        db "+ x       insert / delete row (mouse)",0
-        db "Click L, row number - loop to this row",0
+        db "Ins Ctrl+I    insert row (or +)",0
+        db "Bksp Ctrl+Y   delete row (or x)",0
+        db "Click L, row number - loop here",0
         db 0
 
     ENDMODULE
