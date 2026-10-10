@@ -26,11 +26,11 @@ Set_Palette
         ld d,(hl)
         dec hl
         ld (Pal_Bg),de
-        di                          ; CRAM - вместо памяти на запись (как Load_Text_Palette)
-        ld bc,FMADDR
-        ld a,#10
+        di                          ; CRAM - на запись в окно 3 (#C000): в окне 0 кэш,
+        ld bc,FMADDR                ;   запись туда портит код коре в кэше
+        ld a,FM_EN|(#C000>>12)
         out (c),a
-        ld de,PALET_NUM*32
+        ld de,#C000+FM_CRAM+PALET_NUM*32
         ld bc,32
         ldir
         ld bc,FMADDR
