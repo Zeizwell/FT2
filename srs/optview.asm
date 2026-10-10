@@ -367,6 +367,11 @@ Ini_Parse
         call Ini_Num
         cp PALETTES
         jr nc,.next
+        ld b,a                      ; та же, что стоит - CRAM не трогаем
+        ld a,(Cur_Palette)
+        cp b
+        jr z,.next
+        ld a,b
         push hl
         call Set_Palette
         pop hl

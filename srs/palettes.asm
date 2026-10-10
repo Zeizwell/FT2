@@ -26,8 +26,15 @@ Set_Palette
         ld d,(hl)
         dec hl
         ld (Pal_Bg),de
-        di                          ; CRAM - на запись в окно 3 (#C000): в окне 0 кэш,
-        ld bc,FMADDR                ;   запись туда портит код коре в кэше
+        push hl
+        SETPAGE3 PAGE_BENCH         ; запись через FM-окно идёт и в память окна 3 -
+        pop hl                      ;   пусть в служебную страницу, не в экран
+        di
+        push hl
+        call dma_wait               ; DMA (мышь, экран) пишет CRAM/SFILE - запись ЦП
+        pop hl                      ;   в CRAM в это время теряется
+        ld bc,FMADDR                ; CRAM - на запись в окно 3 (#C000): в окне 0 кэш,
+                                    ;   запись туда портит код коре в кэше
         ld a,FM_EN|(#C000>>12)
         out (c),a
         ld de,#C000+FM_CRAM+PALET_NUM*32
@@ -37,6 +44,7 @@ Set_Palette
         xor a
         out (c),a
         ei
+        RESTPAGE3
         ret
 
 ; Имена тем (Setup), по 8 знаков

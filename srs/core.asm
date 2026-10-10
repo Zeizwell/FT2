@@ -105,8 +105,8 @@ Core_Start
         xor a                   ; шрифт 0 и значки поверх
         call Set_Font
         call Apply_UI_Glyphs
-        xor a                   ; тема 0
-        call Set_Palette
+        ld hl,(Pal_Data)        ; тема 0 уже в CRAM (Load_Text_Palette): только её фон
+        ld (Pal_Bg),hl
         ld a,OPT_LOAD           ; настройки из /FT2/FT2.INI (нет карты или файла - как есть)
         ld (SV_TOOL_ARG),a
         ld a,PAGE_TOOL_OPT
