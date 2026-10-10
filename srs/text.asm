@@ -152,6 +152,8 @@ Bind_Tab
         db KEY_BACK,  0,        0, ACT_DEL_TRK
         db KEY_BACK,  KM_CTRL,  0, ACT_DEL_PAT
         db KEY_Y,     KM_CTRL,  0, ACT_DEL_PAT
+        db KEY_Z,     KM_CTRL,  0, ACT_UNDO
+        db KEY_Z,     KM_CTRL|KM_SHIFT, 0, ACT_REDO
         db #69,       0,        0, ACT_OCT_1    ; Numpad 1..8 - октава
         db #72,       0,        0, ACT_OCT_1+1
         db #7A,       0,        0, ACT_OCT_1+2

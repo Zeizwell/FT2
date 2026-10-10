@@ -227,6 +227,8 @@ ACT_INS_TRK     equ 41              ; Insert - вставить строку т�
 ACT_INS_PAT     equ 42              ; Ctrl+I - вставить строку паттерна (Instr / Orn - строку)
 ACT_DEL_TRK     equ 43              ; Backspace - удалить строку трека (Instr / Orn - строку)
 ACT_DEL_PAT     equ 44              ; Ctrl+Backspace, Ctrl+Y - удалить строку паттерна
+ACT_UNDO        equ 45              ; Ctrl+Z - отмена (в пределах канала)
+ACT_REDO        equ 46              ; Ctrl+Shift+Z - повтор
 MB_LEFT         equ 0               ; номер кнопки мыши (смещение в SV_MS_COUNT / 4)
 MB_RIGHT        equ 1
 MB_MIDDLE       equ 2

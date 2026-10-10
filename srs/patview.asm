@@ -2347,6 +2347,7 @@ Pt_Nib  ld (Cp_Fld),a
         ld hl,Op_Nib
 ; HL - правка (Op_*): сделать, строка звучит, курсор - на шаг вниз
 Pt_Do   ld (Cp_Op),hl
+        call Ud_Save                ; отмена: колонка - до правки
         call Cell_Edit
         call Play_Line
         call Step_Cur
@@ -2381,6 +2382,7 @@ K_Clear
         xor a                       ; период - и нота огибающей
         ld (Cp_EnvNote),a
 .do     ld (Cp_Op),hl
+        call Ud_Save
         jp Cell_Edit
 ; поле курсора -> байт клетки
 Clr_Chan        db CH_NOTE, CH_SAMPLE, CH_ENVSHAPE, CH_ORNAMENT, CH_VOLUME
@@ -2605,15 +2607,19 @@ Ln_Size         db 0                ;   длина
 Ln_Len          db 0                ; длина паттерна
 Ln_Pat          db 0                ; номер паттерна позиции
 K_InsTrk
+        call Ud_Save
         call Trk_Part
         jr Ln_Ins
 K_InsPat
+        call Ud_Reset               ; вся роу паттерна - отмены нет
         call Pat_Part
         jr Ln_Ins
 K_DelTrk
+        call Ud_Save
         call Trk_Part
         jp Ln_Del
 K_DelPat
+        call Ud_Reset
         call Pat_Part
         jp Ln_Del
 
@@ -2750,6 +2756,203 @@ Ln_Text
         jr z,.e
         jr nc,.t
 .e      ret
+
+;-------- ОТМЕНА (5 шагов, только в пределах канала): перед правкой колонка элемента
+; курсора (64 роу по 16 / 8 байт) и курсор - в кольцо записей (PAGE_EDBUF, окно 3).
+; Ctrl+Z - колонку паттерна и записи поменять местами, курсор - как был; Ctrl+Shift+Z -
+; поменять обратно (повтор). Операции на всю роу паттерна отмену сбрасывают
+UD_N            equ 5
+UD_HDR          equ 16
+UD_REC          equ UD_HDR+PAT_ROWS_MAX*CH_SIZE ; 1040
+UD_BASE         equ #C000           ; кольцо - в начале PAGE_EDBUF (окно 3)
+UD_PAT          equ 0               ; запись: паттерн, кусок роу, курсор
+UD_OFS          equ 1
+UD_SIZE         equ 2
+UD_POS          equ 3
+UD_ROW          equ 4
+UD_CHAN         equ 5
+UD_ENV          equ 6
+UD_FIELD        equ 7
+    ASSERT UD_N*UD_REC <= #2000     ; дальше в странице - буфер обмена
+
+Ud_Head         db 0                ; запись для следующей правки (0..UD_N-1)
+Ud_Count        db 0                ; сколько можно отменить
+Ud_Redo         db 0                ; сколько можно повторить
+Ud_Rec          dw 0                ; адрес записи (окно 3)
+
+Ud_Reset
+        xor a
+        ld (Ud_Count),a
+        ld (Ud_Redo),a
+        ret
+
+; A - номер записи -> Ud_Rec
+Ud_Addr
+        ld hl,UD_BASE
+        ld de,UD_REC
+        or a
+        jr z,.s
+.m      add hl,de
+        dec a
+        jr nz,.m
+.s      ld (Ud_Rec),hl
+        ret
+
+;-------- Перед правкой канала курсора: колонка и курсор - в запись Ud_Head
+Ud_Save
+        call Trk_Part               ; Ln_Ofs, Ln_Size - элемент курсора
+        call Ln_Page                ; Ln_Pat; A - страница паттерна
+        ld (Ud_PPage),a
+        ld a,(Ud_Head)
+        call Ud_Addr
+        ld a,(Ud_PPage)
+        SETPAGE2 a
+        ld a,PAGE_EDBUF
+        SETPAGE3 a
+        ld ix,(Ud_Rec)              ; заголовок
+        ld a,(Ln_Pat)
+        ld (ix+UD_PAT),a
+        ld a,(Ln_Ofs)
+        ld (ix+UD_OFS),a
+        ld a,(Ln_Size)
+        ld (ix+UD_SIZE),a
+        ld a,(Cur_Pos)
+        ld (ix+UD_POS),a
+        ld a,(Cur_Row)
+        ld (ix+UD_ROW),a
+        ld a,(Cur_Chan)
+        ld (ix+UD_CHAN),a
+        ld a,(Env_Open)
+        ld (ix+UD_ENV),a
+        ld a,(Cur_Field)
+        ld (ix+UD_FIELD),a
+        ld de,UD_HDR                ; колонка: 64 роу подряд
+        add ix,de
+        ld d,ixh
+        ld e,ixl
+        ld h,PAT_BASE_H
+.r      ld a,(Ln_Ofs)
+        ld l,a
+        ld a,(Ln_Size)
+        ld c,a
+        ld b,0
+        ldir
+        inc h
+        ld a,h
+        cp PAT_BASE_H+PAT_ROWS_MAX
+        jr c,.r
+        RESTPAGE3
+        RESTPAGE2
+        ld a,(Ud_Head)              ; кольцо: следующая
+        inc a
+        cp UD_N
+        jr c,$+3
+        xor a
+        ld (Ud_Head),a
+        ld a,(Ud_Count)
+        cp UD_N
+        jr nc,$+3
+        inc a
+        ld (Ud_Count),a
+        xor a                       ; новая правка - повторять нечего
+        ld (Ud_Redo),a
+        ret
+Ud_PPage        db 0
+
+;-------- Ctrl+Z: последняя запись - колонку поменять местами, курсор - туда
+K_Undo
+        ld a,(Ud_Count)
+        or a
+        ret z
+        dec a
+        ld (Ud_Count),a
+        ld hl,Ud_Redo
+        inc (hl)
+        ld a,(Ud_Head)              ; назад по кольцу
+        or a
+        jr nz,$+4
+        ld a,UD_N
+        dec a
+        ld (Ud_Head),a
+        jr Ud_Swap
+;-------- Ctrl+Shift+Z: повтор - та же запись, обратно
+K_Redo
+        ld a,(Ud_Redo)
+        or a
+        ret z
+        dec a
+        ld (Ud_Redo),a
+        ld hl,Ud_Count
+        inc (hl)
+        ld a,(Ud_Head)
+        push af
+        inc a                       ; вперёд по кольцу
+        cp UD_N
+        jr c,$+3
+        xor a
+        ld (Ud_Head),a
+        pop af
+; Запись A: колонка паттерна <-> колонка записи, курсор - из записи, текст роу заново
+Ud_Swap
+        call Ud_Addr
+        ld a,PAGE_EDBUF             ; заголовок - сначала (страница паттерна - из него)
+        SETPAGE3 a
+        ld ix,(Ud_Rec)
+        ld a,(ix+UD_PAT)
+        ld (Ln_Pat),a
+        ld a,(ix+UD_OFS)
+        ld (Ln_Ofs),a
+        ld a,(ix+UD_SIZE)
+        ld (Ln_Size),a
+        ld a,(ix+UD_POS)
+        ld (Cur_Pos),a
+        ld a,(ix+UD_ROW)
+        ld (Cur_Row),a
+        ld a,(ix+UD_CHAN)
+        ld (Cur_Chan),a
+        ld a,(ix+UD_ENV)
+        ld (Env_Open),a
+        ld a,(ix+UD_FIELD)
+        ld (Cur_Field),a
+        RESTPAGE3
+        ld a,(Ln_Pat)
+        call Pat_Page
+        SETPAGE2 a
+        ld a,PAGE_EDBUF
+        SETPAGE3 a
+        ld ix,(Ud_Rec)
+        ld de,UD_HDR
+        add ix,de
+        ld d,ixh
+        ld e,ixl
+        ld h,PAT_BASE_H
+.r      ld a,(Ln_Ofs)
+        ld l,a
+        ld a,(Ln_Size)
+        ld b,a
+.s      ld a,(de)                   ; байт: поменять местами
+        ld c,(hl)
+        ld (hl),a
+        ld a,c
+        ld (de),a
+        inc l
+        inc de
+        djnz .s
+        inc h
+        ld a,h
+        cp PAT_BASE_H+PAT_ROWS_MAX
+        jr c,.r
+        RESTPAGE3
+        ld h,PAT_BASE_H             ; текст всех роу паттерна
+.t      call Row_To_Text
+        inc h
+        ld a,h
+        cp PAT_BASE_H+PAT_ROWS_MAX
+        jr c,.t
+        RESTPAGE2
+        ld a,1                      ; позиция могла смениться - ордер и раскладку заново
+        ld (Order_Pending),a
+        jp Need_Layout
 
 ;-------- Numpad 1..8: октава ввода (номер - из сработавшего действия)
 K_Oct   ld a,(Kt_Act)
@@ -2897,6 +3100,10 @@ Pat_Keys
         dw K_Clear
         db ACT_AUTOSTEP
         dw H_AutoStep               ; Space - автошаг (как кнопка Step в шапке)
+        db ACT_UNDO
+        dw K_Undo
+        db ACT_REDO
+        dw K_Redo
         db ACT_INS_TRK
         dw K_InsTrk
         db ACT_INS_PAT
@@ -3418,6 +3625,7 @@ Song_Sync
 ; вид берёт из неё ордер, повтор и каталог паттернов, текст роу строит заново.
 ; Паттерн n - в странице Trk_Pat+n (загрузка кладёт его туда же)
 Song_Reload
+        call Ud_Reset               ; отмена - другого трека
         xor a
         ld (SV_SONG_NEW),a
         ld (Cur_Pos),a
