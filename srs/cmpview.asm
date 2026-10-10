@@ -22,6 +22,8 @@ CM_SCR_H        equ #80             ; экран - в окне 2 (на врем�
 CM_MOD          equ #8000           ; модуль - в окне 2
 CM_FRAMES_MAX   equ #FFFF
 CM_ALIGN_MAX    equ 16              ; ищем первый звук в стольких кадрах
+CM_NOFX         equ 1               ; 1 - у эталона команды паттерна выкл (кроме темпа):
+                                    ;   наш плеер их пока не умеет. Научим - 0
 
         jp Cmp_Run                  ; #C000 - вход (окно 3)
 
@@ -107,6 +109,8 @@ Cm_Init
         ld a,(Cmp_TS)
         or b
         ld (pts.SETUP),a
+        ld a,CM_NOFX                ; команды паттерна у эталона
+        ld (pts.NoFx),a
         ld hl,CM_MOD
         ld de,(Cmp_Mod2)
         call pts.START+3

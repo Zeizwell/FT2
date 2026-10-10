@@ -1,7 +1,8 @@
 ; =========================================================================
 ; ЭТАЛОН ДЛЯ КОМПАРАТОРА (srs/cmpview.asm): плеер PT2/PT3/TurboSound С.В. Бульбы,
 ; исходник - github.com/oisee/vti, ZXAYHOBETA/PTSPlay.asm (копия - players/PTSPlay.asm).
-; Изменения для FT2: без ORG (собирается внутри cmpview), CurPosCounter=1, Basic=0, Id=0.
+; Изменения для FT2: без ORG (собирается внутри cmpview), CurPosCounter=1, Basic=0, Id=0;
+; флаг NoFx - спецкоманды, кроме темпа, выключены (только пропуск параметров).
 ; Таблицы нот и громкостей, которые строит INIT, компаратор затирает нашими.
 ; =========================================================================
 ;Universal PT2'n'PT3 Turbo Sound player for ZX Spectrum
@@ -595,7 +596,11 @@ PD2_VOL	RRCA
 PD2_DEL	CALL C_DELAY
 	JR PD2_LOOP
 
-PD2_GLIS SET 2,(IX-12+CHP.Flags)
+PD2_GLIS CALL NoFxChk
+	JR Z,PD2_GL
+	INC BC		;FT2: NoFx - параметр пропустить
+	JR PD2_LOOP
+PD2_GL	SET 2,(IX-12+CHP.Flags)
 	INC A
 	LD (IX-12+CHP.TnSlDl),A
 	LD (IX-12+CHP.TSlCnt),A
@@ -643,7 +648,13 @@ PD2_LOOP LD A,(BC)
 	LD (IX-12+CHP.CrNsSl),A
 	JR PD2_LOOP
 
-PD2_PORT RES 2,(IX-12+CHP.Flags)
+PD2_PORT CALL NoFxChk
+	JR Z,PD2_PT
+	INC BC		;FT2: NoFx - 3 байта пропустить
+	INC BC
+	INC BC
+	JR PD2_LOOP
+PD2_PT	RES 2,(IX-12+CHP.Flags)
 	LD A,(BC)
 	INC BC
 	INC BC ;ignoring precalc delta to right sound
@@ -789,7 +800,9 @@ PD_FIN	LD A,(IX-12+CHP.NNtSkp)
 	LD (IX-12+CHP.NtSkCn),A
 	RET
 
-C_PORTM LD A,(BC)
+C_PORTM CALL NoFxChk
+	JP NZ,SKIP4
+	LD A,(BC)
 	INC BC
 ;SKIP PRECALCULATED TONE DELTA (BECAUSE
 ;CANNOT BE RIGHT AFTER PT3 COMPILATION)
@@ -863,7 +876,9 @@ SET_STP	LD (IX-12+CHP.TSlStp+1),A
 	LD (IX-12+CHP.COnOff),0
 	RET
 
-C_GLISS	SET 2,(IX-12+CHP.Flags)
+C_GLISS	CALL NoFxChk
+	JR NZ,SKIP3
+	SET 2,(IX-12+CHP.Flags)
 	LD A,(BC)
 	INC BC
 	LD (IX-12+CHP.TnSlDl),A
@@ -881,17 +896,23 @@ GL36	LD (IX-12+CHP.TSlCnt),A
 	INC BC
 	JR SET_STP
 
-C_SMPOS	LD A,(BC)
+C_SMPOS	CALL NoFxChk
+	JR NZ,SKIP1
+	LD A,(BC)
 	INC BC
 	LD (IX-12+CHP.PsInSm),A
 	RET
 
-C_ORPOS	LD A,(BC)
+C_ORPOS	CALL NoFxChk
+	JR NZ,SKIP1
+	LD A,(BC)
 	INC BC
 	LD (IX-12+CHP.PsInOr),A
 	RET
 
-C_VIBRT	LD A,(BC)
+C_VIBRT	CALL NoFxChk
+	JR NZ,SKIP2
+	LD A,(BC)
 	INC BC
 	LD (IX-12+CHP.OnOffD),A
 	LD (IX-12+CHP.COnOff),A
@@ -904,7 +925,9 @@ C_VIBRT	LD A,(BC)
 	LD (IX-12+CHP.CrTnSl+1),A
 	RET
 
-C_ENGLS	LD A,(BC)
+C_ENGLS	CALL NoFxChk
+	JR NZ,SKIP3
+	LD A,(BC)
 	INC BC
 	LD (IY-100+VRS.Env_Del),A
 	LD (IY-100+VRS.CurEDel),A
@@ -916,6 +939,20 @@ C_ENGLS	LD A,(BC)
 	LD H,A
 	LD (IY-100+VRS.ESldAdd),L
 	LD (IY-100+VRS.ESldAdd+1),H
+	RET
+
+;FT2: NoFx<>0 - спецкоманды (кроме темпа) только пропускают свои параметры, ничего не
+;включают (как наш плеер, пока он умеет только скорость). Ставит компаратор
+NoFx	DB 1
+NoFxChk PUSH HL
+	LD HL,NoFx
+	BIT 0,(HL)
+	POP HL
+	RET
+SKIP4	INC BC
+SKIP3	INC BC
+SKIP2	INC BC
+SKIP1	INC BC
 	RET
 
 C_DELAY	LD A,(BC)
