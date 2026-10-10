@@ -34,6 +34,10 @@ Win_Open
         ld bc,4
         ldir
         ld (Wo_Text),hl
+; Показать окно Win_X..Win_H, строки - Wo_Text
+Win_Show
+        ld a,1
+        ld (Win_Busy),a
         ld a,(SV_DRAW_PAGE)
         SETPAGE3 a
         xor a                       ; что под окном - в Win_Save
@@ -211,6 +215,163 @@ Win_Draw
         ld a,b
         jp PutCh
     ASSERT (THEME_ATTR & 255) == 0 || (THEME_ATTR & 255) + 128 <= 256
+
+;-------- Меню у мыши: HL - ширина, пунктов, строки пунктов (роль, текст, 0). Пункт под
+; мышью - подсвечен, Up / Down - тоже; клик или Enter - выбрать, Esc, правая, клик мимо -
+; закрыть. Выход: A - пункт 0.., #FF - ничего
+Wm_N            db 0                ; пунктов
+Wm_Sel          db #FF              ; подсвеченный (#FF - нет)
+Wm_SeenR        ds 4
+Win_Menu
+        ld a,(hl)                   ; ширина, пунктов, строки
+        ld (Win_W),a
+        inc hl
+        ld a,(hl)
+        ld (Wm_N),a
+        add a,2
+        ld (Win_H),a
+        inc hl
+        ld (Wo_Text),hl
+        ld a,(Win_W)                ; x - у мыши, не за правый край
+        ld b,a
+        ld a,90
+        sub b
+        ld b,a
+        ld a,(SV_MOUSE_COL)
+        cp b
+        jr c,$+3
+        ld a,b
+        ld (Win_X),a
+        ld a,(Win_H)                ; y - так же, не за низ
+        ld b,a
+        ld a,36
+        sub b
+        ld b,a
+        ld a,(SV_MOUSE_ROW)
+        cp b
+        jr c,$+3
+        ld a,b
+        ld (Win_Y),a
+        ld a,#FF
+        ld (Wm_Sel),a
+        call Win_Show
+        ld a,MB_LEFT                ; старые события кнопок - мимо
+        ld hl,Ww_Seen
+        call Mouse_Btn
+        ld a,MB_RIGHT
+        ld hl,Wm_SeenR
+        call Mouse_Btn
+.l      halt
+        call Wm_At                  ; мышь над пунктом - подсветить
+        cp #FF
+        jr z,.k
+        ld hl,Wm_Sel
+        cp (hl)
+        jr z,.k
+        ld (hl),a
+        call Wm_Redraw
+.k      call Key_Get                ; клавиши: Esc, Enter, Up, Down
+        jr z,.m
+        cp KEY_ESC
+        jr z,.none
+        cp KEY_ENTER
+        jr z,.pick
+        cp KEY_UP
+        jr z,.up
+        cp KEY_DOWN
+        jr nz,.l
+        ld a,(Wm_Sel)               ; вниз (с #FF - на первый)
+        inc a
+        ld hl,Wm_N
+        cp (hl)
+        jr nc,.l
+        jr .set
+.up     ld a,(Wm_Sel)
+        or a
+        jr z,.l
+        cp #FF
+        jr z,.l
+        dec a
+.set    ld (Wm_Sel),a
+        call Wm_Redraw
+        jr .l
+.m      ld a,MB_LEFT                ; левая: над пунктом - выбрать, мимо - закрыть
+        ld hl,Ww_Seen
+        call Mouse_Btn
+        and 1<<ME_PRESS
+        jr z,.r
+        call Wm_At
+        cp #FF
+        jr z,.none
+        ld (Wm_Sel),a
+        jr .pick
+.r      ld a,MB_RIGHT               ; правая - закрыть
+        ld hl,Wm_SeenR
+        call Mouse_Btn
+        and 1<<ME_PRESS
+        jr z,.l
+.none   ld a,#FF
+        ld (Wm_Sel),a
+.pick   call Win_Close
+        ld a,(Wm_Sel)
+        ret
+
+; A - пункт под мышью (#FF - не над пунктом)
+Wm_At
+        ld a,(Win_X)                ; колонка: внутри рамки
+        ld b,a
+        ld a,(SV_MOUSE_COL)
+        sub b
+        jr z,.no
+        jr c,.no
+        inc a
+        ld hl,Win_W
+        cp (hl)
+        jr nc,.no
+        ld a,(Win_Y)                ; строка: пункт
+        ld b,a
+        ld a,(SV_MOUSE_ROW)
+        sub b
+        jr z,.no
+        jr c,.no
+        dec a
+        ld hl,Wm_N
+        cp (hl)
+        ret c
+.no     ld a,#FF
+        ret
+
+; Окно заново, пункт Wm_Sel - цветом выделения, снимок - в Win_Img
+Wm_Redraw
+        ld a,1
+        ld (Win_Busy),a
+        ld a,(SV_DRAW_PAGE)
+        SETPAGE3 a
+        call Win_Draw
+        ld a,(Wm_Sel)
+        cp #FF
+        jr z,.s
+        ld hl,Win_Y                 ; строка пункта
+        add a,(hl)
+        add a,WIN_SCR_H+1
+        ld h,a
+        ld a,(Win_X)                ; атрибуты внутри рамки
+        add a,128+1
+        ld l,a
+        ld a,(Win_W)
+        sub 2
+        ld b,a
+        ld a,(THEME_ATTR+CLR_SELECT)
+.c      ld (hl),a
+        inc l
+        djnz .c
+.s      xor a
+        ld hl,Win_Img
+        call Win_Rect
+        RESTPAGE3
+        xor a
+        ld (Win_Busy),a
+        ret
 
 ;-------- About
 Win_About

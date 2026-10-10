@@ -2194,6 +2194,8 @@ Ord_Go  ld (Cur_Pos),a
 Pat_Field
         cp EV_PRESS
         jp z,Pat_Click
+        cp EV_RCLICK
+        jp z,Pat_Menu
         cp EV_WHEEL
         jr z,.wheel
         cp EV_KEY
@@ -3415,6 +3417,42 @@ Op_Paste
         ld b,0
         ldir
         ret
+
+;-------- Правая кнопка: меню (как VT) - пункт = действие редактора
+Pat_Menu
+        ld hl,Pm_Items
+        call Win_Menu               ; A - пункт, #FF - ничего
+        cp #FF
+        ret z
+        add a,a
+        ld hl,Pm_Act
+        add a,l
+        ld l,a
+        jr nc,$+3
+        inc h
+        ld a,(hl)
+        inc hl
+        ld h,(hl)
+        ld l,a
+        jp (hl)
+Pm_Items
+        db 21, 13                   ; ширина, пунктов
+        db CLR_TOP_TEXT,"Copy",0
+        db CLR_TOP_TEXT,"Cut",0
+        db CLR_TOP_TEXT,"Paste",0
+        db CLR_TOP_TEXT,"Delete",0
+        db CLR_TOP_TEXT,"Insert track line",0
+        db CLR_TOP_TEXT,"Delete track line",0
+        db CLR_TOP_TEXT,"Insert row",0
+        db CLR_TOP_TEXT,"Delete row",0
+        db CLR_TOP_TEXT,"Transpose +1",0
+        db CLR_TOP_TEXT,"Transpose -1",0
+        db CLR_TOP_TEXT,"Octave up",0
+        db CLR_TOP_TEXT,"Octave down",0
+        db CLR_TOP_TEXT,"Select all",0
+Pm_Act  dw K_Copy, K_Cut, K_Paste, K_Del, K_InsTrk, K_DelTrk, K_InsPat, K_DelPat
+        dw K_TrUp, K_TrDn, K_TrOU, K_TrOD, K_SelAll
+    ASSERT ($-Pm_Act)/2 == 13
 
 ;-------- Клик в паттерн: с Shift - выделить от курсора до клика, без - снять выделение
 Pat_Click
