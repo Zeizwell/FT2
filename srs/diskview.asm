@@ -62,9 +62,9 @@ DR_FLAG         equ 0               ; 0 - папка, #10 - файл (как о�
 DR_LEN          equ 1               ; 4 размер
 DR_DATE         equ 5               ; 2 дата FAT
 DR_NAME         equ 8               ; имя, 0 на конце
-DR_NAME_MAX     equ 55
-DR_SIZE         equ 64
-DR_MAX          equ 248             ; записей: #C000..#FDFF
+DR_NAME_MAX     equ 119             ; длинные имена (LFN): 55 не хватало (56 знаков с .pt3)
+DR_SIZE         equ 128
+DR_MAX          equ 124             ; записей: #C000..#FDFF
 DL_TMP          equ #FE00           ; окно 3: запись от драйвера (до 13+255 байт):
 NX_LEN          equ 4               ;   +0 кластер (4), +4 размер (4), +8 дата, +10 время,
 NX_DATE         equ 8
@@ -257,6 +257,7 @@ Dv_Draw_List
         ret
 
 Dl_Idx          db 0
+Dl_Tail         db 0                ; длинное имя: где последние 4 знака
 
 ; Строка D: запись Dl_Idx (за концом - пустая). Каталог - в окне 2
 Dv_List_Row
@@ -294,18 +295,38 @@ Dv_List_Row
 .sp     ld a,' '
         call PutCh
         djnz .sp
-        ld e,LS_NAME_X              ; имя, не длиннее LS_NAME_W
+        ld e,LS_NAME_X              ; имя: влезает в LS_NAME_W - целиком,
+        ld hl,(Dl_Rec)              ;   длиннее - начало, "~" и последние 4 знака
+        ld bc,DR_NAME               ;   (расширение видно)
+        add hl,bc
+        call Str_Len
+        cp LS_NAME_W+1
+        ld b,LS_NAME_W
+        jr c,.nm
+        sub 4                       ; хвост: имя + длина - 4
+        ld (Dl_Tail),a
+        ld b,LS_NAME_W-5
+        call .put
+        ld a,'~'
+        ld (de),a
+        inc e
         ld hl,(Dl_Rec)
         ld bc,DR_NAME
         add hl,bc
-        ld b,LS_NAME_W
-.nm     ld a,(hl)
+        ld a,(Dl_Tail)
+        call Hl_Add_A
+        ld b,4
+.nm     call .put
+        jr .size
+; B знаков с HL (до 0) - на экран с DE
+.put    ld a,(hl)
         or a
-        jr z,.size
+        ret z
         ld (de),a
         inc e
         inc hl
-        djnz .nm
+        djnz .put
+        ret
 .size   ld hl,(Dl_Rec)              ; папка - <DIR>, файл - размер
         ld a,(hl)
         or a
@@ -915,17 +936,14 @@ Dl_Pass
         inc (hl)
         jr .next
 
-; A - номер записи -> HL - её смещение в странице каталога (A*64)
+; A - номер записи -> HL - её смещение в странице каталога (A*128)
 Dl_Ofs
-        ld l,a
-        ld h,0
-        add hl,hl
-        add hl,hl
-        add hl,hl
-        add hl,hl
-        add hl,hl
-        add hl,hl
+        ld l,0
+        srl a
+        rr l
+        ld h,a
         ret
+    ASSERT DR_SIZE == 128
 
 ;-------- Запись A -> Dv_Spec: флаг поиска (FD_*), имя, 0 - так её ищет драйвер
 Dv_Spec         ds 1+DR_NAME_MAX+1
