@@ -36,6 +36,7 @@ MS_X            equ FN_X+2
 MS_BAR_X        equ MS_X+6          ; полоса - за подписью
 MS_SPEED_MAX    equ 9               ; MOUSE_SPEED 0..9 (5 - 100%)
 MS_ACCEL_MAX    equ 8               ; MOUSE_ACCEL 0..8 (0 - выкл)
+CB_Y            equ MS_Y+4          ; курсор паттерна: Solid / Blink (клик - другой)
 
 ; --- файл
 INI_BUF         equ #C000           ; окно 3: страница PAGE_FILEBUF
@@ -273,6 +274,20 @@ Ov_Mouse
         ld hl,Txt_Accel
         ld a,(MOUSE_ACCEL)
         ld b,MS_ACCEL_MAX
+        call Ov_Bar
+        ld a,(THEME_ATTR+CLR_TEXT)  ; курсор паттерна
+        ld c,a
+        ld de,MS_X+256*(OV_SCR_H+CB_Y)
+        ld hl,Txt_Cursor
+        call PutStr
+        ld a,(THEME_ATTR+CLR_VOLUME)
+        ld c,a
+        ld a,(Cur_Blink)
+        or a
+        ld hl,Txt_Solid
+        jr z,$+5
+        ld hl,Txt_Blink
+        jp PutStr
 
 ; Полоса: HL - подпись (6 знаков), A - значение (столько клеток горит), B - клеток всего,
 ; DE - место. За полосой - значение цифрой
@@ -355,6 +370,7 @@ Hp_Fields
 F_Save  OV_FIELD SAVE_X,SAVE_Y,6,1, FF_HAND, Ov_SaveEv, 0                ; Save
         OV_FIELD MS_X,MS_Y+1,6+MS_SPEED_MAX,1, FF_HAND, Ov_MouseEv, 0    ; мышь: скорость
         OV_FIELD MS_X,MS_Y+2,6+MS_ACCEL_MAX,1, FF_HAND, Ov_MouseEv, 1    ;   ускорение
+        OV_FIELD MS_X,CB_Y,12,1, FF_HAND, Ov_CurEv, 0                    ; курсор: Solid / Blink
         db FLD_END
 
 ;-------- Шапка: 0 - вид паттерна, 1/2 - Instr/Orn, 3 - Disk, 4 - Setup, 5 - Help
@@ -405,6 +421,15 @@ Ov_Changed
         ld a,1
         ld (Ov_Dirty),a
         ret
+
+;-------- Курсор паттерна: клик - сплошной / мигающий
+Ov_CurEv
+        cp EV_CLICK
+        ret nz
+        ld a,(Cur_Blink)
+        xor 1
+        ld (Cur_Blink),a
+        jp Ov_Changed
 
 ;-------- Мышь: клик по клетке k - значение k+1, по подписи - 0. Таблицу скорости - сразу
 Ov_MouseEv
@@ -528,7 +553,7 @@ Ini_Parse
         jr .mset
 .macc   ld de,Key_MAccel            ; mouse_accel=
         call Ini_Key
-        jr nz,.next
+        jr nz,.cblk
         call Ini_Num
         cp MS_ACCEL_MAX+1
         jr nc,.next
@@ -536,6 +561,13 @@ Ini_Parse
 .mset   push hl                     ; таблица скорости - заново
         call Mouse_Scale
         pop hl
+        jr .next
+.cblk   ld de,Key_CBlink            ; cursor_blink=
+        call Ini_Key
+        jr nz,.next
+        call Ini_Num
+        and 1
+        ld (Cur_Blink),a
 .next   ld a,(hl)                   ; до конца строки
         or a
         ret z
@@ -641,6 +673,10 @@ Ini_Text
         call Str_Put
         ld a,(MOUSE_ACCEL)
         call Dec_Put
+        ld hl,Key_CBlink
+        call Str_Put
+        ld a,(Cur_Blink)
+        call Dec_Put
         ex de,hl                    ; длина = конец - начало
         ld bc,INI_BUF
         or a
@@ -734,6 +770,7 @@ Key_Palette     db "palette=",0
 Key_Font        db "font=",0
 Key_MSpeed      db "mouse_speed=",0
 Key_MAccel      db "mouse_accel=",0
+Key_CBlink      db "cursor_blink=",0
 Txt_IniHead     db "; Fast Tracker 2.01b settings",13,10,0
 Txt_Save        db " Save ",0
 Txt_Saved       db "Saved \\FT2\\FT2.INI",0
@@ -742,6 +779,9 @@ Txt_ImRe        db "IM1 re-entry: ",0
 Txt_Mouse       db "Mouse",0
 Txt_Speed       db "Speed ",0
 Txt_Accel       db "Accel ",0
+Txt_Cursor      db "Cursor ",0
+Txt_Solid       db "Solid",0
+Txt_Blink       db "Blink",0
 
 ; Имена шрифтов банка (как в srs/main.asm), по 14 знаков
 Font_Names      db "cp866         Toshiba TxL1  Toshiba TxL2  Compaq Thin   "
@@ -757,7 +797,8 @@ Txt_Keys
         db "Ctrl+E    Open chip Env column",0
         db "Alt+E     Envelope as note",0
         db "Ctrl+T    Time band",0
-        db "Tab       Next field",0
+        db "Left Right  cursor by fields",0
+        db "Tab       next channel (Shift - prev)",0
         db " ",0
         db "Instr / Orn:",0
         db "Arrows, PgUp/PgDn, Home/End - cursor",0

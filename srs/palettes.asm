@@ -9,6 +9,7 @@ PALETTES        equ 6
 
 Cur_Palette     db 0                ; выбранная тема
 Pal_Bg          dw 0                ; её цвет #0 (фон) - для полосы времени
+Cur_Blink       db 0                ; курсор паттерна: 0 - сплошной, 1 - мигающий (Setup, INI)
 
 ;-------- Тема A: 16 цветов в CRAM (DMA). Портит AF, BC, DE, HL
 Set_Palette

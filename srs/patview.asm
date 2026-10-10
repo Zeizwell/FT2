@@ -268,6 +268,7 @@ Compose
         call Draw_Attrs             ; 2. атрибуты из шаблонов
         BAND_I BAND_SEPS
         call Draw_Seps              ; 3. разделители, цвет номеров роу
+        call Draw_Cursor            ; 4. курсор - поверх
         RESTPAGE3
         ld a,(Timing)               ; вернуть цвет основного цикла
         or a
@@ -547,6 +548,42 @@ Tpl_Run
         ret
 
 ;-------- 3. РАЗДЕЛИТЕЛИ (их колонки перекрыты черепицей) и цвет номеров роу
+;-------- 4. Курсор: поле Cur_Field открытого элемента на строке редактирования - цветом
+; курсора. Мигающий (Cur_Blink, Setup) - половину из каждых 32 кадров не рисуем
+Draw_Cursor
+        ld a,(Cur_Blink)
+        or a
+        jr z,.on
+        ld a,(SV_FRAMES)
+        and 16
+        ret nz
+.on     ld a,(Env_Open)             ; таблица полей элемента
+        or a
+        ld hl,Cf_Chan
+        jr z,$+5
+        ld hl,Cf_Env
+        ld a,(Cur_Field)
+        add a,a
+        add a,l
+        ld l,a
+        jr nc,$+3
+        inc h
+        ld e,(hl)                   ; колонка в элементе
+        inc hl
+        ld b,(hl)                   ; ширина
+        ld a,(Open_Item)            ; + колонка элемента
+        ld hl,Item_Col
+        call Arr_Get
+        add a,e
+        add a,SCR_ATTR
+        ld l,a
+        ld h,SCR_BASE_H+EDIT_LINE
+        ld a,(THEME_ATTR+CLR_CURSOR)
+.c      ld (hl),a
+        inc l
+        djnz .c
+        ret
+
 Draw_Seps
         ld hl,Seps                  ; колонка, символ
         ld a,(Seps_N)
@@ -730,6 +767,15 @@ Calc_Open
         ret
 
 Cursor_Item     db 1                ; элемент под курсором (фокус), открыт он или нет
+Cur_Field       db 0                ; поле курсора в элементе (Cf_Chan / Cf_Env)
+
+; Поля курсора в открытом элементе: колонка от начала элемента, ширина.
+; Канал "C-4 A1FE 1234 5678": нота, сэмпл, огибающая, орнамент, громкость, цифры двух команд.
+; Env чипа "0134 1F 0000": цифры периода, шума, огибающей-2
+Cf_Chan         db 0,3, 4,1, 5,1, 6,1, 7,1, 9,1, 10,1, 11,1, 12,1, 14,1, 15,1, 16,1, 17,1
+CF_CHAN_N       equ ($-Cf_Chan)/2
+Cf_Env          db 0,1, 1,1, 2,1, 3,1, 5,1, 6,1, 8,1, 9,1, 10,1, 11,1
+CF_ENV_N        equ ($-Cf_Env)/2
 
 ;-------- Сколько чипов у трека (Song_Chips, шапка) -> что видно в паттерне.
 ; 1 чип: Env, A, B, C (данные второго чипа в паттерне остаются, просто не видны).
@@ -1787,6 +1833,7 @@ Set_Chan
         ld (Cur_Chan),a
         xor a
         ld (Env_Open),a
+        ld (Cur_Field),a
 Need_Layout
         ld a,1
         ld (Layout_Pending),a
@@ -1796,6 +1843,78 @@ K_EnvOpen
         ld a,(hl)
         xor 1
         ld (hl),a
+        xor a                       ; курсор - на первое поле
+        ld (Cur_Field),a
+        jr Need_Layout
+
+;-------- Влево / вправо: поле курсора; за краем элемента - соседний элемент (как в VT)
+K_FieldLeft
+        ld a,(Cur_Field)
+        or a
+        jr z,.prev
+        dec a
+        ld (Cur_Field),a
+        ret
+.prev   ld a,(Cursor_Item)          ; предыдущий элемент - на его последнее поле
+        or a
+        ret z
+        dec a
+        call Item_Go
+        call Fields_N
+        dec a
+        ld (Cur_Field),a
+        ret
+K_FieldRight
+        call Fields_N
+        dec a
+        ld hl,Cur_Field
+        cp (hl)
+        jr z,.next
+        inc (hl)
+        ret
+.next   ld a,(Vis_Items)            ; следующий элемент - на первое поле
+        dec a
+        ld hl,Cursor_Item
+        cp (hl)
+        ret z
+        ld a,(hl)
+        inc a
+        call Item_Go
+        xor a
+        ld (Cur_Field),a
+        ret
+
+; A - сколько полей у элемента под курсором (по Env_Open)
+Fields_N
+        ld a,(Env_Open)
+        or a
+        ld a,CF_CHAN_N
+        ret z
+        ld a,CF_ENV_N
+        ret
+
+; A - элемент 0..7 (Env1, A, B, C, Env2, D, E, F) -> курсор на нём, раскладка - заново
+Item_Go
+        ld b,a
+        and 3
+        jr nz,.ch
+        ld a,b                      ; Env чипа: канал - первый этого чипа (0 или 3)
+        rrca
+        ld c,a
+        rrca
+        add a,c
+        ld (Cur_Chan),a
+        ld a,1
+        ld (Env_Open),a
+        jr Need_Layout
+.ch     ld a,b                      ; канал: 1..3 -> 0..2, 5..7 -> 3..5
+        dec a
+        cp 4
+        jr c,$+3
+        dec a
+        ld (Cur_Chan),a
+        xor a
+        ld (Env_Open),a
         jr Need_Layout
 
 ;-------- Огибающая нотой: переключить режим и переписать текст периода огибающей
@@ -2099,9 +2218,9 @@ Pat_Keys
         db ACT_PGDN
         dw K_PageDn
         db ACT_LEFT
-        dw K_ChLeft
+        dw K_FieldLeft
         db ACT_RIGHT
-        dw K_ChRight
+        dw K_FieldRight
         db ACT_NEXT
         dw K_ChRight
         db ACT_PREV
