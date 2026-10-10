@@ -372,7 +372,7 @@ SH_TUNING       equ SONG_HDR+#07    ; 1  таблица нот
 SH_INS_PAGE     equ SONG_HDR+#08    ; 1  страница инструментов и орнаментов (doc/instruments.md)
 SH_STEP         equ SONG_HDR+#09    ; 1  шаг курсора при вводе (новый трек - 4)
 SH_DEVICE       equ SONG_HDR+#0A    ; 1  тип чипа: 0 AY, 1 YM, 2 AYX-32, 3 наша плата (чипов - SH_CHIPS)
-SH_STEREO       equ SONG_HDR+#0B    ; 1  стерео: 0 ABC, 1 CBA, 2 ACB
+SH_STEREO       equ SONG_HDR+#0B    ; 1  стерео: 0 ABC, 1 ACB, 2 CAB
 SH_PATTERNS     equ SONG_HDR+#0C    ; 1  число паттернов
 SH_SAMPLES      equ SONG_HDR+#0D    ; 1  число сэмплов (инструментов)
 SH_ORNAMENTS    equ SONG_HDR+#0E    ; 1  число орнаментов

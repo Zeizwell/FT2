@@ -93,7 +93,7 @@ Hd_Devices      db "AY       "
                 db "YM       "
                 db "AYX-32   "
                 db "FT2 board"
-Hd_Stereos      db "ABC","CBA","ACB"         ; как Po_Maps в плеере
+Hd_Stereos      db "ABC","ACB","CAB"         ; как Po_Maps в плеере
 Hd_EnvModes     db "FT","PT"
 ; Соотношения автоогибающей A:B - как в Vortex Tracker II (StdAutoEnv, main.pas).
 ; Период огибающей = период ноты * A / B / 16 (пила, формы 8 и 12) или / 32
