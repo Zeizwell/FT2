@@ -581,6 +581,8 @@ Fc_Row_Ch
         ld (Fc_Porta),a
         jp .cmd
 .noise  call Pt_Get                 ; #EF: шум
+        cp #FE                      ; #EF #FE - ретриггер огибающей и тона (FT 1.15):
+        jp z,.cmd                   ;   пока не умеем, это не шум
         and #1F
         call Pr_Noise
         jp .cmd

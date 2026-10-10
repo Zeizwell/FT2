@@ -1,6 +1,6 @@
 ; =========================================================================
 ; КОМПАРАТОР ПЛЕЕРА: наш плеер против эталона (плеер PT2/PT3/TS С.В. Бульбы,
-; srs/ptsplay.asm). Страница PAGE_CMP, работает в ОКНЕ 3 (#C000): окно 1 занимает
+; srs/ptsplay.asm), для FTC - плеер Fast Tracker 1.15 (srs/ftplay.asm). Страница PAGE_CMP, работает в ОКНЕ 3 (#C000): окно 1 занимает
 ; наш плеер, окно 2 - модуль (буфер файла) или экран на время вывода.
 ; Зовёт тулза диска после импорта PT3 / PT2 с галочкой Compare (модуль до 16К).
 ; =========================================================================
@@ -33,7 +33,8 @@ CM_NOFX         equ 1               ; 1 - у эталона команды па�
         jp Cmp_Run                  ; #C000 - вход (окно 3)
 
 ; --- вход: что сравниваем (ставит тулза диска)
-Cmp_Kind        db 0                ; 0 - PT3, 1 - PT2
+CK_FTC          equ 2
+Cmp_Kind        db 0                ; 0 - PT3, 1 - PT2 (эталон Бульбы), CK_FTC - FTC (плеер FT)
 Cmp_TS          db 0                ; режим TS эталона: 0, 16 - два модуля, 32 - PT 3.7 / автопоиск
 Cmp_Mod2        dw 0                ; второй модуль (два модуля TS), адрес в окне 2
 Cmp_Chips       db 1                ; сколько чипов сравнивать
@@ -59,6 +60,10 @@ Cmp_Run
         SETPAGE1 a
         call Cm_Clear_Screen
         ld hl,Txt_Title
+        ld a,(Cmp_Kind)             ; FTC - эталон FT
+        cp CK_FTC
+        jr nz,$+5
+        ld hl,Txt_TitleFt
         ld de,1+256*(CM_SCR_H+CM_Y_TITLE)
         call Cm_Text
         ld hl,Txt_File              ; имя модуля
@@ -120,10 +125,14 @@ Cm_Init
         ld a,PC_SONG
         ld (SV_PLAY_CMD),a
         call Pl_Song_Info           ; таблица нот трека (Pl_NoteTab) - уже сейчас
+        xor a                       ; эталон ещё не дошёл до конца
+        ld (Cm_RLoop),a
         ld a,PAGE_FILEBUF
         SETPAGE2 a
-        ld a,(Cmp_Kind)             ; SETUP: без цикла (бит 0), PT2 (бит 1), TS (биты 4-5)
-        add a,a
+        ld a,(Cmp_Kind)
+        cp CK_FTC
+        jr z,.ft
+        add a,a                     ; SETUP: без цикла (бит 0), PT2 (бит 1), TS (биты 4-5)
         or 1
         ld b,a
         ld a,(Cmp_TS)
@@ -140,31 +149,70 @@ Cm_Init
         ldir
         ld hl,Vol_T+16
         ld de,pts.VT_+16
-        ld bc,256-16
+        jr .vol
+.ft     xor a                       ; FTC: плеер FT 1.15
+        ld (ftp.Looped),a
+        ld a,CM_NOFX
+        ld (ftp.NoFx),a
+        call ftp.InitModule
+        ld hl,(Pl_NoteTab)          ; наши таблицы - поверх его
+        ld de,ftp.ToneTable_Place
+        ld bc,96*2
+        ldir
+        ld hl,Vol_T+16
+        ld de,ftp.VolumeTable+16
+.vol    ld bc,256-16
         ldir
         RESTPAGE2
         ret
 
-;-------- Тик нашего плеера (без прерываний) / кадр эталона (модуль - в окне 2)
+;-------- Тик нашего плеера (без прерываний) / кадр эталона (модуль - в окне 2).
+; Регистры эталона после кадра - в Cm_RRegs (R13 #FF - не писали), конец трека - Cm_RLoop
+Cm_RRegs        ds PR_SIZE*2        ; регистры эталона: чип 1, чип 2
+Cm_RLoop        db 0                ; не 0 - эталон прошёл точку цикла
 Cm_Tick_Our
         jp PLAYER_TICK
 Cm_Tick_Ref
         ld a,PAGE_FILEBUF
         SETPAGE2 a
-        call pts.START+5
+        ld a,(Cmp_Kind)
+        cp CK_FTC
+        jr z,.ft
+        call pts.START+5            ; PT3 / PT2
+        ld hl,pts.VARS1+pts.VRS.AYREGS
+        ld de,Cm_RRegs
+        ld bc,PR_SIZE
+        ldir
+        ld hl,pts.VARS2+pts.VRS.AYREGS
+        ld bc,PR_SIZE
+        ldir
+        ld a,(pts.SETUP)            ; конец трека - бит 7
+        and #80
+        jr .end
+.ft     ld a,#FF                    ; FTC: R13 - что запишет в этот кадр
+        ld (ftp.R13W),a
+        call ftp.PlayModule
+        ld hl,ftp.AyR0_ChannelAfinePitch
+        ld de,Cm_RRegs
+        ld bc,PR_SIZE
+        ldir
+        ld a,(ftp.R13W)
+        ld (Cm_RRegs+13),a
+        ld a,(ftp.Looped)
+.end    ld (Cm_RLoop),a
         RESTPAGE2
         ret
 
-;-------- Конец трека: эталон прошёл точку цикла (бит 7 его SETUP), наш - метка
+;-------- Конец трека: эталон прошёл точку цикла (Cm_RLoop), наш - метка
 ; Pl_Looped. Кадр, где это случилось, - Cm_EndRef / Cm_EndOur (0 - ещё нет, считаем с 1).
 ; Выход: Z - кончились оба
 Cm_EndRef       dw 0
 Cm_EndOur       dw 0
 Cm_Ends
         ld hl,(Cm_Frame)
-        ld a,(pts.SETUP)
-        rla
-        jr nc,.our
+        ld a,(Cm_RLoop)
+        or a
+        jr z,.our
         ld de,(Cm_EndRef)
         ld a,d
         or e
@@ -213,7 +261,7 @@ Cm_Align
 .r      push bc                     ; эталон
         call Cm_Tick_Ref
         pop bc
-        ld hl,pts.VARS1+pts.VRS.AYREGS+8
+        ld hl,Cm_RRegs+8
         call Cm_Sound
         jr nz,.rf
         inc b
@@ -283,7 +331,7 @@ Cm_Compare
         xor a
         ld (Cm_Bad),a
         ld (Cm_Chip),a
-        ld hl,pts.VARS1+pts.VRS.AYREGS
+        ld hl,Cm_RRegs
         ld de,Pl_Regs
         call Cm_Chip_Cmp
         ld a,(Cmp_Chips)
@@ -291,7 +339,7 @@ Cm_Compare
         jr c,.cnt
         ld a,1
         ld (Cm_Chip),a
-        ld hl,pts.VARS2+pts.VRS.AYREGS
+        ld hl,Cm_RRegs+PR_SIZE
         ld de,Pl_Regs+PR_SIZE
         call Cm_Chip_Cmp
 .cnt    ld a,(Cm_Bad)               ; кадров с расхождением
@@ -547,10 +595,10 @@ Cm_Log  ld hl,(Cm_Frame)
         inc hl
         inc hl
         ex de,hl                    ; регистры эталона: оба чипа
-        ld hl,pts.VARS1+pts.VRS.AYREGS
+        ld hl,Cm_RRegs
         ld bc,PR_SIZE
         ldir
-        ld hl,pts.VARS2+pts.VRS.AYREGS
+        ld hl,Cm_RRegs+PR_SIZE
         ld bc,PR_SIZE
         ldir
         ld hl,Pl_Regs               ; наши; R13 - как у эталона (#FF - не пишется)
@@ -646,14 +694,15 @@ Cm_SRef         ds PR_SIZE*2        ; регистры эталона (чип 1,
 Cm_SOur         ds PR_SIZE*2        ;   наши
 Cm_SOurCh       ds 3*CS_SIZE        ; наши каналы чипа Cm_F_Chip (CS_*)
     ASSERT CS_SIZE == 16
-Cm_SRefCh       ds 3*pts.CHP        ; каналы эталона (CHP.*)
+Cm_SRefCh       ds 3*5              ; каналы эталона: нота, строка сэмпла, строка орнамента,
+                                    ;   громкость, слайд (младший)
 
 Cm_Snap
-        ld hl,pts.VARS1+pts.VRS.AYREGS
+        ld hl,Cm_RRegs
         ld de,Cm_SRef
         ld bc,PR_SIZE
         ldir
-        ld hl,pts.VARS2+pts.VRS.AYREGS
+        ld hl,Cm_RRegs+PR_SIZE
         ld bc,PR_SIZE
         ldir
         ld hl,Pl_Regs               ; наши: оба чипа подряд
@@ -671,12 +720,83 @@ Cm_Snap
         ld de,Cm_SOurCh
         ld bc,3*CS_SIZE
         ldir
-        ld hl,(Cs_Ref)
-        ld de,Cm_SRefCh
-        ld bc,3*pts.CHP
-        ldir
+        ld de,Cm_SRefCh             ; каналы эталона - по его типу
+        ld a,(Cmp_Kind)
+        cp CK_FTC
+        jr z,.ft
+        ld ix,(Cs_Ref)              ; PT3 / PT2: поля CHP
+        ld b,3
+.pc     ld a,(ix+pts.CHP.Note)
+        ld (de),a
+        inc de
+        ld a,(ix+pts.CHP.PsInSm)
+        ld (de),a
+        inc de
+        ld a,(ix+pts.CHP.PsInOr)
+        ld (de),a
+        inc de
+        ld a,(ix+pts.CHP.Volume)    ; громкость - в старшем полубайте
+        rrca
+        rrca
+        rrca
+        rrca
+        and #0F
+        ld (de),a
+        inc de
+        ld a,(ix+pts.CHP.CrAmSl)
+        ld (de),a
+        inc de
+        push bc
+        ld bc,pts.CHP
+        add ix,bc
+        pop bc
+        djnz .pc
+        ret
+.ft     ld hl,Ft_Snap               ; FTC: поля - в коде плеера FT (адреса - таблицей)
+        ld b,3
+.fc     push bc
+        call .fb                    ; нота
+        call .fb                    ; строка сэмпла
+        call .fb                    ; строка орнамента
+        ld c,(hl)                   ; громкость: (адрес строки его таблицы - VolumeTable) / 16
+        inc hl
+        ld b,(hl)
+        inc hl
+        push hl
+        ld a,(bc)
+        ld l,a
+        inc bc
+        ld a,(bc)
+        ld h,a
+        ld bc,ftp.VolumeTable
+        or a
+        sbc hl,bc
+        ld a,l
+        rrca
+        rrca
+        rrca
+        rrca
+        and #0F
+        ld (de),a
+        inc de
+        pop hl
+        call .fb                    ; слайд
+        pop bc
+        djnz .fc
+        ret
+; байт по адресу из таблицы HL (HL += 2) -> в DE (DE += 1)
+.fb     ld c,(hl)
+        inc hl
+        ld b,(hl)
+        inc hl
+        ld a,(bc)
+        ld (de),a
+        inc de
         ret
 Cs_Ref          dw 0
+Ft_Snap         dw ftp.HgthA+1, ftp.FSTPA11+1, ftp.ImShHlA+1, ftp.SetVolumeFromTableA+1, ftp.FSTPA39+1
+                dw ftp.HgthB+1, ftp.FSTPB11+1, ftp.ImShHlB+1, ftp.SetVolumeFromTableB+1, ftp.FSTPB39+1
+                dw ftp.HgthC+1, ftp.FSTPC11+1, ftp.ImShHlC+1, ftp.SetVolumeFromTableC+1, ftp.FSTPC39+1
 
 ;-------- Вывод снимка (экран - уже в окне 2, C - цвет):
 ;   Ref / Our: R0..R13 чипа; каналы: нота, строка сэмпла, строка орнамента, громкость, слайд
@@ -732,36 +852,18 @@ Cm_Snap_Show
         call PutCh
         pop bc
         push bc
-        ld hl,Cm_SRefCh             ; канал эталона: IX = + канал*CHP
-        ld a,b
-        or a
-        jr z,.r0
-        ld de,pts.CHP
-.rr     add hl,de
-        djnz .rr
-.r0     push hl
-        pop ix
-        pop bc
-        push bc
+        ld a,b                      ; канал эталона: Cm_SRefCh + канал*5
+        add a,a
+        add a,a
+        add a,b
+        ld hl,Cm_SRefCh
+        call Cm_HlA
         ld a,b                      ; строка экрана - снова (DE портили)
         add a,CM_SCR_H+CM_Y_RES+8
         ld d,a
         ld e,1+2+5*3+2
-        ld a,(ix+pts.CHP.Note)
-        call .h
-        ld a,(ix+pts.CHP.PsInSm)
-        call .h
-        ld a,(ix+pts.CHP.PsInOr)
-        call .h
-        ld a,(ix+pts.CHP.Volume)    ; громкость - в старшем полубайте
-        rrca
-        rrca
-        rrca
-        rrca
-        and #0F
-        call .h
-        ld a,(ix+pts.CHP.CrAmSl)
-        call .h
+        ld b,5
+        call .r
         pop bc
         inc b
         ld a,b
@@ -962,6 +1064,7 @@ Cm_Text ld (Ct_HL),hl
         ret
 
 Txt_Title       db "Player compare: FT2 player vs reference (S.V.Bulba PT2/PT3/TS)",0
+Txt_TitleFt     db "Player compare: FT2 player vs reference (Fast Tracker 1.15)",0
 Txt_File        db "File:",0
 Txt_Frame       db "Frame ",0
 Txt_Pos         db "  Pos ",0
@@ -983,6 +1086,9 @@ Txt_Key         db "Press any key",0
 ; =========================================================================
     MODULE pts
     include "srs/ptsplay.asm"
+    ENDMODULE
+    MODULE ftp
+    include "srs/ftplay.asm"
     ENDMODULE
 
     ENDMODULE
