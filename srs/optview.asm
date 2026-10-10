@@ -4,7 +4,7 @@
 ; ЭКРАН (строки 0..3 - копия шапки; клик по ней - вкладки / назад в вид паттерна):
 ;   Palette - темы (Set_Palette, коре), клик - сразу;
 ;   Font    - шрифты банка (Set_Font), клик - сразу;   Save - в \FT2\FT2.INI;
-;   Keys    - горячие клавиши (справка).
+; Вход с SV_TOOL_ARG = OPT_HELP - экран Help: горячие клавиши (справка), рамка во всю ширину.
 ; Вход с SV_TOOL_ARG = OPT_LOAD (коре при старте): прочитать \FT2\FT2.INI, поставить
 ; тему и шрифт и сразу вернуться, без экрана.
 ;
@@ -18,13 +18,13 @@
 OV_SCR_H        equ TL_SCR_H
 OV_TOP          equ TL_TOP
 
-; --- рамки: темы, шрифты, клавиши
+; --- рамки: темы, шрифты (Setup); клавиши - экран Help
 PL_X            equ 0
 PL_W            equ 22
 FN_X            equ 22
 FN_W            equ 22
-KY_X            equ 44
-KY_W            equ 46
+KY_X            equ 0
+KY_W            equ 90
 LIST_Y          equ OV_TOP+2        ; первая строка списков
 SAVE_Y          equ OV_TOP+10       ; кнопка Save (рамка Palette)
 SAVE_X          equ 2
@@ -61,8 +61,16 @@ Ov_Start
         ld a,(SV_TOOL_ARG)          ; при старте коре: только прочитать настройки
         cp OPT_LOAD
         jp z,Ini_Load
+        cp OPT_HELP                 ; режим: Help, иначе - Setup
+        ld a,0
+        jr nz,$+4
+        ld a,OPT_HELP
+        ld (Ov_Mode),a
         ld a,(SV_DRAW_PAGE)
         SETPAGE3 a
+        ld a,(Ov_Mode)
+        or a
+        jr nz,.help
         ld hl,OV_TAB_SETUP          ; шапка, вкладка Setup - выбрана
         ld b,5
         call Tool_Head
@@ -73,6 +81,15 @@ Ov_Start
         call Fld_Init
         ld a,1
         ld (Ov_Dirty),a
+        jr Ov_Loop
+.help   ld hl,OV_TAB_HELP           ; Help: шапка, вкладка Help - выбрана, клавиши
+        ld b,4
+        call Tool_Head
+        call Tool_Clear
+        call Tr_Active
+        call Hp_Frame
+        ld hl,Hp_Fields
+        call Fld_Init
 
 Ov_Loop
         halt
@@ -81,6 +98,9 @@ Ov_Loop
         ld a,(Ov_Exit)
         or a
         jr nz,Ov_Leave
+        ld a,(Ov_Mode)              ; Help - рисовать больше нечего
+        or a
+        jr nz,Ov_Loop
         ld a,(Ov_Dirty)
         or a
         call nz,Ov_Draw
@@ -95,16 +115,19 @@ Ov_Leave
         ret
 
 Ov_Exit         db 0
+Ov_Mode         db 0                ; 0 - Setup, OPT_HELP - Help
 Ov_Dirty        db 0
 Ov_Msg          dw 0                ; сообщение (0 - нет)
 OV_TAB_SETUP    equ OV_SCR_H*256+128+patview.HD_TAB_SETUP
+OV_TAB_HELP     equ OV_SCR_H*256+128+patview.HD_HELP_X
+    ASSERT OPT_HELP == 1            ; Ov_TabEv: параметр 4 - Setup, 5 - Help (минус 4)
 
 ; =========================================================================
 ; ЭКРАН
 ; =========================================================================
 Ov_Frames
         ld hl,Ov_Boxes
-        ld b,3
+        ld b,2
 .box    push bc
         ld a,(hl)
         ld (Bx_X),a
@@ -125,7 +148,14 @@ Ov_Frames
         inc hl
         pop bc
         djnz .box
-        ld a,(THEME_ATTR+CLR_TEXT)  ; клавиши - справка, один раз
+        ret
+
+;-------- Help: рамка во всю ширину, клавиши - один раз
+Hp_Frame
+        ld hl,Hp_Box
+        ld b,1
+        call Ov_Frames.box
+        ld a,(THEME_ATTR+CLR_TEXT)
         ld c,a
         ld hl,Txt_Keys
         ld d,OV_SCR_H+LIST_Y
@@ -141,7 +171,7 @@ Ov_Frames
 Ov_Boxes
         db PL_X,PL_W,"Palette",0
         db FN_X,FN_W,"Font",0
-        db KY_X,KY_W,"Keys",0
+Hp_Box  db KY_X,KY_W,"Keys",0
 
 ;-------- Списки (выбранное - выделением), свободная память, сообщение
 Ov_Draw
@@ -304,15 +334,30 @@ Ov_Fields
         OV_FIELD patview.HD_TAB_INSTR,patview.HD_TABS_Y,5,1, FF_HAND, Ov_TabEv, 1  ; Instr
         OV_FIELD patview.HD_TAB_ORN,  patview.HD_TABS_Y,3,1, FF_HAND, Ov_TabEv, 2  ; Orn
         OV_FIELD patview.HD_TAB_DISK, patview.HD_TABS_Y,4,1, FF_HAND, Ov_TabEv, 3  ; Disk
+        OV_FIELD patview.HD_HELP_X,   patview.HD_TABS_Y,4,1, FF_HAND, Ov_TabEv, 5  ; Help
         OV_FIELD 0,0,90,OV_TOP, 0, Ov_TabEv, 0                          ; остальное - назад
         OV_FIELD PL_X+2,LIST_Y,8,PALETTES, FF_HAND, Ov_PalEv, 0          ; темы
         OV_FIELD FN_X+2,LIST_Y,14,FONTS_COUNT, FF_HAND, Ov_FontEv, 0     ; шрифты
+;-------- Help: те же транспорт и вкладки, Setup - назад в настройки
+Hp_Fields
+        OV_FIELD patview.HD_PLAY_X,   patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 0
+        OV_FIELD patview.HD_PLAY_X+4, patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 1
+        OV_FIELD patview.HD_PLAY_X+8, patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 2
+        OV_FIELD patview.HD_PLAY_X+12,patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 3
+        OV_FIELD patview.HD_PLAY_X+16,patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 4
+        OV_FIELD patview.HD_TAB_INSTR,patview.HD_TABS_Y,5,1, FF_HAND, Ov_TabEv, 1  ; Instr
+        OV_FIELD patview.HD_TAB_ORN,  patview.HD_TABS_Y,3,1, FF_HAND, Ov_TabEv, 2  ; Orn
+        OV_FIELD patview.HD_TAB_DISK, patview.HD_TABS_Y,4,1, FF_HAND, Ov_TabEv, 3  ; Disk
+        OV_FIELD patview.HD_TAB_SETUP,patview.HD_TABS_Y,5,1, FF_HAND, Ov_TabEv, 4  ; Setup
+        OV_FIELD 0,0,90,OV_TOP, 0, Ov_TabEv, 0                          ; остальное - назад
+        db FLD_END
+
 F_Save  OV_FIELD SAVE_X,SAVE_Y,6,1, FF_HAND, Ov_SaveEv, 0                ; Save
         OV_FIELD MS_X,MS_Y+1,6+MS_SPEED_MAX,1, FF_HAND, Ov_MouseEv, 0    ; мышь: скорость
         OV_FIELD MS_X,MS_Y+2,6+MS_ACCEL_MAX,1, FF_HAND, Ov_MouseEv, 1    ;   ускорение
         db FLD_END
 
-;-------- Шапка: 0 - вид паттерна, 1/2 - Instr/Orn, 3 - Disk
+;-------- Шапка: 0 - вид паттерна, 1/2 - Instr/Orn, 3 - Disk, 4 - Setup, 5 - Help
 Ov_TabEv
         cp EV_CLICK
         ret nz
@@ -323,7 +368,12 @@ Ov_TabEv
         ld b,PAGE_TOOL_DISK
         cp 3
         jr z,.go
-        dec a                       ; режим инструментов: 0 / 1
+        jr c,.ins
+        sub 4                       ; Setup - 0, Help - OPT_HELP: эта же тулза заново
+        ld (SV_TOOL_ARG),a
+        ld b,PAGE_TOOL_OPT
+        jr .go
+.ins    dec a                       ; режим инструментов: 0 / 1
         ld (SV_TOOL_ARG),a
         ld b,PAGE_TOOL_INSTR
 .go     ld a,b

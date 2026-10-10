@@ -142,6 +142,7 @@ SV_SONG_NEW     equ SYS_VARS+#3E    ; 1  1 - трек в его странице
                                     ;    Вид паттерна перечитывает его при входе и обнуляет
 SV_TOOL_ARG     equ SYS_VARS+#3F    ; 1  параметр для тулзы из SV_TOOL (инструменты: 0 - Instr, 1 - Orn)
 OPT_LOAD        equ #FF             ;    Setup: при старте только прочитать /FT2/FT2.INI
+OPT_HELP        equ 1               ;    Setup: экран Help (клавиши), 0 - настройки
 PC_SONG         equ 1               ; команды: сонг с позиции CPOS, роу CROW
 PC_PATTERN      equ 2               ;   паттерн позиции CPOS по кругу с роу CROW
 PC_STOP         equ 3               ;   стоп и тишина
