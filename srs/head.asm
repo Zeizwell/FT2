@@ -1,9 +1,9 @@
 ; =========================================================================
 ; ШАПКА (строки 0..VIEW_LINE-1 над паттерном), один свой фон CLR_TOP_BG
-;   строка 0: тёмная полоса (CLR_BAR): "Fast Tracker 2.01b", Help, About | кнопки
-;             транспорта (спрайты 16x16, строки 0..1) | вкладки - справа
-;   строка 1: File: имя файла, Track: 1 2 | (кнопки) | Chip:, Tune:
-;   строка 2: Song: имя, By: автор
+;   строка 0: тёмная полоса (CLR_BAR): "Fast Tracker 2.01b", Instr Orn FX | кнопки
+;             транспорта (спрайты 16x16, строки 0..1) | Disk Setup, Help About - справа
+;   строка 1: File: имя файла | (кнопки) | Chip:, Tune:
+;   строка 2: Song: имя, By: автор, Track: 1 2
 ;   строка 3: как пишем в паттерн: Speed:, Size:, Octave:, Step:, Env as Note,
 ;             Auto Env, 3ch / 6ch, стерео ABC (вплотную к паттерну)
 ; Данные трека (трек 1 / 2 переключает их все): файл, имя, автор, Chip, Tune,
@@ -19,23 +19,22 @@ HD_SCR_H        equ SCR_BASE_H+HD_BUF_LINE
 HD_W            equ 90              ; ширина шапки
 ; --- строка 0
 HD_TABS_Y       equ 0
-HD_TABS_X       equ 66              ; вкладки справа (вид паттерна - базовое окно, своей вкладки нет)
 HD_TITLE_X      equ 1               ; название "Fast Tracker 2.01b"
-HD_TAB_INSTR    equ HD_TABS_X
+HD_TABS_X       equ 21              ; вкладки (вид паттерна - базовое окно, своей вкладки нет):
+HD_TAB_INSTR    equ HD_TABS_X       ;   редакторы - слева, у названия
 HD_TAB_ORN      equ HD_TABS_X+6
 HD_TAB_FX       equ HD_TABS_X+10
-HD_TAB_DISK     equ HD_TABS_X+13
-HD_TAB_SETUP    equ HD_TABS_X+18
+    ASSERT HD_TAB_FX+2 < HD_PLAY_X
+HD_TAB_DISK     equ 68              ;   Disk, Setup - справа, перед Help / About
+HD_TAB_SETUP    equ 73
 HD_PLAY_Y       equ 0               ; кнопки транспорта - спрайты 16x16 (35..54, строки 0..1)
 HD_PLAY_X       equ 36              ; кнопки транспорта
-HD_HELP_X       equ 24              ; "Help" - строка 0, между названием и кнопками
-HD_ABOUT_X      equ 29              ; "About"
+HD_HELP_X       equ 80              ; "Help" - строка 0, в правом углу
+HD_ABOUT_X      equ 85              ; "About"
 ; --- строка 1
 HD_ROW_FILE     equ 1
 HD_FILE_L       equ 1               ; "File:"
 HD_FILE_X       equ 7               ; имя файла (28)
-HD_TRK_L        equ 24              ; "Track:" - строка 1, левее кнопок
-HD_TRK_X        equ 31              ; трек "1 2" (выбранный - выделен)
 HD_CHIP_L       equ 56              ; "Chip:"
 HD_CHIP_X       equ 62              ; тип чипа (9 знаков)
 HD_TUNE_L       equ 73              ; "Tune:"
@@ -46,6 +45,9 @@ HD_SONG_L       equ 1               ; "Song:"
 HD_NAME_X       equ 7               ; имя (32)
 HD_BY_L         equ 41              ; "By:"
 HD_AUTH_X       equ 45              ; автор (32)
+HD_TRK_L        equ 79              ; "Track:" - за автором
+HD_TRK_X        equ 86              ; трек "1 2" (выбранный - выделен)
+    ASSERT HD_AUTH_X+32 < HD_TRK_L
 ; --- строка 3: параметры ввода
 HD_ROW_EDIT     equ 3
 HD_SPEED_L      equ 1               ; "Speed:"
@@ -130,7 +132,7 @@ Hd_Song         ds 32               ; имя трека (32 знака, хвос
 Hd_Author       ds 32
 Hd_File         ds 32               ; имя файла, 0 на конце
 HD_FILE_W       equ 16              ; видно знаков имени файла (8.3 влезает; правее - Track)
-    ASSERT HD_FILE_X+HD_FILE_W <= HD_TRK_L
+    ASSERT HD_FILE_X+HD_FILE_W <= HD_PLAY_X
 
 ;-------- Значения трека - в страницу трека (поменяли в шапке)
 Hd_Save
@@ -186,7 +188,7 @@ Hd_Static
         db HD_TABS_Y,HD_TAB_DISK,CLR_BAR,"Disk",0
         db HD_TABS_Y,HD_TAB_SETUP,CLR_BAR,"Setup",0
         db HD_ROW_FILE,HD_FILE_L,CLR_TOP_TEXT,"File:",0
-        db HD_ROW_FILE,HD_TRK_L,CLR_TOP_TEXT,"Track:",0
+        db HD_ROW_SONG,HD_TRK_L,CLR_TOP_TEXT,"Track:",0
         db HD_TABS_Y,HD_HELP_X,CLR_BAR,"Help",0
         db HD_TABS_Y,HD_ABOUT_X,CLR_BAR,"About",0
         db HD_ROW_FILE,HD_CHIP_L,CLR_TOP_TEXT,"Chip:",0
@@ -342,7 +344,7 @@ Hd_Track
         ld a,c
 .put    ld c,b                      ; "1" - цветом B
         ld b,a                      ; "2" - цветом A
-        ld de,HD_TRK_X+256*(HD_SCR_H+HD_ROW_FILE)
+        ld de,HD_TRK_X+256*(HD_SCR_H+HD_ROW_SONG)
         ld a,'1'
         call PutCh
         inc e
@@ -519,8 +521,8 @@ Head_Fields
         FIELD HD_ENVNOTE_L,HD_ROW_EDIT,HD_ENVNOTE_W,1, FF_HAND, Hd_Field, 0, 12 ; Env as Note
         FIELD HD_AUTO_L,   HD_ROW_EDIT,HD_AUTO_W,1, FF_HAND, Hd_Field, 0, 13    ; Auto Env
         FIELD HD_STEP_L,   HD_ROW_EDIT,HD_STEP_W,1, FF_HAND, Hd_Field, 0, 14    ; шаг вкл/выкл
-        FIELD HD_TRK_X,    HD_ROW_FILE, 1,1, FF_HAND, Hd_Field, 0, 21          ; трек 1
-        FIELD HD_TRK_X+2,  HD_ROW_FILE, 1,1, FF_HAND, Hd_Field, 0, 22          ; трек 2
+        FIELD HD_TRK_X,    HD_ROW_SONG, 1,1, FF_HAND, Hd_Field, 0, 21          ; трек 1
+        FIELD HD_TRK_X+2,  HD_ROW_SONG, 1,1, FF_HAND, Hd_Field, 0, 22          ; трек 2
         FIELD HD_HELP_X,   HD_TABS_Y, 4,1, FF_HAND, Hd_Field, 0, 23          ; Help - пока ничего
         FIELD HD_ABOUT_X,  HD_TABS_Y, 5,1, FF_HAND, Hd_Field, 0, 23          ; About - пока ничего
         FIELD HD_TAB_DISK, HD_TABS_Y, 4,1, FF_HAND, Hd_Field, 0, 24          ; вкладка Disk
