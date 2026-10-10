@@ -54,6 +54,9 @@ ER_LOOP_X       equ 22              ; L
 ER_NUM_X        equ 23              ; номер строки
 ER_DATA_X       equ 26              ; данные
 BAR_X           equ 49              ; инструмент: полоса громкости (15)
+ER_INS_X        equ 65              ; иконки строки: + вставить (копию под ней), x удалить
+ER_DEL_X        equ 67
+    ASSERT BAR_X+15 < ER_INS_X && ER_DEL_X < ED_IN_X+ED_IN_W
 OB_X            equ 36              ; орнамент: полоса смещения ноты
 OB_MID          equ 52              ;   её середина (смещение 0), видно ±16
 OB_HALF         equ 16
@@ -555,8 +558,11 @@ Iv_Draw_Rows
         or a
         jr nz,.orn
         call Ir_Body
-        jr .next
+        jr .ico
 .orn    call Or_Body
+.ico    pop de                      ; иконки вставить / удалить
+        push de
+        call Er_Icons
 .next   pop de
         ld hl,Er_Idx
         inc (hl)
@@ -565,6 +571,17 @@ Iv_Draw_Rows
         cp IV_SCR_H+ER_ROW0+ER_ROWS
         jr c,.row
         jp Er_Cursor
+
+; Иконки строки D: + (вставить) и крестик (удалить)
+Er_Icons
+        ld a,(THEME_ATTR+CLR_BUTTON)
+        ld c,a
+        ld e,ER_INS_X
+        ld a,'+'
+        call PutCh
+        ld e,ER_DEL_X
+        ld a,GLYPH_DEL
+        jp PutCh
 
 ; Строка D (внутри рамки) - пробелы. E - на начало, DE сохраняет
 Er_Blank
@@ -1162,6 +1179,10 @@ Iv_EditEv
         ld a,b
         ld (Ed_Row),a
         ld a,(SV_MOUSE_COL)
+        cp ER_INS_X                 ; иконки: вставить / удалить строку
+        jr z,.ins
+        cp ER_DEL_X
+        jr z,.del
         cp ER_LOOP_X                ; колонка L - цикл сюда
         jr nz,.col
         call Iv_Block
@@ -1194,6 +1215,10 @@ Iv_EditEv
         and #F0
         or b
         ld (ix+IR_VOL),a
+        jp Iv_Changed
+.ins    call Row_Ins
+        jp Iv_Changed
+.del    call Row_Del
         jp Iv_Changed
 .hit    ld a,e
         ld (Ed_Col),a
@@ -1802,6 +1827,93 @@ Len_Dn  call Iv_Block
 .ok     jp Ed_Clamp
 
     ASSERT INS_ROWS_MAX == ORN_ROWS_MAX
+
+;-------- Вставить: строки курсор..конец - вниз на одну (под курсорной - её копия, как Len +).
+; Цикл за курсором - вместе со строками
+Row_Ins call Iv_End
+        cp INS_ROWS_MAX-1
+        ret nc
+        call Row_Size
+        ld (Ri_Size),bc
+        call Iv_End                 ; Ri_End - за последней строкой
+        inc a
+        call Iv_Row_Addr
+        ld (Ri_End),hl
+        ld a,(Ed_Row)
+        call Iv_Row_Addr
+        ex de,hl
+        ld hl,(Ri_End)              ; BC - байт от курсорной до конца
+        or a
+        sbc hl,de
+        ld b,h
+        ld c,l
+        ld hl,(Ri_End)              ; с последнего байта - на строку ниже
+        dec hl
+        ld de,(Ri_Size)
+        ex de,hl
+        add hl,de
+        ex de,hl
+        lddr
+        call Iv_Block
+        inc hl                      ; OH_LOOP: за курсором - +1
+        ld a,(Ed_Row)
+        cp (hl)
+        jr nc,$+3
+        inc (hl)
+        inc hl
+        inc (hl)                    ; OH_END
+        ld a,(hl)
+        dec hl
+        dec hl
+        ld (hl),a                   ; OH_LEN - копия
+        ret
+
+;-------- Удалить строку курсора: строки ниже - вверх на одну. Одну строку не удаляем.
+; Цикл за курсором - вместе со строками, не за концом
+Row_Del call Iv_End
+        or a
+        ret z
+        inc a                       ; Ri_End - за последней строкой
+        call Iv_Row_Addr
+        ld (Ri_End),hl
+        ld a,(Ed_Row)               ; источник - строка под курсором
+        inc a
+        call Iv_Row_Addr
+        ld (Ri_Src),hl
+        ex de,hl
+        ld hl,(Ri_End)              ; BC - байт до конца (у последней - 0)
+        or a
+        sbc hl,de
+        ld b,h
+        ld c,l
+        ld a,(Ed_Row)
+        call Iv_Row_Addr
+        ex de,hl
+        ld hl,(Ri_Src)
+        ld a,b
+        or c
+        jr z,.hdr
+        ldir
+.hdr    call Iv_Block
+        inc hl                      ; OH_LOOP: за курсором - -1
+        ld a,(Ed_Row)
+        cp (hl)
+        jr nc,$+3
+        dec (hl)
+        inc hl
+        dec (hl)                    ; OH_END
+        ld a,(hl)
+        dec hl
+        cp (hl)                     ; цикл - не за концом
+        jr nc,$+3
+        ld (hl),a
+        dec hl
+        ld (hl),a                   ; OH_LEN - копия
+        jp Ed_Clamp
+
+Ri_Size         dw 0
+Ri_End          dw 0
+Ri_Src          dw 0
 
 ; Строка end+1 = строка end
 Row_Copy_Last
