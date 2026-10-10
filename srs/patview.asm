@@ -2184,6 +2184,8 @@ Ord_Go  ld (Cur_Pos),a
 
 ;-------- Паттерн: колесо - роу (с Ctrl/Shift - каналы), клавиши навигации
 Pat_Field
+        cp EV_PRESS
+        jp z,Pat_Press
         cp EV_WHEEL
         jr z,.wheel
         cp EV_KEY
@@ -2206,6 +2208,82 @@ Pat_Field
         or a
         jp m,K_ChRight
         jp K_ChLeft
+
+;-------- Клик в паттерн (как в Bitphase): по Y - роу едут на столько, насколько клик выше
+; или ниже строки редактирования; по X - курсор в поле под мышью (другой элемент - открыть)
+Pp_Off          db 0                ; колонка клика в элементе
+Pat_Press
+        ld a,(SV_MOUSE_ROW)
+        sub EDIT_LINE
+        jr z,.x
+        jr c,.up
+        ld b,a                      ; ниже - вниз
+.dn     push bc
+        call K_RowDn
+        pop bc
+        djnz .dn
+        jr .x
+.up     neg                         ; выше - вверх
+        ld b,a
+.u      push bc
+        call K_RowUp
+        pop bc
+        djnz .u
+.x      ld a,(SV_MOUSE_COL)         ; элемент, в чьих колонках клик
+        ld c,a
+        ld a,(Vis_Items)
+        ld b,a
+        ld e,0                      ; E - элемент
+.it     ld a,e
+        ld hl,Item_Col
+        call Arr_Get
+        ld d,a
+        ld a,c                      ; колонка в элементе
+        sub d
+        jr c,.nx
+        ld d,a
+        ld a,e
+        ld hl,Item_W
+        call Arr_Get
+        cp d
+        jr z,.nx
+        jr c,.nx                    ; правее элемента
+        ld a,d
+        ld (Pp_Off),a
+        ld a,e                      ; другой элемент - курсор туда
+        ld hl,Cursor_Item
+        cp (hl)
+        call nz,Item_Go
+        ld a,(Pp_Off)
+        call Field_At
+        ld (Cur_Field),a
+        ret
+.nx     inc e
+        djnz .it
+        ret
+
+; A - колонка в элементе -> A - поле под ней (на пробеле - поле левее). По Env_Open
+Field_At
+        ld c,a
+        ld a,(Env_Open)
+        or a
+        ld hl,Cf_Chan
+        ld b,CF_CHAN_N
+        jr z,$+7
+        ld hl,Cf_Env
+        ld b,CF_ENV_N
+        ld e,0                      ; E - поле левее или под колонкой
+        ld d,0                      ; D - номер поля
+.f      ld a,c
+        cp (hl)                     ; поле правее колонки - хватит
+        jr c,.done
+        ld e,d
+        inc hl
+        inc hl
+        inc d
+        djnz .f
+.done   ld a,e
+        ret
 
 ; Навигация по паттерну - только когда он в фокусе
 Pat_Keys
