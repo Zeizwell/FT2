@@ -64,8 +64,11 @@ HD_ENVNOTE_W    equ 11
 HD_AUTO_L       equ 64              ; "Auto Env" - так же
 HD_AUTO_W       equ 8
 HD_RATIO_X      equ 73              ; "1:1" - клик по кругу
-HD_CHAN_X       equ 80              ; "3ch" / "6ch"
-HD_STEREO_X     equ 84              ; стерео "ABC" - за числом каналов
+HD_CHAN_X       equ 57              ; "3ch" / "6ch" - строка 0, за кнопкой стоп
+HD_STEREO_X     equ 61              ; стерео "ABC" - за числом каналов
+    ASSERT HD_PLAY_X+20 < HD_CHAN_X && HD_STEREO_X+3 < HD_TAB_DISK
+HD_ENVM_L       equ 80              ; "Env:" - огибающая трека FT / PT (SH_ENVMODE), клик - по кругу
+HD_ENVM_X       equ 85
     ASSERT VIEW_LINE == HD_ROW_EDIT+1 ; шапка - строки 0..3, паттерн - сразу под ней
 
 ; --- значения
@@ -74,6 +77,7 @@ Song_Tuning     db 0
 Song_Device     db 0                ; тип чипа: AY
 Song_Chips      db 2                ; чипов: 1 (3 канала) или 2 (6 каналов)
 Song_Stereo     db 0
+Song_EnvMode    db 0                ; огибающая: 0 FT, 1 PT (SH_ENVMODE)
 Cur_Octave      db 4
 Auto_Env        db 0
 Auto_Step       db 1                ; шаг при вводе: 1 - курсор идёт на Cur_Step роу
@@ -81,6 +85,7 @@ Auto_Ratio      db 0                ; номер в Hd_Ratios
 TUNINGS         equ 2
 DEVICES         equ 4
 STEREOS         equ 3
+ENVMODES        equ 2
 RATIOS          equ 8
 
 ; Названия - по фиксированной ширине
@@ -91,6 +96,7 @@ Hd_Devices      db "AY       "
                 db "AYX-32   "
                 db "FT2 board"
 Hd_Stereos      db "ABC","ACB","BAC"
+Hd_EnvModes     db "FT","PT"
 ; Соотношения автоогибающей A:B - как в Vortex Tracker II (StdAutoEnv, main.pas).
 ; Период огибающей = период ноты * A / B / 16 (пила, формы 8 и 12) или / 32
 ; (треугольник, 10 и 14); другие формы автоогибающая не трогает (CHILDWIN.PAS)
@@ -110,6 +116,8 @@ Head_Load
         ld (Song_Chips),a
         ld a,(#8000+SH_STEREO)
         ld (Song_Stereo),a
+        ld a,(#8000+SH_ENVMODE)
+        ld (Song_EnvMode),a
         ld a,(#8000+SH_STEP)
         ld (Cur_Step),a
         ld hl,#8000+SH_NAME         ; имя, автор, файл - копии для вывода
@@ -147,6 +155,8 @@ Hd_Save
         ld (#8000+SH_CHIPS),a
         ld a,(Song_Stereo)
         ld (#8000+SH_STEREO),a
+        ld a,(Song_EnvMode)
+        ld (#8000+SH_ENVMODE),a
         ld a,(Cur_Step)
         ld (#8000+SH_STEP),a
         RESTPAGE2
@@ -200,6 +210,7 @@ Hd_Static
         db HD_ROW_EDIT,HD_STEP_L,CLR_TOP_TEXT,"Step:",0
         db HD_ROW_EDIT,HD_ENVNOTE_L,CLR_TOP_TEXT,"Env as Note",0
         db HD_ROW_EDIT,HD_AUTO_L,CLR_TOP_TEXT,"Auto Env",0
+        db HD_ROW_EDIT,HD_ENVM_L,CLR_TOP_TEXT,"Env:",0
         db #FF
 
 ;-------- Каждый кадр: надписи, значения, кнопки, подсветка под мышью
@@ -269,12 +280,14 @@ Head_Show
         ld b,9
         ld de,HD_CHIP_X+256*(HD_SCR_H+HD_ROW_FILE)
         call Hd_Name
+        ld a,(THEME_ATTR+CLR_BAR)   ; каналы и стерео - на полосе строки 0
+        ld c,a
         ld a,(Song_Chips)
         cp 2
         ld a,"3"
         jr c,$+4
         ld a,"6"
-        ld de,HD_CHAN_X+256*(HD_SCR_H+HD_ROW_EDIT)
+        ld de,HD_CHAN_X+256*(HD_SCR_H+HD_TABS_Y)
         call PutCh
         ld a,"c"
         call PutCh
@@ -283,7 +296,14 @@ Head_Show
         ld a,(Song_Stereo)          ; стерео, таблица нот
         ld hl,Hd_Stereos
         ld b,3
-        ld de,HD_STEREO_X+256*(HD_SCR_H+HD_ROW_EDIT)
+        ld de,HD_STEREO_X+256*(HD_SCR_H+HD_TABS_Y)
+        call Hd_Name
+        ld a,(THEME_ATTR+CLR_TOP_VALUE) ; дальше - значения на фоне шапки
+        ld c,a
+        ld a,(Song_EnvMode)         ; огибающая трека
+        ld hl,Hd_EnvModes
+        ld b,2
+        ld de,HD_ENVM_X+256*(HD_SCR_H+HD_ROW_EDIT)
         call Hd_Name
         ld a,(Song_Tuning)
         ld hl,Hd_Tunings
@@ -515,8 +535,9 @@ Head_Fields
         FIELD HD_RATIO_X,  HD_ROW_EDIT,3,1, FF_HAND, Hd_Field, 0, 8          ; соотношение - по кругу
         FIELD HD_TUNE_X,   HD_ROW_FILE,7,1, FF_HAND, Hd_Field, 0, 9           ; таблица нот - по кругу
         FIELD HD_CHIP_X,   HD_ROW_FILE,9,1, FF_HAND, Hd_Field, 0, 10          ; тип чипа - по кругу
-        FIELD HD_CHAN_X,   HD_ROW_EDIT,3,1, FF_HAND, Hd_Field, 0, 20          ; 3 / 6 каналов
-        FIELD HD_STEREO_X, HD_ROW_EDIT, 3,1, FF_HAND, Hd_Field, 0, 11          ; стерео - по кругу
+        FIELD HD_CHAN_X,   HD_TABS_Y,3,1, FF_HAND, Hd_Field, 0, 20            ; 3 / 6 каналов
+        FIELD HD_STEREO_X, HD_TABS_Y, 3,1, FF_HAND, Hd_Field, 0, 11            ; стерео - по кругу
+        FIELD HD_ENVM_X,   HD_ROW_EDIT,2,1, FF_HAND, Hd_Field, 0, 29          ; огибающая FT / PT
         FIELD HD_ENVNOTE_L,HD_ROW_EDIT,HD_ENVNOTE_W,1, FF_HAND, Hd_Field, 0, 12 ; Env as Note
         FIELD HD_AUTO_L,   HD_ROW_EDIT,HD_AUTO_W,1, FF_HAND, Hd_Field, 0, 13    ; Auto Env
         FIELD HD_STEP_L,   HD_ROW_EDIT,HD_STEP_W,1, FF_HAND, Hd_Field, 0, 14    ; шаг вкл/выкл
@@ -542,7 +563,7 @@ Hd_Act  dw H_SpdDn, H_SpdUp, H_OctDn, H_OctUp, H_StepDn, H_StepUp
         dw H_Tune, H_Chip, H_Stereo, K_EnvNote, H_AutoEnv, H_AutoStep
         dw K_PlayPat, K_PlayStart, K_PlaySong, K_PlayPatRow, K_Stop
         dw H_Chips, H_Trk1, H_Trk2, Hd_Nop, H_TabDisk, H_TabInstr, H_TabOrn, H_TabSetup
-        dw H_TabHelp
+        dw H_TabHelp, H_EnvMode
 
 ;-------- Поле шапки: клик - действие (вид нажатой кнопки рисует Hd_Buttons)
 Hd_Field
@@ -619,7 +640,7 @@ H_Len   ld a,(Cur_Pos)
         ret
 H_RatUp ld hl,Auto_Ratio
         ld b,RATIOS
-        jr Hd_Cycle
+        jp Hd_Cycle
 H_Tune  ld hl,Song_Tuning
         ld b,TUNINGS
         call Hd_Cycle
@@ -631,6 +652,11 @@ H_Chip  ld hl,Song_Device
 H_Stereo
         ld hl,Song_Stereo
         ld b,STEREOS
+        call Hd_Cycle
+        jp Hd_Save
+H_EnvMode                           ; огибающая трека: FT <-> PT (плеер возьмёт при старте)
+        ld hl,Song_EnvMode
+        ld b,ENVMODES
         call Hd_Cycle
         jp Hd_Save
 H_Chips                             ; 1 <-> 2 чипа: 3 / 6 каналов в паттерне и в плеере
