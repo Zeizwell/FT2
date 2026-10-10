@@ -78,7 +78,6 @@ Cur_Octave      db 4
 Auto_Env        db 0
 Auto_Step       db 1                ; шаг при вводе: 1 - курсор идёт на Cur_Step роу
 Auto_Ratio      db 0                ; номер в Hd_Ratios
-Cur_Track       db 0                ; трек в шапке: 0 / 1 (в памяти пока один)
 TUNINGS         equ 2
 DEVICES         equ 4
 STEREOS         equ 3
@@ -99,7 +98,7 @@ Hd_Ratios       db "1:1","3:4","1:2","1:4","3:1","5:2","2:1","3:2"
 
 ;-------- Значения трека - из страницы трека (после Song_Clear / загрузки)
 Head_Load
-        ld a,PAGE_SONG1
+        ld a,(SV_SONG_PAGE)
         SETPAGE2 a
         ld a,(#8000+SH_SPEED)
         ld (Song_Speed),a
@@ -136,7 +135,7 @@ HD_FILE_W       equ 16              ; видно знаков имени фай�
 
 ;-------- Значения трека - в страницу трека (поменяли в шапке)
 Hd_Save
-        ld a,PAGE_SONG1
+        ld a,(SV_SONG_PAGE)
         SETPAGE2 a
         ld a,(Song_Speed)
         ld (#8000+SH_SPEED),a
@@ -333,7 +332,7 @@ Hd_Text
 
 ; Трек "1 2": выбранный - цветом активной вкладки, другой - как подписи
 Hd_Track
-        ld a,(Cur_Track)
+        ld a,(SV_SONG_NUM)
         or a
         ld a,(THEME_ATTR+CLR_TOP_HI)    ; трек 1: выбран - яркий
         ld b,a
@@ -640,11 +639,19 @@ H_Chips                             ; 1 <-> 2 чипа: 3 / 6 каналов в 
         call Hd_Save
         call View_Chips
         jp Need_Layout
-H_Trk1  xor a                       ; трек в шапке (второй в памяти - потом)
-        ld (Cur_Track),a
-        ret
+H_Trk1  xor a                       ; трек 1 / 2: правим его (страницы - Song_Select)
+        jr H_Trk
 H_Trk2  ld a,1
-        ld (Cur_Track),a
+H_Trk   ld hl,SV_SONG_NUM
+        cp (hl)
+        ret z                       ; уже он
+        call Song_Select
+        ld a,PC_STOP                ; плеер - стоп (играл другой трек)
+        ld (SV_PLAY_CMD),a
+        ld a,1                      ; вид паттерна перечитает трек: выйти и войти заново
+        ld (SV_SONG_NEW),a
+        ld a,PAGE_TOOL_PATVIEW
+        jr H_TabGo
 Hd_Nop  ret                         ; Help, About - пока ничего
 H_TabInstr                          ; вкладки Instr / Orn: тулза инструментов, режим -
         xor a                       ;   в SV_TOOL_ARG

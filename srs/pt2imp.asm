@@ -39,9 +39,9 @@ Pt2_Import
         jp nc,Dv_Error
         call Song_Clear             ; новый трек
         call P2_Header
-        ld a,PAGE_INS1              ; инструменты и орнаменты - пустые, потом PT2
+        ld a,(Trk_Ins)              ; инструменты и орнаменты - пустые, потом PT2
         call Ins_Clear
-        ld a,PAGE_INS1
+        ld a,(Trk_Ins)
         ld (Ps_Page),a
         call P2_Samples
         call P2_Ornaments
@@ -58,7 +58,7 @@ P2_Header
         jr nz,$+4
         ld a,NEW_SONG_SPEED
         ld (Ph_Tempo),a
-        ld a,PAGE_SONG1
+        ld a,(SV_SONG_PAGE)
         SETPAGE2 a
         ld a,(Ph_Tempo)
         ld (#8000+SH_SPEED),a
@@ -290,7 +290,7 @@ P2_Patterns
         cp (hl)
         ret z
         ld a,(hl)
-        add a,patview.PAT_PAGE
+        call Pat_Page
         SETPAGE2 a
         call Pat_Zero
         ld a,(Pp_N)

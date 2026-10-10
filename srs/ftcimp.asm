@@ -45,9 +45,9 @@ Ftc_Import
         jp nz,Dv_Error
         call Song_Clear
         call Fc_Header
-        ld a,PAGE_INS1
+        ld a,(Trk_Ins)
         call Ins_Clear
-        ld a,PAGE_INS1
+        ld a,(Trk_Ins)
         ld (Ps_Page),a
         call Fc_Samples
         call Fc_Ornaments
@@ -64,7 +64,7 @@ Fc_Header
         jr nz,$+4
         ld a,NEW_SONG_SPEED
         ld (Ph_Tempo),a
-        ld a,PAGE_SONG1
+        ld a,(SV_SONG_PAGE)
         SETPAGE2 a
         ld a,(Ph_Tempo)
         ld (#8000+SH_SPEED),a
@@ -245,7 +245,7 @@ Fc_Patterns
         cp (hl)
         ret z
         ld a,(hl)
-        add a,patview.PAT_PAGE
+        call Pat_Page
         SETPAGE2 a
         call Pat_Zero
         ld a,(Pp_N)                 ; транспозиция этой пары

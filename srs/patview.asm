@@ -40,7 +40,7 @@
 ; =========================================================================
     MODULE patview
 
-PAT_PAGE        equ PAGE_POOL       ; паттерн n = страница PAT_PAGE+n (пока один трек)
+; паттерн n текущего трека - страница Trk_Pat+n (Pat_Page, коре)
 PAT_BASE_H      equ #80             ; страница паттерна - в окне 2
 SCR_BASE_H      equ #C0             ; текстовая страница - в окне 3
 LINE_W          equ 128             ; знакомест в строке текстовой страницы
@@ -1373,7 +1373,7 @@ Put_Entry
         ld (ix+0),0
         ret
 .ok     call T_Pat
-        add a,PAT_PAGE
+        call Pat_Page
         ld (ix+0),a
         ld a,(T_Row)
         add a,PAT_BASE_H
@@ -1831,7 +1831,7 @@ K_EnvNote
         or a
         jr z,.next
         ld a,(ER_Pat)
-        add a,PAT_PAGE
+        call Pat_Page
         SETPAGE2 a
         ld h,PAT_BASE_H             ; все роу
 .r      ld ix,Txt_EnvP
@@ -2404,7 +2404,7 @@ Pat_Free
 ; Паттерн O_New - пустой: данные 0, текст, длина по умолчанию
 Pat_Empty
         ld a,(O_New)
-        add a,PAT_PAGE
+        call Pat_Page
         SETPAGE2 a
         ld h,PAT_BASE_H             ; данные всех роу - 0
 .r      ld l,0
@@ -2455,11 +2455,11 @@ Pat_Copy
 .k      halt
         call dma_wait               ; C = #AF
         ld a,(PC_Src)
-        add a,PAT_PAGE
+        call Pat_Page
         ld b,high DMASADDRX
         out (c),a
         ld a,(O_New)
-        add a,PAT_PAGE
+        call Pat_Page
         ld b,high DMADADDRX
         out (c),a
         xor a                       ; с колонки 0, строка = роу
@@ -2586,7 +2586,7 @@ Test_Song
         xor a                       ; номер паттерна - в памяти: SETPAGE работает
         ld (TF_Pat),a               ; через стек, push/pop вокруг него нельзя
 .p      ld a,(TF_Pat)
-        add a,PAT_PAGE
+        call Pat_Page
         SETPAGE2 a                  ; страница паттерна - в окно 2
         call Test_Fill
         call Init_Pat_Text
@@ -2598,13 +2598,13 @@ Test_Song
         jr c,.p
         jp Song_Sync                ; трек - в его страницу (для плеера)
 
-;-------- Трек для плеера: страница трека PAGE_SONG1 - скорость, страница
+;-------- Трек для плеера: страница текущего трека - скорость, страница
 ; инструментов, ордер, повтор, каталог паттернов (страница и длина). Пока трек
 ; живёт в переменных вида (Test_Order, Pat_Len...) - копируем туда при каждой правке
 Cur_Step        db NEW_SONG_STEP    ; шаг курсора (копия SH_STEP, её кладёт Head_Load)
 
 Song_Sync
-        ld a,PAGE_SONG1
+        ld a,(SV_SONG_PAGE)
         SETPAGE2 a
         ld a,(Ord_Last)
         ld (#8000+ORD_LAST),a
@@ -2622,7 +2622,7 @@ Song_Sync
         or a
         jr z,.none
         ld a,c
-        add a,PAT_PAGE
+        call Pat_Page
 .none   ld (hl),a
         inc hl
         ld a,(de)
@@ -2640,13 +2640,13 @@ Song_Sync
 
 ;-------- Трек загрузили (тулза диска, srs/diskview.asm): страница трека - правда,
 ; вид берёт из неё ордер, повтор и каталог паттернов, текст роу строит заново.
-; Паттерн n - в странице PAT_PAGE+n (загрузка кладёт его туда же)
+; Паттерн n - в странице Trk_Pat+n (загрузка кладёт его туда же)
 Song_Reload
         xor a
         ld (SV_SONG_NEW),a
         ld (Cur_Pos),a
         ld (Cur_Row),a
-        ld a,PAGE_SONG1
+        ld a,(SV_SONG_PAGE)
         SETPAGE2 a
         ld a,(#8000+ORD_LAST)       ; позиций - не больше, чем держит вид
         cp ORDER_TEST_MAX
@@ -2692,7 +2692,7 @@ Song_Reload
         or a
         jr z,.next
         ld a,(TF_Pat)
-        add a,PAT_PAGE
+        call Pat_Page
         SETPAGE2 a
         call Init_Pat_Text
         RESTPAGE2
@@ -2705,9 +2705,9 @@ Song_Reload
 TF_Pat          db 0
 
 ;-------- Тестовые инструменты и орнаменты (формат FTC, sdk/plugin.asm) - в страницу
-; инструментов трека PAGE_INS1. Остальные номера - по умолчанию (Ins_Clear)
+; инструментов текущего трека (Trk_Ins). Остальные номера - по умолчанию (Ins_Clear)
 Test_Instr
-        ld a,PAGE_INS1
+        ld a,(Trk_Ins)
         call Ins_Clear
         ld ix,Ti_List
 .l      ld l,(ix+0)                 ; блок, 0 - конец
@@ -2719,7 +2719,7 @@ Test_Instr
         ld d,(ix+3)
         ld c,(ix+4)                 ; длина
         ld b,(ix+5)
-        ld a,PAGE_INS1
+        ld a,(Trk_Ins)
         push ix
         call Ins_Put
         pop ix

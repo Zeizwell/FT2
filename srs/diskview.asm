@@ -1297,12 +1297,12 @@ Ft2_Load
         ld a,PAGE_FILEBUF
         ld (Pg_File),a
         ld (Fs_Page),a
-        ld a,PAGE_SONG1
+        ld a,(SV_SONG_PAGE)
         ld (Pg_Mem),a
         call Pg_Get
         call Fs_Fill                ; инструменты и орнаменты
         jr c,.err
-        ld a,PAGE_INS1
+        ld a,(Trk_Ins)
         ld (Pg_Mem),a
         call Pg_Get
         call Fs_Fill                ; дальше - паттерны
@@ -1324,7 +1324,7 @@ Ld_Unpack
         jr z,.next
         ld (Cat_Rows),a
         ld a,(Cat_N)
-        add a,patview.PAT_PAGE
+        call Pat_Page
         SETPAGE2 a
         call Pat_Zero               ; данные всех роу - 0 (за длиной тоже)
         ld de,#8000                 ; роу 0..длина-1
@@ -1358,7 +1358,7 @@ Sf_Src          dw 0
 
 Dv_Song_File
         ld (Sf_Src),hl
-        ld a,PAGE_SONG1
+        ld a,(SV_SONG_PAGE)
         SETPAGE2 a
         ld hl,(Sf_Src)
         ld de,#8000+SH_FILE
@@ -1398,14 +1398,14 @@ Pat_Zero
         jr c,.r
         ret
 
-;-------- Каталог паттернов трека -> Dv_Cat; страницы в треке - PAT_PAGE+n (так их
-; ждёт вид паттерна), страница инструментов - PAGE_INS1
+;-------- Каталог паттернов трека -> Dv_Cat; страницы в треке - Trk_Pat+n (так их
+; ждёт вид паттерна), страница инструментов - Trk_Ins
 Dv_Cat          ds PATTERNS_MAX*PC_SIZE
 Cat_N           db 0                ; номер паттерна
 Cat_Rows        db 0
 
 Cat_Get
-        ld a,PAGE_SONG1
+        ld a,(SV_SONG_PAGE)
         SETPAGE2 a
         ld hl,#8000+PAT_CATALOG
         ld de,Dv_Cat
@@ -1417,7 +1417,7 @@ Cat_Get
         or a
         jr z,.n
         ld a,b
-        add a,patview.PAT_PAGE
+        call Pat_Page
         ld (hl),a
 .n      inc hl
         inc hl
@@ -1425,7 +1425,7 @@ Cat_Get
         ld a,b
         cp PATTERNS_MAX
         jr c,.p
-        ld a,PAGE_INS1
+        ld a,(Trk_Ins)
         ld (#8000+SH_INS_PAGE),a
         RESTPAGE2
         ret
@@ -1562,19 +1562,19 @@ Sv_Stream
         ld a,PAGE_FILEBUF
         ld (Pg_File),a
         ld (Fs_Page),a
-        ld a,PAGE_SONG1
+        ld a,(SV_SONG_PAGE)
         ld (Pg_Mem),a
         call Pg_Put
         ld hl,#4000
         call Sv_Append
         ret c
-        ld a,PAGE_INS1
+        ld a,(Trk_Ins)
         ld (Pg_Mem),a
         call Pg_Put
         ld hl,#4000
         call Sv_Append
         ret c
-        ld a,PAGE_SONG1             ; каталог паттернов - как есть
+        ld a,(SV_SONG_PAGE)             ; каталог паттернов - как есть
         SETPAGE2 a
         ld hl,#8000+PAT_CATALOG
         ld de,Dv_Cat

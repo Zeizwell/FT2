@@ -56,7 +56,7 @@ Pt_Import
         call Pt_TS                  ; второй модуль?
         call Song_Clear             ; новый трек
         call Pt_Header
-        ld a,PAGE_INS1              ; инструменты и орнаменты - пустые, потом PT3
+        ld a,(Trk_Ins)              ; инструменты и орнаменты - пустые, потом PT3
         call Ins_Clear
         call Pt_Samples
         call Pt_Ornaments
@@ -162,7 +162,7 @@ Pt_Header
         jr nz,$+4
         ld a,NEW_SONG_SPEED
         ld (Ph_Tempo),a
-        ld a,PAGE_SONG1
+        ld a,(SV_SONG_PAGE)
         SETPAGE2 a
         ld a,(Ph_Tempo)
         ld (#8000+SH_SPEED),a
@@ -232,7 +232,7 @@ Pt_Get16
         ret
 
 ; =========================================================================
-; СЭМПЛЫ И ОРНАМЕНТЫ -> страница PAGE_INS1 (окно 2)
+; СЭМПЛЫ И ОРНАМЕНТЫ -> страница инструментов текущего трека Trk_Ins (окно 2)
 ; =========================================================================
 Ps_K            db 0                ; номер сэмпла / орнамента PT3
 Ps_Rows         db 0                ; строк осталось
@@ -270,7 +270,7 @@ Pt_Samples
         or #80
         ld h,a
         push de
-        ld a,PAGE_INS1
+        ld a,(Trk_Ins)
         ld (Ps_Page),a
         pop de
         ex de,hl                    ; HL - сэмпл в модуле, DE - блок
@@ -444,7 +444,7 @@ Ps_EAcc         db 0
 
 ;-------- Орнаменты 1..15 -> наши 1..15 (блок номер-1). 0 - пустой и у нас
 Pt_Ornaments
-        ld a,PAGE_INS1
+        ld a,(Trk_Ins)
         ld (Ps_Page),a
         ld a,1
         ld (Ps_K),a
@@ -635,7 +635,7 @@ Pm_Find
 
 ;-------- Ордер и каталог паттернов - в страницу трека
 Pt_Song_Order
-        ld a,PAGE_SONG1
+        ld a,(SV_SONG_PAGE)
         SETPAGE2 a
         ld a,(Po_Count)             ; последняя позиция, повтор
         dec a
@@ -658,7 +658,7 @@ Pt_Song_Order
         cp c
         jr z,.done
         ld a,c
-        add a,patview.PAT_PAGE
+        call Pat_Page
         ld (hl),a
         inc hl
         ld a,(de)
@@ -684,7 +684,7 @@ Pt_Patterns
         cp (hl)
         ret z
         ld a,(hl)
-        add a,patview.PAT_PAGE
+        call Pat_Page
         SETPAGE2 a
         call Pat_Zero
         ld a,PAT_ROWS_MAX           ; модуль 1 - чип 1, длина - по его каналу A

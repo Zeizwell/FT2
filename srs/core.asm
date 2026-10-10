@@ -87,9 +87,13 @@ Core_Start
         call Init_Mouse_Sprite
         call Input_Init         ; лог клавиатуры PS/2, автоповтор, счётчики мыши
 
-        ld a,PAGE_SONG1         ; редактируем трек 1
-        ld (SV_SONG_PAGE),a
-        ld (SV_PLAY_SONG),a     ; плеер: трек 1, подготовка, дальше его зовёт IM1
+        ld a,1                  ; трек 2 - пустой
+        call Song_Select
+        call Song_New
+        xor a                   ; редактируем трек 1
+        call Song_Select
+        ld a,PAGE_SONG1         ; плеер: трек 1, подготовка, дальше его зовёт IM1
+        ld (SV_PLAY_SONG),a
         SETPAGE1 PAGE_PLAYER
         call PLAYER_INIT
         RESTPAGE1
