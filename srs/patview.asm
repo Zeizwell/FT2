@@ -3449,6 +3449,7 @@ Pm_Items
         db CLR_TOP_TEXT,"Octave up",0
         db CLR_TOP_TEXT,"Octave down",0
         db CLR_TOP_TEXT,"Select all",0
+        db WIN_END
 Pm_Act  dw K_Copy, K_Cut, K_Paste, K_Del, K_InsTrk, K_DelTrk, K_InsPat, K_DelPat
         dw K_TrUp, K_TrDn, K_TrOU, K_TrOD, K_SelAll
     ASSERT ($-Pm_Act)/2 == 13

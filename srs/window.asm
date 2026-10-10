@@ -171,6 +171,7 @@ Win_Rect
 Wr_Dir          db 0
 Wr_Buf          dw 0
 Wr_Row          db 0
+Wd_N            db 0                ; строк окна ещё можно
 
 ;-------- Рамка, фон и строки окна (экран - в окне 3)
 Win_Draw
@@ -211,11 +212,19 @@ Win_Draw
         ld a,WB_BL
         ld b,WB_BR
         call .line
-        ld a,(Win_Y)                ; строки: с x+2, своим цветом
+        ld a,(Win_H)                ; строки: с x+2, своим цветом; не больше, чем влезает
+        sub 2
+        ld (Wd_N),a
+        ld a,(Win_Y)
         add a,WIN_SCR_H+1
         ld d,a
         ld hl,(Wo_Text)
-.t      ld a,(hl)
+.t      ld a,(Wd_N)
+        or a
+        ret z
+        dec a
+        ld (Wd_N),a
+        ld a,(hl)
         cp WIN_END
         ret z
         inc hl
