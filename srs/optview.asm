@@ -157,12 +157,34 @@ Hp_Frame
         ld hl,Hp_Box
         ld b,1
         call Ov_Frames.box
+        ld a,(Hp_Page)              ; закладки: выбранная - цветом выделения
+        or a
+        ld a,(THEME_ATTR+CLR_SELECT)
+        jr z,$+5
+        ld a,(THEME_ATTR+CLR_TEXT)
+        ld c,a
+        ld de,HP_TAB1+256*(OV_SCR_H+HP_TAB_Y)
+        ld hl,Txt_TKeys
+        call PutStr
+        ld a,(Hp_Page)
+        or a
+        ld a,(THEME_ATTR+CLR_TEXT)
+        jr z,$+5
+        ld a,(THEME_ATTR+CLR_SELECT)
+        ld c,a
+        ld e,HP_TAB2
+        ld hl,Txt_TCmds
+        call PutStr
         ld a,(THEME_ATTR+CLR_TEXT)
         ld c,a
         ld a,KY_X+2                 ; первый столбец
         ld (Hl_Col),a
         ld d,OV_SCR_H+LIST_Y
+        ld a,(Hp_Page)              ; страница: клавиши или команды
+        or a
         ld hl,Hlp_Tab
+        jr z,$+5
+        ld hl,Cmd_Tab
 .l      ld a,(hl)                   ; вид строки, 0 - конец
         inc hl
         or a
@@ -179,6 +201,10 @@ Hp_Frame
         ld a,b
         cp HL_TEXT
         jr z,.txt
+        cp HL_CMD
+        jr z,.cmd
+        cp HL_CMDX
+        jr z,.cmdx
         cp HL_ACT
         ld a,(hl)                   ; действие (у диапазона - первое)
         inc hl
@@ -209,6 +235,17 @@ Hp_Frame
         inc hl
         inc d
         jr .l
+.cmdx   ld a,CMD_EXT                ; расширенная: "F" и подкод
+        call .hex
+.cmd    ld a,(hl)                   ; код команды - из CMD_* (sdk), дальше текст
+        inc hl
+        call .hex
+        jr .txt
+.hex    cp 10                       ; A - hex-цифра
+        jr c,$+4
+        add a,7
+        add a,'0'
+        jp PutCh
 Hl_Col          db 0
 Hl_Act          db 0
 Hl_Last         db 0
@@ -347,12 +384,60 @@ Key_Names
         db #73,"Num5",0, #74,"Num6",0, #6C,"Num7",0, #75,"Num8",0
         db 0
 
+;-------- Закладки Help: клик - страница (клавиши / команды), рамка заново
+Hp_TabEv
+        cp EV_CLICK
+        ret nz
+        ld a,(ix+FLD_PARAM)
+        ld (Hp_Page),a
+        jp Hp_Frame
+
+; Команды паттерна (doc/commands.md): коды - из CMD_* / CMDX_* (sdk), поменяли код - справка тоже
+Cmd_Tab
+        db HL_TEXT,"Command NDPp: N code, D delay, Pp param",0
+        db HL_TEXT," ",0
+        db HL_CMD,CMD_GLIS_DOWN,"DPp  glide down: delay, step",0
+        db HL_CMD,CMD_GLIS_UP,"DPp  glide up: delay, step",0
+        db HL_CMD,CMD_PORTA,"DPp  portamento (from current pitch)",0
+        db HL_CMD,CMD_SMP_OFS,".Pp  sample from row Pp",0
+        db HL_CMD,CMD_ORN_OFS,".Pp  ornament from row Pp",0
+        db HL_CMD,CMD_ONOFF,".XY  sound on X / off Y ticks",0
+        db HL_CMD,CMD_VOL_SLIDE,"DXY  volume slide: up X, down Y",0
+        db HL_CMD,CMD_VIBRATO,"DXY  vibrato: speed X, depth Y",0
+        db HL_CMD,CMD_ENV_DOWN,"DPp  envelope slide down",0
+        db HL_CMD,CMD_ENV_UP,"DPp  envelope slide up",0
+        db HL_CMD,CMD_SPEED,".Pp  speed: ticks per row",0
+        db HL_CMD,CMD_ARP,"NXY  arpeggio: N steps, +X, +Y",0
+        db HL_CMDX,CMDX_RETRIG,"..  envelope + tone retrigger",0
+        db HL_CMDX,CMDX_DETUNE,"Pp  detune (signed)",0
+        db HL_CMDX,CMDX_DELAY,"Pp  note delay: ticks",0
+        db HL_TEXT," ",0
+        db HL_TEXT,"Player plays now: speed only",0
+        db HL_COL
+        db HL_TEXT,"Channel cell:  C-4 A1FE 1234 5678",0
+        db HL_TEXT,"  C-4   note (R-- off)",0
+        db HL_TEXT,"  A     sample 1..W",0
+        db HL_TEXT,"  1     envelope shape 1..E, F - off",0
+        db HL_TEXT,"  F     ornament 0..G (0 - none)",0
+        db HL_TEXT,"  E     volume 1..F",0
+        db HL_TEXT,"  1234 5678  two commands",0
+        db HL_TEXT," ",0
+        db HL_TEXT,"Chip Env:  0134 1F 0000",0
+        db HL_TEXT,"  0134  envelope period",0
+        db HL_TEXT,"  1F    noise",0
+        db HL_TEXT,"  0000  envelope 2",0
+        db HL_TEXT," ",0
+        db HL_TEXT,"Empty field (.) - keep previous",0
+        db 0
+
 ; Справка: HL_TEXT текст / HL_ACT действие, описание / HL_RANGE первое, последнее, описание /
 ; HL_COL - второй столбец. Конец - 0
 HL_TEXT         equ 1
 HL_ACT          equ 2
 HL_RANGE        equ 3
 HL_COL          equ 4
+HL_CMD          equ 5               ; код CMD_*, текст - на экране код hex и текст
+HL_CMDX         equ 6               ; подкод CMDX_*, текст - "F", подкод и текст
 Hlp_Tab
         db HL_TEXT,"Pattern:",0
         db HL_TEXT,"Z..M Q..P         notes (Shift - octave up)",0
@@ -409,7 +494,13 @@ Hlp_Tab
 Ov_Boxes
         db PL_X,PL_W,"Palette",0
         db FN_X,FN_W,"Font",0
-Hp_Box  db KY_X,KY_W,"Keys",0
+Hp_Box  db KY_X,KY_W,"Help",0
+HP_TAB_Y        equ OV_TOP+1        ; закладки Help
+HP_TAB1         equ KY_X+2
+HP_TAB2         equ KY_X+9
+Hp_Page         db 0                ; 0 - клавиши, 1 - команды
+Txt_TKeys       db " Keys ",0
+Txt_TCmds       db " Commands ",0
 
 ;-------- Списки (выбранное - выделением), свободная память, сообщение
 Ov_Draw
@@ -592,6 +683,8 @@ Ov_Fields
         OV_FIELD FN_X+2,LIST_Y,14,FONTS_COUNT, FF_HAND, Ov_FontEv, 0     ; шрифты
 ;-------- Help: те же транспорт и вкладки, Setup - назад в настройки
 Hp_Fields
+        OV_FIELD HP_TAB1,HP_TAB_Y,6,1, FF_HAND, Hp_TabEv, 0             ; закладки
+        OV_FIELD HP_TAB2,HP_TAB_Y,10,1, FF_HAND, Hp_TabEv, 1
         OV_FIELD patview.HD_PLAY_X,   patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 0
         OV_FIELD patview.HD_PLAY_X+4, patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 1
         OV_FIELD patview.HD_PLAY_X+8, patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 2
