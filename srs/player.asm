@@ -615,13 +615,14 @@ Pc_Channel
         ld a,NOTE_COUNT-1
 .nhi    ld (Pc_Note),a
         ; --- строка инструмента: блок + 3 + строка*5
-        ld a,(ix+CS_IROW)
-        ld e,a
-        add a,a
-        add a,a
-        add a,e
-        ld e,a
-        ld d,0
+        ld l,(ix+CS_IROW)           ; строка*5 - в 16 битах (строки 52..63 дают больше 255)
+        ld h,0
+        ld e,l
+        ld d,h
+        add hl,hl
+        add hl,hl
+        add hl,de
+        ex de,hl
         ld l,(ix+CS_INS)
         ld h,(ix+CS_INS+1)
         push hl                     ; блок - для перехода строки
