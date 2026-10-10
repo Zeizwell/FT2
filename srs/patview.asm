@@ -170,7 +170,8 @@ PluginMain
         ld (Pv_Started),a
         call Build_Row_A
         call Init_RowNum            ; страница номеров роу
-        call Test_Song              ; тестовые паттерны (данные + текст) и ордер
+        ld a,1                      ; трек - из его страницы (пустой - Song_New в коре)
+        ld (SV_SONG_NEW),a
 .again  ld a,(SV_SONG_NEW)          ; трек загрузили (вкладка Disk) - перечитать
         or a
         call nz,Song_Reload
@@ -1268,7 +1269,7 @@ Draw_Order
         ld a,(THEME_ATTR+CLR_PATNUM)
         ld c,a
         ld a,b
-        ld hl,Test_Order
+        ld hl,Ord_List
         call Arr_Get
         call PutHex2
 .bar    ld a,(THEME_ATTR+CLR_BG)    ; место кнопок - пусто
@@ -1392,7 +1393,7 @@ Put_Entry
 
 T_Pat                               ; A = паттерн позиции T_Pos. Портит HL
         ld a,(T_Pos)
-        ld hl,Test_Order
+        ld hl,Ord_List
         jp Arr_Get
 
 T_Len                               ; A = длина паттерна позиции T_Pos. Портит HL
@@ -2290,7 +2291,7 @@ O_Unique
         ld (O_New),a
         call Pat_Dup
         ld a,(Cur_Pos)              ; текущая позиция - на новый номер
-        ld hl,Test_Order
+        ld hl,Ord_List
         call Arr_Get
         ld a,(O_New)
         ld (hl),a
@@ -2301,7 +2302,7 @@ O_Remove
         or a
         ret z
         ld a,(Cur_Pos)              ; позиции после текущей - на одну назад
-        ld hl,Test_Order+1
+        ld hl,Ord_List+1
         call Arr_Get                ; HL - позиция Cur_Pos+1
         ld d,h
         ld e,l
@@ -2338,7 +2339,7 @@ O_Remove
 ; CF - ордер полон, вставлять некуда
 Ord_Room
         ld a,(Ord_Last)
-        cp ORDER_TEST_MAX-1
+        cp ORD_VIEW_MAX-1
         ccf
         ret
 
@@ -2351,7 +2352,7 @@ Ord_Insert
         jr z,.put
         ld c,a
         ld a,(Ord_Last)
-        ld hl,Test_Order
+        ld hl,Ord_List
         call Arr_Get                ; HL - последняя
         ld d,h
         ld e,l
@@ -2364,7 +2365,7 @@ Ord_Insert
         inc a
         ld (Cur_Pos),a
         ld b,a
-        ld hl,Test_Order
+        ld hl,Ord_List
         call Arr_Get
         ld a,(O_New)
         ld (hl),a
@@ -2422,7 +2423,7 @@ Pat_Empty
 ; Паттерн O_New = копия паттерна текущей позиции (страница целиком, длина)
 Pat_Dup
         ld a,(Cur_Pos)
-        ld hl,Test_Order
+        ld hl,Ord_List
         call Arr_Get
         ld (PC_Src),a
         ld hl,Pat_Len
@@ -2543,45 +2544,16 @@ Band_Bg         dw 0                ; 0 - обычный фон (копия из
     include "srs/head.asm"
 
 ; =========================================================================
-; ТЕСТОВЫЙ ТРЕК: 8 паттернов разной длины, длинный ордер (для плея сонга).
-; Все поля непустые (худший случай), значения зависят от паттерна, роу и
-; канала - сразу видно, откуда строка.
+; ТРЕК В ВИДЕ: копии из страницы трека (Song_Reload), правки - обратно (Song_Sync)
 ; =========================================================================
-TEST_PATS       equ 8
-Pat_Len         db 64,16,32,1,48,8,64,24   ; длина паттерна 0..7
-                ds PATTERNS_MAX-TEST_PATS,64
-Pat_Exists      ds TEST_PATS,1       ; 1 - паттерн есть (номер занят)
-                ds PATTERNS_MAX-TEST_PATS,0
-Test_Order      db 0,1,2,3,3,3,4,5,5,6,1,7,2,0,3,4,6,5,7,1,2,0,6,7
-TEST_ORD_N      equ $-Test_Order
-                ds ORDER_TEST_MAX-TEST_ORD_N,0
-ORDER_TEST_MAX  equ 255             ; позиций в виде (длина ордера - байт: 1..255)
-
-Test_Song
-        call Song_Clear             ; новый трек: заголовок (скорость, шаг 4...)
-        call Test_Instr             ; инструменты и орнаменты - в их страницу
-        ld a,TEST_ORD_N-1
-        ld (Ord_Last),a
-        ld a,2                      ; повтор - с позиции 2
-        ld (Loop_Pos),a
-        xor a                       ; номер паттерна - в памяти: SETPAGE работает
-        ld (TF_Pat),a               ; через стек, push/pop вокруг него нельзя
-.p      ld a,(TF_Pat)
-        call Pat_Page
-        SETPAGE2 a                  ; страница паттерна - в окно 2
-        call Test_Fill
-        call Init_Pat_Text
-        RESTPAGE2
-        ld hl,TF_Pat
-        inc (hl)
-        ld a,(hl)
-        cp TEST_PATS
-        jr c,.p
-        jp Song_Sync                ; трек - в его страницу (для плеера)
+Pat_Len         ds PATTERNS_MAX,PAT_ROWS_MAX    ; длина паттерна
+Pat_Exists      ds PATTERNS_MAX,0               ; 1 - паттерн есть (номер занят)
+Ord_List        ds ORD_VIEW_MAX,0             ; ордер: номера паттернов
+ORD_VIEW_MAX  equ 255             ; позиций в виде (длина ордера - байт: 1..255)
 
 ;-------- Трек для плеера: страница текущего трека - скорость, страница
 ; инструментов, ордер, повтор, каталог паттернов (страница и длина). Пока трек
-; живёт в переменных вида (Test_Order, Pat_Len...) - копируем туда при каждой правке
+; живёт в переменных вида (Ord_List, Pat_Len...) - копируем туда при каждой правке
 Cur_Step        db NEW_SONG_STEP    ; шаг курсора (копия SH_STEP, её кладёт Head_Load)
 
 Song_Sync
@@ -2591,9 +2563,9 @@ Song_Sync
         ld (#8000+ORD_LAST),a
         ld a,(Loop_Pos)
         ld (#8000+ORD_LOOP),a
-        ld hl,Test_Order
+        ld hl,Ord_List
         ld de,#8000+ORD_POS
-        ld bc,ORDER_TEST_MAX
+        ld bc,ORD_VIEW_MAX
         ldir
         ld hl,#8000+PAT_CATALOG     ; каталог: страница (0 - нет), длина
         ld de,Pat_Len
@@ -2630,9 +2602,9 @@ Song_Reload
         ld a,(SV_SONG_PAGE)
         SETPAGE2 a
         ld a,(#8000+ORD_LAST)       ; позиций - не больше, чем держит вид
-        cp ORDER_TEST_MAX
+        cp ORD_VIEW_MAX
         jr c,$+4
-        ld a,ORDER_TEST_MAX-1
+        ld a,ORD_VIEW_MAX-1
         ld (Ord_Last),a
         ld b,a
         ld a,(#8000+ORD_LOOP)       ; повтор - не за последней
@@ -2642,8 +2614,8 @@ Song_Reload
         xor a
 .lp     ld (Loop_Pos),a
         ld hl,#8000+ORD_POS
-        ld de,Test_Order
-        ld bc,ORDER_TEST_MAX
+        ld de,Ord_List
+        ld bc,ORD_VIEW_MAX
         ldir
         ld hl,#8000+PAT_CATALOG     ; каталог: есть ли паттерн, длина
         ld de,Pat_Len
@@ -2666,233 +2638,24 @@ Song_Reload
         djnz .p
         RESTPAGE2
         xor a                       ; текст роу всех паттернов, что есть
-        ld (TF_Pat),a
-.t      ld a,(TF_Pat)
+        ld (Rl_Pat),a
+.t      ld a,(Rl_Pat)
         ld hl,Pat_Exists
         call Arr_Get
         or a
         jr z,.next
-        ld a,(TF_Pat)
+        ld a,(Rl_Pat)
         call Pat_Page
         SETPAGE2 a
         call Init_Pat_Text
         RESTPAGE2
-.next   ld hl,TF_Pat
+.next   ld hl,Rl_Pat
         inc (hl)
         ld a,(hl)
         cp PATTERNS_MAX
         jr c,.t
         ret
-TF_Pat          db 0
-
-;-------- Тестовые инструменты и орнаменты (формат FTC, sdk/plugin.asm) - в страницу
-; инструментов текущего трека (Trk_Ins). Остальные номера - по умолчанию (Ins_Clear)
-Test_Instr
-        ld a,(Trk_Ins)
-        call Ins_Clear
-        ld ix,Ti_List
-.l      ld l,(ix+0)                 ; блок, 0 - конец
-        ld h,(ix+1)
-        ld a,h
-        or l
-        ret z
-        ld e,(ix+2)                 ; смещение в странице
-        ld d,(ix+3)
-        ld c,(ix+4)                 ; длина
-        ld b,(ix+5)
-        ld a,(Trk_Ins)
-        push ix
-        call Ins_Put
-        pop ix
-        ld de,6
-        add ix,de
-        jr .l
-
-Ti_List dw Ti_Pluck,  0*INS_BLOCK, TI_LEN   ; инструмент 1
-        dw Ti_Drum,   1*INS_BLOCK, TI_LEN   ; 2
-        dw Ti_Bass,   2*INS_BLOCK, TI_LEN   ; 3
-        dw Ti_Vib,    3*INS_BLOCK, TI_LEN   ; 4
-        dw To_Major,  ORN_BASE+0*ORN_BLOCK, TO_LEN  ; орнамент 1
-        dw To_Minor,  ORN_BASE+1*ORN_BLOCK, TO_LEN  ; 2
-        dw To_Octave, ORN_BASE+2*ORN_BLOCK, TO_LEN  ; 3
-        dw 0
-TI_LEN          equ INS_NAME+16     ; хвост дальше имени - нули (Ins_Clear)
-TO_LEN          equ ORN_NAME+16
-
-    ; Строка инструмента: шум (7 накопл, 6 ВЫКЛ, 4..0), тон мл, тон ст (7 накопл,
-    ; 6 ВЫКЛ, 4 ретриггер, 3..0), громкость (7 накопл огиб, 6 огиб ВКЛ, 5 слайд,
-    ; 4 вниз, 3..0), смещение огибающей
-    MACRO TI_TAIL blk,name
-        ds blk+INS_FX-$,0
-        db 0                        ; без FX
-        ds blk+INS_NAME-$,0
-        db name
-        ds blk+INS_NAME+16-$,' '
-    ENDM
-    MACRO TO_TAIL blk,name
-        ds blk+ORN_NAME-$,0
-        db name
-        ds blk+ORN_NAME+16-$,' '
-    ENDM
-
-Ti_Pluck                            ; затухание 15..0, цикл на тишине
-        db 15,15,15
-.v = 15
-        DUP 16
-        db #40,0,0,.v,0
-.v = .v-1
-        EDUP
-        TI_TAIL Ti_Pluck,"Pluck"
-Ti_Drum                             ; шум без тона, громкость вниз, шум растёт
-        db 7,7,7
-        db #00,0,#40,15,0
-        db #02,0,#40,13,0
-        db #04,0,#40,11,0
-        db #06,0,#40,9,0
-        db #08,0,#40,7,0
-        db #0A,0,#40,5,0
-        db #0C,0,#40,3,0
-        db #40,0,#40,0,0            ; тишина, цикл
-        TI_TAIL Ti_Drum,"Drum"
-Ti_Bass                             ; тон + огибающая
-        db 0,0,0
-        db #40,0,0,#40|15,0
-        TI_TAIL Ti_Bass,"EnvBass"
-Ti_Vib                              ; вибрато: тон накоплением +1 +1 -1 -1
-        db 3,0,3
-        db #40,#01,#80,15,0
-        db #40,#01,#80,15,0
-        db #40,#FF,#8F,15,0         ; -1 в 12 битах
-        db #40,#FF,#8F,15,0
-        TI_TAIL Ti_Vib,"Vibrato"
-
-    ; Строка орнамента: шум (7 накопл шума, 6 накопл ноты, 4..0), смещение ноты
-To_Major
-        db 2,0,2
-        db 0,0, 0,4, 0,7
-        TO_TAIL To_Major,"Major"
-To_Minor
-        db 2,0,2
-        db 0,0, 0,3, 0,7
-        TO_TAIL To_Minor,"Minor"
-To_Octave
-        db 1,0,1
-        db 0,0, 0,12
-        TO_TAIL To_Octave,"Octave"
-
-; Паттерн в окне 2 (номер - TF_Pat): все 64 роу данных
-Test_Fill
-        ld h,PAT_BASE_H
-        ld c,0                      ; C - роу
-.row    ld l,0
-        ld b,CHIPS_MAX
-.chip   push bc
-        ld (hl),c                   ; период огибающей: мл = роу, ст = паттерн+1
-        inc l
-        ld a,(TF_Pat)
-        inc a
-        ld (hl),a
-        inc l
-        ld a,(TF_Pat)               ; огибающая-2: мл = паттерн, ст = роу
-        ld (hl),a
-        inc l
-        ld (hl),c
-        inc l
-        ld a,c                      ; шум 1..32
-        and #1F
-        inc a
-        ld (hl),a
-        inc l
-        ld a,c                      ; нота огибающей: в каждой 4-й роу (роу+1), иначе 0
-        and 3
-        ld a,0
-        jr nz,$+4
-        ld a,c
-        inc a
-        ld (hl),a
-        inc l
-        ld (hl),0                   ; резерв
-        inc l
-        ld (hl),0
-        inc l
-        ld b,3                      ; 3 канала
-.ch     push bc
-        ld a,b                      ; нота: (роу + канал*11 + паттерн*5) mod 96 + 1
-        add a,a
-        add a,a
-        add a,a
-        add a,b
-        add a,b
-        add a,b
-        add a,c
-        ld e,a
-        ld a,(TF_Pat)
-        ld d,a
-        add a,a
-        add a,a
-        add a,d
-        add a,e
-.mod    cp NOTE_COUNT
-        jr c,.nok
-        sub NOTE_COUNT
-        jr .mod
-.nok    inc a
-        ld (hl),a
-        inc l
-        ld a,(TF_Pat)               ; сэмпл = паттерн+1 (видно, чей паттерн)
-        inc a
-        ld (hl),a
-        inc l
-        ld a,c                      ; огибающая 1..15
-        and #0E
-        inc a
-        ld (hl),a
-        inc l
-        ld a,c                      ; орнамент 1..16
-        add a,b
-        and #0F
-        inc a
-        ld (hl),a
-        inc l
-        ld a,c                      ; громкость 8..15
-        and 7
-        add a,8
-        ld (hl),a
-        inc l
-        ld (hl),0                   ; резерв
-        inc l
-        ld a,b                      ; команда 1: канал*16 + паттерн, роу
-        add a,a
-        add a,a
-        add a,a
-        add a,a
-        ld e,a
-        ld a,(TF_Pat)
-        add a,e
-        ld (hl),a
-        inc l
-        ld (hl),c
-        inc l
-        ld (hl),c                   ; команда 2: роу, #A0 + канал
-        inc l
-        ld a,b
-        add a,#A0
-        ld (hl),a
-        inc l
-        ld a,l                      ; резерв канала
-        add a,CH_SIZE-CH_CMD-CH_CMDS*CMD_SIZE
-        ld l,a
-        pop bc
-        djnz .ch
-        pop bc
-        dec b
-        jp nz,.chip
-        inc h
-        inc c
-        ld a,c
-        cp PAT_ROWS_MAX
-        jp c,.row
-        ret
+Rl_Pat          db 0
 
 ; =========================================================================
 ; Простой вывод (рамки, ордер). PutCh, PutStr, PutHex2 - в коре (srs/text.asm)

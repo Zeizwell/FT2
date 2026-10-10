@@ -234,7 +234,7 @@ Head_Show
         ld de,HD_SPEED_X+256*(HD_SCR_H+HD_ROW_EDIT)
         call PutHex2
         ld a,(Cur_Pos)              ; длина паттерна текущей позиции
-        ld hl,Test_Order
+        ld hl,Ord_List
         call Arr_Get
         ld hl,Pat_Len
         call Arr_Get
@@ -599,7 +599,7 @@ H_LenDn ld b,-1                     ; длина паттерна текущей
         jr H_Len
 H_LenUp ld b,1
 H_Len   ld a,(Cur_Pos)
-        ld hl,Test_Order
+        ld hl,Ord_List
         call Arr_Get
         ld hl,Pat_Len
         call Arr_Get                ; HL - на длину
