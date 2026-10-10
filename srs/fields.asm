@@ -21,6 +21,10 @@ Fld_Init
         ld (SV_HOVER),hl
         ld (SV_FOCUS),hl
         ld (SV_PRESSED),hl
+;-------- События мыши, что уже были, - полям не отдавать (после окна: клики в нём - его)
+Fld_Sync
+        ld hl,0
+        ld (SV_PRESSED),hl
         ld hl,SV_MS_COUNT+MB_LEFT*4 ; уже бывшие события - "видели"
         ld de,Fld_Seen_L
         ld bc,4

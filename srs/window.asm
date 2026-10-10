@@ -80,21 +80,55 @@ Win_Blit
         ld hl,Win_Img
         jp Win_Rect
 
-;-------- Ждать: любая клавиша или клик - закрыть (About)
+;-------- Ждать (About): клавиша или клик мимо окна - закрыть; клик в окне - ничего.
+; Клики за время окна - его, полям под ним не достаются (Win_End)
 Win_Wait
         ld a,MB_LEFT                ; старые события кнопки - мимо
         ld hl,Ww_Seen
         call Mouse_Btn
 .l      halt
         call Key_Get                ; NZ - клавиша
-        jr nz,.done
+        jr nz,Win_End
         ld a,MB_LEFT
         ld hl,Ww_Seen
         call Mouse_Btn
         and 1<<ME_PRESS
         jr z,.l
-.done   jp Win_Close
+        call Win_In                 ; в окне - ничего
+        jr c,.l
+; Закрыть: кнопку отпустили, окно убрать, события мыши за время окна - не полям
+Win_End
+        ld a,MB_LEFT                ; ждать, пока отпустят (отпускание - тоже окну)
+        ld hl,Ww_Seen
+        call Mouse_Btn
+        and #80
+        jr z,.up
+        halt
+        jr Win_End
+.up     call Win_Close
+        jp Fld_Sync
 Ww_Seen         ds 4
+
+; Мышь в окне? CF - да
+Win_In
+        ld a,(Win_X)
+        ld b,a
+        ld a,(SV_MOUSE_COL)
+        sub b
+        jr c,.no                    ; левее - мимо
+        ld hl,Win_W
+        cp (hl)
+        jr nc,.no
+        ld a,(Win_Y)
+        ld b,a
+        ld a,(SV_MOUSE_ROW)
+        sub b
+        jr c,.no
+        ld hl,Win_H
+        cp (hl)
+        ret                         ; CF - в окне
+.no     or a
+        ret
 
 ;-------- Прямоугольник окна (экран - в окне 3): A = 0 - экран -> буфер HL, 1 - буфер -> экран
 Win_Rect
@@ -312,7 +346,7 @@ Win_Menu
         jr z,.l
 .none   ld a,#FF
         ld (Wm_Sel),a
-.pick   call Win_Close
+.pick   call Win_End                ; клики за время меню - не полям
         ld a,(Wm_Sel)
         ret
 
