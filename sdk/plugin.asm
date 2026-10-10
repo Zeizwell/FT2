@@ -187,6 +187,14 @@ KEY_E           equ #24
 KEY_T           equ #2C
 KEY_A           equ #1C             ; паттерн: off (как VT)
 KEY_K           equ #42             ;   стереть ноту
+KEY_DEL         equ #71+#80         ; Delete
+KEY_INS         equ #70+#80         ; Insert
+KEY_I           equ #43
+KEY_Y           equ #35
+KEY_Z           equ #1A
+KEY_C           equ #21
+KEY_X           equ #22
+KEY_V           equ #2A
 
 ; --- Действия (бинды, doc/architecture.md): клавиши к ним - таблица Bind_Tab в коре
 ; (умолчания - как VT, doc/trackers.md), тулзы перечисляют действия, а не клавиши.
@@ -211,6 +219,7 @@ ACT_STOP        equ 17              ; Esc
 ACT_ENV_OPEN    equ 18              ; Ctrl+E - колонка Env чипа
 ACT_ENV_NOTE    equ 19              ; Alt+E - период огибающей нотой
 ACT_TIMING      equ 20              ; Ctrl+T - полоса времени
+ACT_CLEAR       equ 21              ; Delete - поле / выделение - пусто
 MB_LEFT         equ 0               ; номер кнопки мыши (смещение в SV_MS_COUNT / 4)
 MB_RIGHT        equ 1
 MB_MIDDLE       equ 2

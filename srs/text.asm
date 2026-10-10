@@ -142,5 +142,6 @@ Bind_Tab
         db KEY_E,     KM_CTRL,  0, ACT_ENV_OPEN
         db KEY_E,     KM_ALT,   0, ACT_ENV_NOTE
         db KEY_T,     KM_CTRL,  0, ACT_TIMING
+        db KEY_DEL,   0,        0, ACT_CLEAR
         db 0
 

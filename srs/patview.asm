@@ -195,6 +195,7 @@ Main_Loop
         halt
         BAND_M BAND_INPUT
         call Handle_Keys
+        call Ln_Check               ; отпустили клавишу ввода - строка молчит
         call Head_Show              ; шапка: значения (srs/head.asm)
         call Mem_Show               ; свободная память - в нижней строке
         call Time_Tick              ; время игры
@@ -2213,14 +2214,18 @@ Pat_Field
 
 ;-------- Ввод в клетку под курсором: клавиша B, флаги C. CF - наша.
 ; Поле ноты (как VT): пианино - октава из шапки (Cur_Octave), Shift - на октаву выше;
-; A - off, K - стереть ноту. Потом курсор вниз на шаг (Step, если включён)
+; A - off, K - стереть ноту. Остальные поля - цифры (как их показывает текст роу).
+; После ввода - строка звучит, курсор вниз на шаг (Step, если включён)
+Pt_Key          db 0                ; клавиша ввода (строка звучит, пока её держат)
 Pat_Type
+        ld a,b
+        ld (Pt_Key),a
         ld a,(Env_Open)
         or a
-        ret nz
+        jp nz,Pt_Env
         ld a,(Cur_Field)
         or a
-        ret nz                      ; пока - только поле ноты
+        jp nz,Pt_Chan
         ld a,b
         cp KEY_A
         jr z,.off
@@ -2251,47 +2256,345 @@ Pat_Type
 .clr    xor a                       ; NOTE_EMPTY
 .put    ld (Cp_Val),a
         ld a,CH_NOTE
-        call Cell_Put
+        jp Pt_Byte
+    ASSERT KM_SHIFT == 1 && NOTE_EMPTY == 0
+
+; Поле канала 1..12: сэмпл, огибающая, орнамент, громкость, цифры двух команд
+Pt_Chan
+        ld a,(Cur_Field)
+        cp 5
+        jr nc,.cmd
+        cp 2
+        jr z,.env
+        cp 3
+        jr z,.orn
+        jr nc,.vol
+        call Key_Sym                ; 1 - сэмпл: 1..9, A..W (0 - пусто)
+        ret nc
+        cp SAMPLES_MAX+1
+        ret nc
+        ld (Cp_Val),a
+        ld a,CH_SAMPLE
+        jr Pt_Byte
+.env    call Key_Hex                ; 2 - форма огибающей: 1..E, F - выкл (0 - пусто)
+        ret nc
+        ld (Cp_Val),a
+        ld a,CH_ENVSHAPE
+        jr Pt_Byte
+.orn    call Key_Sym                ; 3 - орнамент n (0..16) -> n+1
+        ret nc
+        cp ORNAMENTS_MAX+1
+        ret nc
+        inc a
+        ld (Cp_Val),a
+        ld a,CH_ORNAMENT
+        jr Pt_Byte
+.vol    call Key_Hex                ; 4 - громкость 1..F (0 - пусто)
+        ret nc
+        ld (Cp_Val),a
+        ld a,CH_VOLUME
+        jr Pt_Byte
+.cmd    call Key_Hex                ; 5..12 - цифра команды: 4 hex на команду
+        ret nc
+        ld (Cp_Val),a
+        ld a,(Cur_Field)
+        sub 5                       ; цифра k 0..7: команда k/4, байт (k/2)&1, полубайт k&1
+        ld c,a
+        srl a                       ; байт: CH_CMD + k/2 (команды по 2 байта подряд)
+        add a,CH_CMD
+        jr Pt_Nib
+    ASSERT CMD_SIZE == 2
+
+; Поле Env чипа 0..9: цифры периода (4), шума (2), огибающей-2 (4)
+Pt_Env
+        call Key_Hex
+        ret nc
+        ld (Cp_Val),a
+        ld a,(Cur_Field)
+        cp 4
+        jr c,.per
+        cp 6
+        jr c,.noise
+        sub 6                       ; огибающая-2: как период
+        ld c,a
+        ld a,CHIP_ENV2
+        jr .word
+.per    ld c,a                      ; период: числом - нота огибающей больше не нужна
+        xor a
+        ld (Cp_EnvNote),a
+        ld a,CHIP_ENVPER
+.word   ld (Cp_Fld),a               ; цифра k 0..3 слова (старший байт - +1): k 0,1 -> +1
+        ld a,c
+        cp 2
+        ld a,(Cp_Fld)
+        jr nc,$+3
+        inc a
+        jr Pt_Nib
+.noise  sub 4                       ; шум: 0 - пусто, шум 0 - #20, 1..#1F - как есть
+        ld (Cp_Digit),a
+        ld hl,Op_Noise
+        jr Pt_Do
+
+; Cp_Val -> байт A клетки (канал или заголовок чипа - по Env_Open)
+Pt_Byte ld (Cp_Fld),a
+        ld hl,Op_Byte
+        jr Pt_Do
+; Cp_Val -> полубайт байта A: C чётный - старший, нечётный - младший
+Pt_Nib  ld (Cp_Fld),a
+        ld a,c
+        ld (Cp_Digit),a
+        ld hl,Op_Nib
+; HL - правка (Op_*): сделать, строка звучит, курсор - на шаг вниз
+Pt_Do   ld (Cp_Op),hl
+        call Cell_Edit
+        call Play_Line
         call Step_Cur
         scf
         ret
-    ASSERT KM_SHIFT == 1 && NOTE_EMPTY == 0
 
-;-------- Cp_Val -> поле A (CH_*) канала курсора, роу Cur_Row паттерна текущей позиции;
-; текст роу - заново (экран подхватит в следующем кадре)
+;-------- Delete: поле под курсором - пусто (команда - оба байта, период - слово)
+K_Clear
+        xor a
+        ld (Cp_Val),a
+        ld a,(Env_Open)
+        or a
+        jr nz,.env
+        ld a,(Cur_Field)            ; канал: поле -> байт (команда - Op_Word)
+        ld hl,Clr_Chan
+        call Arr_Get
+        ld (Cp_Fld),a
+        ld hl,Op_Byte
+        ld a,(Cur_Field)
+        cp 5
+        jr c,.do
+        ld hl,Op_Word
+        jr .do
+.env    ld a,(Cur_Field)            ; Env: период, шум, огибающая-2
+        ld hl,Clr_Env
+        call Arr_Get
+        ld (Cp_Fld),a
+        ld hl,Op_Byte
+        cp CHIP_NOISE
+        jr z,.do
+        ld hl,Op_Word
+        xor a                       ; период - и нота огибающей
+        ld (Cp_EnvNote),a
+.do     ld (Cp_Op),hl
+        jp Cell_Edit
+; поле курсора -> байт клетки
+Clr_Chan        db CH_NOTE, CH_SAMPLE, CH_ENVSHAPE, CH_ORNAMENT, CH_VOLUME
+                db CH_CMD, CH_CMD, CH_CMD, CH_CMD
+                db CH_CMD+CMD_SIZE, CH_CMD+CMD_SIZE, CH_CMD+CMD_SIZE, CH_CMD+CMD_SIZE
+    ASSERT $-Clr_Chan == CF_CHAN_N
+Clr_Env         db CHIP_ENVPER, CHIP_ENVPER, CHIP_ENVPER, CHIP_ENVPER, CHIP_NOISE, CHIP_NOISE
+                db CHIP_ENV2, CHIP_ENV2, CHIP_ENV2, CHIP_ENV2
+    ASSERT $-Clr_Env == CF_ENV_N
+
+;-------- Клавиша B -> цифра. CF - цифра, A - значение. Key_Hex: 0..F; Key_Sym: 0..9, A..W
+; = 0..32 (как Sym_T). Портит HL
+Key_Hex
+        call Key_Sym
+        ret nc
+        cp 16
+        ret                         ; CF - меньше 16
+Key_Sym
+        ld h,high Key_Chars         ; код -> символ (0 - не символ)
+        ld l,b
+        ld a,b
+        or a
+        ret m                       ; E0-коды - не цифры (CF = 0)
+        ld a,(hl)
+        sub '0'
+        jr c,.no
+        cp 10
+        ret c                       ; 0..9
+        sub 'a'-'0'
+        jr c,.no
+        add a,10                    ; a..w -> 10..32
+        cp 33
+        ret
+.no     or a                        ; CF = 0
+        ret
+
+;-------- Правка клетки: роу Cur_Row паттерна текущей позиции - в окне 2, HL - начало канала
+; курсора (Env - начало чипа), вызвать Cp_Op, потом текст роу заново (экран - со следующего кадра)
+Cp_Op           dw 0                ; правка (Op_*): HL - начало, Cp_Fld - байт
 Cp_Val          db 0
 Cp_Fld          db 0
-Cell_Put
-        ld (Cp_Fld),a
+Cp_Digit        db 0
+Cp_EnvNote      db 1                ; 0 - период ввели числом: CHIP_ENVNOTE стереть
+Cell_Edit
         ld a,(Cur_Pos)              ; страница паттерна позиции
         ld hl,Ord_List
         call Arr_Get
         call Pat_Page
         SETPAGE2 a
-        ld a,(Cur_Chan)             ; канал -> смещение в роу: чип, канал в чипе, поле
+        ld a,(Cur_Chan)             ; чип
         ld b,0
         cp 3
         jr c,.c
         sub 3
         ld b,CHIP_SIZE
-.c      add a,a                     ; *CH_SIZE
+.c      ld c,a                      ; C - канал в чипе
+        ld a,(Env_Open)
+        or a
+        ld a,b                      ; Env - заголовок чипа
+        jr nz,.l
+        ld a,c                      ; канал: *CH_SIZE
+        add a,a
         add a,a
         add a,a
         add a,a
         add a,b
         add a,CHIP_CH_A
-        ld hl,Cp_Fld
-        add a,(hl)
+.l      ld l,a
+        ld a,(Cur_Row)
+        add a,PAT_BASE_H
+        ld h,a
+        ld ix,(Cp_Op)
+        call .op
+        ld a,(Cp_EnvNote)           ; период числом - нота огибающей стёрта
+        or a
+        jr nz,.t
+        inc a
+        ld (Cp_EnvNote),a
+        ld a,(Env_Open)
+        or a
+        jr z,.t
+        ld a,(Cur_Chan)
+        cp 3
+        ld a,CHIP_ENVNOTE
+        jr c,$+4
+        add a,CHIP_SIZE
+        ld l,a
+        ld (hl),0
+.t      call Row_To_Text            ; H - роу
+        RESTPAGE2
+        ret
+.op     jp (ix)
+    ASSERT CH_SIZE == 16
+
+; Правки: HL - начало канала / чипа, Cp_Fld - байт, Cp_Val - значение. HL не портят
+Op_Byte push hl                     ; байт = значение
+        ld a,(Cp_Fld)
+        add a,l
+        ld l,a
+        ld a,(Cp_Val)
+        ld (hl),a
+        pop hl
+        ret
+Op_Word push hl                     ; слово = 0
+        ld a,(Cp_Fld)
+        add a,l
+        ld l,a
+        xor a
+        ld (hl),a
+        inc l
+        ld (hl),a
+        pop hl
+        ret
+Op_Nib  push hl                     ; полубайт: Cp_Digit чётный - старший
+        ld a,(Cp_Fld)
+        add a,l
+        ld l,a
+        ld a,(Cp_Digit)
+        rrca
+        ld a,(Cp_Val)
+        jr c,.lo
+        rlca
+        rlca
+        rlca
+        rlca
+        ld c,a
+        ld a,(hl)
+        and #0F
+        jr .put
+.lo     ld c,a
+        ld a,(hl)
+        and #F0
+.put    or c
+        ld (hl),a
+        pop hl
+        ret
+Op_Noise
+        push hl                     ; шум: цифра Cp_Digit (0 - старшая) числа 0..#1F
+        ld a,CHIP_NOISE
+        add a,l
+        ld l,a
+        ld a,(hl)                   ; 0 и #20 - шум 0
+        and #1F
+        ld b,a
+        ld a,(Cp_Digit)
+        or a
+        ld a,(Cp_Val)
+        jr nz,.lo
+        and 1                       ; старшая - 0 или 1
+        rlca
+        rlca
+        rlca
+        rlca
+        ld c,a
+        ld a,b
+        and #0F
+        jr .put
+.lo     ld c,a
+        ld a,b
+        and #10
+.put    or c
+        jr nz,$+4
+        ld a,#20                    ; шум 0
+        ld (hl),a
+        pop hl
+        ret
+
+;-------- Строка звучит (как VT): роу курсора, чип курсора - пробой плеера, пока держат
+; клавишу ввода (Ln_Check). Только когда плеер стоит или уже играет пробу
+Ln_Key          db 0                ; клавиша, пока держат - звучит (0 - нет)
+Play_Line
+        ld a,(SV_PLAY_STATE)
+        or a
+        jr z,.go
+        cp PS_PREVIEW
+        ret nz                      ; играет сонг / паттерн - не мешаем
+.go     ld a,(Pt_Key)
+        ld (Ln_Key),a
+        ld a,(Cur_Pos)              ; роу курсора - в Prv_Row (коре)
+        ld hl,Ord_List
+        call Arr_Get
+        call Pat_Page
+        SETPAGE2 a
+        ld a,(Cur_Chan)             ; чип курсора
+        cp 3
+        ld a,0
+        jr c,$+4
+        ld a,CHIP_SIZE
         ld l,a
         ld a,(Cur_Row)
         add a,PAT_BASE_H
         ld h,a
-        ld a,(Cp_Val)
-        ld (hl),a
-        call Row_To_Text            ; H - роу
+        ld de,Prv_Row
+        ld bc,CHIP_SIZE
+        ldir
         RESTPAGE2
+        ld a,PC_PREVIEW             ; команда - последней (IM1 может влезть)
+        ld (SV_PLAY_CMD),a
         ret
-    ASSERT CH_SIZE == 16
+
+;-------- Каждый кадр: клавишу ввода отпустили - проба строки молчит
+Ln_Check
+        ld a,(Ln_Key)
+        or a
+        ret z
+        call Key_Down               ; NZ - держат
+        ret nz
+        xor a
+        ld (Ln_Key),a
+        ld a,(SV_PLAY_STATE)        ; молчит только проба (сонг не трогаем)
+        cp PS_PREVIEW
+        ret nz
+        ld a,PC_STOP
+        ld (SV_PLAY_CMD),a
+        ret
 
 ;-------- После ввода: курсор вниз на Cur_Step роу (если шаг включён - Auto_Step)
 Step_Cur
@@ -2402,6 +2705,8 @@ Pat_Keys
         dw K_ChRight
         db ACT_PREV
         dw K_ChLeft
+        db ACT_CLEAR
+        dw K_Clear
         db 0
 
 Btn_Shown       db 0                ; 1 - кнопка, которую держат, нарисована вдавленной
