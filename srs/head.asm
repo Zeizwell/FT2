@@ -51,14 +51,14 @@ HD_AUTH_X       equ 45              ; автор (32)
 ; --- строка 3: параметры ввода
 HD_ROW_EDIT     equ 3
 HD_SPEED_L      equ 1               ; "Speed:"
-HD_SPEED_X      equ 7               ; 2 знака, кнопки - +2
+HD_SPEED_X      equ 9               ; 2 знака: [-] перед числом, [+] после (как в редакторах)
 HD_LEN_L        equ 14              ; "Size:" - длина паттерна
-HD_LEN_X        equ 19
+HD_LEN_X        equ 21
 HD_OCT_L        equ 26              ; "Octave:"
-HD_OCT_X        equ 33              ; 1 цифра, кнопки - +1
+HD_OCT_X        equ 35              ; 1 цифра: [-] перед, [+] после
 HD_STEP_L       equ 39              ; "Step:" - клик: шаг вкл/выкл (вкл - фон темнее)
 HD_STEP_W       equ 5
-HD_STEP_X       equ 44              ; 2 знака, кнопки - +2
+HD_STEP_X       equ 46              ; 2 знака: [-] перед, [+] после
 HD_ENVNOTE_L    equ 52              ; "Env as Note" - клик: вкл/выкл (вкл - фон темнее)
 HD_ENVNOTE_W    equ 11
 HD_AUTO_L       equ 64              ; "Auto Env" - так же
@@ -289,7 +289,7 @@ Head_Show
         jp Hd_Hover                 ; подсветка поля под мышью
 
 
-;-------- Имя файла, трека, автор: знаки до 0, остаток поля - точки (как поле ввода)
+;-------- Имя файла, трека, автор: знаки до 0, остаток поля - пробелы
 Hd_Texts
         ld a,(THEME_ATTR+CLR_TOP_VALUE)
         ld c,a
@@ -312,12 +312,12 @@ Hd_Text
         jr z,.dots
         cp ' '
         jr nc,$+4
-        ld a,'.'
+        ld a,' '
         call PutCh
         inc hl
         djnz .c
         ret
-.dots   ld a,'.'
+.dots   ld a,' '
         call PutCh
         djnz .dots
         ret
@@ -496,14 +496,14 @@ Time_Reset
 HF_BUTTON       equ %10000000       ; флаг поля (FLD_FLAGS): кнопка [-]/[+]
 
 Head_Fields
-        FIELD HD_SPEED_X+2,HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 0  ; Speed -
-        FIELD HD_SPEED_X+4,HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 1  ;       +
-        FIELD HD_OCT_X+1,  HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 2  ; Octave -
-        FIELD HD_OCT_X+3,  HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 3  ;        +
-        FIELD HD_STEP_X+2, HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 4  ; Step -
-        FIELD HD_STEP_X+4, HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 5  ;      +
-        FIELD HD_LEN_X+2,  HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 6  ; Len -
-        FIELD HD_LEN_X+4,  HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 7  ;     +
+        FIELD HD_SPEED_X-2,HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 0  ; Speed -
+        FIELD HD_SPEED_X+2,HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 1  ;       +
+        FIELD HD_OCT_X-2,  HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 2  ; Octave -
+        FIELD HD_OCT_X+1,  HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 3  ;        +
+        FIELD HD_STEP_X-2, HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 4  ; Step -
+        FIELD HD_STEP_X+2, HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 5  ;      +
+        FIELD HD_LEN_X-2,  HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 6  ; Len -
+        FIELD HD_LEN_X+2,  HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 7  ;     +
         FIELD HD_RATIO_X,  HD_ROW_EDIT,3,1, FF_HAND, Hd_Field, 0, 8          ; соотношение - по кругу
         FIELD HD_TUNE_X,   HD_ROW_FILE,7,1, FF_HAND, Hd_Field, 0, 9           ; таблица нот - по кругу
         FIELD HD_CHIP_X,   HD_ROW_FILE,9,1, FF_HAND, Hd_Field, 0, 10          ; тип чипа - по кругу

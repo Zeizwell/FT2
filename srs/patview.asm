@@ -198,7 +198,6 @@ Main_Loop
         call nz,Bench_Dma_Fill
         BAND_M BAND_INPUT
         call Handle_Keys
-        call Dbg_Show               ; отладка ввода - временно
         call Head_Show              ; шапка: значения (srs/head.asm)
         call Time_Tick              ; время игры
         call Fld_Update             ; мышь и колесо - полям (коре, srs/fields.asm)
@@ -1702,7 +1701,6 @@ K_F7            equ #7F             ; F7 (#83) коре сводит в #7F
 K_F8            equ #0A
 K_E             equ #24
 K_T             equ #2C
-K_D             equ #23
 
 Hotkeys db K_F5,    0               ; общие клавиши вида; F5..F8, Esc - как в VT
         dw K_PlaySong               ; сонг с текущей позиции
@@ -1720,8 +1718,6 @@ Hotkeys db K_F5,    0               ; общие клавиши вида; F5..F8
         dw K_EnvNote                ; Alt+E - период огибающей нотой / числом
         db K_T,     KM_CTRL
         dw K_Timing                 ; Ctrl+T - полоса времени
-        db K_D,     KM_CTRL
-        dw K_DiskTest               ; Ctrl+D - проверка диска (временно)
         db 0
 
 ;-------- Все события клавиатуры за кадр: сначала полю в фокусе (навигация
@@ -1729,10 +1725,7 @@ Hotkeys db K_F5,    0               ; общие клавиши вида; F5..F8
 Handle_Keys
 .k      call Key_Get                ; A - код, C - флаги; Z - пусто
         ret z
-        ld (Dbg_Key),a              ; отладка: последнее событие (Dbg_Show)
         ld b,a
-        ld a,c
-        ld (Dbg_Flags),a
         ld (HK_Code),bc
         call Fld_Key                ; полю в фокусе
         jr c,.k
@@ -1741,80 +1734,6 @@ Handle_Keys
         call Keys_Table
         jr .k
 HK_Code         dw 0
-
-;-------- ОТЛАДКА ВВОДА (временно): на нижней рамке слева "K:код флаги M:модификаторы"
-; код - последнее событие клавиатуры (PS/2, E0 +128), флаги - KM_* | KF_REPEAT,
-; M - SV_KEY_MODS сейчас (1 Shift, 2 Ctrl, 4 Alt)
-Dbg_Key         db 0
-Dbg_Flags       db 0
-Dbg_Show
-        ld a,(THEME_ATTR+CLR_HEADER)
-        ld c,a
-        ld d,SCR_BASE_H+BOTTOM_LINE
-        ld e,1
-        ld hl,Txt_Dbg_K
-        call PutStr
-        ld a,(Dbg_Key)
-        call PutHex2
-        ld a,' '
-        call PutCh
-        ld a,(Dbg_Flags)
-        call PutHex2
-        ld hl,Txt_Dbg_M
-        call PutStr
-        ld a,(SV_KEY_MODS)
-        call PutHex2
-        ld hl,Txt_Dbg_D             ; результат проверки диска: A и флаги
-        call PutStr
-        ld a,(Dbg_Disk+1)
-        call PutHex2
-        ld a,' '
-        call PutCh
-        ld a,(Dbg_Disk)
-        call PutHex2
-        ld hl,Txt_Dbg_P             ; плеер: скорость, тик, позиция, роу, состояние
-        call PutStr
-        ld a,(SV_PLAY_SPEED)
-        call PutHex2
-        ld a,' '
-        call PutCh
-        ld a,(SV_PLAY_TICK)
-        call PutHex2
-        ld a,' '
-        call PutCh
-        ld a,(SV_PLAY_POS)
-        call PutHex2
-        ld a,' '
-        call PutCh
-        ld a,(SV_PLAY_ROW)
-        call PutHex2
-        ld a,' '
-        call PutCh
-        ld a,(SV_PLAY_STATE)
-        jp PutHex2
-Txt_Dbg_P       db " P:",0
-Txt_Dbg_K       db "K:",0
-Txt_Dbg_M       db " M:",0
-Txt_Dbg_D       db " D:",0
-
-;-------- ПРОВЕРКА ДИСКА (временно, Ctrl+D): смонтировать карту, найти в корне
-; папку FT2 (туда build.bat кладёт ft2b.spg). Только чтение. Результат -
-; в отладочной строке "D:AA FF": A и флаги последнего вызова драйвера.
-;   монтирование: A=0, Z - готово;  поиск: найдено - A=1, NZ, CF=0 (FF = ..00..);
-;   не найдено - Z, CF=0; ошибка - CF=1 (FF нечётный)
-Dbg_Disk        dw #FFFF            ; ещё не проверяли - "FF FF"
-Dt_Name         db #10,"FT2",0      ; #10 - ищем каталог
-
-K_DiskTest
-        call Disk_Mount
-        jr nz,.res
-        ld ix,DK_FIND+#100          ; IXH=1 - имя по HL скопировать к переходнику
-        ld hl,Dt_Name
-        call Disk_Call
-.res    push af
-        pop hl
-        ld (Dbg_Disk),hl
-        ret
 
 ; Роу курсора: по полотну (сонг) или по кругу (плей паттерна)
 K_RowUp call T_From_Cur
