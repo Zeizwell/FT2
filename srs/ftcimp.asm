@@ -581,10 +581,13 @@ Fc_Row_Ch
         ld (Fc_Porta),a
         jp .cmd
 .noise  call Pt_Get                 ; #EF: шум
-        cp #FE                      ; #EF #FE - ретриггер огибающей и тона (FT 1.15):
-        jp z,.cmd                   ;   пока не умеем, это не шум
+        cp #FE                      ; #EF #FE - ретриггер огибающей и тона (FT 1.15)
+        jr z,.retr
         and #1F
         call Pr_Noise
+        jp .cmd
+.retr   ld de,(CMD_EXT<<4|CMDX_RETRIG)<<8   ; команда F0, параметр 0
+        call P2_Cmd
         jp .cmd
 .end    ex de,hl                    ; позиция в треке - на место
         ld hl,Pc_Ptr

@@ -1407,7 +1407,7 @@ Pr_Spec cp #01
         call Pr_Delay
         or e
         ld e,a
-        ld d,CMD_VIBRATO<<4
+        ld d,CMD_ONOFF<<4
         ret
 
 ; A > 15 -> 15
