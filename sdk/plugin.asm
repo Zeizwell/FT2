@@ -220,6 +220,9 @@ ACT_ENV_OPEN    equ 18              ; Ctrl+E - колонка Env чипа
 ACT_ENV_NOTE    equ 19              ; Alt+E - период огибающей нотой
 ACT_TIMING      equ 20              ; Ctrl+T - полоса времени
 ACT_CLEAR       equ 21              ; Delete - поле / выделение - пусто
+ACT_AUTOSTEP    equ 22              ; Space - автошаг вкл / выкл
+ACT_OCT_1       equ 23              ; Numpad 1..8 - октава ввода (23..30)
+ACT_STEP_0      equ 31              ; Ctrl+0..9 - шаг (31..40)
 MB_LEFT         equ 0               ; номер кнопки мыши (смещение в SV_MS_COUNT / 4)
 MB_RIGHT        equ 1
 MB_MIDDLE       equ 2

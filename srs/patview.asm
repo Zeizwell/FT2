@@ -196,6 +196,7 @@ Main_Loop
         BAND_M BAND_INPUT
         call Handle_Keys
         call Ln_Check               ; отпустили клавишу ввода - строка молчит
+        call En_Check               ; отпустили Enter - стоп
         call Head_Show              ; шапка: значения (srs/head.asm)
         call Mem_Show               ; свободная память - в нижней строке
         call Time_Tick              ; время игры
@@ -2596,6 +2597,39 @@ Ln_Check
         ld (SV_PLAY_CMD),a
         ret
 
+;-------- Numpad 1..8: октава ввода (номер - из сработавшего действия)
+K_Oct   ld a,(Kt_Act)
+        sub ACT_OCT_1-1
+        ld (Cur_Octave),a
+        ret
+
+;-------- Ctrl+0..9: шаг, автошаг - вкл (как в VT); шаг - в трек
+K_Step  ld a,(Kt_Act)
+        sub ACT_STEP_0
+        ld (Cur_Step),a
+        ld a,1
+        ld (Auto_Step),a
+        jp Hd_Save
+
+;-------- Enter: паттерн по кругу с текущей роу, пока держат (как в VT; En_Check - отпустили)
+En_Key          db 0                ; клавиша, пока держат - играет (0 - нет)
+K_PlayHold
+        ld a,(En_Key)               ; автоповтор - уже играет
+        or a
+        ret nz
+        ld a,(Kt_Key)
+        ld (En_Key),a
+        jp K_PlayPatRow
+En_Check
+        ld a,(En_Key)
+        or a
+        ret z
+        call Key_Down               ; NZ - держат
+        ret nz
+        xor a
+        ld (En_Key),a
+        jp K_Stop
+
 ;-------- После ввода: курсор вниз на Cur_Step роу (если шаг включён - Auto_Step)
 Step_Cur
         ld a,(Auto_Step)
@@ -2707,6 +2741,46 @@ Pat_Keys
         dw K_ChLeft
         db ACT_CLEAR
         dw K_Clear
+        db ACT_AUTOSTEP
+        dw H_AutoStep               ; Space - автошаг (как кнопка Step в шапке)
+        db ACT_ENTER
+        dw K_PlayHold               ; Enter - паттерн с курсора, пока держат
+        db ACT_OCT_1
+        dw K_Oct
+        db ACT_OCT_1+1
+        dw K_Oct
+        db ACT_OCT_1+2
+        dw K_Oct
+        db ACT_OCT_1+3
+        dw K_Oct
+        db ACT_OCT_1+4
+        dw K_Oct
+        db ACT_OCT_1+5
+        dw K_Oct
+        db ACT_OCT_1+6
+        dw K_Oct
+        db ACT_OCT_1+7
+        dw K_Oct
+        db ACT_STEP_0
+        dw K_Step
+        db ACT_STEP_0+1
+        dw K_Step
+        db ACT_STEP_0+2
+        dw K_Step
+        db ACT_STEP_0+3
+        dw K_Step
+        db ACT_STEP_0+4
+        dw K_Step
+        db ACT_STEP_0+5
+        dw K_Step
+        db ACT_STEP_0+6
+        dw K_Step
+        db ACT_STEP_0+7
+        dw K_Step
+        db ACT_STEP_0+8
+        dw K_Step
+        db ACT_STEP_0+9
+        dw K_Step
         db 0
 
 Btn_Shown       db 0                ; 1 - кнопка, которую держат, нарисована вдавленной

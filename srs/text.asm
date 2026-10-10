@@ -69,7 +69,9 @@ Keys_Table
         inc hl
         inc hl
         jr .f
-.hit    inc hl
+.hit    ld a,(hl)                   ; какое действие - обработчику (группа на один)
+        ld (Kt_Act),a
+        inc hl
         ld e,(hl)
         inc hl
         ld d,(hl)
@@ -80,6 +82,7 @@ Keys_Table
 .jp     jp (hl)
 Kt_Key          db 0                ; нажатое: код
 Kt_Mods         db 0                ;   модификаторы (KM_*)
+Kt_Act          db 0                ; сработавшее действие (ACT_*)
 
 ; A - действие: Z - нажатое (Kt_Key, Kt_Mods) - его бинд. HL, BC целы
 Act_Has
@@ -143,5 +146,24 @@ Bind_Tab
         db KEY_E,     KM_ALT,   0, ACT_ENV_NOTE
         db KEY_T,     KM_CTRL,  0, ACT_TIMING
         db KEY_DEL,   0,        0, ACT_CLEAR
+        db KEY_SPACE, 0,        0, ACT_AUTOSTEP
+        db #69,       0,        0, ACT_OCT_1    ; Numpad 1..8 - октава
+        db #72,       0,        0, ACT_OCT_1+1
+        db #7A,       0,        0, ACT_OCT_1+2
+        db #6B,       0,        0, ACT_OCT_1+3
+        db #73,       0,        0, ACT_OCT_1+4
+        db #74,       0,        0, ACT_OCT_1+5
+        db #6C,       0,        0, ACT_OCT_1+6
+        db #75,       0,        0, ACT_OCT_1+7
+        db #45,       KM_CTRL,  0, ACT_STEP_0   ; Ctrl+0..9 - шаг
+        db #16,       KM_CTRL,  0, ACT_STEP_0+1
+        db #1E,       KM_CTRL,  0, ACT_STEP_0+2
+        db #26,       KM_CTRL,  0, ACT_STEP_0+3
+        db #25,       KM_CTRL,  0, ACT_STEP_0+4
+        db #2E,       KM_CTRL,  0, ACT_STEP_0+5
+        db #36,       KM_CTRL,  0, ACT_STEP_0+6
+        db #3D,       KM_CTRL,  0, ACT_STEP_0+7
+        db #3E,       KM_CTRL,  0, ACT_STEP_0+8
+        db #46,       KM_CTRL,  0, ACT_STEP_0+9
         db 0
 
