@@ -765,7 +765,9 @@ Txt_Keys
         db "- =       sign (slide: down / up)",0
         db "Space     flag on/off",0
         db "Z..M Q..P piano (preview row, Tab)",0
-        db "Click L   loop to this row",0
+        db "Enter     play preview note (hold)",0
+        db "+ x       insert / delete row (mouse)",0
+        db "Click L, row number - loop to this row",0
         db 0
 
     ENDMODULE

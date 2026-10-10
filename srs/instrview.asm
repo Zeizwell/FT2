@@ -1391,7 +1391,20 @@ Ed_Keys db KEY_UP,    0
         dw Ed_Home
         db KEY_END,   0
         dw Ed_EndK
+        db KEY_ENTER, 0
+        dw Ed_Enter
         db 0
+
+;-------- Enter: нота строки пробы (Prv_Note), пока держат (отпустили - Prv_Check).
+; Автоповтор - мимо: нота уже звучит
+Ed_Enter
+        ld a,(Prv_Key)
+        cp KEY_ENTER
+        ret z
+        ld a,KEY_ENTER
+        ld (Prv_Key),a
+        ld a,(Prv_Note)
+        jp Prv_Play
 
 Ed_Up   ld hl,Ed_Row
         ld a,(hl)
