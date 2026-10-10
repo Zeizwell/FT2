@@ -369,6 +369,7 @@ Fc_Patterns
         ld hl,Pm_P1
         call Arr_Get
         call Fc_Decode
+        call Pp_Noise0              ; шум на роу 0 - как у трекеров (база с нуля)
         or a
         jr nz,$+3
         inc a

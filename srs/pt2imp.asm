@@ -299,6 +299,7 @@ P2_Patterns
         ld hl,Pm_P1
         call Arr_Get
         call P2_Decode
+        call Pp_Noise0              ; шум на роу 0 - как у трекеров (база с нуля)
         or a                        ; длина: пустой паттерн - 1 роу
         jr nz,$+3
         inc a

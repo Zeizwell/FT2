@@ -711,6 +711,7 @@ Pt_Patterns
         ld hl,Pm_P1
         call Arr_Get
         call Pp_Decode
+        call Pp_Noise0              ; шум на роу 0 - как у трекеров (база с нуля)
         or a                        ; длина: пустой паттерн - 1 роу
         jr nz,$+3
         inc a
@@ -758,6 +759,7 @@ Pt_Patterns
         call nz,Pt_Mod2
         ld a,(Pp_P)
         call Pp_Decode
+        call Pp_Noise0              ; шум на роу 0 - как у трекеров (база с нуля)
         call Pt_Mod1
         RESTPAGE2
 .n2     ld hl,Pp_N
@@ -1525,3 +1527,19 @@ Cmp_Save
         jp Disk_Call
 Spec_Cmp        db FD_FILE,"FT2CMP.BIN",0
 Spec_CmpNew     db #20,0,0,0,0,"FT2CMP.BIN",0
+
+;-------- Роу 0 паттерна (окно 2, чип Pp_Chip): шум не задан - шум 0. PT3, PT2 и FTC
+; начинают каждый паттерн с базы шума 0, наш плеер базу держит, пока её не сменят.
+; A, HL портит (длину паттерна из A декодера берите до вызова)
+Pp_Noise0
+        push af
+        ld a,(Pp_Chip)
+        add a,CHIP_NOISE
+        ld l,a
+        ld h,#80                    ; роу 0
+        ld a,(hl)
+        or a
+        jr nz,.out
+        ld (hl),#20                 ; шум 0 (0 - "пусто")
+.out    pop af
+        ret
