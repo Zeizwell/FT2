@@ -735,15 +735,18 @@ Cm_Clear_Screen
         RESTPAGE2
         ret
 
-; HL - текст, DE - куда: экран в окно 2, цвет заголовка
-Cm_Text push hl
-        push de
+; HL - текст, DE - куда: экран в окно 2, цвет заголовка. HL, DE - через память:
+; SETPAGE кладёт страницу на стек, push/pop через него нельзя
+Ct_HL           dw 0
+Ct_DE           dw 0
+Cm_Text ld (Ct_HL),hl
+        ld (Ct_DE),de
         ld a,(SV_DRAW_PAGE)
         SETPAGE2 a
         ld a,(THEME_ATTR+CLR_HEADER)
         ld c,a
-        pop de
-        pop hl
+        ld de,(Ct_DE)
+        ld hl,(Ct_HL)
         call PutStr
         RESTPAGE2
         ret
