@@ -4,7 +4,8 @@
 ; конвертером Vortex Tracker (FTC2VTM).
 ; =========================================================================
 ; Что куда:
-;   заголовок  - темп, цикл, имя (42 знака: 32 - имя, остальное - автор);
+;   заголовок  - темп, цикл, описание (42 знака): режем на имя и автора по " BY "
+;                или по пробелу (Fc_Split);
 ;   сэмплы 0..31 -> инструменты 1..32 (формат у нас тот же - копия; строк больше
 ;                64 - обрезаем);
 ;   орнаменты 1..16 -> 1..16 (тот же формат), 0 и 17..32 - не берём (Pt_Lost);
@@ -25,8 +26,6 @@ FC_PATS         equ #4B             ; 2 смещение таблицы патт
 FC_SAMPLES      equ #52             ; 32 x 2 смещения сэмплов 0..31
 FC_ORNS         equ #92             ; 33 x 2 смещения орнаментов 0..32
 FC_ORDER        equ #D4             ; пары (паттерн, транспозиция); бит 7 паттерна - конец
-FC_NAME_LEN     equ 32
-FC_AUTHOR_LEN   equ 10
 
 Fc_Trans        db 0                ; транспозиция паттерна, который разбираем
 
@@ -75,25 +74,129 @@ Fc_Header
         ld bc,SONG_CAT_END-ORDER_LIST-1
         ld (hl),0
         ldir
-        ld hl,#8000+SH_AUTHOR       ; автор: 10 знаков, остальное - пробелы
-        ld (hl),' '
-        ld de,#8000+SH_AUTHOR+1
-        ld bc,31
-        ldir
-        ld hl,FC_NAME               ; имя - 32, автор - 10
-        ld de,#8000+SH_NAME
-        ld b,FC_NAME_LEN
-.n      call Pt_Get
-        ld (de),a
-        inc de
-        djnz .n
-        ld de,#8000+SH_AUTHOR
-        ld b,FC_AUTHOR_LEN
-.a      call Pt_Get
-        ld (de),a
-        inc de
-        djnz .a
         RESTPAGE2
+        call Fc_Split               ; описание (42) -> имя и автор
+        ld a,(SV_SONG_PAGE)
+        SETPAGE2 a
+        ld hl,Fc_Txt                ; имя: Fc_Txt[0..Fc_Cut)
+        ld a,(Fc_Cut)
+        ld de,#8000+SH_NAME
+        call Fc_Put32
+        ld hl,Fc_Txt                ; автор: Fc_Txt[Fc_By..Fc_Len)
+        ld a,(Fc_By)
+        call Hl_Add_A
+        ld a,(Fc_Len)
+        ld b,a
+        ld a,(Fc_By)
+        neg
+        add a,b
+        ld de,#8000+SH_AUTHOR
+        call Fc_Put32
+        RESTPAGE2
+        ret
+
+;-------- A знаков с HL (не больше 32) в DE, до 32 - пробелы
+Fc_Put32
+        cp 33
+        jr c,$+4
+        ld a,32
+        ld c,a
+        ld b,32
+.c      ld a,c
+        or a
+        ld a,' '
+        jr z,.p
+        ld a,(hl)
+        inc hl
+        dec c
+.p      ld (de),a
+        inc de
+        djnz .c
+        ret
+
+;-------- Описание FTC (42 знака) -> Fc_Txt и границы: имя - [0, Fc_Cut), автор -
+; [Fc_By, Fc_Len). Есть " BY " - режем по нему; иначе длиннее 32 - по последнему
+; пробелу в первых 32 знаках; иначе всё - имя
+FC_TXT_LEN      equ 42
+Fc_Txt          ds FC_TXT_LEN
+Fc_Len          db 0
+Fc_Cut          db 0
+Fc_By           db 0
+
+Fc_Split
+        ld hl,FC_NAME
+        ld de,Fc_Txt
+        ld b,FC_TXT_LEN
+.r      call Pt_Get
+        ld (de),a
+        inc de
+        djnz .r
+        ld b,FC_TXT_LEN             ; длина без хвостовых пробелов и нулей
+.t      ld hl,Fc_Txt-1
+        ld a,b
+        call Hl_Add_A
+        ld a,(hl)
+        cp ' '+1
+        jr nc,.len
+        djnz .t
+.len    ld a,b
+        ld (Fc_Len),a
+        ld (Fc_Cut),a               ; пока - всё имя
+        ld (Fc_By),a
+        ld c,0                      ; " BY " с позиции C
+.f      ld a,c
+        add a,4
+        ld hl,Fc_Len
+        cp (hl)
+        jr z,$+4
+        jr nc,.nby
+        ld hl,Fc_Txt
+        ld a,c
+        call Hl_Add_A
+        ld a,(hl)
+        cp ' '
+        jr nz,.fn
+        inc hl
+        ld a,(hl)
+        or #20
+        cp 'b'
+        jr nz,.fn
+        inc hl
+        ld a,(hl)
+        or #20
+        cp 'y'
+        jr nz,.fn
+        inc hl
+        ld a,(hl)
+        cp ' '
+        jr nz,.fn
+        ld a,c                      ; нашли
+        ld (Fc_Cut),a
+        add a,4
+        ld (Fc_By),a
+        ret
+.fn     inc c
+        jr .f
+.nby    ld a,(Fc_Len)               ; не длиннее 32 - всё имя
+        cp 33
+        ret c
+        ld c,32                     ; последний пробел в первых 32
+.s      ld hl,Fc_Txt
+        ld a,c
+        call Hl_Add_A
+        ld a,(hl)
+        cp ' '
+        jr z,.sp
+        dec c
+        jr nz,.s
+        ld a,32                     ; пробела нет - 32 и остальное
+        ld (Fc_Cut),a
+        ld (Fc_By),a
+        ret
+.sp     ld a,c
+        ld (Fc_Cut),a
+        inc a
+        ld (Fc_By),a
         ret
 
 ; =========================================================================

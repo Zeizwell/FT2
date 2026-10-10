@@ -9,7 +9,7 @@ PALETTES        equ 6
 Cur_Palette     db 0                ; выбранная тема
 Pal_Bg          dw 0                ; её цвет #0 (фон) - для полосы времени
 
-;-------- Тема A: 16 цветов в CRAM. Портит AF, BC, DE, HL
+;-------- Тема A: 16 цветов в CRAM (DMA). Портит AF, BC, DE, HL
 Set_Palette
         ld (Cur_Palette),a
         add a,a                     ; *32
@@ -26,30 +26,22 @@ Set_Palette
         ld d,(hl)
         dec hl
         ld (Pal_Bg),de
-        push hl
-        SETPAGE3 PAGE_BENCH         ; запись через FM-окно идёт и в память окна 3 -
-        pop hl                      ;   пусть в служебную страницу, не в экран
-        di
-        push hl
-        call dma_wait               ; DMA (мышь, экран) пишет CRAM/SFILE - запись ЦП
-        pop hl                      ;   в CRAM в это время теряется
-        ld bc,FMADDR                ; CRAM - на запись в окно 3 (#C000): в окне 0 кэш,
-                                    ;   запись туда портит код коре в кэше
-        ld a,FM_EN|(#C000>>12)
-        out (c),a
-        ld de,#C000+FM_CRAM+PALET_NUM*32
-        ld bc,32
-        ldir
-        ld bc,FMADDR
-        xor a
-        out (c),a
-        ei
-        RESTPAGE3
-        ret
+        ld a,l                      ; источник DMA - эта тема (коре, страница 0)
+        ld (Pal_Dma+1),a
+        ld a,h
+        ld (Pal_Dma+3),a
+        ld hl,Pal_Dma               ; 16 цветов - в CRAM через DMA (запись ЦП через
+        jp set_ports                ;   FM-окно портит память под ним)
+
+PAL_CRAM        equ PALET_NUM*16    ; первый цвет палитры 13 в CRAM
+Pal_Dma db high DMASADDRL,0, high DMASADDRH,0, high DMASADDRX,PAGE_CORE0
+        db high DMADADDRL,(PAL_CRAM&127)*2, high DMADADDRH,PAL_CRAM>>7, high DMADADDRX,0
+        db high DMALEN,16-1, high DMANUM,0, high DMACTR,DMA_RAM_CRAM, #FF
 
 ; Имена тем (Setup), по 8 знаков
 Pal_Names       db "Blue    Teal    Green   Olive   Gray    Crimson "
 
+        ALIGN 2                     ; DMA берёт адрес словами
 Pal_Data
 ; Blue
         db #46,#04    ; #0: 1,2,6
