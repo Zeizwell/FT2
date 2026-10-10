@@ -51,24 +51,25 @@ Arr_Get
         ld a,(hl)
         ret
 
-;-------- Таблица клавиш: HL - таблица (код, модификаторы точно, обработчик; конец 0),
-; B - код, C - флаги события. Выход: CF - клавиша наша (обработчик вызван)
+;-------- Таблица действий тулзы: HL - таблица (действие ACT_*, обработчик; конец 0),
+; B - код, C - флаги события. Действие наше, если нажатое - его бинд (Bind_Tab): так одна
+; клавиша в разных тулзах может значить разное. Выход: CF - наше (обработчик вызван)
 Keys_Table
+        ld a,b
+        ld (Kt_Key),a
         ld a,c
         and KM_SHIFT|KM_CTRL|KM_ALT ; повтор и нажатие для таблицы одинаковы
-        ld c,a
-.f      ld a,(hl)                   ; код, 0 - конец таблицы
+        ld (Kt_Mods),a
+.f      ld a,(hl)                   ; действие, 0 - конец таблицы
         or a
         ret z                       ; не наша (CF = 0)
-        cp b
-        jr nz,.n
-        inc hl
-        ld a,(hl)                   ; модификаторы
-        dec hl
-        cp c
-        jr nz,.n
+        call Act_Has
+        jr z,.hit
         inc hl
         inc hl
+        inc hl
+        jr .f
+.hit    inc hl
         ld e,(hl)
         inc hl
         ld d,(hl)
@@ -76,10 +77,70 @@ Keys_Table
         call .jp
         scf
         ret
+.jp     jp (hl)
+Kt_Key          db 0                ; нажатое: код
+Kt_Mods         db 0                ;   модификаторы (KM_*)
+
+; A - действие: Z - нажатое (Kt_Key, Kt_Mods) - его бинд. HL, BC целы
+Act_Has
+        push hl
+        push bc
+        ld c,a
+        ld hl,Bind_Tab
+.b      ld a,(hl)                   ; код, 0 - конец
+        or a
+        jr z,.no
+        ld b,a
+        ld a,(Kt_Key)
+        cp b
+        jr nz,.n
+        inc hl                      ; модификаторы - точно
+        ld a,(Kt_Mods)
+        cp (hl)
+        dec hl
+        jr nz,.n
+        inc hl                      ; действие
+        inc hl
+        inc hl
+        ld a,(hl)
+        dec hl
+        dec hl
+        dec hl
+        cp c
+        jr z,.yes
 .n      inc hl
         inc hl
         inc hl
         inc hl
-        jr .f
-.jp     jp (hl)
+        jr .b
+.no     or 1                        ; NZ
+.yes    pop bc
+        pop hl
+        ret
+
+;-------- Бинды (doc/architecture.md): код, модификаторы (KM_*, точно), условие (0 - всегда; пока
+; не проверяется), действие ACT_*. Конец - 0. На действие - сколько угодно записей (как в VT:
+; Insert или Ctrl+I). Умолчания - как VT (doc/trackers.md); свои - потом из INI поверх
+Bind_Tab
+        db KEY_UP,    0,        0, ACT_UP
+        db KEY_DOWN,  0,        0, ACT_DOWN
+        db KEY_LEFT,  0,        0, ACT_LEFT
+        db KEY_RIGHT, 0,        0, ACT_RIGHT
+        db KEY_PGUP,  0,        0, ACT_PGUP
+        db KEY_PGDN,  0,        0, ACT_PGDN
+        db KEY_HOME,  0,        0, ACT_HOME
+        db KEY_END,   0,        0, ACT_END
+        db KEY_TAB,   0,        0, ACT_NEXT
+        db KEY_TAB,   KM_SHIFT, 0, ACT_PREV
+        db KEY_ENTER, 0,        0, ACT_ENTER
+        db KEY_BACK,  0,        0, ACT_DIR_UP
+        db KEY_F5,    0,        0, ACT_PLAY_SONG
+        db KEY_F6,    0,        0, ACT_PLAY_START
+        db KEY_F7,    0,        0, ACT_PLAY_ROW
+        db KEY_F8,    0,        0, ACT_PLAY_PAT
+        db KEY_ESC,   0,        0, ACT_STOP
+        db KEY_E,     KM_CTRL,  0, ACT_ENV_OPEN
+        db KEY_E,     KM_ALT,   0, ACT_ENV_NOTE
+        db KEY_T,     KM_CTRL,  0, ACT_TIMING
+        db 0
 

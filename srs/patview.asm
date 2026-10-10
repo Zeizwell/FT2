@@ -1685,39 +1685,25 @@ Init_RowNum
 ; =========================================================================
 ; ВВОД
 ; =========================================================================
-; Горячие клавиши вида паттерна: код PS/2 (E0-коды +128), модификаторы (KM_*,
-; точное совпадение), обработчик. Конец - 0. Автоповтор даёт коре (Key_Get).
-K_UP            equ #75+#80         ; стрелки, PgUp/PgDn - E0-коды
-K_DOWN          equ #72+#80
-K_LEFT          equ #6B+#80
-K_RIGHT         equ #74+#80
-K_PGUP          equ #7D+#80
-K_PGDN          equ #7A+#80
-K_TAB           equ #0D
-K_ESC           equ #76
-K_F5            equ #03
-K_F6            equ #0B
-K_F7            equ #7F             ; F7 (#83) коре сводит в #7F
-K_F8            equ #0A
-K_E             equ #24
-K_T             equ #2C
+; Горячие клавиши вида паттерна: действие (ACT_*, клавиши к нему - Bind_Tab в коре),
+; обработчик. Конец - 0. Автоповтор даёт коре (Key_Get).
 
-Hotkeys db K_F5,    0               ; общие клавиши вида; F5..F8, Esc - как в VT
+Hotkeys db ACT_PLAY_SONG           ; общие действия вида (F5..F8, Esc - как в VT)
         dw K_PlaySong               ; сонг с текущей позиции
-        db K_F6,    0
+        db ACT_PLAY_START
         dw K_PlayStart              ; сонг с начала
-        db K_F7,    0
+        db ACT_PLAY_ROW
         dw K_PlayPatRow             ; паттерн с текущей роу
-        db K_F8,    0
+        db ACT_PLAY_PAT
         dw K_PlayPat                ; паттерн с начала
-        db K_ESC,   0
+        db ACT_STOP
         dw K_Stop
-        db K_E,     KM_CTRL
-        dw K_EnvOpen                ; Ctrl+E - открыть Env чипа
-        db K_E,     KM_ALT
-        dw K_EnvNote                ; Alt+E - период огибающей нотой / числом
-        db K_T,     KM_CTRL
-        dw K_Timing                 ; Ctrl+T - полоса времени
+        db ACT_ENV_OPEN
+        dw K_EnvOpen                ; открыть Env чипа
+        db ACT_ENV_NOTE
+        dw K_EnvNote                ; период огибающей нотой / числом
+        db ACT_TIMING
+        dw K_Timing                 ; полоса времени
         db 0
 
 ;-------- Нижняя строка справа: "Free: NN pages" - свободные страницы (постоянное число)
@@ -2054,9 +2040,9 @@ Ord_Field
         jp Keys_Table
 
 Ord_Keys
-        db K_UP,   0
+        db ACT_UP
         dw Ord_Prev
-        db K_DOWN, 0
+        db ACT_DOWN
         dw Ord_Next
         db 0
 
@@ -2104,21 +2090,21 @@ Pat_Field
 
 ; Навигация по паттерну - только когда он в фокусе
 Pat_Keys
-        db K_UP,    0
+        db ACT_UP
         dw K_RowUp
-        db K_DOWN,  0
+        db ACT_DOWN
         dw K_RowDn
-        db K_PGUP,  0
+        db ACT_PGUP
         dw K_PageUp
-        db K_PGDN,  0
+        db ACT_PGDN
         dw K_PageDn
-        db K_LEFT,  0
+        db ACT_LEFT
         dw K_ChLeft
-        db K_RIGHT, 0
+        db ACT_RIGHT
         dw K_ChRight
-        db K_TAB,   0
+        db ACT_NEXT
         dw K_ChRight
-        db K_TAB,   KM_SHIFT
+        db ACT_PREV
         dw K_ChLeft
         db 0
 

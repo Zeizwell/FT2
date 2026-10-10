@@ -89,23 +89,7 @@ KD_NSIGN        equ 8               ; орнамент: знак ноты
 KD_NOTE         equ 9               ; орнамент: десятичная цифра ноты: вес 10 / 1
 CL_SIZE         equ 4               ; колонка: экран, вид, байт, параметр
 
-; --- клавиши (PS/2, E0-коды +#80)
-KEY_UP          equ #75+#80
-KEY_DOWN        equ #72+#80
-KEY_LEFT        equ #6B+#80
-KEY_RIGHT       equ #74+#80
-KEY_PGUP        equ #7D+#80
-KEY_PGDN        equ #7A+#80
-KEY_HOME        equ #6C+#80
-KEY_END         equ #69+#80
-KEY_ENTER       equ #5A
-KEY_BACK        equ #66
-KEY_TAB         equ #0D
-KEY_SPACE       equ #29
-KEY_MINUS       equ #4E             ; '-'
-KEY_PLUS        equ #55             ; '=' (+ без Shift)
-KEY_KP_MINUS    equ #7B
-KEY_KP_PLUS     equ #79
+; клавиши (KEY_*) и действия (ACT_*) - в sdk/plugin.asm
 PG_STEP         equ 8               ; PgUp / PgDn - строк
 
     MACRO IV_FIELD x,y,w,h,flags,handler,param
@@ -1375,23 +1359,23 @@ Ed_Key
         scf
         ret
 
-Ed_Keys db KEY_UP,    0
+Ed_Keys db ACT_UP
         dw Ed_Up
-        db KEY_DOWN,  0
+        db ACT_DOWN
         dw Ed_Down
-        db KEY_LEFT,  0
+        db ACT_LEFT
         dw Ed_Left
-        db KEY_RIGHT, 0
+        db ACT_RIGHT
         dw Ed_Right
-        db KEY_PGUP,  0
+        db ACT_PGUP
         dw Ed_PgUp
-        db KEY_PGDN,  0
+        db ACT_PGDN
         dw Ed_PgDn
-        db KEY_HOME,  0
+        db ACT_HOME
         dw Ed_Home
-        db KEY_END,   0
+        db ACT_END
         dw Ed_EndK
-        db KEY_ENTER, 0
+        db ACT_ENTER
         dw Ed_Enter
         db 0
 

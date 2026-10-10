@@ -160,6 +160,55 @@ KM_SHIFT        equ %00000001       ; модификаторы
 KM_CTRL         equ %00000010
 KM_ALT          equ %00000100
 KF_REPEAT       equ %10000000       ; в событии: автоповтор (иначе - нажатие)
+
+; --- Коды клавиш (PS/2 набор 2, E0-коды +#80) - одни на всех
+KEY_UP          equ #75+#80
+KEY_DOWN        equ #72+#80
+KEY_LEFT        equ #6B+#80
+KEY_RIGHT       equ #74+#80
+KEY_PGUP        equ #7D+#80
+KEY_PGDN        equ #7A+#80
+KEY_HOME        equ #6C+#80
+KEY_END         equ #69+#80
+KEY_ENTER       equ #5A
+KEY_BACK        equ #66
+KEY_TAB         equ #0D
+KEY_ESC         equ #76
+KEY_SPACE       equ #29
+KEY_MINUS       equ #4E             ; '-'
+KEY_PLUS        equ #55             ; '=' (+ без Shift)
+KEY_KP_MINUS    equ #7B
+KEY_KP_PLUS     equ #79
+KEY_F5          equ #03
+KEY_F6          equ #0B
+KEY_F7          equ #7F             ; F7 (#83) коре сводит в #7F
+KEY_F8          equ #0A
+KEY_E           equ #24
+KEY_T           equ #2C
+
+; --- Действия (бинды, doc/architecture.md): клавиши к ним - таблица Bind_Tab в коре
+; (умолчания - как VT, doc/trackers.md), тулзы перечисляют действия, а не клавиши.
+; Номера - только здесь; переназначение - правка Bind_Tab (потом - из INI)
+ACT_UP          equ 1               ; навигация
+ACT_DOWN        equ 2
+ACT_LEFT        equ 3
+ACT_RIGHT       equ 4
+ACT_PGUP        equ 5
+ACT_PGDN        equ 6
+ACT_HOME        equ 7
+ACT_END         equ 8
+ACT_NEXT        equ 9               ; следующий канал (Tab)
+ACT_PREV        equ 10              ; предыдущий (Shift+Tab)
+ACT_ENTER       equ 11              ; открыть / играть пробу
+ACT_DIR_UP      equ 12              ; диск: папка выше
+ACT_PLAY_SONG   equ 13              ; F5 - сонг с текущей позиции
+ACT_PLAY_START  equ 14              ; F6 - сонг с начала
+ACT_PLAY_ROW    equ 15              ; F7 - паттерн по кругу с текущей роу
+ACT_PLAY_PAT    equ 16              ; F8 - паттерн по кругу с начала
+ACT_STOP        equ 17              ; Esc
+ACT_ENV_OPEN    equ 18              ; Ctrl+E - колонка Env чипа
+ACT_ENV_NOTE    equ 19              ; Alt+E - период огибающей нотой
+ACT_TIMING      equ 20              ; Ctrl+T - полоса времени
 MB_LEFT         equ 0               ; номер кнопки мыши (смещение в SV_MS_COUNT / 4)
 MB_RIGHT        equ 1
 MB_MIDDLE       equ 2

@@ -91,16 +91,7 @@ DK_ENTER        equ 31              ; войти в найденную (FIND) п
 DK_DELETE       equ 75              ; HL -> [флаг, имя, 0]
 DK_RENAME       equ 74              ; HL -> [флаг, имя, 0], DE -> [новое имя, 0]
 
-; --- клавиши (PS/2, E0-коды +#80)
-KEY_UP          equ #75+#80
-KEY_DOWN        equ #72+#80
-KEY_PGUP        equ #7D+#80
-KEY_PGDN        equ #7A+#80
-KEY_HOME        equ #6C+#80
-KEY_END         equ #69+#80
-KEY_ENTER       equ #5A
-KEY_BACK        equ #66
-KEY_TAB         equ #0D
+; клавиши (KEY_*) и действия (ACT_*) - в sdk/plugin.asm
 
     MACRO DV_FIELD x,y,w,h,flags,handler,param
         db x,y,w,h,flags,PAGE_TOOL_DISK
@@ -639,21 +630,21 @@ Dv_ListEv
         jp Keys_Table
 
 List_Keys
-        db KEY_UP,   0
+        db ACT_UP
         dw Dv_Prev
-        db KEY_DOWN, 0
+        db ACT_DOWN
         dw Dv_Next
-        db KEY_PGUP, 0
+        db ACT_PGUP
         dw Dv_PgUp
-        db KEY_PGDN, 0
+        db ACT_PGDN
         dw Dv_PgDn
-        db KEY_HOME, 0
+        db ACT_HOME
         dw Dv_Home
-        db KEY_END,  0
+        db ACT_END
         dw Dv_End
-        db KEY_ENTER,0
+        db ACT_ENTER
         dw Dv_Open
-        db KEY_BACK, 0
+        db ACT_DIR_UP
         dw Dv_Parent
         db 0
 
