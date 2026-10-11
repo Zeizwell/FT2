@@ -419,6 +419,7 @@ Pr_NDly         db 0                ; задержка ноты, тиков (0 -
 Pr_NewIns       db 0                ; в строке сменили сэмпл
 Pr_NewOrn       db 0                ;   орнамент
 Pr_Oo           db 0                ;   команда 6 (нота её иначе снимает, как PT3)
+Pr_SlSet        db 0                ;   портаменто с нотой: цель задана (Slide)
 
 ; B скорость: сразу (0 - не трогаем), тик этой роу Pl_Tick возьмёт уже с новой
 Pl_CSpd
@@ -649,16 +650,15 @@ GC      ld a,0
 GS      ld de,0
         add hl,de
         ld (GOF+1),hl
-GM      jr GDl                      ;   глисс - дальше, портаменто (ON) - доехали?
-        ld a,h
-        or l
+GM      jr GDl                      ;   глисс - дальше, портаменто (ON) - доехали до цели?
+TD      ld bc,0                     ;   цель смещения: P(цель) - P(база)
+        or a
+        sbc hl,bc                   ;   смещение - цель
         jr z,GStop
-        ld a,h                      ;   знаки смещения и шага разные - ещё едем
+        ld a,h                      ;   знаки разности и шага разные - ещё едем
         xor d
         jp m,GDl
-GStop   ld hl,0                     ;   на ноте - стоп
-        ld (GOF+1),hl
-        GATE_OFF GG,GEnd
+GStop   call PtEnd                  ;   доехали: нота - цель
         jr GEnd
 GDl
 GD      ld a,0
@@ -910,6 +910,7 @@ Rw      ld a,(hl)                   ; пустая клетка - ничего
         ld (Pr_NewIns),a
         ld (Pr_NewOrn),a
         ld (Pr_Oo),a
+        ld (Pr_SlSet),a
         push hl                     ; новая форма огибающей - слайд огибающей чипа стоп и с нуля:
         inc l                       ;   до команд (9 / A этой же строки - после, как PT3)
         inc l
@@ -1071,21 +1072,22 @@ Slide   ld b,a
         and #F0
         cp CMD_PORTA<<4
         jr nz,SlZ
-NN      ld a,0                      ; звучащая нота (0 - тишина: ехать не от чего)
+NN      ld a,0                      ; звучащая нота - база (0 - тишина: ехать не от чего)
         or a
         jr z,SlZ
-        call Pl_NotePer             ; старая со смещением - новая
-        ld de,(GOF+1)
-        add hl,de
+        call Pl_NotePer             ; цель смещения: P(новая) - P(старая)
         push hl
         ld a,b
         call Pl_NotePer
-        ex de,hl
-        pop hl
+        pop de
         or a
         sbc hl,de
-        ld (GOF+1),hl
-        ld a,b
+        ld (TD+1),hl
+        ld a,b                      ; к какой ноте
+        ld (SlT+1),a
+        ld a,1
+        ld (Pr_SlSet),a
+        ld a,(NN+1)                 ; стартует база (старая), смещение - как было (PT3)
         ret
 SlZ     ld hl,0
         ld (GOF+1),hl
@@ -1127,23 +1129,44 @@ PoOnce  GATE_OFF GG,GEnd
         add hl,de
         ld (GOF+1),hl
         ret
-PoPt    ld a,(GD+1)                 ; портаменто: задержка 0 - как 1
+PoPt    ld a,(Pr_SlSet)             ; портаменто без ноты в строке - к базе (цель 0), как PT3
+        or a
+        jr nz,PoPt1
+        ld h,a
+        ld l,a
+        ld (TD+1),hl
+        ld a,(NN+1)
+        ld (SlT+1),a
+        or a                        ;   молчит - ехать не от чего
+        jr z,PoOff
+PoPt1   ld a,(GD+1)                 ; задержка 0 - как 1
         or a
         jr nz,PoPd
         inc a
         ld (GD+1),a
         ld (GC+1),a
-PoPd    ld hl,(GOF+1)               ; уже на ноте - нечего
-        ld a,h
-        or l
-        jr z,PoStop
-        bit 7,h                     ; шаг - к нулю: смещение плюс - шаг минус
+PoPd    ld hl,(GOF+1)               ; смещение - цель: уже там - нота цели
+        ld bc,(TD+1)
+        or a
+        sbc hl,bc
+        jp z,PtEnd
+        bit 7,h                     ; шаг - к цели: смещение больше - шаг минус
         call z,Neg_DE
         ld (GS+1),de
         GATE_ON GM
         GATE_ON GG
         ret
-PoStop  GATE_OFF GG,GEnd
+PoOff   GATE_OFF GG,GEnd
+        ret
+
+; Портаменто доехало: нота - цель, смещение 0, стоп
+PtEnd   ld hl,0
+        ld (GOF+1),hl
+SlT     ld a,0
+        ld (NN+1),a
+        dec a
+        ld (NT+1),a
+        GATE_OFF GG,GEnd
         ret
 
 ;-------- Команда: HL - её байт 0 (на выходе - на параметре). Обработчик - по коду из
