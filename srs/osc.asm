@@ -9,6 +9,7 @@
 
 Ow_H            db 0                ; окно: высота 0..32
 Ow_P            db 0                ;   рисунок
+    ASSERT OSC_GBASE < 256
 
 ;-------- Вход в вид паттерна: цвета тайлов - из темы, пустая карта, слой T0 - вкл
 Osc_Init
@@ -164,35 +165,40 @@ Osc_Win
         and #0F
         add a,a
 .h      ld (Ow_H),a
-        sub 24                      ; 4 ряда сверху вниз: заполнение ряда - высота минус
-        call .row                   ;   ряды ниже (8 на ряд)
+        sub 24                      ; 3 ряда сверху: заполнение - высота минус ряды ниже
+        call .row
         ld a,(Ow_H)
         sub 16
         call .row
         ld a,(Ow_H)
         sub 8
         call .row
-        ld a,(Ow_H)
-; A - заполнение ряда (0 и меньше - фон, больше 8 - 8): 7 номеров тайлов в карту (DE),
-; DE - на ряд ниже
+        ld a,(Ow_H)                 ; нижний ряд - с линией нуля; громкость 0 - только она
+        or a
+        ld l,OSC_GBASE
+        jr z,.gt
+        call .lev
+        add a,4
+        jr .grp
+; A - заполнение ряда (0 и меньше - прозрачно): 7 номеров тайлов в карту (DE), DE - ниже
 .row    or a
         jp m,.bg
         jr z,.bg
-        cp 9
-        jr c,$+4
-        ld a,8
-        rrca                        ; уровень 1..4 -> группа рисунок*4 + уровень-1
-        dec a
-        ld l,a
+        call .lev
+; A - вариант -> группа рисунок*OSC_VARS + вариант -> слово её первого тайла
+.grp    ld l,a
         ld a,(Ow_P)
         add a,a
         add a,a
+        add a,a
         add a,l
-        add a,a                     ; слово таблицы
         ld l,a
-        ld h,high Osc_GT
+.gt     ld h,0
+        add hl,hl
+        ld bc,Osc_GT
+        add hl,bc
         ld a,(hl)
-        inc l
+        inc hl
         ld h,(hl)
         ld l,a
         ld b,7                      ; 7 тайлов подряд
@@ -219,6 +225,13 @@ Osc_Win
         ld e,a
         inc d
         ret
+; A - заполнение 1.. -> уровень 0..3 (больше 8 - 8)
+.lev    cp 9
+        jr c,$+4
+        ld a,8
+        rrca
+        dec a
+        ret
 
 ; Группа тайлов -> слово карты её первого тайла (номер + палитра)
     MACRO OSC_GT_GEN
@@ -228,9 +241,7 @@ Ok = 0
 Ok = Ok + 1
     EDUP
     ENDM
-        ALIGN 256
 Osc_GT  OSC_GT_GEN
-    ASSERT high Osc_GT == high (Osc_GT+OSC_GROUPS*2-1)
 
 ; Период тона / 16 -> рисунок: полупериод полос ~ период / 64 точек (1..28), линейно - как
 ; GetStep индикатора FT-плеера ((4*P+32)/256)
