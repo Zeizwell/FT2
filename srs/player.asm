@@ -529,21 +529,6 @@ GDl
 GD      ld a,0
 GSt     ld (GC+1),a
 GEnd
-OoG     jr OoEnd                    ; 6 вкл / выкл: фаза кончилась - другая
-OoC     ld a,0
-        dec a
-        jr nz,OoSt
-        ld a,(OsG)                  ;   ворота тишины - наоборот
-        xor #18^#FE
-        ld (OsG),a
-        cp #FE                      ;   теперь тишина - тиков "выкл"
-        jr nz,OoSnd
-OoOff   ld a,0
-        jr OoSt
-OoSnd
-OoOn    ld a,0
-OoSt    ld (OoC+1),a
-OoEnd
 VsG     jr VsEnd                    ; 7 слайд громкости: раз в VsD тиков
 VsC     ld a,0
         dec a
@@ -790,7 +775,25 @@ OsG     jr OsEnd                    ; 6: фаза "выкл" (ON) - тишина
         ld b,0
 OsEnd   ld a,b
 Wv2     ld (REGS+8+IDX),a
+OoG     jr OoEnd                    ; 6 вкл / выкл - после вывода (как CH_EXIT в PT3: смена
+OoC     ld a,0                      ;   фазы - со следующего тика): фаза кончилась - другая
+        dec a
+        jr nz,OoSt
+        ld a,(OsG)                  ;   ворота тишины - наоборот
+        xor #18^#FE
+        ld (OsG),a
+        cp #FE                      ;   теперь тишина - тиков "выкл"
+        jr nz,OoSnd
+OoOff   ld a,0
+        jr OoCnt
+OoSnd
+OoOn    ld a,0
+OoCnt   or a                        ;   0 - больше не переключать (как PT3)
+        jr nz,OoSt
+        GATE_OFF OoG,OoEnd
         ret
+OoSt    ld (OoC+1),a
+OoEnd   ret
 
 ; Смещение огибающей строки + накопленное (бит 7 громкости, C - сохранить) -> A
 EOffs
@@ -1172,18 +1175,15 @@ C6      GATE_OFF OsG,OsEnd          ; 6 вкл / выкл: со звука; 0 - 
         ld a,e
         or a
         ret z
-        and #0F                     ;   тиков тишины (0 - как 1)
-        jr nz,$+3
-        inc a
+        and #0F                     ;   тиков тишины (0 - потом не включится)
         ld (OoOff+1),a
-        ld a,e                      ;   тиков звука
+        ld a,e                      ;   тиков звука (0 - не переключать, как PT3)
         rrca
         rrca
         rrca
         rrca
         and #0F
-        jr nz,$+3
-        inc a
+        ret z
         ld (OoOn+1),a
         ld (OoC+1),a
         GATE_ON OoG
