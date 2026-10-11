@@ -1337,8 +1337,15 @@ REnv    ld e,a                      ; огибающая: 15 - выкл, 1..14 -
         jr nz,REOn
         GATE_OFF EG,VOut
         ret
-REOn    ld (REGS+13),a
-        GATE_ON EG
+REOn    GATE_ON EG
+        ld a,(Song_EnvMode)         ;   FT (0): та же форма - R13 не писать (как FT 1.15: только
+        or a                        ;   смену; перезапуск - командой ретриггера), PT - всегда
+        jr nz,REW
+        ld a,(REGS+13)
+        cp e
+        ret z
+REW     ld a,e
+        ld (REGS+13),a
         ld a,1
         ld (REGS+PR_R13W),a
         ret
