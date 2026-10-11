@@ -996,21 +996,13 @@ RNoNote ld a,(Pr_SOfs)              ; без ноты: 4 или новый сэ�
 RNs     dec a
 RNs2    ld (RiR+1),a
         GATE_ON RiG
-RNo2    ld a,(Pr_OOfs)              ;   орнамент - так же
-        or a
+RNo2    ld a,(Pr_OOfs)              ;   орнамент: 5 - со строки; новый орнамент или огибающая
+        or a                        ;     в строке - с начала (как PT3)
         jr nz,RNo
         ld a,(Pr_NewOrn)
         or a
         jp z,Post
-        ld a,(OG)                   ;   орнамента не было - с начала
-        cp #FE
-        jr nz,RNo3
-        ld a,(OLastV)
-        inc a
-        ld hl,OCN+1
-        sub (hl)
-        jr RNo4
-RNo3    xor a
+        xor a
         jr RNo4
 RNo     dec a
 RNo4    ld (RoR+1),a
@@ -1337,7 +1329,11 @@ RSmp    dec a                       ; сэмпл: блок #C000 + (n-1)*384
         ld a,1
         ld (Pr_NewIns),a
         ret
-REnv    cp 15                       ; огибающая: 15 - выкл, 1..14 - форма (R13)
+REnv    ld e,a                      ; огибающая: 15 - выкл, 1..14 - форма (R13); орнамент -
+        ld a,1                      ;   с начала (PT3: SETENV / #B0 сбрасывают его позицию)
+        ld (Pr_NewOrn),a
+        ld a,e
+        cp 15
         jr nz,REOn
         GATE_OFF EG,VOut
         ret
