@@ -65,6 +65,8 @@ P2_Header
         ld a,1
         ld (#8000+SH_CHIPS),a
         ld (#8000+SH_TUNING),a      ; PT2 - под 1.7734 МГц
+        ld a,1                      ; огибающая как в PT: R13 - на каждую форму
+        ld (#8000+SH_ENVMODE),a
         ld hl,#8000+ORDER_LIST
         ld de,#8000+ORDER_LIST+1
         ld bc,SONG_CAT_END-ORDER_LIST-1

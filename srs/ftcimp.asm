@@ -77,6 +77,8 @@ Fc_Header
         ld (#8000+SH_SPEED),a
         ld a,(Ph_Tune)
         ld (#8000+SH_TUNING),a
+        xor a                       ; огибающая как в FT: R13 - только при смене формы
+        ld (#8000+SH_ENVMODE),a
         ld a,1
         ld (#8000+SH_CHIPS),a
         ld hl,#8000+ORDER_LIST
