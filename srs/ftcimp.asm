@@ -297,6 +297,16 @@ Fc_Block
 .row    ld a,(Fc_Size)
         ld b,a
 .b      call Pt_Get
+        ld c,a
+        ld a,(Fc_Size)              ; сэмпл: в старшем байте тона биты 4, 5 - знак 12-битного
+        cp INS_ROW_SIZE             ;   смещения (FT пишет -1 как #1FFF), а у нас бит 4 -
+        jr nz,.put                  ;   ретриггер огибающей: снять
+        ld a,b
+        cp INS_ROW_SIZE-(IR_TONE+1)
+        jr nz,.put
+        res 4,c
+        res 5,c
+.put    ld a,c
         ld de,(Ps_Dst)
         ld (de),a
         inc de
