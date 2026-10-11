@@ -186,6 +186,7 @@ PluginMain
         call Fld_Init
         ld hl,F_Pat
         call Fld_Set_Focus
+        call Osc_Enable             ; осцилляторы внизу (тайлы - поверх текста)
         ld hl,Compose               ; вывод - в IM1, каждый кадр
         ld (SV_FRAME_HOOK),hl
         call Int_Line_Set
@@ -224,6 +225,7 @@ Main_Loop
 Pv_Leave
         xor a
         ld (Pv_Exit),a
+        call Osc_Disable
         call Band_Main              ; полоса времени: фон - обычный (иначе в тулзах он
                                     ;   остаётся цветом последнего шага)
         di
