@@ -19,6 +19,7 @@
 ; =========================================================================
 
 ; --- заголовок модуля
+PT_VERSION      equ 13              ; цифра версии: "ProTracker 3.x"
 PT_NAME         equ 30              ; 32 имя
 PT_AUTHOR       equ 66              ; 32 автор
 PT_TONES        equ 99              ; номер таблицы нот (0..3)
@@ -161,6 +162,13 @@ Pt_TS37_Check
 
 ;-------- Заголовок трека: чипы, темп, имя, автор
 Pt_Header
+        ld hl,PT_VERSION            ; версия 3.x -> x (не цифра - 6, как плеер Бульбы)
+        call Pt_Get
+        sub '0'
+        cp 10
+        jr c,$+4
+        ld a,6
+        ld (Ph_Ver),a
         ld hl,PT_TEMPO
         call Pt_Get
         or a
@@ -206,6 +214,7 @@ Pt_Header
 
 Ph_Tempo        db 0
 Ph_Tune         db 0                ; SH_TUNING из модуля
+Ph_Ver          db 6                ; версия PT 3.x: x
 
 ; =========================================================================
 ; ЧТЕНИЕ МОДУЛЯ: смещение от начала модуля (Pt_Base) -> байт из буфера файла
@@ -1344,11 +1353,19 @@ Pr_Spec cp #01
 .glis   call Pt_Get                 ; задержка, шаг (+ - частота вниз)
         ld b,CMD_GLIS_DOWN
         ld c,CMD_GLIS_UP
+        or a                        ; задержка 0: до PT 3.7 глисс стоит (3.7+ - один сдвиг,
+        jr nz,.slide                ;   как у нас) - у нас параметр 0: стоп, смещение остаётся
+        ld a,(Ph_Ver)
+        cp 7
+        ld a,0
+        call c,Pr_SetZero
         jr .slide
 .porta  call Pt_Get                 ; задержка, максимум (не нужен), шаг
         push af
         call Pt_Get16
         pop af
+        or a                        ; задержка 0: у PT портаменто стоит (нота - старая) -
+        call z,Pr_SetZero           ;   у нас параметр 0: стоп, смещение от старой ноты остаётся
         ld b,CMD_PORTA
         ld c,CMD_PORTA
         jr .slide
@@ -1372,6 +1389,13 @@ Pr_Spec cp #01
         or a
         jr z,$+4
         ld e,255
+        ld a,(Pr_Zero)              ; стоит (см. выше) - параметр 0
+        or a
+        jr z,.nz
+        ld e,0
+        xor a
+        ld (Pr_Zero),a
+.nz
         pop af
         ld c,a
         ld a,b
@@ -1408,6 +1432,15 @@ Pr_Spec cp #01
         or e
         ld e,a
         ld d,CMD_ONOFF<<4
+        ret
+
+; Команда с задержкой 0, которая у PT не движется: параметр - 0. A, флаги целы
+Pr_Zero         db 0
+Pr_SetZero
+        push af
+        ld a,1
+        ld (Pr_Zero),a
+        pop af
         ret
 
 ; A > 15 -> 15
