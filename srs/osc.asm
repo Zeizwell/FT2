@@ -41,8 +41,8 @@ Osc_Init
         ld bc,PALSEL                ; тайлам - палитра 3 (с палитрой в слове тайла - OSC_PALN)
         ld a,PALET_NUM|(3<<PAL_T0PAL_BS)|(3<<PAL_T1PAL_BS)
         out (c),a
-        ld bc,TSCONFIG              ; спрайты + тайлы T0 (тайл 0 - прозрачный)
-        ld a,TSU_SEN|TSU_T0EN|TSU_T0ZEN
+        ld bc,TSCONFIG              ; спрайты + тайлы T0; тайл 0 прозрачный (бит T0ZEN - наоборот,
+        ld a,TSU_SEN|TSU_T0EN       ;   показать тайл 0: video_ts.v tile_valid)
         out (c),a
         ret
 
