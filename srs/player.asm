@@ -527,29 +527,6 @@ RoB     ld hl,0                     ;   блок орнамента (старш�
 RoR     ld a,0
         call OrnSet
 RoEnd
-GG      jr GEnd                     ; 1, 2, 3 глисс / портаменто: раз в GD тиков шаг
-GC      ld a,0
-        dec a
-        jr nz,GSt
-        ld hl,(GOF+1)
-GS      ld de,0
-        add hl,de
-        ld (GOF+1),hl
-GM      jr GDl                      ;   глисс - дальше, портаменто (ON) - доехали?
-        ld a,h
-        or l
-        jr z,GStop
-        ld a,h                      ;   знаки смещения и шага разные - ещё едем
-        xor d
-        jp m,GDl
-GStop   ld hl,0                     ;   на ноте - стоп
-        ld (GOF+1),hl
-        GATE_OFF GG,GEnd
-        jr GEnd
-GDl
-GD      ld a,0
-GSt     ld (GC+1),a
-GEnd
 VsG     jr VsEnd                    ; 7 слайд громкости: раз в VsD тиков
 VsC     ld a,0
         dec a
@@ -736,6 +713,29 @@ VO      ld de,0                     ; + вибрато
         and #0F
         ld h,a
 Wt      ld (REGS+IDX*2),hl
+GG      jr GEnd                     ; 1, 2, 3 глисс / портаменто: шаг - после тона (как PT3: со след. тика)
+GC      ld a,0
+        dec a
+        jr nz,GSt
+        ld hl,(GOF+1)
+GS      ld de,0
+        add hl,de
+        ld (GOF+1),hl
+GM      jr GDl                      ;   глисс - дальше, портаменто (ON) - доехали?
+        ld a,h
+        or l
+        jr z,GStop
+        ld a,h                      ;   знаки смещения и шага разные - ещё едем
+        xor d
+        jp m,GDl
+GStop   ld hl,0                     ;   на ноте - стоп
+        ld (GOF+1),hl
+        GATE_OFF GG,GEnd
+        jr GEnd
+GDl
+GD      ld a,0
+GSt     ld (GC+1),a
+GEnd
 B3      ld a,0                      ; громкость: C - флаги строки
         ld c,a
         bit IRB_SLIDE,c             ;   слайд амплитуды -15..15
