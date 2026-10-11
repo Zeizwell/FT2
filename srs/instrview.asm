@@ -89,8 +89,17 @@ KD_NSIGN        equ 8               ; орнамент: знак ноты
 KD_NOTE         equ 9               ; орнамент: десятичная цифра ноты: вес 10 / 1
 KD_HEX          equ 10              ; FX: hex-цифра байта строки: вес #10 / #01
 KD_MIX          equ 11              ; FX: Mix - выкл -> SID -> Sync
+KD_PCT          equ 12              ; FX: скважность ШИМ (полубайт, %): hex-цифра, +/- - шаг
+KD_UDEC         equ 13              ; FX: байт 0..параметр, десятичный: цифры, +/- - шаг
+KD_SDEC         equ 14              ; FX: байт со знаком, десятичный: цифры, +/- - знак
 CL_SIZE         equ 4               ; колонка: экран, вид, байт, параметр
 
+; --- FX: подвкладки Mix / FM / Env FM (строка между кнопками и заголовками колонок)
+SUB_Y           equ IV_TOP+4
+SUB_MIX_X       equ 23              ; " Mix "
+SUB_FM_X        equ 29              ; " FM "
+SUB_EFM_X       equ 34              ; " Env FM "
+    ASSERT SUB_Y == BT_Y+1 && SUB_Y+1 == CAP_Y
 ; --- FX (режим 2): номер FX инструмента - на верхней рамке редактора (режим Instr)
 FXN_L           equ 52              ; "FX" [-]nn[+]
 FXN_M           equ 55
@@ -164,6 +173,7 @@ Iv_Exit         db 0                ; 1 - выйти в коре
 Iv_Dirty        db 0                ; 1 - перерисовать экран
 Iv_Num          db 0                ; текущий номер (0.. = номер 1..) в этом режиме
 Iv_Nums         db 0,0,0            ; запомненный номер каждого режима
+Fx_Sub          db 0                ; FX: подвкладка 0 - Mix, 1 - FM, 2 - Env FM
 Iv_LTop         db 0                ; первая строка списка
 Ed_Row          db 0                ; курсор: строка
 Ed_Col          db 0                ;   колонка (номер в таблице колонок)
@@ -342,8 +352,17 @@ Iv_Cols
         ld hl,Orn_Cols
         ld b,ORN_COLS
         ret z
-        ld hl,Fx_Cols
-        ld b,FX_COLS
+        ld a,(Fx_Sub)               ; FX - по подвкладке
+        or a
+        ld hl,Fx_Cols_Mix
+        ld b,FX_MIX_COLS
+        ret z
+        dec a
+        ld hl,Fx_Cols_Fm
+        ld b,FX_FM_COLS
+        ret z
+        ld hl,Fx_Cols_Efm
+        ld b,FX_FM_COLS
         ret
 
 ;-------- IY - колонка курсора в таблице
@@ -387,38 +406,32 @@ Orn_Cols
         db 32, KD_NOISE, 0, #01
         db 33, KD_BIT,   OR_NOISE, #80              ;   накопление
 ORN_COLS        equ ($-Orn_Cols)/CL_SIZE
-; FX: Mix F E L | PW Sw | Mix: полутоны, сырой, таблица | FM: то же, s/p | Env FM: то же, s/p
-Fx_Cols
-        db 26, KD_MIX,   0, 0                       ; Mix: . / S (SID) / B (Sync)
-        db 27, KD_BIT,   FR_FLAGS, 1<<FXB_FM        ; F - FM
-        db 28, KD_BIT,   FR_FLAGS, 1<<FXB_EFM       ; E - Env FM
-        db 29, KD_BIT,   FR_FLAGS, 1<<FXB_FOLLOW    ; L - таймеры за тоном
-        db 31, KD_HEX,   FR_PWM, #10                ; ШИМ: max
-        db 32, KD_HEX,   FR_PWM, #01                ;      min
-        db 34, KD_HEX,   FR_SWEEP, #10              ; свип
-        db 35, KD_HEX,   FR_SWEEP, #01
-        db 37, KD_HEX,   FR_MIX+FE_SEMI, #10        ; Mix: полутоны
-        db 38, KD_HEX,   FR_MIX+FE_SEMI, #01
-        db 40, KD_HEX,   FR_MIX+FE_RAW, #10         ;      сырой
-        db 41, KD_HEX,   FR_MIX+FE_RAW, #01
-        db 43, KD_HEX,   FR_MIX+FE_TAB, #10         ;      таблица
-        db 44, KD_HEX,   FR_MIX+FE_TAB, #01
-        db 46, KD_HEX,   FR_FM+FE_SEMI, #10         ; FM
-        db 47, KD_HEX,   FR_FM+FE_SEMI, #01
-        db 49, KD_HEX,   FR_FM+FE_RAW, #10
-        db 50, KD_HEX,   FR_FM+FE_RAW, #01
-        db 52, KD_HEX,   FR_FM+FE_TAB, #10
-        db 53, KD_HEX,   FR_FM+FE_TAB, #01
-        db 54, KD_BIT,   FR_FLAGS, 1<<FXB_FMPER     ;   шаги: s - полутоны, p - период
-        db 56, KD_HEX,   FR_EFM+FE_SEMI, #10        ; Env FM
-        db 57, KD_HEX,   FR_EFM+FE_SEMI, #01
-        db 59, KD_HEX,   FR_EFM+FE_RAW, #10
-        db 60, KD_HEX,   FR_EFM+FE_RAW, #01
-        db 62, KD_HEX,   FR_EFM+FE_TAB, #10
-        db 63, KD_HEX,   FR_EFM+FE_TAB, #01
-        db 64, KD_BIT,   FR_FLAGS, 1<<FXB_EFMPER
-FX_COLS         equ ($-Fx_Cols)/CL_SIZE
-    ASSERT 64 < ER_INS_X
+; FX, подвкладка Mix: Mix, ШИМ min и max (%), свип, полутоны, детюн, таблица, L (за тоном)
+Fx_Cols_Mix
+        db 26, KD_MIX,   0, 0
+        db 32, KD_PCT,   FR_PWM, #01                ; min
+        db 37, KD_PCT,   FR_PWM, #10                ; max
+        db 42, KD_UDEC,  FR_SWEEP, 255
+        db 47, KD_SDEC,  FR_MIX+FE_SEMI, 0
+        db 52, KD_SDEC,  FR_MIX+FE_RAW, 0
+        db 55, KD_UDEC,  FR_MIX+FE_TAB, TAB_MAX
+        db 57, KD_BIT,   FR_FLAGS, 1<<FXB_FOLLOW
+FX_MIX_COLS     equ ($-Fx_Cols_Mix)/CL_SIZE
+; FX, подвкладки FM и Env FM: вкл, полутоны, детюн, таблица, шаги (semi / per)
+Fx_Cols_Fm
+        db 26, KD_BIT,   FR_FLAGS, 1<<FXB_FM
+        db 32, KD_SDEC,  FR_FM+FE_SEMI, 0
+        db 37, KD_SDEC,  FR_FM+FE_RAW, 0
+        db 40, KD_UDEC,  FR_FM+FE_TAB, TAB_MAX
+        db 42, KD_BIT,   FR_FLAGS, 1<<FXB_FMPER
+FX_FM_COLS      equ ($-Fx_Cols_Fm)/CL_SIZE
+Fx_Cols_Efm
+        db 26, KD_BIT,   FR_FLAGS, 1<<FXB_EFM
+        db 32, KD_SDEC,  FR_EFM+FE_SEMI, 0
+        db 37, KD_SDEC,  FR_EFM+FE_RAW, 0
+        db 40, KD_UDEC,  FR_EFM+FE_TAB, TAB_MAX
+        db 42, KD_BIT,   FR_FLAGS, 1<<FXB_EFMPER
+    ASSERT ($-Fx_Cols_Efm)/CL_SIZE == FX_FM_COLS
 
 ; =========================================================================
 ; ЭКРАН
@@ -434,8 +447,47 @@ Iv_Draw
         ld (Iv_Dirty),a
         call Iv_Draw_List
         call Iv_Draw_Top
+        call Fx_Subs
         call Prv_Draw
         jp Iv_Draw_Rows
+
+;-------- FX: подвкладки Mix / FM / Env FM, текущая - цветом курсора
+Fx_Subs
+        ld a,(Iv_Mode)
+        cp 2
+        ret nz
+        ld de,SUB_MIX_X+256*(IV_SCR_H+SUB_Y)
+        ld hl,Txt_Sub_Mix
+        xor a
+        call .one
+        ld e,SUB_FM_X
+        ld hl,Txt_Sub_Fm
+        ld a,1
+        call .one
+        ld e,SUB_EFM_X
+        ld hl,Txt_Sub_Efm
+        ld a,2
+.one    ld b,a
+        ld a,(Fx_Sub)
+        cp b
+        ld a,(THEME_ATTR+CLR_HEAD_TEXT)
+        jr nz,$+5
+        ld a,(THEME_ATTR+CLR_CURSOR)
+        ld c,a
+        jp PutStr
+
+;-------- Клик по подвкладке FX
+Iv_SubEv
+        cp EV_CLICK
+        ret nz
+        ld a,(Iv_Mode)
+        cp 2
+        ret nz
+        ld a,(ix+FLD_PARAM)
+        ld (Fx_Sub),a
+        call Iv_Draw_Caps
+        call Ed_Clamp
+        jp Iv_Changed
 
 ;-------- Рамки и их заголовки
 Iv_Frames
@@ -609,7 +661,11 @@ Iv_Draw_Caps
         ld hl,Txt_Caps_Orn
         dec a
         jp z,PutStr
-        ld hl,Txt_Caps_Fx
+        ld a,(Fx_Sub)               ; FX - по подвкладке
+        or a
+        ld hl,Txt_Caps_Mix
+        jp z,PutStr
+        ld hl,Txt_Caps_Fm
         jp PutStr
 
 ;-------- Строки: ER_ROWS с Ed_Top, за концом - пусто; потом курсор
@@ -891,78 +947,219 @@ Or_Body
         ld a,#DB                    ; █
         jp PutCh
 
-;-------- Строка FX: IX - строка, DE - экран (колонка ER_DATA_X). Байты - hex, как в регистрах карты
+;-------- Строка FX по подвкладке: IX - строка, DE - экран (колонка ER_DATA_X)
 Fx_Body
-        ld a,(THEME_ATTR+CLR_INSTR) ; Mix, F, E, L
+        ld a,(Fx_Sub)
+        or a
+        jr nz,.fm
+        ld a,(THEME_ATTR+CLR_INSTR) ; Mix: --- / SID / BUZ
         ld c,a
         ld a,(ix+FR_FLAGS)
         and FXF_MIX
-        ld hl,Mix_Chars
+        ld b,a
+        add a,a
+        add a,b
+        ld hl,Mix_Words
         call Hl_Add_A
-        ld a,(hl)
+        ld b,3
+.w      ld a,(hl)
         call PutCh
-        ld a,(ix+FR_FLAGS)
-        ld b,1<<FXB_FM
-        ld hl,'F'*256+'.'
-        call Put_If
-        ld a,(ix+FR_FLAGS)
-        ld b,1<<FXB_EFM
-        ld hl,'E'*256+'.'
-        call Put_If
+        inc hl
+        djnz .w
+        ld a,(THEME_ATTR+CLR_PARAM) ; ШИМ min, max - проценты
+        ld c,a
+        ld e,30
+        ld a,(ix+FR_PWM)
+        and #0F
+        call Put_Pct
+        ld e,35
+        ld a,(ix+FR_PWM)
+        rrca
+        rrca
+        rrca
+        rrca
+        and #0F
+        call Put_Pct
+        ld e,40                     ; свип
+        ld a,(ix+FR_SWEEP)
+        call Put_Dec3
+        ld a,(THEME_ATTR+CLR_VOLUME) ; полутоны, детюн, таблица
+        ld c,a
+        ld e,44
+        ld a,FR_MIX
+        call Fx_Triple
+        ld a,(THEME_ATTR+CLR_INSTR) ; L - таймеры за тоном
+        ld c,a
+        ld e,57
         ld a,(ix+FR_FLAGS)
         ld b,1<<FXB_FOLLOW
         ld hl,'L'*256+'.'
-        call Put_If
-        inc e
-        ld a,(THEME_ATTR+CLR_PARAM) ; ШИМ (max, min), свип
-        ld c,a
-        ld a,(ix+FR_PWM)
-        call PutHex2
-        inc e
-        ld a,(ix+FR_SWEEP)
-        call PutHex2
-        inc e
-        ld a,(THEME_ATTR+CLR_VOLUME) ; Mix: полутоны, сырой, таблица
-        ld c,a
-        ld a,FR_MIX
-        call Fx_Triple
-        inc e
-        ld a,(THEME_ATTR+CLR_NOTE)  ; FM и s / p
-        ld c,a
-        ld a,FR_FM
-        call Fx_Triple
-        ld a,(ix+FR_FLAGS)
-        ld b,1<<FXB_FMPER
-        ld hl,'p'*256+'s'
-        call Put_If
-        inc e
-        ld a,(THEME_ATTR+CLR_ENVPER) ; Env FM и s / p
-        ld c,a
-        ld a,FR_EFM
-        call Fx_Triple
-        ld a,(ix+FR_FLAGS)
-        ld b,1<<FXB_EFMPER
-        ld hl,'p'*256+'s'
         jp Put_If
-Mix_Chars       db ".SB?"           ; Mix: выкл, SID, Sync
+.fm     dec a                       ; FM / Env FM: вкл, полутоны, детюн, таблица, шаги
+        ld a,FR_FM
+        ld b,1<<FXB_FM|1<<FXB_FMPER
+        jr z,.f
+        ld a,FR_EFM
+        ld b,1<<FXB_EFM|1<<FXB_EFMPER
+.f      ld (Fb_Ofs),a
+        ld a,b
+        ld (Fb_Bits),a
+        ld a,(THEME_ATTR+CLR_INSTR)
+        ld c,a
+        ld a,(ix+FR_FLAGS)          ; вкл - младший бит пары
+        ld hl,Fb_Bits
+        and (hl)
+        ld b,a
+        ld a,(hl)
+        and ~(1<<FXB_FMPER|1<<FXB_EFMPER)
+        and b
+        ld hl,Txt_On
+        jr nz,$+5
+        ld hl,Txt_Off
+        call PutStr
+        ld a,(THEME_ATTR+CLR_NOTE)
+        ld c,a
+        ld e,29
+        ld a,(Fb_Ofs)
+        call Fx_Triple3
+        ld a,(THEME_ATTR+CLR_PARAM) ; шаги таблицы: полутоны / период
+        ld c,a
+        ld e,42
+        ld a,(ix+FR_FLAGS)
+        ld hl,Fb_Bits
+        and (hl)
+        and 1<<FXB_FMPER|1<<FXB_EFMPER
+        ld hl,Txt_Semi
+        jp z,PutStr
+        ld hl,Txt_Per
+        jp PutStr
+Fb_Ofs          db 0
+Fb_Bits         db 0
+Mix_Words       db "---SIDBUZ???"
+Txt_On          db "on",0
+Txt_Off         db "--",0
+Txt_Semi        db "semi",0
+Txt_Per         db "per ",0
 
-; A - смещение тройки (полутоны, сырой, таблица) в строке IX -> "ss rr tt"
+; Mix: A - смещение тройки, E - колонка полутонов: "+12   +1 01" (полутоны 44..47, детюн 49..52,
+; таблица 54..55)
 Fx_Triple
         push ix
         pop hl
         call Hl_Add_A
-        ld b,3
-.b      ld a,(hl)
-        inc hl
+        ld a,(hl)
         push hl
-        push bc
-        call PutHex2
-        pop bc
-        pop hl
-        dec b
-        ret z
+        call Put_SDec
         inc e
-        jr .b
+        pop hl
+        inc hl
+        ld a,(hl)
+        push hl
+        call Put_SDec
+        inc e
+        pop hl
+        inc hl
+        ld a,(hl)
+        jp Dec2
+; FM: то же с колонки 29: полутоны 29..32, детюн 34..37, таблица 39..40
+Fx_Triple3 equ Fx_Triple
+
+;-------- Скважность: полубайт A (16 ступеней) -> "nn%" (3 знака и %)
+Put_Pct
+        ld hl,Pct_T
+        call Hl_Add_A
+        ld a,(hl)
+        call Put_Dec3
+        ld a,'%'
+        jp PutCh
+Pct_T   db 0,6,12,19,25,31,38,44,50,56,62,69,75,81,88,94
+
+;-------- A - 0..255 -> 3 знака, справа (пробелы слева). Портит HL, B
+Put_Dec3
+        call Fmt_Dec
+        push bc
+        ld hl,Dec_Buf
+        ld b,3
+.c      ld a,(hl)
+        call PutCh
+        inc hl
+        djnz .c
+        ret
+
+;-------- A - байт со знаком -> 4 знака: знак у числа, справа ("  +7", " -12"; 0 - "   0")
+Put_SDec
+        ld l,a
+        or a
+        ld h,' '
+        jr z,.m
+        ld h,'+'
+        jp p,.m
+        ld h,'-'
+        neg
+        ld l,a
+.m      ld a,l
+        push hl
+        call Fmt_Dec                ; Dec_Buf: 3 знака
+        pop hl
+        ld a,' '                    ; знак - перед первой цифрой
+        ld (Dec_Buf-1),a
+        push de
+        ld de,Dec_Buf-1
+.f      inc de
+        ld a,(de)
+        cp ' '
+        jr z,.f
+        dec de
+        ld a,h
+        ld (de),a
+        pop de
+        ld hl,Dec_Buf-1
+        ld b,4
+.c      ld a,(hl)
+        call PutCh
+        inc hl
+        djnz .c
+        ret
+
+;-------- A - 0..255 -> Dec_Buf: 3 знака, пробелы слева (хотя бы одна цифра)
+        db 0                        ; место под знак (Put_SDec)
+Dec_Buf ds 3
+Fmt_Dec
+        ld hl,Dec_Buf
+        ld b,'0'-1                  ; сотни
+.h      inc b
+        sub 100
+        jr nc,.h
+        add a,100
+        ld c,a
+        ld a,b
+        cp '0'
+        jr nz,$+4
+        ld a,' '
+        ld (hl),a
+        inc hl
+        ld a,c
+        ld b,'0'-1                  ; десятки
+.t      inc b
+        sub 10
+        jr nc,.t
+        add a,10+'0'
+        ld c,a
+        ld a,b
+        cp '0'
+        jr nz,.tp
+        dec hl                      ; ноль десятков: пробел, если сотен нет
+        ld a,(hl)
+        inc hl
+        cp ' '
+        ld a,'0'
+        jr nz,.tp
+        ld a,' '
+.tp     ld (hl),a
+        inc hl
+        ld (hl),c
+        pop bc
+        ret
 
 ; A - байт, B - маска: бит есть - символ H, нет - L
 Put_If
@@ -1266,6 +1463,9 @@ F_Prev  IV_FIELD BV_X,BT_Y,3,1, FF_HAND, Iv_BtnEv, 9                  ; < пре
 F_Next  IV_FIELD BN_X,BT_Y,3,1, FF_HAND, Iv_BtnEv, 10                 ; > следующий
 F_FxM   IV_FIELD FXN_M,IV_TOP,2,1, FF_HAND, Iv_BtnEv, 11              ; FX инструмента -
 F_FxP   IV_FIELD FXN_P,IV_TOP,2,1, FF_HAND, Iv_BtnEv, 12              ;                +
+F_SubM  IV_FIELD SUB_MIX_X,SUB_Y,5,1, FF_HAND, Iv_SubEv, 0           ; FX: Mix
+F_SubF  IV_FIELD SUB_FM_X,SUB_Y,4,1, FF_HAND, Iv_SubEv, 1            ;     FM
+F_SubE  IV_FIELD SUB_EFM_X,SUB_Y,8,1, FF_HAND, Iv_SubEv, 2           ;     Env FM
 F_Edit  IV_FIELD ED_IN_X,ER_ROW0,ED_IN_W,ER_ROWS, FF_FOCUS, Iv_EditEv, 0 ; строки
 F_Play  IV_FIELD PV_PLAY,PV_Y,2,1, FF_HAND, Prv_PlayEv, 0             ; ▶ - пока держат
 F_OctM  IV_FIELD PV_OCT+3,PV_Y,2,1, FF_HAND, Prv_BtnEv, 0             ; Oct -
@@ -1429,12 +1629,20 @@ Iv_EditEv
         inc hl
         ld (hl),b
         jp Iv_Changed
-.col    ld c,a                      ; колонка курсора с такой же колонкой экрана
-        call Iv_Cols
+.col    ld c,a                      ; колонка курсора с такой же колонкой экрана (FX - в поле
+        call Iv_Cols                ;   до 4 знаков левее неё)
         ld e,0
-.f      ld a,(hl)
-        cp c
+.f      ld a,(Iv_Mode)
+        cp 2
+        ld a,(hl)
+        jr nz,.eq
+        sub c
+        cp 4
+        jr c,.hit
+        jr .nx
+.eq     cp c
         jr z,.hit
+.nx
         inc hl
         inc hl
         inc hl
@@ -1730,6 +1938,12 @@ Ed_Type
         jp z,Ty_Note
         cp KD_HEX
         jp z,Ty_Hex
+        cp KD_PCT
+        jp z,Ty_Pct
+        cp KD_UDEC
+        jp z,Ty_UDec
+        cp KD_SDEC
+        jp z,Ty_SDec
         or a                        ; остальным цифры не нужны
         ret
 .space  ld a,(iy+1)
@@ -1744,6 +1958,10 @@ Ed_Type
         jr .sign
 .minus  ld b,'-'
         ld a,(iy+1)
+        cp KD_PCT
+        jp z,Dn_Pct
+        cp KD_UDEC
+        jp z,Dn_UDec
         cp KD_SLIDE
         jr nz,.sign
         ld a,(ix+IR_VOL)            ; слайд вниз
@@ -1753,6 +1971,10 @@ Ed_Type
         ret
 .plus   ld b,'+'
         ld a,(iy+1)
+        cp KD_PCT
+        jp z,Up_Pct
+        cp KD_UDEC
+        jp z,Up_UDec
         cp KD_SLIDE
         jr nz,.sign
         ld a,(ix+IR_VOL)            ; слайд вверх
@@ -1768,6 +1990,8 @@ Ed_Type
         jp z,Sg_Env
         cp KD_NSIGN
         jp z,Sg_Note
+        cp KD_SDEC
+        jp z,Sg_SDec
         or a
         ret
 Ed_Toggle_Ok
@@ -1929,6 +2153,150 @@ Ty_Hex  ld a,(iy+2)
         or b
 .st     ld (hl),a
         scf
+        ret
+
+;-------- FX: HL - байт колонки IY в строке IX
+Fx_Fld  ld a,(iy+2)
+        push ix
+        pop hl
+        jp Hl_Add_A
+
+;-------- Скважность: hex-цифра B - полубайт (iy+3: #10 - max, #01 - min); +/- - шаг
+Ty_Pct  call Fx_Fld
+        ld a,b
+.put    ld b,a                      ; B - полубайт 0..15
+        ld a,(iy+3)
+        cp #10
+        ld a,(hl)
+        jr z,.hi
+        and #F0
+        or b
+        jr .st
+.hi     and #0F
+        rlc b
+        rlc b
+        rlc b
+        rlc b
+        or b
+.st     ld (hl),a
+        scf
+        ret
+Dn_Pct  call Pct_Get
+        or a
+        jr z,Fx_Eat
+        dec a
+        jr Ty_Pct.put
+Up_Pct  call Pct_Get
+        cp 15
+        jr nc,Fx_Eat
+        inc a
+        jr Ty_Pct.put
+; A - полубайт колонки, HL - байт
+Pct_Get call Fx_Fld
+        ld a,(iy+3)
+        cp #10
+        ld a,(hl)
+        jr nz,.lo
+        rrca
+        rrca
+        rrca
+        rrca
+.lo     and #0F
+        ret
+Fx_Eat  scf                         ; клавиша наша, менять нечего
+        ret
+
+;-------- Байт 0..(iy+3), десятичный: цифра B вдвигается справа (за максимум - начать с неё);
+; +/- - шаг
+Ty_UDec ld a,b
+        cp 10
+        ccf
+        ret nc                      ; A..F - не наши
+        call Fx_Fld
+        push hl
+        ld a,(hl)
+        call Mod100x10              ; HL = (A mod 100)*10
+        ld a,b
+        call Hl_Add_A
+        ld a,h
+        or a
+        ld a,l
+        pop hl
+        jr nz,.new
+        cp (iy+3)
+        jr c,.st
+        jr z,.st
+.new    ld a,b
+.st     ld (hl),a
+        scf
+        ret
+Dn_UDec call Fx_Fld
+        ld a,(hl)
+        or a
+        jr z,Fx_Eat
+        dec (hl)
+        scf
+        ret
+Up_UDec call Fx_Fld
+        ld a,(hl)
+        cp (iy+3)
+        jr nc,Fx_Eat
+        inc (hl)
+        scf
+        ret
+
+;-------- Байт со знаком, десятичный: цифра B вдвигается в модуль (за 127 - начать с неё), знак тот же
+Ty_SDec ld a,b
+        cp 10
+        ccf
+        ret nc
+        call Fx_Fld
+        push hl
+        ld a,(hl)
+        call Sign_Get               ; L - модуль, A - знак
+        ld c,a
+        ld a,l
+        call Mod100x10
+        ld a,b
+        call Hl_Add_A
+        ld a,h
+        or a
+        jr nz,.new
+        ld a,l
+        cp 128
+        jr c,.ok
+.new    ld l,b
+.ok     ld a,c
+        call Byte_Signed
+        pop hl
+        ld (hl),a
+        scf
+        ret
+Sg_SDec call Fx_Fld
+        push hl
+        ld a,(hl)
+        call Sign_Get
+        call Sign_New
+        call Byte_Signed
+        pop hl
+        ld (hl),a
+        scf
+        ret
+
+; A -> HL = (A mod 100) * 10. Портит A, DE
+Mod100x10
+        cp 100
+        jr c,.m
+        sub 100
+        jr Mod100x10
+.m      ld l,a
+        ld h,0
+        add hl,hl
+        ld d,h
+        ld e,l
+        add hl,hl
+        add hl,hl
+        add hl,de
         ret
 
 Ty_Vol  ld a,(ix+IR_VOL)
@@ -2746,7 +3114,11 @@ Txt_Len         db "Len",0
 Txt_Loop        db "Loop",0
 Txt_Caps_Ins    db "Rw TNE Tone  Ns  Env  VsR Volume",0
 Txt_Caps_Orn    db "Rw Note Ns  Offset",0
-Txt_Caps_Fx     db "Rw MFEL PW Sw Ms Mr Mt Fs Fr Ftu Es Er Etu",0
+Txt_Caps_Mix    db "Rw Mix  Min  Max Swp Semi  Det Tb L",0
+Txt_Caps_Fm     db "Rw On Semi  Det Tb Step",0
+Txt_Sub_Mix     db " Mix ",0
+Txt_Sub_Fm      db " FM ",0
+Txt_Sub_Efm     db " Env FM ",0
 Txt_Clone       db " Clone ",0
 Txt_Copy        db " Copy ",0
 Txt_Paste       db " Paste ",0
