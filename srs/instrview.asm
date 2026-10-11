@@ -1077,7 +1077,6 @@ Pct_T   db 0,6,12,19,25,31,38,44,50,56,62,69,75,81,88,94
 ;-------- A - 0..255 -> 3 знака, справа (пробелы слева). Портит HL, B
 Put_Dec3
         call Fmt_Dec
-        push bc
         ld hl,Dec_Buf
         ld b,3
 .c      ld a,(hl)
@@ -1125,6 +1124,7 @@ Put_SDec
         db 0                        ; место под знак (Put_SDec)
 Dec_Buf ds 3
 Fmt_Dec
+        push bc
         ld hl,Dec_Buf
         ld b,'0'-1                  ; сотни
 .h      inc b
