@@ -464,3 +464,25 @@ D3 — SD2, D4 — ESP32; данные `#57`; `pentevo/fpga/current/z80/zports.v
 - NeoGS на GitHub: github.com/tslabs/neogs. ZX-MultiSound — открытый проект (README в папке).
 - Эталон эмуляции Paula (BLEP, фильтры A500 / A1200 / LED): pt2-clone (8bitbubsy).
 - Связь с трекером: FX-объекты FT2 — `doc/instruments.md`, `sdk/plugin.asm` (FXS_MAX).
+
+## 13. Инструменты для схемы и платы (KiCad + Claude) — найдено 2026-10-11
+
+Пока не ставили: понадобятся, когда карта пойдёт в KiCad. Всё — сторонний код, работает с правами Claude
+на машине: перед установкой читать исходник; ставит пользователь.
+
+- **Плагин в каталоге claude.ai — BoardRepo** (Flintt, прошёл проверку каталога Anthropic): связи схемы,
+  BOM, проверки KiCad, сверка с возможностями производства. Ставится кликом.
+- **MCP-серверы** (Claude сам управляет KiCad; нужен KiCad 9):
+  - `lamaalrajih/kicad-mcp` (github.com/lamaalrajih/kicad-mcp) — разбор схем, DRC, BOM: проверять разводку.
+    Python 3.10+, папки проектов — в `.env`.
+  - `mixelpixx/KiCAD-MCP-Server` — самый подробный: создаёт и правит схемы и платы (компоненты, связи,
+    экспорт PDF), ~52 инструмента; Node.js 18+.
+  - `ProductOfAmerica/mcp-server-kicad` — по описанию: расстановка, трассировка, ERC/DRC, Gerber
+    (описание с чужого каталога, не проверено).
+  - Форк `kicad-mcp` на git.supported.systems — валидация, DRC с историей проверок.
+- **Скиллы** (`SKILL.md` в `~/.claude/skills/`): `aklofas/kicad-happy` (ревью проектов KiCad),
+  `l3wi/claude-eda` (`eda-pcb` — разводка после схемы), Circuit Synth (схемы из Python для KiCad),
+  `diodeinc/pcb` (свой язык Zener + KiCad, SPICE).
+- Трассировку дорожек ИИ делает плохо (есть автотрассировщик Freerouting); критичное — земля, аналоговый
+  звук, шина — разводить руками. Claude полезен в схеме, правилах, проверках, BOM.
+- План: KiCad 9 + `kicad-mcp` (анализ и DRC) — когда будет схема Trinity.
