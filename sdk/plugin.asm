@@ -573,7 +573,7 @@ FX_NAME         equ 400             ; 16 имя
     ASSERT FX_NAME+16 <= FX_BLOCK
 ; строка (= регистры #C3..#CE):
 FR_FLAGS        equ 0               ; флаги (FXF_*)
-FR_PWM          equ 1               ; 7..4 скважность max, 3..0 min (16 ступеней, 8 = 50%)
+FR_PWM          equ 1               ; 7..4 скважность max, 3..0 min (16 ступеней 0..50%: n*50/15)
 FR_SWEEP        equ 2               ; свип ШИМ: 0 - выкл (скважность = max), 1..255 - частота (min -> max -> min)
 FR_MIX          equ 3               ; Mix (SID / Sync): FE_SEMI, FE_RAW, FE_TAB
 FR_FM           equ 6               ; FM: то же
