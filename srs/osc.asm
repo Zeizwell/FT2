@@ -153,15 +153,34 @@ Osc_Tick
 
 ; Окно канала B: HL - регистры чипа (L = 0); кадр окон чипа - Od_DX, Ow_R0
 Osc_Win
-        ld l,7                      ; тон выкл (бит B микшера) - сплошная
+        ld l,7                      ; тон выкл (бит B микшера) - по огибающей или сплошная
         ld a,(hl)
         ld c,b
         inc c
 .r      rrca
         dec c
         jr nz,.r
+        jr nc,.tone
+        ld a,b                      ; тон выкл: с огибающей (бит 4 громкости) - её период E
+        add a,8                     ;   (звучит как тон 16*E: в таблице - индекс E), иначе
+        ld l,a                      ;   сплошная
+        bit 4,(hl)
         ld a,OSC_SOLID
-        jr c,.pat
+        jr z,.pat
+        ld l,12                     ; E > 255 - самая широкая
+        ld a,(hl)
+        or a
+        ld a,OSC_SOLID-1
+        jr nz,.pat
+        dec l
+        ld a,(hl)
+        push hl
+        ld l,a
+        ld h,high Osc_PT
+        ld a,(hl)
+        pop hl
+        jr .pat
+.tone
         ld a,b                      ; период R(2B): рисунок по старшим 8 битам из 12
         add a,a
         ld l,a
