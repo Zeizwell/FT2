@@ -67,6 +67,8 @@ Cmp_Run
         ld a,PAGE_PLAYER            ; наш плеер - в окнах 1 и 2 на всё время
         SETPAGE1 a
         SETPAGE2 PAGE_PLAYER2
+        xor a                       ; стерео - выкл: эталон играет ABC
+        ld (St_Mask),a
         call Cm_Clear_Screen
         ld hl,Txt_Title
         ld a,(Cmp_Kind)             ; FTC - эталон FT
@@ -116,6 +118,8 @@ Cmp_Run
         ld (SV_PLAY_CMD),a
         call Cm_Result
         call Cm_Log_Head
+        ld a,#FF                    ; стерео - снова по треку
+        ld (St_Mask),a
         RESTPAGE2
         RESTPAGE1
         ei
@@ -366,7 +370,7 @@ Cm_Compare
         ld a,1
         ld (Cm_Chip),a
         ld hl,Cm_RRegs+PR_SIZE
-        ld de,Pl_Regs+PR_SIZE
+        ld de,Pl_Regs2
         call Cm_Chip_Cmp
 .cnt    ld a,(Cm_Bad)               ; кадров с расхождением
         or a
@@ -461,15 +465,14 @@ Cm_Chip_Cmp
         call Cm_Reg
         ld a,12
         call Cm_Reg
-.nenv   ld a,13                     ; R13: у эталона #FF - не писать; у нас - флаг Pl_R13W
+.nenv   ld a,13                     ; R13: у эталона #FF - не писать; у нас - флаг PR_R13W в буфере
         call Cm_RefR
         ld b,a
         ld a,(Cm_Chip)
-        ld hl,Pl_R13W
-        add a,l
-        ld l,a
-        jr nc,$+3
-        inc h
+        or a
+        ld hl,Pl_Regs+PR_R13W
+        jr z,$+5
+        ld hl,Pl_Regs2+PR_R13W
         ld a,(hl)
         or a
         ld a,#FF
@@ -630,12 +633,12 @@ Cm_Log  ld hl,(Cm_Frame)
         ld hl,Pl_Regs               ; наши; R13 - как у эталона (#FF - не пишется)
         ld bc,PR_SIZE
         ldir
-        ld a,(Pl_R13W)
+        ld a,(Pl_Regs+PR_R13W)
         call .r13
-        ld hl,Pl_Regs+PR_SIZE
+        ld hl,Pl_Regs2
         ld bc,PR_SIZE
         ldir
-        ld a,(Pl_R13W+1)
+        ld a,(Pl_Regs2+PR_R13W)
         call .r13
         RESTPAGE2
         ret
@@ -731,9 +734,12 @@ Cm_Snap
         ld hl,Cm_RRegs+PR_SIZE
         ld bc,PR_SIZE
         ldir
-        ld hl,Pl_Regs               ; наши: оба чипа подряд
+        ld hl,Pl_Regs               ; наши: чип 1, чип 2
         ld de,Cm_SOur
-        ld bc,PR_SIZE*2
+        ld bc,PR_SIZE
+        ldir
+        ld hl,Pl_Regs2
+        ld bc,PR_SIZE
         ldir
         ld a,(Cm_Chip)              ; каналы чипа, где разошлось
         or a

@@ -25,21 +25,22 @@ player_start
 
 CHANNELS        equ 6
 
-; Ворота: jr g с правкой смещения. ON - смещение 0 (идём дальше), OFF - обход до t.
-; Портят A
+; Ворота: на месте g собрано jr t. OFF - опкод jr (#18, обход до t), ON - cp n (#FE: смещение
+; становится операндом, идём дальше, 7 тактов). Правится только опкод. Портят A
     MACRO GATE_ON g
-        xor a
-        ld (g+1),a
+        ld a,#FE
+        ld (g),a
     ENDM
     MACRO GATE_OFF g, t
-        ld a,t-g-2
-        ld (g+1),a
+        ld a,#18
+        ld (g),a
     ENDM
 
-; Регистры, посчитанные в этом тике (выводятся в начале следующего), по чипу
+; Регистры, посчитанные в этом тике (выводятся в начале следующего): по чипу буфер на границе
+; 256 (Pl_Regs, Pl_Regs2: младший байт адреса = номер регистра, вывод - OUTI)
 PR_SIZE         equ 14
-Pl_Regs         ds PR_SIZE*2
-Pl_R13W         ds 2                ; 1 - писать R13 (перезапуск огибающей)
+PR_R13W         equ 14              ; в буфере: 1 - писать R13 (перезапуск огибающей)
+PR_STEP         equ Pl_Regs2-Pl_Regs
 Pl_EnvBase      ds 2*2              ; период огибающей из паттерна, по чипу
 Pl_NoiseBase    ds 2                ; шум из паттерна, по чипу
 Es_Ofs          ds 2*2              ; 9 / A: смещение периода огибающей слайдом, по чипу
@@ -58,7 +59,6 @@ Pl_Looped       db 0                ; 1 - сонг дошёл до конца о
 ;-------- Старт: таблицы громкости и стерео, каналы с нуля, тишина
 Pl_Init
         call Pl_VolTab
-        call Pl_MixTab
         xor a
         ld (SV_PLAY_STATE),a
         ld (SV_PLAY_CMD),a
@@ -112,85 +112,25 @@ Pl_VolTab
         jr c,.c
         ret
 
-;-------- Стерео: Mix_T[режим*64 + микшер] - микшер, где биты каналов (тон 0..2, шум 3..5)
-; переставлены: выход p получает биты канала Po_Maps[режим][p]
-Pl_MixTab
-        ld hl,Mix_T
-        ld de,Po_Maps               ; DE - каналы режима
-        ld b,5
-.m      push bc
-        ld c,0                      ; C - микшер
-.v      push de
-        xor a
-        ld (Mt_Out),a
-        ld b,1                      ; B - бит тона выхода
-.p      push hl
-        ld a,(de)                   ; канал этого выхода -> его бит тона
-        ld hl,Mt_Bit
-        add a,l
-        ld l,a
-        jr nc,$+3
-        inc h
-        ld a,(hl)
-        pop hl
-        push af
-        and c                       ; тон канала выключен - бит выхода тоже
-        jr z,.nt
-        ld a,(Mt_Out)
-        or b
-        ld (Mt_Out),a
-.nt     pop af                      ; шум - на 3 бита выше
-        add a,a
-        add a,a
-        add a,a
-        and c
-        jr z,.nn
-        ld a,b
-        add a,a
-        add a,a
-        add a,a
-        push bc
-        ld b,a
-        ld a,(Mt_Out)
-        or b
-        ld (Mt_Out),a
-        pop bc
-.nn     inc de
-        sla b
-        ld a,b
-        cp 8
-        jr c,.p
-        ld a,(Mt_Out)
-        ld (hl),a
-        inc hl
-        pop de
-        inc c
-        ld a,c
-        cp 64
-        jr c,.v
-        inc de                      ; следующий режим
-        inc de
-        inc de
-        pop bc
-        djnz .m
-        ret
-Mt_Out          db 0
-Mt_Bit          db 1,2,4
+        ALIGN 256
+Pl_Regs         ds PR_SIZE+1        ; чип 1 (+флаг R13)
 
 ;-------- Тишина: громкости 0 у обоих чипов, шум и тон выключены
 Pl_Mute
-        ld hl,Pl_Regs
-        ld b,PR_SIZE*2
         xor a
+        ld hl,Pl_Regs
+        ld b,PR_SIZE+1
 .z      ld (hl),a
-        inc hl
+        inc l
         djnz .z
+        ld hl,Pl_Regs2
+        ld b,PR_SIZE+1
+.z2     ld (hl),a
+        inc l
+        djnz .z2
         ld a,#3F
         ld (Pl_Regs+7),a
-        ld (Pl_Regs+PR_SIZE+7),a
-        xor a
-        ld (Pl_R13W),a
-        ld (Pl_R13W+1),a
+        ld (Pl_Regs2+7),a
         jp Pl_Out
 
 ; =========================================================================
@@ -375,6 +315,9 @@ Pl_Next_Row
 .pos    ld (SV_PLAY_POS),a
         jp Pl_Pos_Info
 
+        ALIGN 256
+Pl_Regs2        ds PR_SIZE+1        ; чип 2 (+флаг R13)
+
 ; =========================================================================
 ; РОУ ПАТТЕРНА -> каналы
 ; =========================================================================
@@ -533,7 +476,7 @@ Is_R            db 0                ; InsSet / OrnSet: строка
     MODULE m_name
 CHIP    equ m_n/3
 IDX     equ m_n-CHIP*3
-REGS    equ Pl_Regs+CHIP*PR_SIZE
+REGS    equ Pl_Regs+CHIP*PR_STEP
 
 ;-------- Тик: строки инструмента и орнамента -> регистры (инструменты - в окне 3)
 Tk
@@ -550,7 +493,7 @@ DlN     ld a,0                      ;   пора: ворота закроет No
 DlEnd
 SndJ    jp Silent                   ; звучит - Snd, молчит - Silent
 Silent  xor a                       ; молчит: громкость 0
-        ld (REGS+8+IDX),a
+Wv1     ld (REGS+8+IDX),a           ;   (адреса записи - по стерео, St_Apply)
         ret
 Snd
 RiG     jr RiEnd                    ; инструмент - со строки RiR (нота, 4, смена сэмпла)
@@ -590,15 +533,14 @@ OoG     jr OoEnd                    ; 6 вкл / выкл: фаза кончил
 OoC     ld a,0
         dec a
         jr nz,OoSt
-        ld a,(OsG+1)                ;   OsG: 0 - сейчас тишина
-        or a
-        jr z,OoSnd
-        xor a                       ;   звук -> тишина
-        ld (OsG+1),a
+        ld a,(OsG)                  ;   ворота тишины - наоборот
+        xor #18^#FE
+        ld (OsG),a
+        cp #FE                      ;   теперь тишина - тиков "выкл"
+        jr nz,OoSnd
 OoOff   ld a,0
         jr OoSt
-OoSnd   ld a,OsEnd-OsG-2            ;   тишина -> звук
-        ld (OsG+1),a
+OoSnd
 OoOn    ld a,0
 OoSt    ld (OoC+1),a
 OoEnd
@@ -730,7 +672,7 @@ ONS     add a,0                     ;   + шум орнамента
         and #1F
         ld (REGS+6),a
         ld hl,Pc_Mix                ;   шум канала - вкл
-        res 3+IDX,(hl)
+Mn      res 3+IDX,(hl)
         ex de,hl
 NOff    ld e,(hl)                   ; тон
         inc hl
@@ -753,11 +695,11 @@ ISt     ld (ICN+1),a
         bit 6,c
         jr nz,TOff
         ld hl,Pc_Mix                ;   тон канала - вкл
-        res IDX,(hl)
+Mt      res IDX,(hl)
 TOff    bit IRB_RETRIG,c            ;   ретриггер огибающей
         jr z,TNoR
         ld a,1
-        ld (Pl_R13W+CHIP),a
+        ld (REGS+PR_R13W),a
 TNoR    ld a,d                      ;   12 бит со знаком -> 16
         and #0F
         xor 8
@@ -787,7 +729,7 @@ VO      ld de,0                     ; + вибрато
         ld a,h
         and #0F
         ld h,a
-        ld (REGS+IDX*2),hl
+Wt      ld (REGS+IDX*2),hl
 B3      ld a,0                      ; громкость: C - флаги строки
         ld c,a
         bit IRB_SLIDE,c             ;   слайд амплитуды -15..15
@@ -847,7 +789,7 @@ VOut
 OsG     jr OsEnd                    ; 6: фаза "выкл" (ON) - тишина
         ld b,0
 OsEnd   ld a,b
-        ld (REGS+8+IDX),a
+Wv2     ld (REGS+8+IDX),a
         ret
 
 ; Смещение огибающей строки + накопленное (бит 7 громкости, C - сохранить) -> A
@@ -1040,8 +982,8 @@ RNo2    ld a,(Pr_OOfs)              ;   орнамент - так же
         ld a,(Pr_NewOrn)
         or a
         jp z,Post
-        ld a,(OG+1)                 ;   орнамента не было - с начала
-        or a
+        ld a,(OG)                   ;   орнамента не было - с начала
+        cp #FE
         jr nz,RNo3
         ld a,(OLastV)
         inc a
@@ -1328,7 +1270,7 @@ CF      ld a,c                      ; F: подкод
         cp CMDX_RETRIG
         ret nz
         ld a,1                      ;   ретриггер: R13 чипа - ещё раз
-        ld (Pl_R13W+CHIP),a
+        ld (REGS+PR_R13W),a
         ret
 CFDet   ld a,e                      ;   детюн: сдвиг периода, байт со знаком
         ld l,a
@@ -1362,7 +1304,7 @@ REnv    cp 15                       ; огибающая: 15 - выкл, 1..14 -
 REOn    ld (REGS+13),a
         GATE_ON EG
         ld a,1
-        ld (Pl_R13W+CHIP),a
+        ld (REGS+PR_R13W),a
         push hl                     ;   слайд огибающей чипа - с нуля
         ld hl,0
         ld (Es_Ofs+CHIP*2),hl
@@ -1529,11 +1471,11 @@ Pl_Channels
         call c4.Tk
         call c5.Tk
         ld a,(Pc_Mix)
-        ld (Pl_Regs+PR_SIZE+7),a
+        ld (Pl_Regs2+7),a
         ld a,(Song_EnvMode)
         or a
         ld de,Pl_EnvBase+2
-        ld hl,Pl_Regs+PR_SIZE+11
+        ld hl,Pl_Regs2+11
         ld bc,Es_Ofs+2
         call nz,Pl_EPer
 .end    RESTPAGE3
@@ -1579,94 +1521,59 @@ Pl_View
         jp c5.View
 
 ; =========================================================================
-; ВЫВОД В AY: чип 0, чип 1 (TurboSound: выбор - #FF / #FE в #FFFD). Стерео - источники
-; тона и громкости переставлены в коде (St_Apply), микшер - по таблице Mix_T
+; ВЫВОД В AY: чип 1, чип 2 (TurboSound: выбор - #FF / #FE в #FFFD). Буфер чипа - на границе
+; 256: OUT (C),L - номер регистра, OUTI - значение. Стерео - каналы сами пишут в переставленные
+; регистры: St_Apply правит в их коде адреса записи тона и громкости и биты микшера
 ; =========================================================================
+St_Mask         db #FF              ; 0 - стерео не трогать (компаратор: эталон играет ABC)
 Pl_Out
-        ld a,(Song_Stereo)          ; стерео сменили - переставить источники
+        ld a,(St_Mask)              ; стерео сменили - переставить каналы
+        ld hl,Song_Stereo
+        and (hl)
 St_Cur  cp 0
         call nz,St_Apply
-        call po0.Out
-        call po1.Out
-        ld a,#FF                    ; в конце выбран чип 1 (как после сброса)
+        ld de,#FFC0                 ; D - выбор регистра, E - запись (OUTI: B-1 = #BF)
         ld bc,#FFFD
+        ld a,#FF                    ; чип 1
+        out (c),a
+        ld hl,Pl_Regs
+        call Po_Chip
+        ld a,#FE                    ; чип 2
+        ld b,d
+        out (c),a
+        ld hl,Pl_Regs2
+        call Po_Chip
+        ld a,#FF                    ; в конце выбран чип 1 (как после сброса)
+        ld b,d
         out (c),a
         ret
 
-; Регистр m_r <- байт по метке m_l (её операнд правит St_Apply). C = #FD, D = #FF, E = #BF
-    MACRO PO_REG m_l, m_r
-        ld a,m_r
+; HL - буфер чипа (L = 0): R0..R12, R13 - по флагу (запись перезапускает огибающую).
+; C = #FD, D = #FF, E = #C0
+Po_Chip
+    DUP 13
         ld b,d
-        out (c),a
+        out (c),l
         ld b,e
-m_l     ld a,(REGS+m_r)
-        out (c),a
-    ENDM
-
-    MACRO PO_CHIP m_name, m_c, m_sel
-    MODULE m_name
-REGS    equ Pl_Regs+m_c*PR_SIZE
-Out     ld bc,#FFFD
-        ld a,m_sel
-        out (c),a
-        ld de,#FFBF
-        PO_REG S0,0
-        PO_REG S1,1
-        PO_REG S2,2
-        PO_REG S3,3
-        PO_REG S4,4
-        PO_REG S5,5
-        PO_REG S6,6
-        PO_REG S8,8
-        PO_REG S9,9
-        PO_REG S10,10
-        PO_REG S11,11
-        PO_REG S12,12
-        ld a,7                      ; микшер - по таблице режима стерео
-        ld b,d
-        out (c),a
-        ld b,e
-        ld a,(REGS+7)
-Mx      ld hl,Mix_T
-        add a,l
-        ld l,a
+        outi
+    EDUP
+        inc l                       ; флаг R13
         ld a,(hl)
-        out (c),a
-        ld a,(Pl_R13W+m_c)          ; R13 - только по флагу (запись перезапускает огибающую)
         or a
         ret z
-        xor a
-        ld (Pl_R13W+m_c),a
-        ld a,13
+        ld (hl),0
+        dec l
         ld b,d
-        out (c),a
+        out (c),l
         ld b,e
-        ld a,(REGS+13)
-        out (c),a
+        outi
         ret
-    ENDMODULE
-    ENDM
 
-        PO_CHIP po0,0,#FF
-        PO_CHIP po1,1,#FE
-
-;-------- Стерео A (режим 0..4): выход p получает тон и громкость канала Po_Maps[режим][p]
+;-------- Стерео A (0..4): выход q чипа получает канал Po_Maps[режим][q] - в коде этого
+; канала: запись тона - в R(2q), громкости - в R(8+q), биты микшера - q и 3+q
 St_Apply
         ld (St_Cur+1),a
-        ld l,a                      ; микшер: строка Mix_T + режим*64
-        ld h,0
-        add hl,hl
-        add hl,hl
-        add hl,hl
-        add hl,hl
-        add hl,hl
-        add hl,hl
-        ld de,Mix_T
-        add hl,de
-        ld (po0.Mx+1),hl
-        ld (po1.Mx+1),hl
-        ld a,(St_Cur+1)             ; каналы режима: Po_Maps + режим*3
-        ld b,a
+        ld b,a                      ; каналы режима: Po_Maps + режим*3
         add a,a
         add a,b
         ld hl,Po_Maps
@@ -1675,47 +1582,60 @@ St_Apply
         jr nc,$+3
         inc h
         ld (St_Map),hl
-        ld de,St_Tab
         ld c,0                      ; C - выход 0..5 (чип 2 - 3..5)
-.p      ld hl,(St_Map)              ; B - канал для него
-        ld a,c
+.p      ld a,c                      ; выход в чипе, B - первый канал чипа
+        ld b,0
         cp 3
-        jr c,$+4
+        jr c,$+6
         sub 3
+        ld b,3
+        ld (St_Q),a
+        ld hl,(St_Map)              ; канал: первый + Po_Maps[режим][выход]
         add a,l
         ld l,a
         jr nc,$+3
         inc h
-        ld b,(hl)
-        ld hl,Pl_Regs               ; регистры его чипа
-        ld a,c
-        cp 3
-        jr c,$+5
-        ld hl,Pl_Regs+PR_SIZE
-        push hl
-        ld a,b                      ; тон: 2 байта
+        ld a,(hl)
+        add a,b
+        ld l,a                      ; его адреса правки: St_Tab + канал*10
+        add a,a
         add a,a
         add a,l
-        ld l,a
-        jr nc,$+3
-        inc h
-        call .put
-        inc hl
-        call .put
-        pop hl                      ; громкость
-        ld a,b
-        add a,8
+        add a,a
+        ld hl,St_Tab
         add a,l
         ld l,a
         jr nc,$+3
         inc h
+        ex de,hl
+        ld hl,Pl_Regs               ; буфер чипа
+        ld a,b
+        or a
+        jr z,$+5
+        ld hl,Pl_Regs2
+        ld a,(St_Q)                 ; тон: R(2q)
+        add a,a
+        ld l,a
         call .put
+        ld a,(St_Q)                 ; громкость: R(8+q) - два места
+        add a,8
+        ld l,a
+        call .put
+        call .put
+        ld a,(St_Q)                 ; микшер: res q,(hl) / res 3+q,(hl) - второй байт #86+8*бит
+        add a,a
+        add a,a
+        add a,a
+        add a,#86
+        call .pb
+        add a,3*8
+        call .pb
         inc c
         ld a,c
         cp 6
         jr c,.p
         ret
-; HL -> операнд по адресу из (DE); DE += 2
+; HL -> по адресу из (DE); DE += 2
 .put    ld a,(de)
         ld (.a+1),a
         inc de
@@ -1724,9 +1644,29 @@ St_Apply
         inc de
 .a      ld (0),hl
         ret
+; A -> байт по адресу из (DE); DE += 2. A, HL целы
+.pb     push hl
+        ex de,hl
+        ld e,(hl)
+        inc hl
+        ld d,(hl)
+        inc hl
+        ex de,hl
+        ld (hl),a
+        pop hl
+        ret
 St_Map          dw 0
-St_Tab  dw po0.S0+1,po0.S1+1,po0.S8+1, po0.S2+1,po0.S3+1,po0.S9+1, po0.S4+1,po0.S5+1,po0.S10+1
-        dw po1.S0+1,po1.S1+1,po1.S8+1, po1.S2+1,po1.S3+1,po1.S9+1, po1.S4+1,po1.S5+1,po1.S10+1
+St_Q            db 0
+; Адреса правки каналов: операнды записи тона, громкости (2), второй байт res тона и шума
+    MACRO ST_CH m_w, m_v1, m_v2, m_t, m_n
+        dw m_w+1, m_v1+1, m_v2+1, m_t+1, m_n+1
+    ENDM
+St_Tab  ST_CH c0.Wt,c0.Wv1,c0.Wv2,c0.Mt,c0.Mn
+        ST_CH c1.Wt,c1.Wv1,c1.Wv2,c1.Mt,c1.Mn
+        ST_CH c2.Wt,c2.Wv1,c2.Wv2,c2.Mt,c2.Mn
+        ST_CH c3.Wt,c3.Wv1,c3.Wv2,c3.Mt,c3.Mn
+        ST_CH c4.Wt,c4.Wv1,c4.Wv2,c4.Mt,c4.Mn
+        ST_CH c5.Wt,c5.Wv1,c5.Wv2,c5.Mt,c5.Mn
 Po_Maps db 0,1,2, 0,2,1, 1,0,2, 1,2,0, 2,0,1  ; ABC ACB BAC BCA CAB - как в VT (Hd_Stereos)
 
 player1_end
@@ -1799,8 +1739,6 @@ Vb_T    db 0,0,1,2,2,3,3,4,4,4,3,3,2,2,1,0
         db 0,9,19,29,35,42,48,52,52,52,48,42,35,29,19,9
         db 0,10,21,31,38,45,52,56,56,56,52,45,38,31,21,10
         db 0,11,22,33,41,48,56,60,60,60,56,48,41,33,22,11
-        ALIGN 256
-Mix_T   ds 5*64                     ; стерео: микшер по режиму (Pl_MixTab)
 
 ; Периоды нот C-1..B-8, равномерный строй A-4 = 440 Гц: период = частота чипа / (16 * f).
 ; Две таблицы - по частоте чипа (Tune в шапке, SH_TUNING): 0 - 1.75 МГц, 1 - 1.7734 МГц.
