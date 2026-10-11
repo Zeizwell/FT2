@@ -418,6 +418,7 @@ Pr_OOfs         db 0                ; орнамент с позиции: стр
 Pr_NDly         db 0                ; задержка ноты, тиков (0 - нет)
 Pr_NewIns       db 0                ; в строке сменили сэмпл
 Pr_NewOrn       db 0                ;   орнамент
+Pr_Oo           db 0                ;   команда 6 (нота её иначе снимает, как PT3)
 
 ; B скорость: сразу (0 - не трогаем), тик этой роу Pl_Tick возьмёт уже с новой
 Pl_CSpd
@@ -908,6 +909,7 @@ Rw      ld a,(hl)                   ; пустая клетка - ничего
         ld (Pr_NDly),a
         ld (Pr_NewIns),a
         ld (Pr_NewOrn),a
+        ld (Pr_Oo),a
         push hl                     ; команды
         ld a,l
         add a,CH_CMD
@@ -948,6 +950,11 @@ RNoV    ld a,l
         jp nc,ROff
         call Slide                  ; портаменто - от текущей частоты, иначе слайд с нуля
         ld b,a
+        ld a,(Pr_Oo)                ; нота снимает 6, если её нет в строке (PT3: COnOff -
+        or a                        ;   в группе сброса ноты)
+        jr nz,RKeepOo
+        GATE_OFF OoG,OoEnd
+RKeepOo
         ld a,(Pr_SOfs)              ; инструмент и орнамент - со строки (4, 5) или 0
         call Pr_Ofs
         ld (RiR+1),a
@@ -1186,6 +1193,8 @@ C6      GATE_OFF OoG,OoEnd          ; 6 вкл / выкл: фаза как ес�
         ld (OoOn+1),a
         ld (OoC+1),a
         GATE_ON OoG
+        ld a,1                      ;   в строке есть - нота её не снимет
+        ld (Pr_Oo),a
         ret
 C7      GATE_OFF VsG,VsEnd          ; 7 слайд громкости: вверх X, вниз Y; 0 - стоп
         ld a,e
