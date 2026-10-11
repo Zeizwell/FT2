@@ -716,8 +716,8 @@ Txt_Sig         db "FT2CMP1",0
 ; =========================================================================
 Cm_SRef         ds PR_SIZE*2        ; регистры эталона (чип 1, чип 2)
 Cm_SOur         ds PR_SIZE*2        ;   наши
-Cm_SOurCh       ds 3*CS_SIZE        ; наши каналы чипа Cm_F_Chip (CS_*)
-    ASSERT CS_SIZE == 40
+Cm_SOurCh       ds 3*5              ; наши каналы чипа Cm_F_Chip (Pl_View: нота, строки
+                                    ;   сэмпла и орнамента, громкость, слайд)
 Cm_SRefCh       ds 3*5              ; каналы эталона: нота, строка сэмпла, строка орнамента,
                                     ;   громкость, слайд (младший)
 
@@ -735,15 +735,13 @@ Cm_Snap
         ldir
         ld a,(Cm_Chip)              ; каналы чипа, где разошлось
         or a
-        ld hl,Pl_Ch
         ld de,pts.VARS1+pts.VRS.ChanA
         jr z,.c
-        ld hl,Pl_Ch+3*CS_SIZE
         ld de,pts.VARS2+pts.VRS.ChanA
 .c      ld (Cs_Ref),de
-        ld de,Cm_SOurCh
-        ld bc,3*CS_SIZE
-        ldir
+        ld de,Cm_SOurCh             ; наши - из кода плеера (окно 1)
+        ld a,(Cm_Chip)
+        call Pl_View
         ld de,Cm_SRefCh             ; каналы эталона - по его типу
         ld a,(Cmp_Kind)
         cp CK_FTC
@@ -851,26 +849,23 @@ Cm_Snap_Show
         call PutCh
         ld a,' '
         call PutCh
-        ld a,b                      ; наш канал: IX = Cm_SOurCh + канал*CS_SIZE (40 = 5*8)
+        ld a,b                      ; наш канал: IX = Cm_SOurCh + канал*5
         add a,a
         add a,a
         add a,b
-        add a,a
-        add a,a
-        add a,a
         ld hl,Cm_SOurCh
         call Cm_HlA
         push hl
         pop ix
-        ld a,(ix+CS_NOTE)
+        ld a,(ix+0)
         call .h
-        ld a,(ix+CS_IROW)
+        ld a,(ix+1)
         call .h
-        ld a,(ix+CS_OROW)
+        ld a,(ix+2)
         call .h
-        ld a,(ix+CS_VOL)
+        ld a,(ix+3)
         call .h
-        ld a,(ix+CS_SLIDE)
+        ld a,(ix+4)
         call .h
         ld a,'|'
         call PutCh
