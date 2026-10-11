@@ -1,57 +1,19 @@
 ; =========================================================================
 ; ОСЦИЛЛЯТОРЫ (doc/todo.md п.25): 6 окон 56x32 внизу экрана поверх текста - слой тайлов T0.
-; Вторая страница плеера (окно 2). Тайлы генерируются раз (Osc_Init - вход в вид паттерна,
-; заново - только если сменились цвета темы): на каждый рисунок (полосы шириной 1..28 точек
-; по периоду тона; OSC_SOLID - сплошной: тон выкл) - 4 уровня заполнения снизу (2, 4, 6, 8
-; точек), по 7 тайлов в ряд, и тайл фона. Каждый кадр (Osc_Tick - IM1 сразу после тика
+; Вторая страница плеера (окно 2). Тайлы - готовые (srs/oscgen.asm, раз при старте), их два
+; цвета (полосы, фон) - из темы при входе в вид паттерна (Osc_Pal). Каждый кадр (Osc_Tick - IM1 сразу после тика
 ; плеера) - только номера тайлов в карту: окно = 4 ряда по 7. Высота - громкость*2 точек,
 ; огибающая - вся высота (32).
 ; Графика - в странице спрайтов (свободные ряды тайлов OSC_TROW..), карта - PAGE_TILEMAP.
 ; =========================================================================
-OSC_TROW        equ 40              ; первый ряд сгенерированных тайлов (битмап спрайтов, y 320)
-OSC_PATS        equ 29              ; рисунков: 0..27 - полосы шириной 1..28, 28 - сплошной
-OSC_SOLID       equ 28
-OSC_GROUPS      equ OSC_PATS*4      ; групп по 7 тайлов: рисунок*4 + уровень-1
-OSC_GPR         equ 9               ; групп в ряду тайлов (63 тайла из 64)
-OSC_BGROW       equ OSC_TROW+(OSC_GROUPS+OSC_GPR-1)/OSC_GPR    ; ряд тайла фона
-OSC_MAPROW      equ 32              ; ряд карты = строка экрана 256: окна - ряды 32..35
-OSC_XOFFS       equ 512-12          ; окна - 42 тайла (336 точек) по центру 360
-OSC_PAL         equ 1<<12           ; палитра тайла 1 (+ PALSEL тайлов 3) = палитра 13 текста
-    ASSERT OSC_BGROW*8+8 <= 448     ; ниже - строки 448..511 (запас)
 
-Osc_Col         dw #FFFF            ; цвета, с которыми сгенерированы тайлы: E - полосы, D - фон
-Osc_WB          db 0                ; байт полос (две точки)
-Osc_BB          db 0                ;   фона
-Osc_Row         ds 28               ; строка рисунка: 56 точек
-Osc_BgRow       ds 28               ;   фона
-Og_P            db 0                ; генерация: рисунок
-Og_L            db 0                ;   уровень 1..4
-Og_GA           dw 0                ;   адрес группы в Osc_GA
-Os_W            db 0                ; полосы: ширина
-Os_C            db 0                ;   счётчик точек
-Os_On           db 0                ;   0 - полоса, 1 - фон
 Ow_H            db 0                ; окно: высота 0..32
 Ow_P            db 0                ;   рисунок
 
-;-------- Вход в вид паттерна: тайлы (если сменились цвета), пустая карта, слой T0 - вкл
+;-------- Вход в вид паттерна: цвета тайлов - из темы, пустая карта, слой T0 - вкл
 Osc_Init
-        ld a,(THEME_ATTR+CLR_NOTE)  ; цвета темы: полосы - нота (ink), фон - фон темы (paper)
-        and #0F
-        ld e,a
-        ld a,(THEME_ATTR+CLR_BG)
-        rrca
-        rrca
-        rrca
-        rrca
-        and #0F
-        ld d,a
-        ld hl,(Osc_Col)
-        or a
-        sbc hl,de
-        jr z,.map                   ; те же - тайлы уже есть
-        ld (Osc_Col),de
-        call Osc_Gen
-.map    ld a,PAGE_TILEMAP           ; карта - пустая (тайл 0 прозрачный: текст виден)
+        call Osc_Pal
+        ld a,PAGE_TILEMAP           ; карта - пустая (тайл 0 прозрачный: текст виден)
         SETPAGE3 a
         ld hl,#C000
         ld de,#C001
@@ -76,7 +38,7 @@ Osc_Init
         out (c),a
         ld bc,T0YOFFSH
         out (c),a
-        ld bc,PALSEL                ; тайлам - палитра 3 (с палитрой тайла 1 - это 13)
+        ld bc,PALSEL                ; тайлам - палитра 3 (с палитрой в слове тайла - OSC_PALN)
         ld a,PALET_NUM|(3<<PAL_T0PAL_BS)|(3<<PAL_T1PAL_BS)
         out (c),a
         ld bc,TSCONFIG              ; спрайты + тайлы T0 (тайл 0 - прозрачный)
@@ -84,150 +46,55 @@ Osc_Init
         out (c),a
         ret
 
+;-------- Цвета тайлов (палитра OSC_PALN): полосы - цвет нот темы (ink CLR_NOTE), фон - фон
+; темы (paper CLR_BG). Слова цветов - из Pal_Data выбранной темы, в CRAM - DMA
+Osc_Pal
+        ld a,(THEME_ATTR+CLR_NOTE)
+        and #0F
+        call .col
+        ld (Op_Buf),de
+        ld a,(THEME_ATTR+CLR_BG)
+        rrca
+        rrca
+        rrca
+        rrca
+        and #0F
+        call .col
+        ld (Op_Buf+2),de
+        ld hl,Op_Dma
+        jp set_ports
+; A - номер цвета темы -> DE - его слово (Pal_Data + тема*32 + номер*2)
+.col    add a,a
+        ld e,a
+        ld a,(Cur_Palette)
+        add a,a
+        add a,a
+        add a,a
+        add a,a
+        add a,a
+        add a,e
+        ld l,a
+        ld h,0
+        ld de,Pal_Data
+        add hl,de
+        ld e,(hl)
+        inc hl
+        ld d,(hl)
+        ret
+
+OSC_CRAM        equ OSC_PALN*16+OSC_COL_W   ; цвета 1, 2 палитры тайлов
+    ASSERT OSC_COL_BG == OSC_COL_W+1
+Op_Dma  db high DMASADDRL,low (Op_Buf-#8000), high DMASADDRH,high (Op_Buf-#8000), high DMASADDRX,PAGE_PLAYER2
+        db high DMADADDRL,(OSC_CRAM&127)*2, high DMADADDRH,OSC_CRAM>>7, high DMADADDRX,0
+        db high DMALEN,2-1, high DMANUM,0, high DMACTR,DMA_RAM_CRAM, #FF
+        ALIGN 2                     ; DMA берёт адрес словами
+Op_Buf          ds 4                ; слова цветов: полосы, фон
+
 ;-------- Выход из вида паттерна: тайлы - выкл
 Osc_Off
         ld bc,TSCONFIG
         ld a,TSU_SEN
         out (c),a
-        ret
-
-;-------- Тайлы всех рисунков и уровней + тайл фона (цвета - Osc_Col)
-Osc_Gen
-        ld a,(Osc_Col)              ; байты по две точки
-        call .dup
-        ld (Osc_WB),a
-        ld a,(Osc_Col+1)
-        call .dup
-        ld (Osc_BB),a
-        ld hl,Osc_BgRow             ; строка фона
-        ld b,28
-.bgr    ld (hl),a
-        inc hl
-        djnz .bgr
-        ld hl,Osc_GA
-        ld (Og_GA),hl
-        xor a
-        ld (Og_P),a
-.p      ld a,(Og_P)                 ; рисунок -> Osc_Row
-        call Osc_Stripe
-        ld a,1
-        ld (Og_L),a
-.l      ld hl,(Og_GA)               ; группа: адрес и страница в битмапе
-        ld e,(hl)
-        inc hl
-        ld d,(hl)
-        inc hl
-        ld a,(hl)
-        inc hl
-        ld (Og_GA),hl
-        SETPAGE3 a
-        ld a,(Og_L)                 ; заполнено 2L строк снизу: с 8-2L
-        add a,a
-        neg
-        add a,8
-        ld c,a
-        ld b,0                      ; B - строка тайла 0..7
-.y      push bc
-        ld a,b
-        cp c
-        ld hl,Osc_BgRow
-        jr c,$+5
-        ld hl,Osc_Row
-        push de
-        ld bc,28                    ; 7 тайлов подряд - 28 байт строки битмапа
-        ldir
-        pop de
-        inc d                       ; следующая строка битмапа (+256)
-        pop bc
-        inc b
-        ld a,b
-        cp 8
-        jr c,.y
-        RESTPAGE3
-        ld hl,Og_L
-        inc (hl)
-        ld a,(hl)
-        cp 5
-        jr c,.l
-        ld hl,Og_P
-        inc (hl)
-        ld a,(hl)
-        cp OSC_PATS
-        jr c,.p
-        ld a,PAGE_SPRITE+OSC_BGROW*8/64     ; тайл фона
-        SETPAGE3 a
-        ld hl,#C000+(OSC_BGROW*8%64)*256
-        ld a,(Osc_BB)
-        ld b,8
-.bg     ld (hl),a
-        inc l
-        ld (hl),a
-        inc l
-        ld (hl),a
-        inc l
-        ld (hl),a
-        dec l
-        dec l
-        dec l
-        inc h
-        djnz .bg
-        RESTPAGE3
-        ret
-; A - цвет 0..15 -> A*#11 (две точки)
-.dup    ld b,a
-        rlca
-        rlca
-        rlca
-        rlca
-        or b
-        ret
-
-;-------- A - рисунок -> Osc_Row: 56 точек (старший полубайт - левая точка): полосы шириной
-; A+1 (сначала цвет полос, потом фон), OSC_SOLID - сплошной
-Osc_Stripe
-        ld hl,Osc_Row
-        cp OSC_SOLID
-        jr nz,.st
-        ld a,(Osc_WB)
-        ld b,28
-.s      ld (hl),a
-        inc hl
-        djnz .s
-        ret
-.st     inc a
-        ld (Os_W),a
-        ld (Os_C),a
-        xor a
-        ld (Os_On),a
-        ld b,28
-.b      call .px                    ; левая точка
-        rlca
-        rlca
-        rlca
-        rlca
-        ld c,a
-        call .px                    ; правая
-        or c
-        ld (hl),a
-        inc hl
-        djnz .b
-        ret
-; очередная точка -> A (цвет), счёт полосы
-.px     ld a,(Os_On)
-        or a
-        ld a,(Osc_Col)              ; полоса
-        jr z,$+5
-        ld a,(Osc_Col+1)            ; фон
-        push af
-        ld a,(Os_C)
-        dec a
-        jr nz,.k
-        ld a,(Os_On)                ; полоса кончилась - другая
-        xor 1
-        ld (Os_On),a
-        ld a,(Os_W)
-.k      ld (Os_C),a
-        pop af
         ret
 
 ;-------- Кадр (IM1 после тика плеера, страницы плеера - в окнах 1 и 2): окна по регистрам
@@ -361,18 +228,6 @@ Osc_Win
         ld e,a
         inc d
         ret
-
-; Группа тайлов -> адрес и страница её первой строки в битмапе спрайтов (окно 3)
-    MACRO OSC_GA_GEN
-Ok = 0
-    DUP OSC_GROUPS
-Oy = (OSC_TROW + Ok/OSC_GPR)*8
-        dw #C000 + (Oy%64)*256 + (Ok%OSC_GPR)*7*4
-        db PAGE_SPRITE + Oy/64
-Ok = Ok + 1
-    EDUP
-    ENDM
-Osc_GA  OSC_GA_GEN
 
 ; Группа тайлов -> слово карты её первого тайла (номер + палитра)
     MACRO OSC_GT_GEN
