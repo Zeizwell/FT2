@@ -899,6 +899,7 @@ Pc_Peek_End
 ;-------- Строка канала Pp_Ch: команды трека до конца строки -> клетка роу Pp_Row.
 ; CF - трек кончился (#00)
 Pr_NCmd         db 0                ; спецкоманд в строке
+Pr_Note         db 0                ; в строке нота (не R--)
 Pr_Cmds         ds 8                ; их коды (#01..#09)
 Pr_Out          ds 8*2              ; готовые команды (байт 0, байт 1)
 PR_CMDS_MAX     equ 8
@@ -906,6 +907,7 @@ PR_CMDS_MAX     equ 8
 Pr_Row
         xor a
         ld (Pr_NCmd),a
+        ld (Pr_Note),a
         ld hl,Pc_Ptr                ; HL - позиция в треке
         ld a,(Pp_Ch)
         add a,a
@@ -998,6 +1000,10 @@ Pr_Row
         call Pr_Smp
         jp .cmd
 .note   sub #50-NOTE_FIRST          ; #50..#AF: нота, конец строки
+        push af
+        ld a,1
+        ld (Pr_Note),a
+        pop af
         jr .putn
 .off    ld a,NOTE_OFF               ; #C0: звук выкл, конец строки
 .putn   ld c,CH_NOTE
@@ -1309,6 +1315,7 @@ Pr_Specials
         pop hl
         pop bc
         djnz .c
+        call Pr_OldPorta
         ld a,(Pr_NCmd)              ; в клетку - две первые
         cp CH_CMDS+1
         jr c,.put
@@ -1432,6 +1439,43 @@ Pr_Spec cp #01
         or e
         ld e,a
         ld d,CMD_ONOFF<<4
+        ret
+
+; PT до 3.6: портаменто с нотой - от чистой старой ноты (плеер Бульбы, OLDPRTM: остаток прошлого
+; слайда сбрасывается). Наш - от текущей частоты: в свободный слот - 6.00 (у нас она обнуляет
+; смещение слайда). Только для таких модулей - остальным ничего
+Pr_OldPorta
+        ld a,(Ph_Ver)
+        cp 6
+        ret nc
+        ld a,(Pr_Note)
+        or a
+        ret z
+        ld a,(Pr_NCmd)              ; слот свободен?
+        cp CH_CMDS
+        ret nc
+        ld b,a                      ; портаменто среди команд строки?
+        push hl
+        ld hl,Pr_Out
+.f      ld a,(hl)
+        and #F0
+        cp CMD_PORTA<<4
+        jr z,.yes
+        inc hl
+        inc hl
+        djnz .f
+        pop hl
+        ret
+.yes    ld a,(Pr_NCmd)              ; 6.00 - следующей
+        ld hl,Pr_Out
+        add a,a
+        call Hl_Add_A
+        ld (hl),CMD_ONOFF<<4
+        inc hl
+        ld (hl),0
+        ld hl,Pr_NCmd
+        inc (hl)
+        pop hl
         ret
 
 ; Команда с задержкой 0, которая у PT не движется: параметр - 0. A, флаги целы
