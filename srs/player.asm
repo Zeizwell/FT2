@@ -471,9 +471,9 @@ Is_R            db 0                ; InsSet / OrnSet: строка
 
 ; =========================================================================
 ; КАНАЛ - макрос, копия на канал: m_name - модуль (c0..c5), m_n - номер 0..5,
-; m_es - слайд огибающей его чипа (es0.Set / es1.Set)
+; m_es / m_esr - слайд огибающей его чипа: команда и сброс (es0.Set / es0.Rst)
 ; =========================================================================
-    MACRO PL_CHAN m_name, m_n, m_es
+    MACRO PL_CHAN m_name, m_n, m_es, m_esr
     MODULE m_name
 CHIP    equ m_n/3
 IDX     equ m_n-CHIP*3
@@ -1313,9 +1313,8 @@ REOn    ld (REGS+13),a
         GATE_ON EG
         ld a,1
         ld (REGS+PR_R13W),a
-        push hl                     ;   слайд огибающей чипа - с нуля
-        ld hl,0
-        ld (Es_Ofs+CHIP*2),hl
+        push hl                     ;   слайд огибающей чипа - стоп и с нуля (как PT3)
+        call m_esr
         pop hl
         ret
 ROrn    sub 2                       ; орнамент: 1 - нет, 2..17 - блоки 0..15 (по 256)
@@ -1430,12 +1429,12 @@ Rst     GATE_OFF EsG,EsEnd
     ENDMODULE
     ENDM
 
-        PL_CHAN c0,0,es0.Set
-        PL_CHAN c1,1,es0.Set
-        PL_CHAN c2,2,es0.Set
-        PL_CHAN c3,3,es1.Set
-        PL_CHAN c4,4,es1.Set
-        PL_CHAN c5,5,es1.Set
+        PL_CHAN c0,0,es0.Set,es0.Rst
+        PL_CHAN c1,1,es0.Set,es0.Rst
+        PL_CHAN c2,2,es0.Set,es0.Rst
+        PL_CHAN c3,3,es1.Set,es1.Rst
+        PL_CHAN c4,4,es1.Set,es1.Rst
+        PL_CHAN c5,5,es1.Set,es1.Rst
         PL_ES es0,0
         PL_ES es1,1
 
@@ -1455,7 +1454,6 @@ Pl_Channels
         ld (Pc_Mix),a
         xor a
         ld (Pc_ESum),a
-        call es0.Tk
         call c0.Tk
         call c1.Tk
         call c2.Tk
@@ -1467,6 +1465,7 @@ Pl_Channels
         ld hl,Pl_Regs+11
         ld bc,Es_Ofs
         call nz,Pl_EPer
+        call es0.Tk                 ; 9 / A: шаг слайда огибающей - после вывода (как PT3)
         ld a,(Pl_Chips)             ; только чипы трека
         dec a
         jr z,.end
@@ -1474,7 +1473,6 @@ Pl_Channels
         ld (Pc_Mix),a
         xor a
         ld (Pc_ESum),a
-        call es1.Tk
         call c3.Tk
         call c4.Tk
         call c5.Tk
@@ -1486,6 +1484,7 @@ Pl_Channels
         ld hl,Pl_Regs2+11
         ld bc,Es_Ofs+2
         call nz,Pl_EPer
+        call es1.Tk
 .end    RESTPAGE3
         ret
 
