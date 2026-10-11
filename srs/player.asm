@@ -8,7 +8,7 @@
 ;   страница трека (SV_PLAY_SONG): ордер, каталог паттернов, скорость, страница
 ;   инструментов; страница паттерна; страница инструментов и орнаментов.
 ; v0: ноты, инструменты и орнаменты (формат FTC), громкость, огибающая, шум,
-; 2 чипа. Команды паттерна - только скорость (CMD_SPEED). Таблица нот - 1.75 МГц.
+; 2 чипа. Команды паттерна (doc/commands.md): скорость, глисс, портаменто, позиции, детюн, ретриггер.
 ; =========================================================================
     org #4000
 player_start
@@ -32,7 +32,16 @@ CS_EACC         equ 12              ; накопление огибающей
 CS_SLIDE        equ 13              ; накопленный слайд громкости
 CS_ONACC        equ 14              ; орнамент: накопление ноты
 CS_ONZ          equ 15              ; орнамент: накопление шума
-CS_SIZE         equ 16
+; команды паттерна (doc/commands.md):
+CS_GOFS         equ 16              ; 2 смещение периода от глисса / портаменто, со знаком
+CS_GSTEP        equ 18              ; 2 их шаг, со знаком
+CS_GDLY         equ 20              ; задержка: раз в столько тиков шаг
+CS_GCNT         equ 21              ;   счётчик
+CS_GMODE        equ 22              ; 0 - нет, 1 - глисс, 2 - портаменто (до смещения 0)
+CS_DET          equ 23              ; детюн: смещение периода со знаком
+                                    ; 24..31 - резерв (команды 6, 7, 8, C, F2)
+CS_SIZE         equ 32
+    ASSERT CHANNELS*CS_SIZE < 256   ; Pl_Reset чистит одним циклом
 
 Pl_Ch           ds CHANNELS*CS_SIZE
 
@@ -404,24 +413,72 @@ Pl_Row_Chips
 
 ; HL - канал в роу паттерна, IX - его состояние
 Pr_Channel
-        push hl                     ; команды: пока только скорость (CMD_SPEED, sdk)
+        push hl                     ; команды (doc/commands.md): что зависит от ноты -
+        xor a                       ;   запомнить, сделать после неё (Pr_Post)
+        ld (Pr_GCmd),a
+        ld (Pr_SOfs),a
+        ld (Pr_OOfs),a
         ld a,l
         add a,CH_CMD
         ld l,a
         ld b,CH_CMDS
-.cmd    ld a,(hl)                   ; байт 0: код<<4 | задержка
-        and #F0
-        cp CMD_SPEED<<4
-        jr nz,.ncmd
-        inc l                       ; байт 1: тиков на роу (0 - не трогаем)
-        ld a,(hl)
-        dec l
-        or a
-        jr z,.ncmd
-        ld (SV_PLAY_SPEED),a        ; тик этой роу Pl_Tick возьмёт уже с новой
-.ncmd   inc l
+.cmd    ld c,(hl)                   ; C - байт 0: код<<4 | задержка (или подкод)
         inc l
-        djnz .cmd
+        ld e,(hl)                   ; E - параметр
+        inc l
+        ld a,c
+        and #F0
+        jr z,.ncmd
+        cp CMD_SPEED<<4
+        jr z,.spd
+        cp CMD_GLIS_DOWN<<4
+        jr z,.gl
+        cp CMD_GLIS_UP<<4
+        jr z,.gl
+        cp CMD_PORTA<<4
+        jr z,.gl
+        cp CMD_SMP_OFS<<4
+        jr z,.so
+        cp CMD_ORN_OFS<<4
+        jr z,.oo
+        cp CMD_EXT<<4
+        jr nz,.ncmd
+        ld a,c                      ; расширенная: подкод
+        and #0F
+        cp CMDX_DETUNE
+        jr z,.det
+        cp CMDX_RETRIG
+        jr nz,.ncmd
+        push hl                     ; ретриггер: R13 чипа - ещё раз
+        ld a,(Pr_Chip)
+        ld hl,Pl_R13W
+        add a,l
+        ld l,a
+        jr nc,$+3
+        inc h
+        ld (hl),1
+        pop hl
+        jr .ncmd
+.det    ld (ix+CS_DET),e            ; детюн - сразу
+        jr .ncmd
+.spd    ld a,e                      ; скорость (0 - не трогаем): тик этой роу Pl_Tick
+        or a                        ;   возьмёт уже с новой
+        jr z,.ncmd
+        ld (SV_PLAY_SPEED),a
+        jr .ncmd
+.gl     ld a,c                      ; глисс / портаменто - после ноты
+        ld (Pr_GCmd),a
+        ld a,e
+        ld (Pr_GPar),a
+        jr .ncmd
+.so     inc e                       ; сэмпл / орнамент с позиции - после ноты (+1: 0 - нет)
+        ld a,e
+        ld (Pr_SOfs),a
+        jr .ncmd
+.oo     inc e
+        ld a,e
+        ld (Pr_OOfs),a
+.ncmd   djnz .cmd
         pop hl
         push hl                     ; инструмент
         ld a,l
@@ -497,12 +554,17 @@ Pr_Channel
 .noenv  pop hl
         ld a,(hl)                   ; нота
         or a
-        ret z
+        jp z,Pr_Post
         cp NOTE_COUNT+1
         jr c,.note
-        ld (ix+CS_NOTE),0           ; команда ноты (R-- и т.п.) - канал молчит
+        ld (ix+CS_NOTE),0           ; команда ноты (R-- и т.п.) - канал молчит, слайды - всё
+        xor a
+        ld (ix+CS_GMODE),a
+        ld (ix+CS_GOFS),a
+        ld (ix+CS_GOFS+1),a
         ret
-.note   ld (ix+CS_NOTE),a           ; новая нота: инструмент и орнамент - с начала
+.note   call Pr_Slide               ; портаменто - от текущей частоты, иначе слайд - с нуля
+        ld (ix+CS_NOTE),a           ; новая нота: инструмент и орнамент - с начала
         xor a
         ld (ix+CS_IROW),a
         ld (ix+CS_OROW),a
@@ -515,8 +577,165 @@ Pr_Channel
         ld (ix+CS_ONZ),a
         ld a,(ix+CS_INS+1)          ; инструмента ещё не было - первый
         or a
-        ret nz
+        jr nz,Pr_Post
         ld (ix+CS_INS+1),#80
+        jr Pr_Post
+
+;-------- Нота A (1..96): в строке портаменто - смещение = текущая частота - частота новой
+; ноты (едем от того, что звучит, как VT); иначе слайды - с нуля. A сохраняет
+Pr_Slide
+        ld (Ps_New),a
+        ld a,(Pr_GCmd)
+        and #F0
+        cp CMD_PORTA<<4
+        jr nz,.zero
+        ld a,(ix+CS_NOTE)
+        or a
+        jr z,.zero                  ; до неё тишина - ехать не от чего
+        call Note_Per               ; HL - старая нота со смещением
+        ld e,(ix+CS_GOFS)
+        ld d,(ix+CS_GOFS+1)
+        add hl,de
+        push hl
+        ld a,(Ps_New)
+        call Note_Per               ; минус новая
+        ex de,hl
+        pop hl
+        or a
+        sbc hl,de
+        ld (ix+CS_GOFS),l
+        ld (ix+CS_GOFS+1),h
+        ld a,(Ps_New)
+        ret
+.zero   xor a
+        ld (ix+CS_GOFS),a
+        ld (ix+CS_GOFS+1),a
+        ld (ix+CS_GMODE),a
+        ld a,(Ps_New)
+        ret
+Ps_New          db 0
+
+;-------- После ноты: позиции сэмпла и орнамента, глисс и портаменто строки
+Pr_GCmd         db 0                ; глисс / портаменто строки: байт 0 команды (0 - нет)
+Pr_GPar         db 0                ;   параметр
+Pr_SOfs         db 0                ; сэмпл с позиции: строка+1 (0 - нет)
+Pr_OOfs         db 0                ; орнамент с позиции: строка+1 (0 - нет)
+Pr_Post
+        ld a,(Pr_SOfs)
+        or a
+        jr z,.so
+        dec a
+        ld (ix+CS_IROW),a
+.so     ld a,(Pr_OOfs)
+        or a
+        jr z,.oo
+        dec a
+        ld (ix+CS_OROW),a
+.oo     ld a,(Pr_GCmd)
+        or a
+        ret z
+        ld c,a
+        and #0F                     ; задержка
+        ld (ix+CS_GDLY),a
+        ld (ix+CS_GCNT),a
+        ld a,(Pr_GPar)
+        or a
+        jr nz,.go
+        ld (ix+CS_GMODE),a          ; параметр 0 - стоп (набежавшее смещение остаётся)
+        ret
+.go     ld e,a
+        ld d,0
+        ld a,c
+        and #F0
+        cp CMD_PORTA<<4
+        jr z,.port
+        cp CMD_GLIS_DOWN<<4         ; частота вниз - период растёт: шаг плюс
+        call nz,Neg_DE              ; вверх - минус
+        ld (ix+CS_GSTEP),e
+        ld (ix+CS_GSTEP+1),d
+        ld a,(ix+CS_GDLY)
+        or a
+        jr z,.once
+        ld (ix+CS_GMODE),1
+        ret
+.once   ld (ix+CS_GMODE),a          ; задержка 0 (VT 3.7): один сдвиг, без слайда
+        jp Gl_Add
+.port   ld a,(ix+CS_GDLY)           ; портаменто: задержка 0 - как 1
+        or a
+        jr nz,.pd
+        inc a
+        ld (ix+CS_GDLY),a
+        ld (ix+CS_GCNT),a
+.pd     ld a,(ix+CS_GOFS)           ; уже на ноте - нечего
+        or (ix+CS_GOFS+1)
+        jr z,.stop
+        bit 7,(ix+CS_GOFS+1)        ; шаг - к нулю: смещение плюс - шаг минус
+        call z,Neg_DE
+        ld (ix+CS_GSTEP),e
+        ld (ix+CS_GSTEP+1),d
+        ld (ix+CS_GMODE),2
+        ret
+.stop   ld (ix+CS_GMODE),0
+        ret
+
+;-------- Тик (звучащий канал): глисс / портаменто - раз в CS_GDLY тиков шаг; портаменто -
+; доехали или проскочили 0 - стоп на ноте. Портит A, DE, HL
+Gl_Tick
+        ld a,(ix+CS_GMODE)
+        or a
+        ret z
+        dec (ix+CS_GCNT)
+        ret nz
+        ld a,(ix+CS_GDLY)
+        ld (ix+CS_GCNT),a
+        call Gl_Add
+        ld a,(ix+CS_GMODE)
+        cp 2
+        ret nz
+        ld a,(ix+CS_GOFS)
+        or (ix+CS_GOFS+1)
+        jr z,.stop
+        ld a,(ix+CS_GOFS+1)
+        xor (ix+CS_GSTEP+1)
+        ret m                       ; знаки разные - ещё едем
+.stop   xor a
+        ld (ix+CS_GOFS),a
+        ld (ix+CS_GOFS+1),a
+        ld (ix+CS_GMODE),a
+        ret
+
+; Смещение += шаг
+Gl_Add  ld l,(ix+CS_GOFS)
+        ld h,(ix+CS_GOFS+1)
+        ld e,(ix+CS_GSTEP)
+        ld d,(ix+CS_GSTEP+1)
+        add hl,de
+        ld (ix+CS_GOFS),l
+        ld (ix+CS_GOFS+1),h
+        ret
+
+; DE = -DE
+Neg_DE  ld a,e
+        cpl
+        ld e,a
+        ld a,d
+        cpl
+        ld d,a
+        inc de
+        ret
+
+; A - нота 1..96 -> HL - её период (таблица трека). Портит A, DE
+Note_Per
+        dec a
+        add a,a
+        ld l,a
+        ld h,0
+        ld de,(Pl_NoteTab)
+        add hl,de
+        ld a,(hl)
+        inc hl
+        ld h,(hl)
+        ld l,a
         ret
 
 ; =========================================================================
@@ -583,7 +802,8 @@ Pc_Channel
         call Pc_Reg_Addr
         ld (hl),0
         ret
-.on     ; --- орнамент: сдвиг ноты и шум
+.on     call Gl_Tick                ; команды паттерна: глисс / портаменто - шаг
+        ; --- орнамент: сдвиг ноты и шум
         ld l,(ix+CS_ORN)
         ld h,(ix+CS_ORN+1)
         ld a,h
@@ -683,6 +903,15 @@ Pc_Channel
         inc hl
         ld h,(hl)
         ld l,a
+        add hl,de
+        ld e,(ix+CS_GOFS)           ; + глисс / портаменто
+        ld d,(ix+CS_GOFS+1)
+        add hl,de
+        ld a,(ix+CS_DET)            ; + детюн (байт со знаком)
+        ld e,a
+        rla
+        sbc a,a
+        ld d,a
         add hl,de
         ld a,h
         and #0F

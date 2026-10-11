@@ -717,7 +717,7 @@ Txt_Sig         db "FT2CMP1",0
 Cm_SRef         ds PR_SIZE*2        ; регистры эталона (чип 1, чип 2)
 Cm_SOur         ds PR_SIZE*2        ;   наши
 Cm_SOurCh       ds 3*CS_SIZE        ; наши каналы чипа Cm_F_Chip (CS_*)
-    ASSERT CS_SIZE == 16
+    ASSERT CS_SIZE == 32
 Cm_SRefCh       ds 3*5              ; каналы эталона: нота, строка сэмпла, строка орнамента,
                                     ;   громкость, слайд (младший)
 
@@ -851,7 +851,8 @@ Cm_Snap_Show
         call PutCh
         ld a,' '
         call PutCh
-        ld a,b                      ; наш канал: IX
+        ld a,b                      ; наш канал: IX = Cm_SOurCh + канал*CS_SIZE (32)
+        add a,a
         add a,a
         add a,a
         add a,a
