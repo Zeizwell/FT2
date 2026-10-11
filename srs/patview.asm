@@ -1721,13 +1721,20 @@ Init_Pat_Text
         jr c,.r
         ret
 
-;-------- Страница номеров роу: строка r, колонки ROWNUM_X..+1 = "rr". Одна на
+;-------- Страница номеров роу: строка r, колонки ROWNUM_X..+1 = "rr". Края (колонки
+; ROWNUM_X-1, ROWNUM_X+2) - рамка BOX_V, как у Draw_Seps: черепица несёт их на экран раньше
+; разделителей, и с мусором там луч успевал его показать. Одна на
 ; всех: номер роу на экран идёт черепицей отсюда, а не из страницы паттерна
+    ASSERT ROWNUM_X-1 == DRAW_X0 && ROWNUM_X+2 == CONT_X-1
 Init_RowNum
         SETPAGE2 PAGE_ROWNUM
         ld h,PAT_BASE_H
 .r      ld a,h
         sub PAT_BASE_H
+        ld l,ROWNUM_X-1             ; левый край
+        ld (hl),BOX_V
+        ld l,ROWNUM_X+2             ; правый край
+        ld (hl),BOX_V
         ld l,ROWNUM_X
         call Txt_Hex2
         inc h
