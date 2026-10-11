@@ -89,6 +89,14 @@ Osc_Pal
         and #0F
         call .col
         ld (Op_Buf),de
+        ld a,(THEME_ATTR+CLR_BG)    ; фон - бумага фона темы (маска огибающей)
+        rrca
+        rrca
+        rrca
+        rrca
+        and #0F
+        call .col
+        ld (Op_Buf+2),de
         ld hl,Op_Dma
         jp set_ports
 ; A - номер цвета темы -> DE - его слово (Pal_Data + тема*32 + номер*2)
@@ -110,12 +118,12 @@ Osc_Pal
         ld d,(hl)
         ret
 
-OSC_CRAM        equ OSC_PALN*16+OSC_COL_W   ; цвет полос в палитре тайлов
+OSC_CRAM        equ OSC_PALN*16+OSC_COL_W   ; цвета полос и фона (маска огибающей) в палитре тайлов
 Op_Dma  db high DMASADDRL,low (Op_Buf-#8000), high DMASADDRH,high (Op_Buf-#8000), high DMASADDRX,PAGE_PLAYER2
         db high DMADADDRL,(OSC_CRAM&127)*2, high DMADADDRH,OSC_CRAM>>7, high DMADADDRX,0
-        db high DMALEN,1-1, high DMANUM,0, high DMACTR,DMA_RAM_CRAM, #FF
+        db high DMALEN,2-1, high DMANUM,0, high DMACTR,DMA_RAM_CRAM, #FF
         ALIGN 2                     ; DMA берёт адрес словами
-Op_Buf          ds 2                ; слово цвета полос
+Op_Buf          ds 4                ; слова цветов полос и фона
 Osc_Zero        dw 0                ; заливка: прозрачно
 Osc_Line        dw OSC_COL_W*#1111  ;   линия нуля
 
@@ -178,6 +186,8 @@ Osc_Win
         set 1,c
         ld a,c
         ld (Ow_TN),a
+        xor a                       ; маски огибающей нет
+        ld (Ow_Pic),a
         push hl                     ; строка меандра: тон выкл - сплошная
         ld hl,Osc_Solid
         bit 0,c
@@ -218,12 +228,8 @@ Osc_Win
         pop hl
         cp OE_LOOP
         jr c,.one
-        ld a,(Ow_TN)                ; периодическая: тон вкл - меандр во всю высоту,
-        rrca                        ;   тон выкл - картинка формы
-        ld a,15
-        jr c,.v
-        ld a,e                      ; формы 8, 10, 12, 14 -> страница картинок
-        sub 8
+        ld a,e                      ; периодическая: меандр во всю высоту, сверху - маска формы
+        sub 8                       ;   (8, 10, 12, 14 -> страница масок)
         rrca
         and 3
         push hl
@@ -243,10 +249,11 @@ Osc_Win
         inc h
         ld a,(hl)
         jr .v
-; картинка формы (страница C) на всё окно: цикл - как у тона 16*E (индекс таблицы - E),
+; маска формы (страница C) на окно - запомнить, кладётся поверх меандра (.line); цикл - как у
+; тона 16*E (индекс таблицы - E),
 ; 2*полупериод -> ближайшая из OSC_SAWS длин
 .pic    ld a,c
-        ld (Od_SX),a
+        ld (Ow_Pic),a
         ld l,12                     ; E больше 255 - самая длинная
         ld a,(hl)
         or a
@@ -275,22 +282,16 @@ Osc_Win
         add a,a
         add a,a
         add a,a
-        ld (Od_SL),a
+        ld (Ow_MSL),a
         ld a,c                      ; строка: полоса*32
         add a,a
         add a,a
         add a,a
         add a,a
         add a,a
-        ld (Od_SH),a
-        call .col                   ; приёмник: окно, строки 0..30
-        ld a,(Ow_R0)
-        ld (Od_DH),a
-        ld a,30
-        ld (Od_NUM),a
-        ld a,DMA_RAM|DMA_SALGN|DMA_DALGN
-        call Od_Go
-        jp .line
+        ld (Ow_MSH),a
+        ld a,15
+        jp .v
 .vol    and #0F
 .v      add a,a                     ; строк 2v
         ld (Ow_N),a
@@ -378,8 +379,23 @@ Osc_Win
         ld (Od_NUM),a
         ld a,DMA_RAM|DMA_SALGN|DMA_DALGN
         call Od_Go
-        ; 3. линия нуля - строка 31
-.line   ld hl,Osc_Line-#8000
+        ; 3. маска огибающей поверх (блиттер: цвет фона над кривой, под ней 0 - меандр виден)
+.line   ld a,(Ow_Pic)
+        or a
+        jr z,.ln
+        ld (Od_SX),a
+        ld a,(Ow_MSL)
+        ld (Od_SL),a
+        ld a,(Ow_MSH)
+        ld (Od_SH),a
+        ld a,(Ow_R0)
+        ld (Od_DH),a
+        ld a,30
+        ld (Od_NUM),a
+        ld a,DMA_BLT|DMA_SALGN|DMA_DALGN
+        call Od_Go
+        ; 4. линия нуля - строка 31
+.ln     ld hl,Osc_Line-#8000
         ld a,PAGE_PLAYER2
         call Od_Src
         ld a,(Ow_R0)
@@ -419,7 +435,7 @@ OE_STEP         equ 2187            ; 1.75 МГц / 50 / 16: шаг огибаю
 OE_LOOP         equ 4               ; группа: периодическая
 ; Группа формы: 0 - вниз и 0, 1 - вверх и 0, 2 - вниз и 15, 3 - вверх и 15, 4 - периодическая
 Oe_G    db 0,0,0,0, 1,1,1,1, 4,0,4,2, 4,3,4,1
-Oe_Pg   db PAGE_OSCSAW,PAGE_OSCTRI1,PAGE_OSCSAW2,PAGE_OSCTRI2  ; картинки форм 8, 10, 12, 14
+Oe_Pg   db PAGE_OSCSAW,PAGE_OSCTRI1,PAGE_OSCSAW2,PAGE_OSCTRI2  ; маски форм 8, 10, 12, 14
 Oe_Acc  dw 0,0                      ; счёт по чипу
 Oe_Lv   db 0,0                      ; уровень по чипу
 Oe_Sh   db 0
@@ -527,6 +543,9 @@ Ow_Src          dw 0                ; строка рисунка (в стран
 Ow_N            db 0                ; строк меандра (2v)
 Ow_Row          db 0                ; его первая строка в кадре
 Ow_TN           db 0                ; бит 0 - тон вкл, бит 1 - шум вкл
+Ow_Pic          db 0                ; страница маски огибающей (0 - нет)
+Ow_MSL          db 0                ;   её место: байт
+Ow_MSH          db 0                ;   строка
 Ow_PP           dw 0                ; строка меандра (адрес)
 Ow_Ch           db 0                ; чип 0, 1
 Ow_Fr           db 0                ; кадр (строки шума)

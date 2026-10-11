@@ -22,6 +22,7 @@ OSC_XOFFS       equ 512-24          ; ряд: 3 окна по 96 через 8 (3
 OSC_PALN        equ 14              ; палитра тайлов: PALSEL тайлов 3, палитра в слове 2
 OSC_PAL         equ (OSC_PALN&3)<<12
 OSC_COL_W       equ 1               ; номер цвета полосы (0 - прозрачно)
+OSC_COL_BG      equ 2               ; номер цвета фона (маска огибающей: над кривой)
 OSC_NOISE       equ 8               ; строк шума (случайные точки; кадр - следующая)
     ASSERT OSC_PALN != PALET_NUM
 
@@ -82,7 +83,7 @@ Osc_Gen
         or c
         jr nz,.nz
         RESTPAGE3
-        jp Og_Saws                  ; и картинки пилы
+        jp Og_Saws                  ; и маски огибающей
 
 ; Случайная точка -> A: OSC_COL_W или 0 (LFSR 16 бит). Портит HL
 Og_Rnd          dw #ACE1
@@ -138,10 +139,11 @@ Og_Step push de
         pop de
         ret
 
-;-------- Пила огибающей: картинки на всё окно (96 x 31 строк, строка 31 - линия нуля - не
+;-------- Маски огибающей: картинки на всё окно (96 x 31 строк, строка 31 - линия нуля - не
 ; трогаем) для OSC_SAWS длин цикла (Og_SawL); вниз (форма 8) - PAGE_OSCSAW, вверх (12) -
 ; PAGE_OSCSAW2. Место картинки k: строка (k/OSC_SPB)*32, байт (k%OSC_SPB)*OSC_WB.
-; Уровень 0..15 -> высота столбца уровень*2+1 строк; точка 1 - под кривой, 0 - прозрачно
+; Уровень 0..15 -> высота столбца уровень*2+1 строк; под кривой 0 (меандр виден), над - цвет фона
+; (OSC_COL_BG): блиттер кладёт маску поверх меандра - псевдо-AND
 OSC_SAWS        equ 10
 OSC_SPB         equ 256/OSC_WB      ; картинок в полосе страницы
     ASSERT (OSC_SAWS+OSC_SPB-1)/OSC_SPB*32 <= 64
@@ -200,23 +202,23 @@ Og_Saws
         SETPAGE3 a
         xor a
         ld (Og_Y),a
-.y      push de                     ; строка y (0 - верх): точка - если y + высота >= 31
+.y      push de                     ; строка y (0 - верх): фон - если y + высота < 31
         ld hl,Og_H
         ld b,OSC_WB
 .x      push bc
         ld a,(Og_Y)                 ; левая
         add a,(hl)
         cp 31
-        ld c,OSC_COL_W<<4
-        jr nc,$+4
         ld c,0
+        jr nc,$+4
+        ld c,OSC_COL_BG<<4
         inc hl
         ld a,(Og_Y)                 ; правая
         add a,(hl)
         cp 31
-        ld a,OSC_COL_W
-        jr nc,$+3
-        xor a
+        ld a,0                      ; флаги не трогает
+        jr nc,$+4
+        ld a,OSC_COL_BG
         or c
         ld (de),a
         inc hl
