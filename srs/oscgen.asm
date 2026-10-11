@@ -21,6 +21,7 @@ OSC_XOFFS       equ 512-24          ; ряд: 3 окна по 96 через 8 (3
 OSC_PALN        equ 14              ; палитра тайлов: PALSEL тайлов 3, палитра в слове 2
 OSC_PAL         equ (OSC_PALN&3)<<12
 OSC_COL_W       equ 1               ; номер цвета полосы (0 - прозрачно)
+OSC_NOISE       equ 8               ; строк шума (случайные точки; кадр - следующая)
     ASSERT OSC_PALN != PALET_NUM
 
 Og_Row          ds OSC_WB           ; строка рисунка
@@ -48,8 +49,42 @@ Osc_Gen
         ld a,(hl)
         cp OSC_PATS
         jr c,.p
+        ld de,Osc_NRows-#8000+#C000 ; строки шума: случайные точки (LFSR)
+        ld bc,OSC_NOISE*OSC_WB
+.nz     push bc
+        call Og_Bit                 ; левая точка
+        rlca
+        rlca
+        rlca
+        rlca
+        ld c,a
+        call Og_Bit                 ; правая
+        or c
+        ld (de),a
+        inc de
+        pop bc
+        dec bc
+        ld a,b
+        or c
+        jr nz,.nz
         RESTPAGE3
         jp Og_Saws                  ; и картинки пилы
+
+; Случайная точка -> A: OSC_COL_W или 0 (LFSR 16 бит). Портит HL
+Og_Rnd          dw #ACE1
+Og_Bit  ld hl,(Og_Rnd)
+        srl h
+        rr l
+        jr nc,.z
+        ld a,h
+        xor #B4
+        ld h,a
+        ld (Og_Rnd),hl
+        ld a,OSC_COL_W
+        ret
+.z      ld (Og_Rnd),hl
+        xor a
+        ret
 
 ;-------- A - рисунок -> Og_Row: 96 точек (старший полубайт - левая), полоса / промежуток по
 ; полупериоду A+1, сначала полоса; OSC_SOLID - сплошная полоса
@@ -108,7 +143,8 @@ OSC_SPB         equ 256/OSC_WB      ; картинок в полосе стра�
 Og_SawL         db 4,6,8,12,16,24,32,48,64,96   ; длина цикла в точках
 Og_H            ds OSC_W            ; высота столбца (строк снизу)
 Og_K            db 0
-Og_S            db 0                ; 0 - вниз, 1 - вверх
+Og_S            db 0                ; форма: 0 - пила вниз, 1 - вверх, 2 - треугольник вниз-вверх, 3 - вверх-вниз
+Og_SPg          db PAGE_OSCSAW,PAGE_OSCSAW2,PAGE_OSCTRI1,PAGE_OSCTRI2  ; их страницы
 Og_L            db 0
 Og_Y            db 0
 
@@ -149,11 +185,13 @@ Og_Saws
         add a,a
         add a,#C0
         ld d,a
-        ld a,(Og_S)
-        or a
-        ld a,PAGE_OSCSAW
-        jr z,$+4
-        ld a,PAGE_OSCSAW2
+        ld a,(Og_S)                 ; страница формы
+        ld hl,Og_SPg
+        add a,l
+        ld l,a
+        jr nc,$+3
+        inc h
+        ld a,(hl)
         SETPAGE3 a
         xor a
         ld (Og_Y),a
@@ -196,23 +234,38 @@ Og_Saws
         ld hl,Og_S
         inc (hl)
         ld a,(hl)
-        cp 2
+        cp 4
         jp c,.s
         ret
 
-; Og_L, Og_S -> Og_H[x]: t = x mod L, f = 16*t/L; уровень - вниз 15-f, вверх f; высота уровень*2+1
+; Og_L, Og_S -> Og_H[x]: f = 16*t/L (t - место в склоне); пила: t = x mod L, уровень вниз 15-f,
+; вверх f; треугольник: t = x mod 2L, два склона (вниз-вверх или вверх-вниз). Высота уровень*2+1
 Og_Heights
         ld hl,Og_H
         ld c,0                      ; C - x
 .x      ld a,(Og_L)
         ld b,a
+        ld a,(Og_S)                 ; треугольник: период - 2 склона
+        cp 2
+        jr c,$+4
+        sla b
         ld a,c
 .m      cp b
         jr c,.mm
         sub b
         jr .m
-.mm     push hl
+.mm     ld e,0                      ; E - 1: второй склон (t-L)
+        ld b,a
+        ld a,(Og_L)
+        ld d,a
+        ld a,b
+        cp d
+        jr c,.sl
+        sub d
+        inc e
+.sl     push hl
         push bc
+        push de
         ld l,a                      ; 16*t / L
         ld h,0
         add hl,hl
@@ -228,14 +281,19 @@ Og_Heights
         jr c,.dd
         inc a
         jr .d
-.dd     pop bc
+.dd     pop de
+        pop bc
         pop hl
         cp 16
         jr c,$+4
         ld a,15
         ld b,a
-        ld a,(Og_S)
-        or a
+        ld a,(Og_S)                 ; направление: 0 - вниз (15-f), 1 - вверх (f); пила - по форме,
+        cp 2                        ;   треугольник: (форма-2) xor склон
+        jr c,.dir
+        and 1
+        xor e
+.dir    or a
         ld a,b
         jr nz,.up
         ld a,15

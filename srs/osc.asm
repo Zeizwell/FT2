@@ -128,16 +128,26 @@ Osc_Off
 
 ;-------- Кадр (IM1 после тика плеера, страницы плеера - в окнах 1 и 2): окна по регистрам
 Osc_Tick
+        ld hl,Ow_Fr                 ; кадр - для строк шума
+        inc (hl)
         ld a,OSC_FBPAGE             ; чип 1: кадр окон - строки 32..63 страницы
         ld (Od_DX),a
         ld a,OSC_FBROW
         ld (Ow_R0),a
+        xor a
+        ld (Ow_Ch),a
+        ld hl,Pl_Regs
+        call Oe_Upd
         ld hl,Pl_Regs
         call .chip
         ld a,OSC_FBPAGE+1           ; чип 2: строки 0..31 следующей
         ld (Od_DX),a
         xor a
         ld (Ow_R0),a
+        inc a
+        ld (Ow_Ch),a
+        ld hl,Pl_Regs2
+        call Oe_Upd
         ld hl,Pl_Regs2
 .chip   ld b,0                      ; B - канал 0..2
 .ch     push bc
@@ -151,34 +161,98 @@ Osc_Tick
         jr c,.ch
         ret
 
-; Окно канала B: HL - регистры чипа (L = 0); кадр окон чипа - Od_DX, Ow_R0
+; Окно канала B: HL - регистры чипа (L = 0); кадр окон чипа - Od_DX, Ow_R0; Ow_Ch - чип
 Osc_Win
-        ld l,7                      ; тон выкл (бит B микшера) - пила огибающей или сплошная
+        ld l,7                      ; микшер (0 - вкл): после B+1 сдвигов CF - тон, бит 2 - шум
         ld a,(hl)
         ld c,b
         inc c
 .r      rrca
         dec c
         jr nz,.r
-        jr nc,.tone
-        ld a,b                      ; огибающая (бит 4 громкости) с формой пила (8, 12) -
-        add a,8                     ;   картинка пилы на всё окно
+        ld c,0                      ; C: бит 0 - тон вкл, бит 1 - шум вкл
+        jr c,$+4
+        set 0,c
+        bit 2,a
+        jr nz,$+4
+        set 1,c
+        ld a,c
+        ld (Ow_TN),a
+        ld a,OSC_SOLID              ; рисунок меандра: тон выкл - сплошной, иначе по периоду
+        bit 0,c
+        jr z,.pat
+        ld a,b                      ; период R(2B): по старшим 8 битам из 12
+        add a,a
         ld l,a
-        bit 4,(hl)
-        jr z,.solid
+        ld a,(hl)
+        rrca
+        rrca
+        rrca
+        rrca
+        and #0F
+        ld c,a
+        inc l
+        ld a,(hl)
+        and #0F
+        rlca
+        rlca
+        rlca
+        rlca
+        or c
+        push hl
+        ld l,a
+        ld h,high Osc_PT
+        ld a,(hl)
+        pop hl
+.pat    ld (Ow_P),a
+        ld a,b                      ; громкость; с огибающей (бит 4) - по её форме
+        add a,8
+        ld l,a
+        ld a,(hl)
+        bit 4,a
+        jp z,.vol
         ld l,13
         ld a,(hl)
         and #0F
-        cp 8
-        ld c,PAGE_OSCSAW
-        jr z,.saw
-        cp 12
-        ld c,PAGE_OSCSAW2
-        jr z,.saw
-.solid  ld a,OSC_SOLID
-        jr .pat
-; пила: длина цикла - как у тона 16*E (индекс таблицы - E): 2*полупериод -> ближайшая картинка
-.saw    ld a,c
+        ld e,a
+        push hl
+        ld hl,Oe_G
+        add a,l
+        ld l,a
+        jr nc,$+3
+        inc h
+        ld a,(hl)                   ; группа формы
+        pop hl
+        cp OE_LOOP
+        jr c,.one
+        ld a,(Ow_TN)                ; периодическая: тон вкл - меандр во всю высоту,
+        rrca                        ;   тон выкл - картинка формы
+        ld a,15
+        jr c,.v
+        ld a,e                      ; формы 8, 10, 12, 14 -> страница картинок
+        sub 8
+        rrca
+        and 3
+        push hl
+        ld hl,Oe_Pg
+        add a,l
+        ld l,a
+        jr nc,$+3
+        inc h
+        ld c,(hl)
+        pop hl
+        jr .pic
+.one    ld a,(Ow_Ch)                ; одиночная - её уровень сейчас (Oe_Upd)
+        ld hl,Oe_Lv
+        add a,l
+        ld l,a
+        jr nc,$+3
+        inc h
+        ld a,(hl)
+        jr .v
+; картинка формы (страница C) на всё окно: цикл - как у тона 16*E (индекс таблицы - E),
+; 2*полупериод -> ближайшая из OSC_SAWS длин
+.pic    ld a,c
         ld (Od_SX),a
         ld l,12                     ; E больше 255 - самая длинная
         ld a,(hl)
@@ -224,56 +298,50 @@ Osc_Win
         ld a,DMA_RAM|DMA_SALGN|DMA_DALGN
         call Od_Go
         jp .line
-.tone
-        ld a,b                      ; период R(2B): рисунок по старшим 8 битам из 12
-        add a,a
-        ld l,a
-        ld a,(hl)
-        rrca
-        rrca
-        rrca
-        rrca
-        and #0F
-        ld c,a
-        inc l
-        ld a,(hl)
-        and #0F
-        rlca
-        rlca
-        rlca
-        rlca
-        or c
-        push hl
-        ld l,a
-        ld h,high Osc_PT
-        ld a,(hl)
-        pop hl
-.pat    push hl                     ; строка рисунка: Osc_MRows + p*48 -> источник DMA
-        ld l,a
-        ld h,0
-        add hl,hl                   ; *48 = *16*3
-        add hl,hl
-        add hl,hl
-        add hl,hl
-        ld e,l
-        ld d,h
-        add hl,hl
-        add hl,de
-        ld de,Osc_MRows-#8000
-        add hl,de
-        ld (Ow_Src),hl
-        pop hl
-        ld a,b                      ; громкость: огибающая - 15
-        add a,8
-        ld l,a
-        ld a,(hl)
-        bit 4,a
-        ld a,15
-        jr nz,.v
-        ld a,(hl)
-        and #0F
-.v      add a,a                     ; строк меандра 2v
+.vol    and #0F
+.v      add a,a                     ; строк 2v
         ld (Ow_N),a
+        ; строка-источник: тон - меандр, шум - строка шума, тон и шум - AND, ничего - сплошная
+        ld a,(Ow_P)                 ; меандр: Osc_MRows + p*48
+        call .r48
+        ld de,Osc_MRows
+        add hl,de
+        ld a,(Ow_TN)
+        bit 1,a                     ; шума нет - меандр (или сплошная)
+        jr z,.src
+        push hl
+        ld a,(Ow_Fr)                ; строка шума: (кадр + канал) mod OSC_NOISE
+        add a,b
+        and OSC_NOISE-1
+        call .r48
+        ld de,Osc_NRows
+        add hl,de
+        ex de,hl                    ; DE - шум
+        pop hl                      ; HL - меандр
+        ld a,(Ow_TN)
+        rrca
+        jr c,.and
+        ex de,hl                    ; только шум
+        jr .src
+.and    push bc                     ; тон и шум: точка - где оба (AND) -> Ow_Tmp
+        ld bc,Ow_Tmp
+        ld a,OSC_WB
+.an     push af
+        ld a,(de)
+        and (hl)
+        ld (bc),a
+        inc hl
+        inc de
+        inc bc
+        pop af
+        dec a
+        jr nz,.an
+        pop bc
+        ld hl,Ow_Tmp
+.src    ld a,h                      ; источник DMA - в странице (окно 2: -#8000)
+        sub #80
+        ld h,a
+        ld (Ow_Src),hl
         call .col
         ; 1. верх - нули: строки 0..30-2v (31-2v строк)
         ld hl,Osc_Zero-#8000
@@ -342,6 +410,117 @@ Osc_Win
         add a,c
         ld (Od_DL),a
         ret
+; A -> HL = A*48 (строка окна). Портит DE
+.r48    ld l,a
+        ld h,0
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        ld e,l
+        ld d,h
+        add hl,hl
+        add hl,de
+        ret
+
+;-------- Одиночная огибающая чипа Ow_Ch (HL - регистры, L = 0): шагов с записи R13 - счёт
+; кадров (OE_STEP за кадр) / E, до 16; уровень по форме -> Oe_Lv
+OE_STEP         equ 2187            ; 1.75 МГц / 50 / 16: шаг огибающей - 16*E тактов
+OE_LOOP         equ 4               ; группа: периодическая
+; Группа формы: 0 - вниз и 0, 1 - вверх и 0, 2 - вниз и 15, 3 - вверх и 15, 4 - периодическая
+Oe_G    db 0,0,0,0, 1,1,1,1, 4,0,4,2, 4,3,4,1
+Oe_Pg   db PAGE_OSCSAW,PAGE_OSCTRI1,PAGE_OSCSAW2,PAGE_OSCTRI2  ; картинки форм 8, 10, 12, 14
+Oe_Acc  dw 0,0                      ; счёт по чипу
+Oe_Lv   db 0,0                      ; уровень по чипу
+Oe_Sh   db 0
+Oe_Upd
+        ld l,13                     ; форма
+        ld a,(hl)
+        and #0F
+        ld (Oe_Sh),a
+        ld l,11                     ; DE - период E (0 - как 1)
+        ld e,(hl)
+        inc l
+        ld d,(hl)
+        ld a,d
+        or e
+        jr nz,$+3
+        inc e
+        ld l,PR_R13W                ; C - R13 записан в этом тике: счёт с нуля
+        ld c,(hl)
+        ld a,(Ow_Ch)
+        add a,a
+        ld hl,Oe_Acc
+        add a,l
+        ld l,a
+        jr nc,$+3
+        inc h
+        ld a,c
+        or a
+        jr z,.add
+        xor a
+        ld (hl),a
+        inc hl
+        ld (hl),a
+        dec hl
+        jr .cnt
+.add    ld a,(hl)                   ; + кадр (до #FFFF)
+        add a,low OE_STEP
+        ld (hl),a
+        inc hl
+        ld a,(hl)
+        adc a,high OE_STEP
+        ld (hl),a
+        dec hl
+        jr nc,.cnt
+        ld (hl),#FF
+        inc hl
+        ld (hl),#FF
+        dec hl
+.cnt    ld c,(hl)                   ; шагов = счёт / E, до 16
+        inc hl
+        ld b,(hl)
+        xor a
+.st     cp 16
+        jr nc,.got
+        ld h,b
+        ld l,c
+        or a
+        sbc hl,de
+        jr c,.got
+        ld b,h
+        ld c,l
+        inc a
+        jr .st
+.got    ld b,a
+        ld a,(Oe_Sh)
+        ld hl,Oe_G
+        add a,l
+        ld l,a
+        jr nc,$+3
+        inc h
+        ld c,(hl)                   ; C - группа
+        ld a,b
+        cp 16
+        jr nc,.end
+        bit 0,c                     ; идёт: вверх - шаги, вниз - 15-шаги
+        jr nz,.lv
+        ld a,15
+        sub b
+        jr .lv
+.end    bit 1,c                     ; кончилось: группы 2, 3 - 15, остальные - 0
+        ld a,0
+        jr z,.lv
+        ld a,15
+.lv     ld b,a
+        ld a,(Ow_Ch)
+        ld hl,Oe_Lv
+        add a,l
+        ld l,a
+        jr nc,$+3
+        inc h
+        ld (hl),b
+        ret
 ; A - DMACTR: пуск (set_ports_int ждёт прошлую DMA)
 Od_Go   ld (Od_CTR),a
         ld hl,Od_T
@@ -357,6 +536,10 @@ Od_Src  ld (Od_SX),a
 Ow_Src          dw 0                ; строка рисунка (в странице)
 Ow_N            db 0                ; строк меандра (2v)
 Ow_Row          db 0                ; его первая строка в кадре
+Ow_TN           db 0                ; бит 0 - тон вкл, бит 1 - шум вкл
+Ow_P            db 0                ; рисунок меандра
+Ow_Ch           db 0                ; чип 0, 1
+Ow_Fr           db 0                ; кадр (строки шума)
 ; DMA окна: приёмник - кадр окон (OSC_FBPAGE), строка 256 байт, длина - строка окна
 Od_T    db high DMASADDRL,0, high DMASADDRH,0, high DMASADDRX,0
         db high DMADADDRL,0, high DMADADDRH,0, high DMADADDRX,OSC_FBPAGE
@@ -380,6 +563,8 @@ Od_CTR  equ Od_T+17
 ; Строки меандра (srs/oscgen.asm, раз при старте): рисунок p - 48 байт
         ALIGN 2
 Osc_MRows       ds OSC_PATS*OSC_WB
+Osc_NRows       ds OSC_NOISE*OSC_WB ; строки шума (srs/oscgen.asm)
+Ow_Tmp          ds OSC_WB           ; тон AND шум - строка кадра
 
 ; Период тона / 16 -> рисунок: полупериод 48*(P/3344)^0.71 точек - от 1 (P 14, самая высокая)
 ; до 48 (полокна, самая низкая); октава - в 1.6 раза
