@@ -413,7 +413,7 @@ void SNDCHIP::trin_apply(int c, int k)
       if ((ch.reg[0] & TF_MIX) == TF_SID) {
          ch.lvl = v & 15;
          if (len == 2 && ch.reg[1]) {               // PWM: 2 steps share 2P by the duty
-            double lo = (ch.reg[1] & 15) / 16.0, hi = (ch.reg[1] >> 4) / 16.0, d = lo;
+            double lo = (ch.reg[1] & 15) / 16.0, hi = (ch.reg[1] >> 4) / 16.0, d = hi;   // no sweep - max
             if (ch.reg[2]) d = lo + (hi - lo) * (ch.sweep < 32768 ? ch.sweep : 65536 - ch.sweep) / 32768.0;
             unsigned h = trin_clamp(2.0 * p * d, 2 * p - 1);
             fx.dur = fx.step == 0 ? h : 2 * p - h;
