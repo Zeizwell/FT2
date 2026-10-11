@@ -1788,7 +1788,19 @@ Iv_Keys
 ; =========================================================================
 ;-------- Клавиша B (флаги C) полю строк. Выход: CF - наша
 Ed_Key
-        ld hl,Ed_Keys
+        ld a,(Iv_Mode)              ; FX: Backspace / Delete в числе - стереть цифру / всё
+        cp 2
+        jr nz,.k
+        ld a,b
+        cp KEY_BACK
+        jr z,.er
+        cp KEY_DEL
+        jr nz,.k
+.er     push bc
+        call Fx_Erase
+        pop bc
+        jr c,.ok
+.k      ld hl,Ed_Keys
         push bc
         call Keys_Table
         pop bc
@@ -2163,6 +2175,58 @@ Ty_Hex  ld a,(iy+2)
         scf
         ret
 
+;-------- FX: стереть в числовом поле курсора: B - Backspace (последнюю цифру) или Delete (всё).
+; Выход: CF - поле числовое, стёрли
+Fx_Erase
+        call Iv_Cur_Row
+        call Iv_Cur_Col
+        ld a,(iy+1)
+        cp KD_PCT
+        jr z,.pct
+        cp KD_UDEC
+        jr z,.dec
+        cp KD_SDEC
+        jr z,.dec
+        or a                        ; не число - не наша
+        ret
+.pct    xor a                       ; скважность - 0
+        jp Ty_Pct.put0
+.dec    call Fx_Fld
+        ld a,b
+        cp KEY_DEL
+        jr z,.zero
+        ld a,(iy+1)                 ; без знака (свип, таблица): / 10
+        cp KD_UDEC
+        jr nz,.sgn
+        ld a,(hl)
+        ld b,-1
+.u      inc b
+        sub 10
+        jr nc,.u
+        ld (hl),b
+        scf
+        ret
+.sgn
+        ld a,(hl)                   ; Backspace: модуль / 10, знак тот же
+        push hl
+        call Sign_Get
+        ld c,a
+        ld a,l
+        ld b,-1
+.d      inc b
+        sub 10
+        jr nc,.d
+        ld l,b
+        ld a,c
+        call Byte_Signed
+        pop hl
+        ld (hl),a
+        scf
+        ret
+.zero   ld (hl),0
+        scf
+        ret
+
 ;-------- FX: HL - байт колонки IY в строке IX
 Fx_Fld  ld a,(iy+2)
         push ix
@@ -2172,6 +2236,10 @@ Fx_Fld  ld a,(iy+2)
 ;-------- Скважность: hex-цифра B - полубайт (iy+3: #10 - max, #01 - min); +/- - шаг
 Ty_Pct  call Fx_Fld
         ld a,b
+        jr .put
+.put0   push af
+        call Fx_Fld
+        pop af
 .put    ld b,a                      ; B - полубайт 0..15
         ld a,(iy+3)
         cp #10
