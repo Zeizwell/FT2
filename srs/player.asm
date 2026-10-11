@@ -39,11 +39,28 @@ CS_GDLY         equ 20              ; задержка: раз в столько
 CS_GCNT         equ 21              ;   счётчик
 CS_GMODE        equ 22              ; 0 - нет, 1 - глисс, 2 - портаменто (до смещения 0)
 CS_DET          equ 23              ; детюн: смещение периода со знаком
-                                    ; 24..31 - резерв (команды 6, 7, 8, C, F2)
-CS_SIZE         equ 32
-    ASSERT CHANNELS*CS_SIZE < 256   ; Pl_Reset чистит одним циклом
+CS_OOP          equ 24              ; 6 вкл / выкл: параметр вкл<<4 | выкл (0 - нет)
+CS_OOC          equ 25              ;   счётчик фазы
+CS_OOS          equ 26              ;   фаза: 0 - звук, 1 - тишина
+CS_VSP          equ 27              ; 7 слайд громкости: вверх<<4 | вниз (0 - нет)
+CS_VSD          equ 28              ;   задержка
+CS_VSC          equ 29              ;   счётчик
+CS_VBP          equ 30              ; 8 вибрато: скорость<<4 | глубина (0 - нет)
+CS_VBF          equ 31              ;   фаза
+CS_ARP          equ 32              ; C арпеджио: +X<<4 | +Y полутонов (0 - нет)
+CS_ARD          equ 33              ;   тиков на шаг
+CS_ARC          equ 34              ;   счётчик
+CS_ARF          equ 35              ;   шаг 0..2 (нота, +X, +Y)
+CS_DLN          equ 36              ; F2 задержка ноты: нота (0 - нет)
+CS_DLC          equ 37              ;   тиков до неё
+CS_VBD          equ 38              ; 8 вибрато: тиков до начала
+                                    ; 39 - резерв
+CS_SIZE         equ 40
+ES_SIZE         equ 6               ; слайд огибающей чипа: смещение 2, шаг 2, задержка, счётчик
+    ASSERT CHANNELS*CS_SIZE+2*ES_SIZE < 256 ; Pl_Reset чистит одним циклом
 
 Pl_Ch           ds CHANNELS*CS_SIZE
+Es_St           ds 2*ES_SIZE        ; 9 / A: слайд огибающей, по чипу (сразу за каналами)
 
 ; Регистры, посчитанные в этом тике (выводятся в начале следующего), по чипу
 PR_SIZE         equ 14
@@ -190,7 +207,7 @@ Pl_Reset
         call Pl_Mute                ; оба чипа (второго может не быть в треке)
         xor a
         ld hl,Pl_Ch
-        ld b,CHANNELS*CS_SIZE
+        ld b,CHANNELS*CS_SIZE+2*ES_SIZE
 .z      ld (hl),a
         inc hl
         djnz .z
@@ -418,6 +435,7 @@ Pr_Channel
         ld (Pr_GCmd),a
         ld (Pr_SOfs),a
         ld (Pr_OOfs),a
+        ld (Pr_NDly),a
         ld a,l
         add a,CH_CMD
         ld l,a
@@ -428,7 +446,7 @@ Pr_Channel
         inc l
         ld a,c
         and #F0
-        jr z,.ncmd
+        jp z,.ncmd
         cp CMD_SPEED<<4
         jr z,.spd
         cp CMD_GLIS_DOWN<<4
@@ -441,12 +459,26 @@ Pr_Channel
         jr z,.so
         cp CMD_ORN_OFS<<4
         jr z,.oo
+        cp CMD_ONOFF<<4
+        jp z,.c6
+        cp CMD_VOL_SLIDE<<4
+        jp z,.c7
+        cp CMD_VIBRATO<<4
+        jp z,.c8
+        cp CMD_ENV_DOWN<<4
+        jp z,.c9
+        cp CMD_ENV_UP<<4
+        jp z,.c9
+        cp CMD_ARP<<4
+        jp z,.cc
         cp CMD_EXT<<4
         jr nz,.ncmd
         ld a,c                      ; расширенная: подкод
         and #0F
         cp CMDX_DETUNE
         jr z,.det
+        cp CMDX_DELAY
+        jp z,.cf2
         cp CMDX_RETRIG
         jr nz,.ncmd
         push hl                     ; ретриггер: R13 чипа - ещё раз
@@ -467,6 +499,7 @@ Pr_Channel
         ld (SV_PLAY_SPEED),a
         jr .ncmd
 .gl     ld a,c                      ; глисс / портаменто - после ноты
+        ld (ix+CS_OOP),0            ;   слайды снимают 6
         ld (Pr_GCmd),a
         ld a,e
         ld (Pr_GPar),a
@@ -478,8 +511,56 @@ Pr_Channel
 .oo     inc e
         ld a,e
         ld (Pr_OOfs),a
-.ncmd   djnz .cmd
+.ncmd   dec b
+        jp nz,.cmd
         pop hl
+        jp .ins
+.c6     ld (ix+CS_OOP),e            ; 6 вкл / выкл: сначала "вкл" тиков звука
+        ld a,e
+        rrca
+        rrca
+        rrca
+        rrca
+        and #0F
+        jr nz,$+3                   ; 0 - как 1
+        inc a
+        ld (ix+CS_OOC),a
+        ld (ix+CS_OOS),0
+        ld (ix+CS_GMODE),0          ;   6 снимает слайды
+        jp .ncmd
+.c7     ld (ix+CS_VSP),e            ; 7 слайд громкости: задержка (0 - как 1)
+        ld a,c
+        and #0F
+        jr nz,$+3
+        inc a
+        ld (ix+CS_VSD),a
+        ld (ix+CS_VSC),a
+        jp .ncmd
+.c8     ld a,e                      ; 8 вибрато: глубина 0 - стоп
+        and #0F
+        jr nz,$+3
+        ld e,a
+        ld (ix+CS_VBP),e
+        ld (ix+CS_VBF),0            ;   с фазы 0, после задержки
+        ld a,c
+        and #0F
+        ld (ix+CS_VBD),a
+        jp .ncmd
+.c9     call Es_Set                 ; 9 / A слайд огибающей чипа
+        jp .ncmd
+.cc     ld (ix+CS_ARP),e            ; C арпеджио: тиков на шаг (0 - как 1)
+        ld a,c
+        and #0F
+        jr nz,$+3
+        inc a
+        ld (ix+CS_ARD),a
+        ld (ix+CS_ARC),a
+        ld (ix+CS_ARF),0
+        jp .ncmd
+.cf2    ld a,e                      ; F2 задержка ноты - при ноте
+        ld (Pr_NDly),a
+        jp .ncmd
+.ins
         push hl                     ; инструмент
         ld a,l
         add a,CH_SAMPLE
@@ -551,20 +632,45 @@ Pr_Channel
         jr nc,$+3
         inc h
         ld (hl),1
+        ld a,(Pr_Chip)              ; новая форма - слайд огибающей с нуля
+        call Es_Ptr
+        xor a
+        ld (hl),a
+        inc hl
+        ld (hl),a
 .noenv  pop hl
         ld a,(hl)                   ; нота
         or a
         jp z,Pr_Post
         cp NOTE_COUNT+1
         jr c,.note
-        ld (ix+CS_NOTE),0           ; команда ноты (R-- и т.п.) - канал молчит, слайды - всё
+        ld (ix+CS_NOTE),0           ; команда ноты (R-- и т.п.) - канал молчит, команды - всё
         xor a
         ld (ix+CS_GMODE),a
         ld (ix+CS_GOFS),a
         ld (ix+CS_GOFS+1),a
+        ld (ix+CS_OOP),a
+        ld (ix+CS_OOS),a
+        ld (ix+CS_VSP),a
+        ld (ix+CS_VBP),a
+        ld (ix+CS_ARP),a
+        ld (ix+CS_DLN),a
         ret
 .note   call Pr_Slide               ; портаменто - от текущей частоты, иначе слайд - с нуля
-        ld (ix+CS_NOTE),a           ; новая нота: инструмент и орнамент - с начала
+        ld b,a
+        ld a,(Pr_NDly)              ; F2: нота - через столько тиков (Dl_Tick)
+        or a
+        jr z,.now
+        ld (ix+CS_DLC),a
+        ld (ix+CS_DLN),b
+        jp Pr_Post
+.now    ld a,b
+        call Note_Go
+        jp Pr_Post
+
+; Нота A стартует: инструмент и орнамент - с начала, накопления - с нуля
+Note_Go
+        ld (ix+CS_NOTE),a
         xor a
         ld (ix+CS_IROW),a
         ld (ix+CS_OROW),a
@@ -575,11 +681,15 @@ Pr_Channel
         ld (ix+CS_SLIDE),a
         ld (ix+CS_ONACC),a
         ld (ix+CS_ONZ),a
+        ld (ix+CS_ARF),a            ; арпеджио - с ноты
+        ld (ix+CS_DLN),a            ; отложенной больше нет
+        ld a,(ix+CS_ARD)
+        ld (ix+CS_ARC),a
         ld a,(ix+CS_INS+1)          ; инструмента ещё не было - первый
         or a
-        jr nz,Pr_Post
+        ret nz
         ld (ix+CS_INS+1),#80
-        jr Pr_Post
+        ret
 
 ;-------- Нота A (1..96): в строке портаменто - смещение = текущая частота - частота новой
 ; ноты (едем от того, что звучит, как VT); иначе слайды - с нуля. A сохраняет
@@ -620,6 +730,7 @@ Pr_GCmd         db 0                ; глисс / портаменто стро
 Pr_GPar         db 0                ;   параметр
 Pr_SOfs         db 0                ; сэмпл с позиции: строка+1 (0 - нет)
 Pr_OOfs         db 0                ; орнамент с позиции: строка+1 (0 - нет)
+Pr_NDly         db 0                ; задержка ноты строки, тиков (0 - нет)
 Pr_Post
         ld a,(Pr_SOfs)
         or a
@@ -738,6 +849,214 @@ Note_Per
         ld l,a
         ret
 
+;-------- Отложенная нота (F2): счётчик дошёл - стартует. Портит A
+Dl_Tick
+        ld a,(ix+CS_DLC)
+        or a
+        jr z,.go
+        dec (ix+CS_DLC)
+        ret
+.go     ld a,(ix+CS_DLN)
+        jp Note_Go
+
+;-------- Тик (звучащий канал): вкл / выкл (6), слайд громкости (7), вибрато (8) -> Fx_VOfs,
+; арпеджио (C) -> Fx_Arp. Портит A, B, DE, HL
+Fx_VOfs         dw 0                ; вибрато: смещение периода этого тика
+Fx_Arp          db 0                ; арпеджио: сдвиг ноты этого тика
+Fx_Tick
+        ld a,(ix+CS_OOP)            ; 6 вкл / выкл: фаза кончилась - другая
+        or a
+        jr nz,.oo
+        ld (ix+CS_OOS),a
+        jr .vs
+.oo     dec (ix+CS_OOC)
+        jr nz,.vs
+        ld b,a
+        ld a,(ix+CS_OOS)
+        xor 1
+        ld (ix+CS_OOS),a
+        ld a,b
+        jr nz,.off                  ; тишина - тиков "выкл", звук - "вкл"
+        rrca
+        rrca
+        rrca
+        rrca
+.off    and #0F                     ; 0 - как 1
+        jr nz,$+3
+        inc a
+        ld (ix+CS_OOC),a
+.vs     ld a,(ix+CS_VSP)            ; 7 слайд громкости: раз в задержку
+        or a
+        jr z,.vb
+        dec (ix+CS_VSC)
+        jr nz,.vb
+        ld b,a
+        ld a,(ix+CS_VSD)
+        ld (ix+CS_VSC),a
+        ld a,b                      ; громкость + вверх - вниз, в 0..15
+        rrca
+        rrca
+        rrca
+        rrca
+        and #0F
+        add a,(ix+CS_VOL)
+        ld e,a
+        ld a,b
+        and #0F
+        ld d,a
+        ld a,e
+        sub d
+        jp p,$+4
+        xor a
+        cp 16
+        jr c,$+4
+        ld a,15
+        ld (ix+CS_VOL),a
+.vb     ld hl,0                     ; 8 вибрато: смещение периода по синусу
+        ld a,(ix+CS_VBP)
+        or a
+        jr z,.vbo
+        ld a,(ix+CS_VBD)            ; ещё не началось
+        or a
+        jr z,.vgo
+        dec (ix+CS_VBD)
+        jr .vbo
+.vgo    ld a,(ix+CS_VBP)            ; фаза += скорость (период - 32)
+        rrca
+        rrca
+        rrca
+        rrca
+        and #0F
+        add a,(ix+CS_VBF)
+        ld (ix+CS_VBF),a
+        ld e,a
+        and 15                      ; |синус| полуволны
+        ld hl,Vb_Sin
+        add a,l
+        ld l,a
+        jr nc,$+3
+        inc h
+        ld d,(hl)
+        ld a,(ix+CS_VBP)            ; * глубина / 4 (глубина не 0 - так ставит команда)
+        and #0F
+        ld b,a
+        xor a
+.vm     add a,d
+        djnz .vm
+        srl a
+        srl a
+        ld l,a
+        ld h,0
+        bit 4,e                     ; вторая полуволна - минус
+        jr z,.vbo
+        ex de,hl
+        call Neg_DE
+        ex de,hl
+.vbo    ld (Fx_VOfs),hl
+        ld a,(ix+CS_ARP)            ; C арпеджио: шаг 0 - нота, 1 - +X, 2 - +Y
+        or a
+        jr z,.aro
+        ld b,a
+        ld a,(ix+CS_ARF)
+        or a
+        jr z,.ar0
+        dec a
+        ld a,b
+        jr nz,.ar2
+        rrca
+        rrca
+        rrca
+        rrca
+.ar2    and #0F
+        jr .ar1
+.ar0    xor a
+.ar1    ld (Fx_Arp),a
+        dec (ix+CS_ARC)             ; раз в задержку - следующий шаг
+        ret nz
+        ld a,(ix+CS_ARD)
+        ld (ix+CS_ARC),a
+        ld a,(ix+CS_ARF)
+        inc a
+        cp 3
+        jr c,$+3
+        xor a
+        ld (ix+CS_ARF),a
+        ret
+.aro    ld (Fx_Arp),a
+        ret
+
+; |синус| полуволны (16 шагов), до 16
+Vb_Sin  db 0,3,6,9,11,13,15,16,16,16,15,13,11,9,6,3
+
+;-------- 9 / A слайд огибающей чипа Pr_Chip: C - байт 0 (код, задержка), E - шаг.
+; Вниз - период растёт (как глисс). Задержка 0 - как 1, шаг 0 - стоп. HL, B целы
+Es_Set
+        push hl
+        push bc
+        ld a,(Pr_Chip)
+        call Es_Ptr
+        inc hl                      ; шаг
+        inc hl
+        ld d,0
+        ld a,c
+        and #F0
+        cp CMD_ENV_DOWN<<4
+        call nz,Neg_DE
+        ld (hl),e
+        inc hl
+        ld (hl),d
+        inc hl
+        ld a,c                      ; задержка и счётчик
+        and #0F
+        jr nz,$+3
+        inc a
+        ld (hl),a
+        inc hl
+        ld (hl),a
+        pop bc
+        pop hl
+        ret
+
+;-------- Тик чипа Pc_Chip: слайд огибающей - раз в задержку смещение += шаг. Портит A, DE, HL
+Es_Tick
+        ld a,(Pc_Chip)
+        call Es_Ptr
+        push hl
+        ld de,4                     ; задержка: 0 - слайда не было
+        add hl,de
+        ld a,(hl)
+        or a
+        jr z,.no
+        inc hl
+        dec (hl)
+        jr nz,.no
+        ld (hl),a
+        pop hl
+        push hl
+        inc hl
+        inc hl
+        ld e,(hl)
+        inc hl
+        ld d,(hl)
+        pop hl
+        ld a,(hl)
+        add a,e
+        ld (hl),a
+        inc hl
+        ld a,(hl)
+        adc a,d
+        ld (hl),a
+        ret
+.no     pop hl
+        ret
+
+; A - чип -> HL - его слайд огибающей (Es_St). Флаги - по A
+Es_Ptr  ld hl,Es_St
+        or a
+        ret z
+        ld hl,Es_St+ES_SIZE
+        ret
+
 ; =========================================================================
 ; КАНАЛЫ: строка инструмента и орнамента -> регистры (страница инструментов в окне 2)
 ; =========================================================================
@@ -755,7 +1074,8 @@ Pl_Channels
         ld ix,Pl_Ch
         xor a
         ld (Pc_Chip),a
-.chip   ld hl,Pl_Regs               ; регистры чипа
+.chip   call Es_Tick                ; 9 / A: слайд огибающей чипа - шаг
+        ld hl,Pl_Regs               ; регистры чипа
         ld a,(Pc_Chip)
         or a
         jr z,$+5
@@ -794,6 +1114,9 @@ Pl_Channels
 
 ; IX - канал, Pc_Idx - его номер в чипе
 Pc_Channel
+        ld a,(ix+CS_DLN)            ; F2: отложенная нота - не пора ли
+        or a
+        call nz,Dl_Tick
         ld a,(ix+CS_NOTE)
         or a
         jr nz,.on
@@ -803,6 +1126,7 @@ Pc_Channel
         ld (hl),0
         ret
 .on     call Gl_Tick                ; команды паттерна: глисс / портаменто - шаг
+        call Fx_Tick                ;   остальные
         ; --- орнамент: сдвиг ноты и шум
         ld l,(ix+CS_ORN)
         ld h,(ix+CS_ORN+1)
@@ -837,7 +1161,9 @@ Pc_Channel
         jr z,.ont
         ld (ix+CS_ONACC),a
 .ont    add a,(ix+CS_NOTE)
-.note   dec a                       ; нота 1..96 -> 0..95, за краями - край
+.note   ld hl,Fx_Arp                ; + арпеджио
+        add a,(hl)
+        dec a                       ; нота 1..96 -> 0..95, за краями - край
         jp p,.nlo
         xor a
 .nlo    cp NOTE_COUNT
@@ -912,6 +1238,8 @@ Pc_Channel
         rla
         sbc a,a
         ld d,a
+        add hl,de
+        ld de,(Fx_VOfs)             ; + вибрато
         add hl,de
         ld a,h
         and #0F
@@ -1022,7 +1350,11 @@ Pc_Channel
         ld a,(Song_EnvMode)         ; FT: период - этот канал (PT - после чипа)
         or a
         call z,Pc_Env
-.vout   ld a,(Pc_Idx)
+.vout   ld a,(ix+CS_OOS)            ; 6: фаза "выкл" - тишина
+        or a
+        jr z,$+4
+        ld b,0
+        ld a,(Pc_Idx)
         add a,8
         call Pc_Reg_Addr
         ld (hl),b
@@ -1081,6 +1413,14 @@ Pc_EPer
         ld l,a
         or a
         sbc hl,de
+        push hl                     ; + слайд огибающей чипа (9 / A)
+        ld a,(Pc_Chip)
+        call Es_Ptr
+        ld e,(hl)
+        inc hl
+        ld d,(hl)
+        pop hl
+        add hl,de
         push hl
         ld a,11
         call Pc_Reg_Addr

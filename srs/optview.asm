@@ -275,12 +275,12 @@ Cmd_Tab
         db HL_CMD,CMD_ENV_DOWN,"DPp  envelope slide down",0
         db HL_CMD,CMD_ENV_UP,"DPp  envelope slide up",0
         db HL_CMD,CMD_SPEED,".Pp  speed: ticks per row",0
-        db HL_CMD,CMD_ARP,"NXY  arpeggio: N steps, +X, +Y",0
+        db HL_CMD,CMD_ARP,"DXY  arpeggio: D ticks, +X, +Y",0
         db HL_CMDX,CMDX_RETRIG,"..  envelope + tone retrigger",0
         db HL_CMDX,CMDX_DETUNE,"Pp  detune (signed)",0
         db HL_CMDX,CMDX_DELAY,"Pp  note delay: ticks",0
         db HL_TEXT," ",0
-        db HL_TEXT,"Player plays now: speed only",0
+        db HL_TEXT,"Param 0 stops. R-- stops all",0
         db HL_COL
         db HL_TEXT,"Channel cell:  C-4 A1FE 1234 5678",0
         db HL_TEXT,"  C-4   note (R-- off)",0
