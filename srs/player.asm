@@ -910,6 +910,15 @@ Rw      ld a,(hl)                   ; пустая клетка - ничего
         ld (Pr_NewIns),a
         ld (Pr_NewOrn),a
         ld (Pr_Oo),a
+        push hl                     ; новая форма огибающей - слайд огибающей чипа стоп и с нуля:
+        inc l                       ;   до команд (9 / A этой же строки - после, как PT3)
+        inc l
+        ld a,(hl)
+        or a
+        jr z,RNoEs
+        cp 15
+        call nz,m_esr
+RNoEs   pop hl
         push hl                     ; команды
         ld a,l
         add a,CH_CMD
@@ -1313,9 +1322,6 @@ REOn    ld (REGS+13),a
         GATE_ON EG
         ld a,1
         ld (REGS+PR_R13W),a
-        push hl                     ;   слайд огибающей чипа - стоп и с нуля (как PT3)
-        call m_esr
-        pop hl
         ret
 ROrn    sub 2                       ; орнамент: 1 - нет, 2..17 - блоки 0..15 (по 256)
         jr c,RONo
