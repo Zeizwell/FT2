@@ -2227,6 +2227,9 @@ Pat_Field
 ; После ввода - строка звучит, курсор вниз на шаг (Step, если включён)
 Pt_Key          db 0                ; клавиша ввода (строка звучит, пока её держат)
 Pat_Type
+        ld a,c                      ; с Ctrl / Alt - не ввод: общим горячим клавишам (Ctrl+T и т.п.)
+        and KM_CTRL|KM_ALT
+        ret nz                      ;   CF = 0 - не наша
         ld a,b
         ld (Pt_Key),a
         ld a,(Env_Open)
