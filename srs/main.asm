@@ -57,13 +57,11 @@ Start:
 ;-----------------------------------------------
 
     
-    call    Osc_Gen         ; тайлы осцилляторов - раз (генератор остаётся здесь)
     jp      Core_Start
   
     
 
     include     "video.asm"
-    include     "srs/oscgen.asm"   ; генератор тайлов осцилляторов (только при старте)
     SAVEBIN     "srs/ft2.bin",Start,$-Start
     
     org #0000

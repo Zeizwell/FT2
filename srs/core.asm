@@ -66,9 +66,6 @@ IM1_Handler
     SETPAGE1 a
     SETPAGE2 PAGE_PLAYER2
     call PLAYER_TICK
-    ld a,(Osc_On)               ; осцилляторы - по только что посчитанным регистрам
-    or a
-    call nz,Osc_Tick
     RESTPAGE2
     RESTPAGE1
     ld a,(Pl_Band)              ;   дальше - фон темы
@@ -335,25 +332,3 @@ Pb_Off  db high DMASADDRL,low Pb_Bg, high DMASADDRH,high Pb_Bg, high DMASADDRX,P
         ALIGN 2                     ; цвет: младший gggBBbbb, старший 0RRrrrGG
 Pb_Cyan         db %00011000, %00000011
 Pb_Bg           dw 0
-
-; =========================================================================
-; ОСЦИЛЛЯТОРЫ (srs/osc.asm, вторая страница плеера): вид паттерна включает при входе,
-; выключает при выходе; кадр - IM1 после тика плеера
-; =========================================================================
-Osc_On          db 0
-Osc_Enable
-        ld a,PAGE_PLAYER2
-        SETPAGE2 a
-        call Osc_Init
-        RESTPAGE2
-        ld a,1
-        ld (Osc_On),a
-        ret
-Osc_Disable
-        xor a
-        ld (Osc_On),a
-        ld a,PAGE_PLAYER2
-        SETPAGE2 a
-        call Osc_Off
-        RESTPAGE2
-        ret
