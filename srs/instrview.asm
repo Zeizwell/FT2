@@ -87,7 +87,16 @@ KD_VOL          equ 6               ; громкость
 KD_SLIDE        equ 7               ; слайд громкости: нет -> вверх -> вниз
 KD_NSIGN        equ 8               ; орнамент: знак ноты
 KD_NOTE         equ 9               ; орнамент: десятичная цифра ноты: вес 10 / 1
+KD_HEX          equ 10              ; FX: hex-цифра байта строки: вес #10 / #01
+KD_MIX          equ 11              ; FX: Mix - выкл -> SID -> Sync
 CL_SIZE         equ 4               ; колонка: экран, вид, байт, параметр
+
+; --- FX (режим 2): номер FX инструмента - на верхней рамке редактора (режим Instr)
+FXN_L           equ 52              ; "FX" [-]nn[+]
+FXN_M           equ 55
+FXN_V           equ 58
+FXN_P           equ 61
+    ASSERT FXN_P+2 < ED_X+ED_W-1
 
 ; клавиши (KEY_*) и действия (ACT_*) - в sdk/plugin.asm
 PG_STEP         equ 8               ; PgUp / PgDn - строк
@@ -149,20 +158,21 @@ Iv_Leave
         ret
 
 ; --- состояние
-Iv_Page         db 0                ; страница инструментов и орнаментов трека
-Iv_Mode         db 0                ; 0 - инструменты, 1 - орнаменты
+Iv_Page         db 0                ; страница инструментов и орнаментов трека (FX - следующая)
+Iv_Mode         db 0                ; 0 - инструменты, 1 - орнаменты, 2 - FX
 Iv_Exit         db 0                ; 1 - выйти в коре
 Iv_Dirty        db 0                ; 1 - перерисовать экран
 Iv_Num          db 0                ; текущий номер (0.. = номер 1..) в этом режиме
-Iv_Nums         db 0,0              ; запомненный номер каждого режима
+Iv_Nums         db 0,0,0            ; запомненный номер каждого режима
 Iv_LTop         db 0                ; первая строка списка
 Ed_Row          db 0                ; курсор: строка
 Ed_Col          db 0                ;   колонка (номер в таблице колонок)
 Ed_Top          db 0                ; первая видимая строка
-Iv_Clip_Mode    db 0                ; буфер Copy: 0 - пуст, 1 - инструмент, 2 - орнамент
-Iv_Clip         ds INS_BLOCK
+Iv_Clip_Mode    db 0                ; буфер Copy: 0 - пуст, иначе режим+1
+Iv_Clip         ds FX_BLOCK         ; самый большой блок
+    ASSERT FX_BLOCK >= INS_BLOCK && FX_BLOCK >= ORN_BLOCK
 
-;-------- Режим A (0 - Instr, 1 - Orn): номер этого режима, шапка, экран заново
+;-------- Режим A (0 - Instr, 1 - Orn, 2 - FX): номер этого режима, страница в окне 2, экран заново
 Iv_Set_Mode
         ld b,a
         ld a,(Iv_Mode)              ; номер старого режима - запомнить
@@ -176,6 +186,14 @@ Iv_Set_Mode
         call Hl_Add_A
         ld a,(hl)
         ld (Iv_Num),a
+        ld a,(Iv_Page)              ; окно 2: FX - страница за инструментами
+        ld b,a
+        ld a,(Iv_Mode)
+        cp 2
+        ld a,b
+        jr nz,$+3
+        inc a
+        SWAPPAGE2 a
         xor a
         ld (Iv_LTop),a
         ld (Ed_Col),a
@@ -197,19 +215,25 @@ Hl_Add_A
         ld h,a
         ret
 
-;-------- A - сколько номеров в режиме (32 / 16)
+;-------- A - сколько номеров в режиме (32 / 16 / 32)
 Iv_Count
         ld a,(Iv_Mode)
         or a
         ld a,SAMPLES_MAX
         ret z
+        ld a,(Iv_Mode)
+        dec a
         ld a,ORNAMENTS_MAX
+        ret z
+        ld a,FXS_MAX
         ret
 
 ;-------- A - номер (0..) -> HL - его блок. Портит A, DE
 Iv_Addr
         ld l,a
         ld a,(Iv_Mode)
+        cp 2
+        jr z,.fx
         or a
         jr nz,.orn
         ld h,0                      ; инструмент: #8000 + n*384 (n*128*3)
@@ -231,14 +255,32 @@ Iv_Addr
         ld h,a
         ld l,0
         ret
+.fx     ld h,0                      ; FX: #8000 + n*448 = n*512 - n*64
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        ld d,h                      ; DE - n*64
+        ld e,l
+        add hl,hl
+        add hl,hl
+        add hl,hl                   ; n*512
+        or a
+        sbc hl,de
+        set 7,h
+        ret
+    ASSERT FX_BLOCK == 512-64
 
 ;-------- HL - блок текущего. Портит A, DE
 Iv_Block
         ld a,(Iv_Num)
         jr Iv_Addr
 
-;-------- A - строка -> HL - она в текущем блоке. Портит A, DE
+;-------- A - строка -> HL - она в текущем блоке (строка - Row_Size байт). Портит A, DE
 Iv_Row_Addr
+        push bc
         push af
         call Iv_Block
         pop af
@@ -247,24 +289,29 @@ Iv_Row_Addr
         inc hl                      ; OH_ROWS
         inc hl
         inc hl
-        add hl,de                   ; *2
-        add hl,de
+        call Row_Size
+.m      add hl,de                   ; строка * размер
+        dec c
+        jr nz,.m
+        pop bc
+        ret
+
+;-------- DE - смещение имени в блоке режима. Портит A
+Name_Ofs
+        ld de,INS_NAME
         ld a,(Iv_Mode)
         or a
-        ret nz                      ; орнамент - 2 байта
-        add hl,de                   ; инструмент - 5
-        add hl,de
-        add hl,de
+        ret z
+        ld de,ORN_NAME
+        dec a
+        ret z
+        ld de,FX_NAME
         ret
 
 ;-------- HL - имя текущего (16 знаков). Портит A, DE
 Iv_Name_Addr
         call Iv_Block
-        ld de,INS_NAME
-        ld a,(Iv_Mode)
-        or a
-        jr z,$+5
-        ld de,ORN_NAME
+        call Name_Ofs
         add hl,de
         ret
 
@@ -291,8 +338,12 @@ Iv_Cols
         ld hl,Ins_Cols
         ld b,INS_COLS
         ret z
+        dec a
         ld hl,Orn_Cols
         ld b,ORN_COLS
+        ret z
+        ld hl,Fx_Cols
+        ld b,FX_COLS
         ret
 
 ;-------- IY - колонка курсора в таблице
@@ -336,6 +387,38 @@ Orn_Cols
         db 32, KD_NOISE, 0, #01
         db 33, KD_BIT,   OR_NOISE, #80              ;   накопление
 ORN_COLS        equ ($-Orn_Cols)/CL_SIZE
+; FX: Mix F E L | PW Sw | Mix: полутоны, сырой, таблица | FM: то же, s/p | Env FM: то же, s/p
+Fx_Cols
+        db 26, KD_MIX,   0, 0                       ; Mix: . / S (SID) / B (Sync)
+        db 27, KD_BIT,   FR_FLAGS, 1<<FXB_FM        ; F - FM
+        db 28, KD_BIT,   FR_FLAGS, 1<<FXB_EFM       ; E - Env FM
+        db 29, KD_BIT,   FR_FLAGS, 1<<FXB_FOLLOW    ; L - таймеры за тоном
+        db 31, KD_HEX,   FR_PWM, #10                ; ШИМ: max
+        db 32, KD_HEX,   FR_PWM, #01                ;      min
+        db 34, KD_HEX,   FR_SWEEP, #10              ; свип
+        db 35, KD_HEX,   FR_SWEEP, #01
+        db 37, KD_HEX,   FR_MIX+FE_SEMI, #10        ; Mix: полутоны
+        db 38, KD_HEX,   FR_MIX+FE_SEMI, #01
+        db 40, KD_HEX,   FR_MIX+FE_RAW, #10         ;      сырой
+        db 41, KD_HEX,   FR_MIX+FE_RAW, #01
+        db 43, KD_HEX,   FR_MIX+FE_TAB, #10         ;      таблица
+        db 44, KD_HEX,   FR_MIX+FE_TAB, #01
+        db 46, KD_HEX,   FR_FM+FE_SEMI, #10         ; FM
+        db 47, KD_HEX,   FR_FM+FE_SEMI, #01
+        db 49, KD_HEX,   FR_FM+FE_RAW, #10
+        db 50, KD_HEX,   FR_FM+FE_RAW, #01
+        db 52, KD_HEX,   FR_FM+FE_TAB, #10
+        db 53, KD_HEX,   FR_FM+FE_TAB, #01
+        db 54, KD_BIT,   FR_FLAGS, 1<<FXB_FMPER     ;   шаги: s - полутоны, p - период
+        db 56, KD_HEX,   FR_EFM+FE_SEMI, #10        ; Env FM
+        db 57, KD_HEX,   FR_EFM+FE_SEMI, #01
+        db 59, KD_HEX,   FR_EFM+FE_RAW, #10
+        db 60, KD_HEX,   FR_EFM+FE_RAW, #01
+        db 62, KD_HEX,   FR_EFM+FE_TAB, #10
+        db 63, KD_HEX,   FR_EFM+FE_TAB, #01
+        db 64, KD_BIT,   FR_FLAGS, 1<<FXB_EFMPER
+FX_COLS         equ ($-Fx_Cols)/CL_SIZE
+    ASSERT 64 < ER_INS_X
 
 ; =========================================================================
 ; ЭКРАН
@@ -377,9 +460,12 @@ Iv_Frames
         ld hl,Txt_Instruments
         ld a,(Iv_Mode)
         or a
-        jr z,$+5
+        jr z,.ttl
         ld hl,Txt_Ornaments
-        call PutStr
+        dec a
+        jr z,.ttl
+        ld hl,Txt_Fx
+.ttl    call PutStr
         ld de,LB_X+2+256*(IV_SCR_H+IV_TOP)
         ld hl,Txt_Library
         call PutStr
@@ -426,11 +512,7 @@ Iv_List_Row
         call PutCh
         ld a,(Li_Idx)               ; имя
         call Iv_Addr
-        ld de,INS_NAME
-        ld a,(Iv_Mode)
-        or a
-        jr z,$+5
-        ld de,ORN_NAME
+        call Name_Ofs
         add hl,de
         ld a,(Li_Row)
         ld d,a
@@ -496,6 +578,18 @@ Iv_Draw_Top
         inc hl                      ; OH_LOOP
         ld a,(hl)
         ld de,LOOP_V+256*(IV_SCR_H+NM_Y)
+        call PutHex2
+        ld a,(Iv_Mode)              ; инструмент: номер его FX - на рамке (0 - без FX)
+        or a
+        ret nz
+        ld a,(THEME_ATTR+CLR_HEADER)
+        ld c,a
+        ld de,FXN_L+256*(IV_SCR_H+IV_TOP)
+        ld hl,Txt_Fx
+        call PutStr
+        call Fx_Ref
+        ld a,(hl)
+        ld de,FXN_V+256*(IV_SCR_H+IV_TOP)
         jp PutHex2
 
 ;-------- Заголовки колонок
@@ -511,8 +605,11 @@ Iv_Draw_Caps
         ld hl,Txt_Caps_Ins
         ld a,(Iv_Mode)
         or a
-        jr z,$+5
+        jp z,PutStr
         ld hl,Txt_Caps_Orn
+        dec a
+        jp z,PutStr
+        ld hl,Txt_Caps_Fx
         jp PutStr
 
 ;-------- Строки: ER_ROWS с Ed_Top, за концом - пусто; потом курсор
@@ -545,7 +642,11 @@ Iv_Draw_Rows
         jr nz,.orn
         call Ir_Body
         jr .ico
-.orn    call Or_Body
+.orn    dec a
+        jr nz,.fx
+        call Or_Body
+        jr .ico
+.fx     call Fx_Body
 .ico    pop de                      ; иконки вставить / удалить
         push de
         call Er_Icons
@@ -790,6 +891,79 @@ Or_Body
         ld a,#DB                    ; █
         jp PutCh
 
+;-------- Строка FX: IX - строка, DE - экран (колонка ER_DATA_X). Байты - hex, как в регистрах карты
+Fx_Body
+        ld a,(THEME_ATTR+CLR_INSTR) ; Mix, F, E, L
+        ld c,a
+        ld a,(ix+FR_FLAGS)
+        and FXF_MIX
+        ld hl,Mix_Chars
+        call Hl_Add_A
+        ld a,(hl)
+        call PutCh
+        ld a,(ix+FR_FLAGS)
+        ld b,1<<FXB_FM
+        ld hl,'F'*256+'.'
+        call Put_If
+        ld a,(ix+FR_FLAGS)
+        ld b,1<<FXB_EFM
+        ld hl,'E'*256+'.'
+        call Put_If
+        ld a,(ix+FR_FLAGS)
+        ld b,1<<FXB_FOLLOW
+        ld hl,'L'*256+'.'
+        call Put_If
+        inc e
+        ld a,(THEME_ATTR+CLR_PARAM) ; ШИМ (max, min), свип
+        ld c,a
+        ld a,(ix+FR_PWM)
+        call PutHex2
+        inc e
+        ld a,(ix+FR_SWEEP)
+        call PutHex2
+        inc e
+        ld a,(THEME_ATTR+CLR_VOLUME) ; Mix: полутоны, сырой, таблица
+        ld c,a
+        ld a,FR_MIX
+        call Fx_Triple
+        inc e
+        ld a,(THEME_ATTR+CLR_NOTE)  ; FM и s / p
+        ld c,a
+        ld a,FR_FM
+        call Fx_Triple
+        ld a,(ix+FR_FLAGS)
+        ld b,1<<FXB_FMPER
+        ld hl,'p'*256+'s'
+        call Put_If
+        inc e
+        ld a,(THEME_ATTR+CLR_ENVPER) ; Env FM и s / p
+        ld c,a
+        ld a,FR_EFM
+        call Fx_Triple
+        ld a,(ix+FR_FLAGS)
+        ld b,1<<FXB_EFMPER
+        ld hl,'p'*256+'s'
+        jp Put_If
+Mix_Chars       db ".SB?"           ; Mix: выкл, SID, Sync
+
+; A - смещение тройки (полутоны, сырой, таблица) в строке IX -> "ss rr tt"
+Fx_Triple
+        push ix
+        pop hl
+        call Hl_Add_A
+        ld b,3
+.b      ld a,(hl)
+        inc hl
+        push hl
+        push bc
+        call PutHex2
+        pop bc
+        pop hl
+        dec b
+        ret z
+        inc e
+        jr .b
+
 ; A - байт, B - маска: бит есть - символ H, нет - L
 Put_If
         and b
@@ -896,13 +1070,21 @@ Er_Cursor
 ;-------- Кнопки: под мышью - подсветка, держат - нажата. [-]/[+] - значки
 Iv_Buttons
         ld hl,Btn_Glyphs
+        call Bg_List
+        ld a,(Iv_Mode)              ; номер FX - только у инструмента
+        or a
+        ld hl,Btn_Fx_Glyphs
+        call z,Bg_List
+        jr Bt_Texts
+; значки списка HL (поле; колонка, строка, значок), конец - 0
+Bg_List
 .g      ld e,(hl)                   ; поле
         inc hl
         ld d,(hl)
         inc hl
         ld a,d
         or e
-        jr z,.text
+        ret z
         push de
         pop ix
         ld e,(hl)                   ; колонка, строка, значок
@@ -930,7 +1112,9 @@ Iv_Buttons
         call PutCh
         pop hl
         jr .g
-.text   ld hl,Btn_Texts
+; надписи кнопок: под мышью - подсветка, держат - нажата
+Bt_Texts
+        ld hl,Btn_Texts
 .t      ld e,(hl)                   ; поле
         inc hl
         ld d,(hl)
@@ -1011,6 +1195,12 @@ Btn_Glyphs                          ; поле; колонка, строка, з
         dw F_EnvP
         db PV_ENV+6, PV_Y, GLYPH_BTN_PLUS
         dw 0
+Btn_Fx_Glyphs
+        dw F_FxM
+        db FXN_M, IV_TOP, GLYPH_BTN_MINUS
+        dw F_FxP
+        db FXN_P, IV_TOP, GLYPH_BTN_PLUS
+        dw 0
 Btn_Texts
         dw F_Clone
         db BC_X
@@ -1055,6 +1245,7 @@ Iv_Fields
         IV_FIELD patview.HD_PLAY_X+16,patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 4  ; ■ стоп
         IV_FIELD patview.HD_TAB_INSTR,patview.HD_TABS_Y,5,1, FF_HAND, Iv_TabEv, 0   ; Instr
         IV_FIELD patview.HD_TAB_ORN,  patview.HD_TABS_Y,3,1, FF_HAND, Iv_TabEv, 1   ; Orn
+        IV_FIELD patview.HD_TAB_FX,   patview.HD_TABS_Y,2,1, FF_HAND, Iv_TabEv, 6   ; FX
         IV_FIELD patview.HD_TAB_DISK, patview.HD_TABS_Y,4,1, FF_HAND, Iv_TabEv, 2   ; Disk
         IV_FIELD patview.HD_TAB_SETUP,patview.HD_TABS_Y,5,1, FF_HAND, Iv_TabEv, 4   ; Setup
         IV_FIELD patview.HD_HELP_X,   patview.HD_TABS_Y,4,1, FF_HAND, Iv_TabEv, 5   ; Help
@@ -1073,6 +1264,8 @@ F_Clear IV_FIELD BL_X,BT_Y,7,1, FF_HAND, Iv_BtnEv, 7
 F_Unloop IV_FIELD BU_X,BT_Y,8,1, FF_HAND, Iv_BtnEv, 8
 F_Prev  IV_FIELD BV_X,BT_Y,3,1, FF_HAND, Iv_BtnEv, 9                  ; < предыдущий
 F_Next  IV_FIELD BN_X,BT_Y,3,1, FF_HAND, Iv_BtnEv, 10                 ; > следующий
+F_FxM   IV_FIELD FXN_M,IV_TOP,2,1, FF_HAND, Iv_BtnEv, 11              ; FX инструмента -
+F_FxP   IV_FIELD FXN_P,IV_TOP,2,1, FF_HAND, Iv_BtnEv, 12              ;                +
 F_Edit  IV_FIELD ED_IN_X,ER_ROW0,ED_IN_W,ER_ROWS, FF_FOCUS, Iv_EditEv, 0 ; строки
 F_Play  IV_FIELD PV_PLAY,PV_Y,2,1, FF_HAND, Prv_PlayEv, 0             ; ▶ - пока держат
 F_OctM  IV_FIELD PV_OCT+3,PV_Y,2,1, FF_HAND, Prv_BtnEv, 0             ; Oct -
@@ -1091,14 +1284,18 @@ Iv_TabEv
         cp EV_CLICK
         ret nz
         ld a,(ix+FLD_PARAM)
+        cp 6                        ; FX - режим 2
+        jr z,.fx
         cp 2
         jr nc,.out
-        ld hl,Iv_Mode               ; тот же режим - ничего
+.mode   ld hl,Iv_Mode               ; тот же режим - ничего
         cp (hl)
         ret z
         call Iv_Set_Mode
         ld hl,F_Edit
         jp Fld_Set_Focus
+.fx     ld a,2
+        jr .mode
 .out    ld b,PAGE_TOOL_DISK
         jr z,.go
         ld b,PAGE_TOOL_PATVIEW
@@ -1131,6 +1328,30 @@ Iv_BtnEv
 
 Btn_Act dw Len_Dn, Len_Up, Loop_Dn, Loop_Up
         dw Iv_Clone, Iv_Copy, Iv_Paste, Iv_Clear, Iv_Unloop, Iv_Prev, Iv_Next
+        dw Fx_Dn, Fx_Up
+
+;-------- Номер FX инструмента: - / + (0 - без FX). Только в режиме Instr
+Fx_Dn   call Fx_Ref
+        ret nz
+        ld a,(hl)
+        or a
+        ret z
+        dec (hl)
+        ret
+Fx_Up   call Fx_Ref
+        ret nz
+        ld a,(hl)
+        cp FXS_MAX
+        ret nc
+        inc (hl)
+        ret
+; HL - номер FX текущего инструмента; NZ - не режим Instr
+Fx_Ref  call Iv_Block
+        ld de,INS_FX
+        add hl,de
+        ld a,(Iv_Mode)
+        or a
+        ret
 
 ;-------- Список: нажали - выбрать, колесо - листать
 Iv_ListEv
@@ -1246,6 +1467,8 @@ Iv_EditEv
         cp KD_BIT
         jr z,.tog
         cp KD_SLIDE
+        jr z,.tog
+        cp KD_MIX
         jp nz,Iv_Changed
 .tog    call Ed_Toggle
         jp Iv_Changed
@@ -1505,12 +1728,16 @@ Ed_Type
         jp z,Ty_Vol
         cp KD_NOTE
         jp z,Ty_Note
+        cp KD_HEX
+        jp z,Ty_Hex
         or a                        ; остальным цифры не нужны
         ret
 .space  ld a,(iy+1)
         cp KD_BIT
         jr z,Ed_Toggle_Ok
         cp KD_SLIDE
+        jr z,Ed_Toggle_Ok
+        cp KD_MIX
         jr z,Ed_Toggle_Ok
         ld a,1                      ; знак - наоборот
         ld (Ed_Space),a
@@ -1555,6 +1782,8 @@ Ed_Toggle
         ld a,(iy+1)
         cp KD_SLIDE
         jr z,.slide
+        cp KD_MIX
+        jr z,.mix
         ld a,(iy+2)                 ; KD_BIT: байт строки, маска
         ld e,a
         ld d,0
@@ -1577,6 +1806,19 @@ Ed_Toggle
         jr .st
 .off    and ~(1<<IRB_SLIDE|1<<IRB_SLIDE_DOWN)
 .st     ld (ix+IR_VOL),a
+        ret
+.mix    ld a,(ix+FR_FLAGS)          ; Mix: выкл -> SID -> Sync -> выкл
+        ld b,a
+        and FXF_MIX
+        inc a
+        cp FXF_SYNC+1
+        jr c,$+3
+        xor a
+        ld c,a
+        ld a,b
+        and ~FXF_MIX
+        or c
+        ld (ix+FR_FLAGS),a
         ret
 
 ;-------- Код клавиши A -> цифра 0..15 (A..F - hex). CF - не цифра
@@ -1666,6 +1908,28 @@ Ty_Env  ld a,(ix+IR_ENV)            ; L - модуль, A - знак
 .put    ld l,a
         ld a,c
         jp Env_Put
+
+;-------- FX: hex-цифра B в байт строки (iy+2), вес (iy+3) - #10 / #01
+Ty_Hex  ld a,(iy+2)
+        push ix
+        pop hl
+        call Hl_Add_A
+        ld a,(iy+3)
+        cp #10
+        ld a,(hl)
+        jr z,.hi
+        and #F0
+        or b
+        jr .st
+.hi     and #0F
+        rlc b
+        rlc b
+        rlc b
+        rlc b
+        or b
+.st     ld (hl),a
+        scf
+        ret
 
 Ty_Vol  ld a,(ix+IR_VOL)
         and #F0
@@ -1836,8 +2100,10 @@ Iv_Next call Iv_Count
         jr Iv_Select
 
 ;-------- Длина: + - новая строка - копия последней; - - цикл не за концом
-Len_Up  call Iv_End
-        cp INS_ROWS_MAX-1           ; у орнамента столько же (ORN_ROWS_MAX)
+Len_Up  call Rows_Last
+        ld b,a
+        call Iv_End
+        cp b
         ret nc
         call Row_Copy_Last
         call Iv_Block
@@ -1870,8 +2136,10 @@ Len_Dn  call Iv_Block
 
 ;-------- Вставить: строки курсор..конец - вниз на одну (под курсорной - её копия, как Len +).
 ; Цикл за курсором - вместе со строками
-Row_Ins call Iv_End
-        cp INS_ROWS_MAX-1
+Row_Ins call Rows_Last
+        ld b,a
+        call Iv_End
+        cp b
         ret nc
         call Row_Size
         ld (Ri_Size),bc
@@ -1977,6 +2245,18 @@ Row_Size
         or a
         ret z
         ld bc,ORN_ROW_SIZE
+        dec a
+        ret z
+        ld bc,FX_ROW_SIZE
+        ret
+
+; A - последняя возможная строка режима (строк - 1)
+Rows_Last
+        ld a,(Iv_Mode)
+        cp 2
+        ld a,INS_ROWS_MAX-1         ; у орнамента столько же
+        ret nz
+        ld a,FX_ROWS_MAX-1
         ret
 
 Loop_Dn call Iv_Block
@@ -2022,14 +2302,25 @@ Row_Default
         ld (ix+IR_VOL),15           ; громкость 15
         ld (ix+IR_ENV),0
         ret
-.orn    ld (ix+OR_NOISE),0
+.orn    dec a
+        jr nz,.fx
+        ld (ix+OR_NOISE),0
         ld (ix+OR_NOTE),0
+        ret
+.fx     push ix                     ; FX: нули - эффектов нет
+        pop hl
+        ld b,FX_ROW_SIZE
+.z      ld (hl),0
+        inc hl
+        djnz .z
         ret
 
 ;-------- Unloop: в конце - строка "тишина" (у орнамента - без смещения), цикл на ней
 Iv_Unloop
+        call Rows_Last
+        ld b,a
         call Iv_End
-        cp INS_ROWS_MAX-1
+        cp b
         ret nc
         call Len_Up                 ; новая строка
         call Iv_End
@@ -2077,6 +2368,9 @@ Block_Size
         or a
         ret z
         ld bc,ORN_BLOCK
+        dec a
+        ret z
+        ld bc,FX_BLOCK
         ret
 
 ;-------- Clone: копия в первый свободный номер, переход на него.
@@ -2123,6 +2417,10 @@ Iv_Free
         jr z,.cmp
         ld de,Orn_Empty
         ld b,ORN_ROW_SIZE
+        dec a
+        jr z,.cmp
+        ld de,Fx_Empty
+        ld b,FX_ROW_SIZE
 .cmp    push ix                     ; строка 0
         pop hl
         inc hl
@@ -2136,17 +2434,14 @@ Iv_Free
         djnz .c
         push ix                     ; имя пустое
         pop hl
-        ld de,INS_NAME
-        ld a,(Iv_Mode)
-        or a
-        jr z,$+5
-        ld de,ORN_NAME
+        call Name_Ofs
         add hl,de
         ld a,(hl)
         or a
         ret
 Ins_Empty       db 1<<IRB_OFF,0,0,15,0
 Orn_Empty       db 0,0
+Fx_Empty        ds FX_ROW_SIZE
 
 ; =========================================================================
 ; ПРОБА НОТЫ: строка внизу редактора. В фокусе - пианино (держишь - звучит),
@@ -2292,6 +2587,10 @@ Prv_Play
 .orn    ld a,(Iv_Nums)
         inc a
         ld (Prv_Row+CHIP_CH_A+CH_SAMPLE),a
+        ld a,(Iv_Mode)              ; FX: орнамента нет
+        cp 2
+        ld a,1
+        jr z,.ost
         ld a,(Iv_Num)
         add a,2
 .ost    ld (Prv_Row+CHIP_CH_A+CH_ORNAMENT),a
@@ -2440,12 +2739,14 @@ Prv_Ins_Lim     db 0, SAMPLES_MAX-1
 ; =========================================================================
 Txt_Instruments db "Instruments",0
 Txt_Ornaments   db "Ornaments",0
+Txt_Fx          db "FX",0
 Txt_Library     db "Library",0
 Txt_Name        db "Name",0
 Txt_Len         db "Len",0
 Txt_Loop        db "Loop",0
 Txt_Caps_Ins    db "Rw TNE Tone  Ns  Env  VsR Volume",0
 Txt_Caps_Orn    db "Rw Note Ns  Offset",0
+Txt_Caps_Fx     db "Rw MFEL PW Sw Ms Mr Mt Fs Fr Ftu Es Er Etu",0
 Txt_Clone       db " Clone ",0
 Txt_Copy        db " Copy ",0
 Txt_Paste       db " Paste ",0

@@ -433,6 +433,17 @@ API_APPLY_GLYPHS equ SYS_API+10*3   ; положить значки интерф
     MACRO SETPAGE2 page
         SETPAGE 2,page
     ENDM
+; Сменить страницу окна, НЕ трогая стек: только внутри уже открытой пары SETPAGE..RESTPAGE
+; этого окна (RESTPAGE вернёт ту, что была до SETPAGE). Портит A, BC
+    MACRO SWAPPAGE win,page
+        ld a,page
+        ld (SV_PAGES+win),a
+        ld bc,#10AF+win*#100
+        out (c),a
+    ENDM
+    MACRO SWAPPAGE2 page
+        SWAPPAGE 2,page
+    ENDM
     MACRO SETPAGE3 page
         SETPAGE 3,page
     ENDM
@@ -546,6 +557,59 @@ ORN_BASE        equ SAMPLES_MAX*INS_BLOCK      ; #3000
 ; строка:
 OR_NOISE        equ 0               ; 7 шум накоплением, 6 нота накоплением, 4..0 смещение шума
 OR_NOTE         equ 1               ; смещение ноты, полутоны со знаком
+
+; =========================================================================
+; FX - таймерные эффекты карты AY FX (doc/instruments.md, doc/ay-ports-map.md п.5а)
+; =========================================================================
+; Все FX и таблицы трека - ОДНА страница 16К: следующая за страницей инструментов.
+; FX = строки по тику (как инструмент), строка = регистры канала карты #C3..#CE один в один.
+;   FX n      (0..31 = номер 1..32): #0000 + n*FX_BLOCK, заголовок OH_* + строки + имя
+;   таблица n (0..31 = номер 1..32): TAB_BASE + n*TAB_BLOCK
+FX_ROWS_MAX     equ 32
+FX_ROW_SIZE     equ 12
+FX_BLOCK        equ 448             ; 3 + 32*12 = 387, дальше имя
+FX_NAME         equ 400             ; 16 имя
+    ASSERT OH_ROWS+FX_ROWS_MAX*FX_ROW_SIZE <= FX_NAME
+    ASSERT FX_NAME+16 <= FX_BLOCK
+; строка (= регистры #C3..#CE):
+FR_FLAGS        equ 0               ; флаги (FXF_*)
+FR_PWM          equ 1               ; 7..4 скважность max, 3..0 min (16 ступеней, 8 = 50%)
+FR_SWEEP        equ 2               ; свип ШИМ: 0 - выкл, 1..255 - частота (min -> max -> min)
+FR_MIX          equ 3               ; Mix (SID / Sync): FE_SEMI, FE_RAW, FE_TAB
+FR_FM           equ 6               ; FM: то же
+FR_EFM          equ 9               ; Env FM: то же
+FE_SEMI         equ 0               ;   частота таймера: детюн в полутонах, со знаком
+FE_RAW          equ 1               ;   детюн сырой, со знаком (к периоду)
+FE_TAB          equ 2               ;   таблица шагов (0 - стандартная)
+; флаги:
+FXF_MIX         equ %00000011       ; Mix: 0 выкл, FXF_SID, FXF_SYNC
+FXF_SID         equ 1
+FXF_SYNC        equ 2
+FXB_FM          equ 2               ; FM вкл
+FXB_EFM         equ 3               ; Env FM вкл
+FXB_FOLLOW      equ 4               ; таймеры идут за тоном канала (иначе база - TAKE)
+FXB_FMPER       equ 5               ; шаги FM - в единицах периода (иначе полутоны)
+FXB_EFMPER      equ 6               ; шаги Env FM - в единицах периода
+
+; --- таблица шагов таймера
+TAB_MAX         equ 32
+TAB_STEPS       equ 16
+TAB_BLOCK       equ 32
+TAB_BASE        equ FX_BLOCK*FXS_MAX            ; #3800
+TB_HEAD         equ 0               ; 3..0 длина-1 (1..16 шагов), 7..4 шаг цикла
+TB_STEPS        equ 1               ; шаги по байту: SID - громкость 0..15, Sync - форма,
+                                    ;   FM / Env FM - сдвиг со знаком
+    ASSERT TB_STEPS+TAB_STEPS <= TAB_BLOCK
+    ASSERT TAB_BASE+TAB_MAX*TAB_BLOCK <= #4000
+
+; --- регистры карты (номер в #FFFD; у каждого чипа свои)
+AYFX_KEY        equ #C0             ; ключ "TRIN" (4 записи); чтение - 'T'
+AYFX_GO         equ #C1             ; тень -> в работу; 0 - ещё и закрыть, бит 0 - открыто
+AYFX_CH         equ #C2             ; канал 0..2 для AYFX_ROW
+AYFX_ROW        equ #C3             ; #C3..#CE - строка FX канала
+AYFX_CMD        equ #CF             ; 0..2 TAKE A..C, 3..5 RESET A..C (на GO)
+AYFX_TABN       equ #B8             ; номер таблицы для заливки (1..32)
+AYFX_TABD       equ #B9             ; данные таблицы подряд: TB_HEAD, шаги
 
 SONG_EDITSTATE  equ #1000           ; состояние редактора этого трека (курсор, позиция,
 SONG_EDITSTATE_SIZE equ #400        ; режим вида...) - ТОЛЬКО трекер, плагинам не трогать.

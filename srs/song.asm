@@ -55,8 +55,10 @@ Txt_Free        db "Free: ",FREE_PAGES/10+"0",FREE_PAGES%10+"0"," pages",0
 ; за ними страница инструментов и орнаментов (и FX). Портит AF, B
 Trk_Pat         db PAGE_POOL        ; паттерн k текущего трека - страница Trk_Pat+k
 Trk_Ins         db PAGE_INS1        ; его инструменты и орнаменты
+Trk_Fx          db PAGE_INS1+1      ; его FX и таблицы шагов (sdk: FX_*, TAB_*)
     ASSERT PAGE_SONG2 == PAGE_SONG1+1
     ASSERT PAGE_INS1 == PAGE_POOL+PATTERNS_MAX
+    ASSERT PAGES_PER_SONG == PATTERNS_MAX+2   ; паттерны, инструменты, FX
 Song_Select
         ld (SV_SONG_NUM),a
         ld b,a
@@ -70,6 +72,8 @@ Song_Select
         ld (Trk_Pat),a
         add a,PATTERNS_MAX
         ld (Trk_Ins),a
+        inc a
+        ld (Trk_Fx),a
         ret
 
 ;-------- A - номер паттерна -> A - его страница (текущий трек). Портит только флаги
@@ -98,6 +102,14 @@ Song_New
         RESTPAGE2
         ld a,(Trk_Pat)              ; страница паттерна 0 - нули
         SETPAGE2 a
+        ld hl,#8000
+        ld de,#8001
+        ld bc,#3FFF
+        ld (hl),0
+        ldir
+        RESTPAGE2
+        ld a,(Trk_Fx)               ; FX и таблицы - нули: у FX одна пустая строка, таблицы
+        SETPAGE2 a                  ;   по одному шагу 0
         ld hl,#8000
         ld de,#8001
         ld bc,#3FFF
