@@ -64,8 +64,9 @@ Cmp_Run
         ld (Cm_BarPos),a
         xor a                       ; новый модуль: FT ещё не переставлял его адреса
         ld (ftp.Relocated),a
-        ld a,PAGE_PLAYER            ; наш плеер - в окне 1 на всё время
+        ld a,PAGE_PLAYER            ; наш плеер - в окнах 1 и 2 на всё время
         SETPAGE1 a
+        SETPAGE2 PAGE_PLAYER2
         call Cm_Clear_Screen
         ld hl,Txt_Title
         ld a,(Cmp_Kind)             ; FTC - эталон FT
@@ -115,6 +116,7 @@ Cmp_Run
         ld (SV_PLAY_CMD),a
         call Cm_Result
         call Cm_Log_Head
+        RESTPAGE2
         RESTPAGE1
         ei
 .key    halt                        ; ждём клавишу (IM1 снова читает клавиатуру)

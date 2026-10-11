@@ -120,10 +120,11 @@ tool_cmp_end
     SAVEBIN     "srs/cmpview.bin",tool_cmp,tool_cmp_end-tool_cmp
     display     "cmpview size",/d,tool_cmp_end-tool_cmp," bytes"
 
-    ; --- плеер (страница PAGE_PLAYER, окно 1 из IM1)
+    ; --- плеер (страницы PAGE_PLAYER и PAGE_PLAYER2, окна 1 и 2 из IM1)
     include     "srs/player.asm"
-    SAVEBIN     "srs/player.bin",player_start,player_end-player_start
-    display     "player size",/d,player_end-player_start," bytes"
+    SAVEBIN     "srs/player.bin",player_start,player1_end-player_start
+    SAVEBIN     "srs/player2.bin",player2_start,player_end-player2_start
+    display     "player size",/d,player1_end-player_start," + ",/d,player_end-player2_start," bytes"
 
     ; --- диск: переходник к FAT32 (страница PAGE_DISK_APP, работает в окне 2)
     include     "srs/disk.asm"

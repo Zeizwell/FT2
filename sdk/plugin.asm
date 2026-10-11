@@ -151,7 +151,7 @@ PS_STOP         equ 0               ; состояния
 PS_SONG         equ 1
 PS_PATTERN      equ 2
 PS_PREVIEW      equ 3               ; играет проба (канал A первого чипа)
-PLAYER_INIT     equ #4000           ; входы плеера (его страница - в окне 1)
+PLAYER_INIT     equ #4000           ; входы плеера (его страница - в окне 1, вторая - в окне 2)
 PLAYER_TICK     equ #4003
 SV_KEY_DOWN     equ SYS_VARS+#40    ; 32 карта нажатых: бит = код PS/2 (E0-коды +128)
 SV_KEY_Q        equ SYS_VARS+#60    ; 32 очередь клавиш: 16 x [код] [флаги KM_* | KF_REPEAT]

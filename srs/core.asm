@@ -54,12 +54,14 @@ Im_Reenter      db 0    ; сколько раз IM1 пришёл, пока шё�
 ; решает само - делает по переменным, которые меняет основной цикл.
 IM1_Handler
 
-    ; 1. музыка - первой, в одной и той же точке кадра: страница плеера - в окно 1
+    ; 1. музыка - первой, в одной и той же точке кадра: страницы плеера - в окна 1 и 2
     ld a,(SV_PLAYER)
     or a
     jr z,.nomusic
     SETPAGE1 a
+    SETPAGE2 PAGE_PLAYER2
     call PLAYER_TICK
+    RESTPAGE2
     RESTPAGE1
 .nomusic
     ; 2. мышь
@@ -115,7 +117,9 @@ Core_Start
         ld a,PAGE_SONG1         ; плеер: трек 1, подготовка, дальше его зовёт IM1
         ld (SV_PLAY_SONG),a
         SETPAGE1 PAGE_PLAYER
+        SETPAGE2 PAGE_PLAYER2
         call PLAYER_INIT
+        RESTPAGE2
         RESTPAGE1
         ld a,PAGE_PLAYER
         ld (SV_PLAYER),a

@@ -1,10 +1,11 @@
 ; =========================================================================
-; ПЛЕЕР FT2 (doc/player.md). Страница PAGE_PLAYER, окно 1 (#4000).
+; ПЛЕЕР FT2 (doc/player.md). Страницы PAGE_PLAYER (окно 1, #4000 - код) и PAGE_PLAYER2
+; (окно 2, #8000 - таблицы и что не влезло).
 ; =========================================================================
-; IM1 первым делом: коре ставит эту страницу в окно 1 и зовёт PLAYER_TICK.
+; IM1 первым делом: коре ставит обе страницы в окна 1 и 2 и зовёт PLAYER_TICK.
 ; Основной цикл командует через SV_PLAY_CMD (+ CPOS / CROW), плеер сам ведёт
 ; позицию, роу, тики и скорость и отдаёт их в SV_PLAY_*.
-; Данные - в окно 2 на время чтения (SETPAGE2 / RESTPAGE2):
+; Данные - в окно 3 на время чтения (SETPAGE3 / RESTPAGE3, страница тулзы - на место):
 ;   страница трека (SV_PLAY_SONG): ордер, каталог паттернов, скорость, страница
 ;   инструментов; страница паттерна; страница инструментов и орнаментов.
 ; Ноты, инструменты и орнаменты (формат FTC), громкость, огибающая, шум, 2 чипа,
@@ -295,12 +296,12 @@ Pl_Preview
 ; позиция, цикл
 Pl_Song_Info
         ld a,(SV_PLAY_SONG)
-        SETPAGE2 a
-        ld a,(#8000+SH_SPEED)
+        SETPAGE3 a
+        ld a,(#C000+SH_SPEED)
         ld (SV_PLAY_SPEED),a
-        ld a,(#8000+SH_INS_PAGE)
+        ld a,(#C000+SH_INS_PAGE)
         ld (Pl_InsPage),a
-        ld a,(#8000+SH_TUNING)      ; таблица нот: 0 - 1.75 МГц, иначе 1.7734
+        ld a,(#C000+SH_TUNING)      ; таблица нот: 0 - 1.75 МГц, иначе 1.7734
         or a
         ld hl,Note_175
         jr z,$+5
@@ -308,27 +309,27 @@ Pl_Song_Info
         ld de,NoteT
         ld bc,NOTE_COUNT*2
         ldir
-        ld a,(#8000+SH_ENVMODE)     ; огибающая FT / PT - в общую переменную (коре)
+        ld a,(#C000+SH_ENVMODE)     ; огибающая FT / PT - в общую переменную (коре)
         ld (Song_EnvMode),a
-        ld a,(#8000+SH_STEREO)      ; стерео - тоже
+        ld a,(#C000+SH_STEREO)      ; стерео - тоже
         ld (Song_Stereo),a
-        ld a,(#8000+ORD_LAST)
+        ld a,(#C000+ORD_LAST)
         ld (Pl_OrdLast),a
-        ld a,(#8000+SH_CHIPS)
+        ld a,(#C000+SH_CHIPS)
         ld (Pl_Chips),a
-        ld a,(#8000+ORD_LOOP)
+        ld a,(#C000+ORD_LOOP)
         ld (Pl_OrdLoop),a
-        RESTPAGE2
+        RESTPAGE3
         ret
 
 ;-------- Позиция SV_PLAY_POS -> страница и длина её паттерна
 Pl_Pos_Info
         ld a,(SV_PLAY_SONG)
-        SETPAGE2 a
+        SETPAGE3 a
         ld a,(SV_PLAY_POS)
         ld l,a
-        ld h,high (#8000+ORD_POS)
-        ld a,low (#8000+ORD_POS)
+        ld h,high (#C000+ORD_POS)
+        ld a,low (#C000+ORD_POS)
         add a,l
         ld l,a
         jr nc,$+3
@@ -336,16 +337,16 @@ Pl_Pos_Info
         ld a,(hl)                   ; номер паттерна
         add a,a                     ; каталог: по PC_SIZE (2)
         ld l,a
-        ld h,high (#8000+PAT_CATALOG)
+        ld h,high (#C000+PAT_CATALOG)
         ld a,(hl)
         ld (Pl_PatPage),a
         inc l
         ld a,(hl)
         ld (Pl_PatLen),a
-        RESTPAGE2
+        RESTPAGE3
         ret
     ASSERT PC_SIZE == 2 && PC_PAGE == 0 && PC_LEN == 1
-    ASSERT low (#8000+PAT_CATALOG) == 0
+    ASSERT low (#C000+PAT_CATALOG) == 0
 
 ;-------- Следующая роу: конец паттерна - роу 0 (паттерн) или следующая позиция
 Pl_Next_Row
@@ -379,12 +380,12 @@ Pl_Next_Row
 ; =========================================================================
 Pl_Row
         ld a,(Pl_PatPage)
-        SETPAGE2 a
+        SETPAGE3 a
         ld a,(SV_PLAY_ROW)
-        add a,#80
+        add a,#C0
         ld h,a
         call Pl_Row_Chips
-        RESTPAGE2
+        RESTPAGE3
         ret
 
 ;-------- H - роу (L начала - Pr_Base): заголовок чипа и его каналы
@@ -534,7 +535,7 @@ CHIP    equ m_n/3
 IDX     equ m_n-CHIP*3
 REGS    equ Pl_Regs+CHIP*PR_SIZE
 
-;-------- Тик: строки инструмента и орнамента -> регистры (инструменты - в окне 2)
+;-------- Тик: строки инструмента и орнамента -> регистры (инструменты - в окне 3)
 Tk
 DlG     jr DlEnd                    ; F2: отложенная нота (ON - ждём)
 DlC     ld a,0
@@ -553,7 +554,7 @@ Silent  xor a                       ; молчит: громкость 0
         ret
 Snd
 RiG     jr RiEnd                    ; инструмент - со строки RiR (нота, 4, смена сэмпла)
-RiB     ld hl,#8000                 ;   блок сэмпла
+RiB     ld hl,#C000                 ;   блок сэмпла
 RiR     ld a,0
         call InsSet
 RiEnd
@@ -935,7 +936,7 @@ OrnSet  ld (Is_R),a
         ld (OCN+1),a
         ret
 
-;-------- Роу (паттерн - в окне 2): HL - клетка канала
+;-------- Роу (паттерн - в окне 3): HL - клетка канала
 Rw      ld a,(hl)                   ; пустая клетка - ничего
         inc l
         or (hl)
@@ -1341,11 +1342,11 @@ CFDl    ld a,e                      ;   задержка ноты - при но�
         ret
 
 ;-------- Поля клетки: A - значение (не 0). HL целы
-RSmp    dec a                       ; сэмпл: блок #8000 + (n-1)*384
+RSmp    dec a                       ; сэмпл: блок #C000 + (n-1)*384
         ld e,a
-        srl a                       ;   старший: #80 + n + n/2
+        srl a                       ;   старший: #C0 + n + n/2
         add a,e
-        add a,#80
+        add a,#C0
         ld (RiB+2),a
         ld a,e
         rrca                        ;   младший: нечётный - 128
@@ -1369,7 +1370,7 @@ REOn    ld (REGS+13),a
         ret
 ROrn    sub 2                       ; орнамент: 1 - нет, 2..17 - блоки 0..15 (по 256)
         jr c,RONo
-        add a,#80+high ORN_BASE
+        add a,#C0+high ORN_BASE
         ld (RoB+2),a
         xor a
         ld (RoB+1),a
@@ -1387,7 +1388,7 @@ RONo    xor a
 Rst     call ROff
         ld a,15*16
         ld (Vol+1),a
-        ld hl,#8000
+        ld hl,#C000
         ld (RiB+1),hl
         xor a
         ld (RoB+2),a
@@ -1495,11 +1496,11 @@ Pr_Ofs  or a
         ret
 
 ; =========================================================================
-; КАНАЛЫ -> регистры (страница инструментов в окне 2)
+; КАНАЛЫ -> регистры (страница инструментов в окне 3)
 ; =========================================================================
 Pl_Channels
         ld a,(Pl_InsPage)
-        SETPAGE2 a
+        SETPAGE3 a
         ld a,#3F                    ; чип 1: микшер - всё выкл, каналы включат
         ld (Pc_Mix),a
         xor a
@@ -1535,7 +1536,7 @@ Pl_Channels
         ld hl,Pl_Regs+PR_SIZE+11
         ld bc,Es_Ofs+2
         call nz,Pl_EPer
-.end    RESTPAGE2
+.end    RESTPAGE3
         ret
 
 ; PT: (HL) R11/R12 = (DE) база - сумма Pc_ESum (со знаком) + (BC) слайд огибающей
@@ -1728,6 +1729,14 @@ St_Tab  dw po0.S0+1,po0.S1+1,po0.S8+1, po0.S2+1,po0.S3+1,po0.S9+1, po0.S4+1,po0.
         dw po1.S0+1,po1.S1+1,po1.S8+1, po1.S2+1,po1.S3+1,po1.S9+1, po1.S4+1,po1.S5+1,po1.S10+1
 Po_Maps db 0,1,2, 0,2,1, 1,0,2, 1,2,0, 2,0,1  ; ABC ACB BAC BCA CAB - как в VT (Hd_Stereos)
 
+player1_end
+    ASSERT player1_end <= #8000
+
+; =========================================================================
+; ВТОРАЯ СТРАНИЦА (PAGE_PLAYER2, окно 2): ТАБЛИЦЫ
+; =========================================================================
+    org #8000
+player2_start
 ; =========================================================================
 ; ТАБЛИЦЫ
 ; =========================================================================
@@ -1816,4 +1825,4 @@ Note_177
         dw 26,25,24,22,21,20,19,18,17,16,15,14
 
 player_end
-    ASSERT player_end <= #8000
+    ASSERT player_end <= #C000
