@@ -527,78 +527,6 @@ RoB     ld hl,0                     ;   блок орнамента (старш�
 RoR     ld a,0
         call OrnSet
 RoEnd
-VsG     jr VsEnd                    ; 7 слайд громкости: раз в VsD тиков
-VsC     ld a,0
-        dec a
-        jr nz,VsSt
-        ld a,(Vol+1)                ;   громкость (*16) + вверх - вниз, в 0..15
-        rrca
-        rrca
-        rrca
-        rrca
-        and #0F
-VsU     add a,0
-VsDn    sub 0
-        jp p,$+4
-        xor a
-        cp 16
-        jr c,$+4
-        ld a,15
-        add a,a
-        add a,a
-        add a,a
-        add a,a
-        ld (Vol+1),a
-VsD     ld a,0
-VsSt    ld (VsC+1),a
-VsEnd
-VbG     jr VbEnd                    ; 8 вибрато
-VbD     ld a,0                      ;   ещё не началось
-        or a
-        jr z,VbGo
-        dec a
-        ld (VbD+1),a
-        jr VbEnd
-VbGo
-VbF     ld a,0                      ;   фаза += скорость (период 32)
-VbS     add a,0
-        ld (VbF+1),a
-        ld c,a
-        and 15
-VbT     add a,0                     ;   + (глубина-1)*16: смещение по таблице
-        ld l,a
-        ld h,high Vb_T
-        ld e,(hl)
-        ld d,0
-        bit 4,c                     ;   вторая полуволна - минус
-        jr z,VbP
-        xor a
-        sub e
-        ld e,a
-        sbc a,a
-        ld d,a
-VbP     ld (VO+1),de
-VbEnd
-ArG     jr ArEnd                    ; C арпеджио: раз в ArD тиков шаг (нота, +X, +Y)
-ArC     ld a,0
-        dec a
-        jr nz,ArSt
-ArF     ld a,0
-        inc a
-        cp 3
-        jr c,$+3
-        xor a
-        ld (ArF+1),a
-        or a
-        jr z,ArS
-        dec a
-ArX     ld a,0
-        jr z,ArS
-ArY     ld a,0
-ArS     ld (ARS+1),a
-ArD     ld a,0
-ArSt    ld (ArC+1),a
-ArEnd
 OG      jr ONone                    ; орнамент (OFF - нет)
 OP      ld hl,0                     ;   строка: шум и флаги, сдвиг ноты
         ld c,(hl)
@@ -736,6 +664,53 @@ GDl
 GD      ld a,0
 GSt     ld (GC+1),a
 GEnd
+VbG     jr VbEnd                    ; 8 вибрато
+VbD     ld a,0                      ;   ещё не началось
+        or a
+        jr z,VbGo
+        dec a
+        ld (VbD+1),a
+        jr VbEnd
+VbGo
+VbF     ld a,0                      ;   фаза += скорость (период 32)
+VbS     add a,0
+        ld (VbF+1),a
+        ld c,a
+        and 15
+VbT     add a,0                     ;   + (глубина-1)*16: смещение по таблице
+        ld l,a
+        ld h,high Vb_T
+        ld e,(hl)
+        ld d,0
+        bit 4,c                     ;   вторая полуволна - минус
+        jr z,VbP
+        xor a
+        sub e
+        ld e,a
+        sbc a,a
+        ld d,a
+VbP     ld (VO+1),de
+VbEnd
+ArG     jr ArEnd                    ; C арпеджио: раз в ArD тиков шаг (нота, +X, +Y)
+ArC     ld a,0
+        dec a
+        jr nz,ArSt
+ArF     ld a,0
+        inc a
+        cp 3
+        jr c,$+3
+        xor a
+        ld (ArF+1),a
+        or a
+        jr z,ArS
+        dec a
+ArX     ld a,0
+        jr z,ArS
+ArY     ld a,0
+ArS     ld (ARS+1),a
+ArD     ld a,0
+ArSt    ld (ArC+1),a
+ArEnd
 B3      ld a,0                      ; громкость: C - флаги строки
         ld c,a
         bit IRB_SLIDE,c             ;   слайд амплитуды -15..15
@@ -794,6 +769,31 @@ EG      jr VOut
 VOut
         ld a,b
 Wv2     ld (REGS+8+IDX),a
+VsG     jr VsEnd                    ; 7 слайд громкости: раз в VsD тиков
+VsC     ld a,0
+        dec a
+        jr nz,VsSt
+        ld a,(Vol+1)                ;   громкость (*16) + вверх - вниз, в 0..15
+        rrca
+        rrca
+        rrca
+        rrca
+        and #0F
+VsU     add a,0
+VsDn    sub 0
+        jp p,$+4
+        xor a
+        cp 16
+        jr c,$+4
+        ld a,15
+        add a,a
+        add a,a
+        add a,a
+        add a,a
+        ld (Vol+1),a
+VsD     ld a,0
+VsSt    ld (VsC+1),a
+VsEnd
         jp OoG                      ; 6 вкл / выкл - после вывода
 
 ; Смещение огибающей строки + накопленное (бит 7 громкости, C - сохранить) -> A
