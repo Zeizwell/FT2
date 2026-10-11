@@ -114,7 +114,6 @@ Core_Start
         ld de,100
         call Init_Mouse_Sprite
         call Input_Init         ; лог клавиатуры PS/2, автоповтор, счётчики мыши
-        call Splash             ; заставка: до клавиши, клика или 5 сек
 
         ld a,1                  ; оба трека - пустые, редактируем трек 1
         call Song_Select
@@ -285,7 +284,6 @@ dma_wait	ld bc,DMASTATUS
     include "srs/fields.asm"
     include "srs/text.asm"
     include "srs/window.asm"       ; окна поверх экрана (About, меню)
-    include "srs/splash.asm"       ; заставка при старте
     include "srs/song.asm"
     include "srs/transport.asm"
     include "srs/toolscr.asm"
