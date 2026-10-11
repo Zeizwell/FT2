@@ -2218,7 +2218,6 @@ Fx_Eat  scf                         ; клавиша наша, менять не
 ; +/- - шаг
 Ty_UDec ld a,b
         cp 10
-        ccf
         ret nc                      ; A..F - не наши
         call Fx_Fld
         push hl
@@ -2256,7 +2255,6 @@ Up_UDec call Fx_Fld
 ;-------- Байт со знаком, десятичный: цифра B вдвигается в модуль (за 127 - начать с неё), знак тот же
 Ty_SDec ld a,b
         cp 10
-        ccf
         ret nc
         call Fx_Fld
         push hl
@@ -2316,7 +2314,6 @@ Ty_Vol  ld a,(ix+IR_VOL)
 
 Ty_Note ld a,b                      ; десятичная цифра
         cp 10
-        ccf
         ret nc                      ; A..F - не наши (CF = 0)
         ld a,(ix+OR_NOTE)           ; L - модуль, C - знак
         call Sign_Get
