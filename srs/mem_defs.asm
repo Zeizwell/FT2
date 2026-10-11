@@ -78,8 +78,6 @@ PAGE_ROWNUM   EQU #BE                           ; номера роу
 PAGE_EDBUF    EQU #20                           ; отмена и буфер обмена редактора (из #20-#27)
 PAGE_WINIMG   EQU #21                           ; окно (его вид) - в раскладке экрана
 PAGE_WINSAVE  EQU #22                           ; что под окном
-PAGE_SPLASH   EQU #20                           ; заставка при старте (выкл, srs/splash.asm): экран #20..#28
-PAGE_SPLASH_PAL EQU #26                         ;   её палитра
 PAGE_SPLASH   EQU #20                           ; заставка при старте (выкл): экран #20..#28 (потом - буферы)
 PAGE_SPLASH_PAL EQU #26                         ;   её палитра (до заливки фона)
 
