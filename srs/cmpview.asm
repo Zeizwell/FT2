@@ -56,6 +56,7 @@ Cm_F_Reg        db 0
 Cm_F_Ref        db 0
 Cm_F_Our        db 0
 Cm_Bad          db 0                ; в этом кадре было расхождение
+Cm_F_Pat        db 0                ; паттерн первого расхождения (только для экрана)
 
 ;-------- Сравнение целиком. Прерывания выключены на всё время, в конце - включены
 Cmp_Run
@@ -569,6 +570,12 @@ Cm_Diff ld e,a
         ld (Cm_F_Frame),hl
         ld a,(SV_PLAY_POS)
         ld (Cm_F_Pos),a
+        push bc                     ;   и её паттерн (B, C, DE ещё нужны)
+        push de
+        call Cm_PatOf
+        ld (Cm_F_Pat),a
+        pop de
+        pop bc
         ld a,(SV_PLAY_ROW)
         ld (Cm_F_Row),a
         push hl                     ; снимок; регистры - как были (B, C ещё нужны)
@@ -929,8 +936,8 @@ Txt_SCap        db "  our: note smp orn vol sld | ref: note smp orn vol sld",0
 ; ЭКРАН (текстовая страница - в окне 2 на время вывода)
 ; =========================================================================
 ;-------- Строка состояния: кадр, позиция, паттерн, роу, расхождений
-Cm_Show
-        ld a,(SV_PLAY_POS)          ; паттерн позиции - из ордера трека
+; A - позиция -> A - её паттерн (ордер трека). Портит BC, E, HL
+Cm_PatOf
         ld e,a
         ld a,(SV_SONG_PAGE)
         SETPAGE2 a
@@ -940,9 +947,15 @@ Cm_Show
         ld l,a
         jr nc,$+3
         inc h
-        ld a,(hl)
-        ld (Cm_Pat),a
+        ld e,(hl)
         RESTPAGE2
+        ld a,e
+        ret
+
+Cm_Show
+        ld a,(SV_PLAY_POS)          ; паттерн позиции - из ордера трека
+        call Cm_PatOf
+        ld (Cm_Pat),a
         ld a,(SV_DRAW_PAGE)
         SETPAGE2 a
         ld a,(THEME_ATTR+CLR_TEXT)
@@ -1127,6 +1140,10 @@ Cm_Result
         ld hl,Txt_Pos
         call PutStr
         ld a,(Cm_F_Pos)
+        call PutHex2
+        ld hl,Txt_Pat
+        call PutStr
+        ld a,(Cm_F_Pat)
         call PutHex2
         ld hl,Txt_Row
         call PutStr
