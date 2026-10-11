@@ -103,6 +103,36 @@ class SNDCHIP : public SNDRENDER
    u64 passed_chip_ticks, passed_clk_ticks;
    void flush(unsigned chiptick);
    void apply_regs(unsigned timestamp = 0);
+
+   // ZX Trinity: timer effects card (FT2 doc/ay-ports-map.md, 5a). Per chip: block #C0-#CF,
+   // tables #B8/#B9. Enabled by conf.sound.trinity, opened by key "TRIN" written to #C0
+   enum { TRIN_REGS = 12, TRIN_TABS = 32, TRIN_STEPS = 16 };
+   struct TRIN_FX {              // one timer: Mix (SID / Sync), FM, Env FM
+      unsigned cnt, dur;         // chip ticks into current step, step length
+      u8 step;                   // step in table
+   };
+   struct TRIN_CH {
+      u8 reg[TRIN_REGS];         // active: FLAGS, PWM, SWEEP, 3 x (SEMI, RAW, TAB)
+      unsigned base;             // timer base period (TAKE)
+      TRIN_FX fx[3];
+      unsigned sweep;            // PWM sweep phase 0..65535
+      u8 lvl;                    // SID level 0..15
+   };
+   u8 trin_on, trin_key, trin_ch, trin_cmd, trin_tn, trin_tp;
+   u8 trin_sh[3][TRIN_REGS];     // shadow, goes to work on GO (#C1)
+   TRIN_CH trin[3];
+   u8 trin_tab[TRIN_TABS + 1][1 + TRIN_STEPS];   // 1..32: header (len-1 | loop<<4), steps
+   bool trin_write(unsigned timestamp, u8 val);
+   bool trin_read(u8 &val);
+   void trin_reset();
+   void trin_go(u8 val);
+   void trin_tick();
+   void trin_frame();
+   void trin_next(int c, int k);
+   void trin_apply(int c, int k);
+   unsigned trin_tone(int c);
+   unsigned trin_period(int c, int k);
+   const u8 *trin_table(int c, int k, u8 &len, u8 &loop);
 };
 
 struct AYOUT

@@ -237,6 +237,7 @@ struct CONFIG
       VOID_FUNC do_sound;
       u8 enabled, gsreset, dsprimary;
       u8 ay_chip, ay_scheme, ay_stereo, ay_vols, ay_samples;
+      u8 trinity;                        // ZX Trinity: timer effects (FT2 doc/ay-ports-map.md, 5a)
       unsigned ay_stereo_tab[6], ay_voltab[32];
    } sound;
 

@@ -600,6 +600,7 @@ void load_config(const char *fname)
    else if (!strnicmp(line, "AY", 2)) conf.sound.ay_chip = SNDCHIP::CHIP_AY;
 
    conf.sound.ay_samples = GetPrivateProfileInt(ay, "UseSamples", 0, ininame);
+   conf.sound.trinity = GetPrivateProfileInt(ay, "AYFX", 0, ininame);   // AY FX: timer effects card (ZX Trinity registers)
 
    GetPrivateProfileString(ay, "Scheme", nil, line, sizeof line, ininame);
    conf.sound.ay_scheme = AY_SCHEME_NONE;
