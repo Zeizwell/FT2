@@ -153,15 +153,78 @@ Osc_Tick
 
 ; Окно канала B: HL - регистры чипа (L = 0); кадр окон чипа - Od_DX, Ow_R0
 Osc_Win
-        ld l,7                      ; тон выкл (бит B микшера) - сплошная
+        ld l,7                      ; тон выкл (бит B микшера) - пила огибающей или сплошная
         ld a,(hl)
         ld c,b
         inc c
 .r      rrca
         dec c
         jr nz,.r
-        ld a,OSC_SOLID
-        jr c,.pat
+        jr nc,.tone
+        ld a,b                      ; огибающая (бит 4 громкости) с формой пила (8, 12) -
+        add a,8                     ;   картинка пилы на всё окно
+        ld l,a
+        bit 4,(hl)
+        jr z,.solid
+        ld l,13
+        ld a,(hl)
+        and #0F
+        cp 8
+        ld c,PAGE_OSCSAW
+        jr z,.saw
+        cp 12
+        ld c,PAGE_OSCSAW2
+        jr z,.saw
+.solid  ld a,OSC_SOLID
+        jr .pat
+; пила: длина цикла - как у тона 16*E (индекс таблицы - E): 2*полупериод -> ближайшая картинка
+.saw    ld a,c
+        ld (Od_SX),a
+        ld l,12                     ; E больше 255 - самая длинная
+        ld a,(hl)
+        or a
+        ld a,OSC_SOLID-1
+        jr nz,.se
+        dec l
+        ld l,(hl)
+        ld h,high Osc_PT
+        ld a,(hl)
+.se     ld hl,Osc_SL                ; полупериод -> картинка k
+        add a,l
+        ld l,a
+        jr nc,$+3
+        inc h
+        ld a,(hl)
+        ld c,0                      ; место: полоса C = k/OSC_SPB, A = k%OSC_SPB
+.dv     cp OSC_SPB
+        jr c,.dd
+        sub OSC_SPB
+        inc c
+        jr .dv
+.dd     ld e,a                      ; байт: *48
+        add a,a
+        add a,e
+        add a,a
+        add a,a
+        add a,a
+        add a,a
+        ld (Od_SL),a
+        ld a,c                      ; строка: полоса*32
+        add a,a
+        add a,a
+        add a,a
+        add a,a
+        add a,a
+        ld (Od_SH),a
+        call .col                   ; приёмник: окно, строки 0..30
+        ld a,(Ow_R0)
+        ld (Od_DH),a
+        ld a,30
+        ld (Od_NUM),a
+        ld a,DMA_RAM|DMA_SALGN|DMA_DALGN
+        call Od_Go
+        jp .line
+.tone
         ld a,b                      ; период R(2B): рисунок по старшим 8 битам из 12
         add a,a
         ld l,a
@@ -211,15 +274,7 @@ Osc_Win
         and #0F
 .v      add a,a                     ; строк меандра 2v
         ld (Ow_N),a
-        ld a,b                      ; колонка окна в кадре: канал*48
-        add a,a
-        add a,a
-        add a,a
-        add a,a
-        ld c,a
-        add a,a
-        add a,c
-        ld (Od_DL),a
+        call .col
         ; 1. верх - нули: строки 0..30-2v (31-2v строк)
         ld hl,Osc_Zero-#8000
         ld a,PAGE_PLAYER2
@@ -275,6 +330,18 @@ Osc_Win
         xor a
         ld (Od_NUM),a
         ld a,DMA_FILL
+        jp Od_Go
+; колонка окна в кадре: канал B * 48 -> приёмник DMA
+.col    ld a,b
+        add a,a
+        add a,a
+        add a,a
+        add a,a
+        ld c,a
+        add a,a
+        add a,c
+        ld (Od_DL),a
+        ret
 ; A - DMACTR: пуск (set_ports_int ждёт прошлую DMA)
 Od_Go   ld (Od_CTR),a
         ld hl,Od_T
@@ -299,6 +366,13 @@ Od_SH   equ Od_T+3
 Od_SX   equ Od_T+5
 Od_DL   equ Od_T+7
 Od_DX   equ Od_T+11
+
+; Полупериод (рисунок 0..47) -> картинка пилы с ближайшей длиной цикла 2*(p+1) (Og_SawL:
+; 4, 6, 8, 12, 16, 24, 32, 48, 64, 96)
+Osc_SL  db 0,0,1,2,3,3,4,4,4,5,5,5,5,6,6,6
+        db 6,6,6,7,7,7,7,7,7,7,7,8,8,8,8,8
+        db 8,8,8,8,8,8,8,9,9,9,9,9,9,9,9,9
+    ASSERT $-Osc_SL == OSC_SOLID
 Od_DH   equ Od_T+9
 Od_NUM  equ Od_T+15
 Od_CTR  equ Od_T+17
