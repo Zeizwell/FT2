@@ -57,6 +57,16 @@ Cm_F_Ref        db 0
 Cm_F_Our        db 0
 Cm_Bad          db 0                ; в этом кадре было расхождение
 Cm_F_Pat        db 0                ; паттерн первого расхождения (только для экрана)
+Cm_EFirst       db 0                ; 1 - первое расхождение огибающей (R11..R13) записано: его видно,
+                                    ;   даже если первое общее - раньше (глисс и т.п.)
+Cm_E_Frame      dw 0                ; кадр, позиция, паттерн, роу, чип, регистр, эталон, наш
+Cm_E_Pos        db 0
+Cm_E_Pat        db 0
+Cm_E_Row        db 0
+Cm_E_Chip       db 0
+Cm_E_Reg        db 0
+Cm_E_Ref        db 0
+Cm_E_Our        db 0
 
 ;-------- Сравнение целиком. Прерывания выключены на всё время, в конце - включены
 Cmp_Run
@@ -95,6 +105,7 @@ Cmp_Run
         ld (Cm_Diffs),hl
         xor a
         ld (Cm_First),a
+        ld (Cm_EFirst),a
 .frame  call Cm_Tick_Our
         call Cm_Tick_Ref
         ld hl,(Cm_EndRef)           ; трек уже кончился у кого-то - кадры не сравниваем
@@ -549,10 +560,44 @@ Cm_R    add a,l
         ld a,(hl)
         ret
 
+;-------- Расхождение огибающей: E - регистр, B - эталон, C - наш. Первое - запомнить. Регистры целы
+Cm_EDiff
+        ld a,(Cm_EFirst)
+        or a
+        ret nz
+        inc a
+        ld (Cm_EFirst),a
+        ld a,e
+        ld (Cm_E_Reg),a
+        ld a,b
+        ld (Cm_E_Ref),a
+        ld a,c
+        ld (Cm_E_Our),a
+        ld a,(Cm_Chip)
+        ld (Cm_E_Chip),a
+        push hl
+        ld hl,(Cm_Frame)
+        ld (Cm_E_Frame),hl
+        ld a,(SV_PLAY_POS)
+        ld (Cm_E_Pos),a
+        push bc
+        push de
+        call Cm_PatOf
+        ld (Cm_E_Pat),a
+        pop de
+        pop bc
+        ld a,(SV_PLAY_ROW)
+        ld (Cm_E_Row),a
+        pop hl
+        ret
+
 ;-------- Расхождение: A - регистр, B - эталон, C - наш. Первое - запомнить
 Cm_Diff ld e,a
         ld a,1
         ld (Cm_Bad),a
+        ld a,e                      ; огибающая - своё первое
+        cp 11
+        call nc,Cm_EDiff
         ld a,(Cm_First)
         or a
         ret nz
@@ -1128,7 +1173,7 @@ Cm_Result
         ld c,a
         ld hl,Txt_Same
         call PutStr
-        jr .key
+        jp .key
 .diff   ld a,(THEME_ATTR+CLR_ERROR)
         ld c,a
         ld hl,Txt_First
@@ -1168,6 +1213,47 @@ Cm_Result
         ld a,(Cm_F_Our)
         call PutHex2
         call Cm_Snap_Show           ; регистры и каналы в этот кадр
+        ld a,(Cm_EFirst)            ; первое расхождение огибающей
+        or a
+        jr z,.key
+        ld de,1+256*(CM_SCR_H+CM_Y_RES+11)
+        ld a,(THEME_ATTR+CLR_ERROR)
+        ld c,a
+        ld hl,Txt_EFirst
+        call PutStr
+        ld a,(Cm_E_Frame+1)
+        call PutHex2
+        ld a,(Cm_E_Frame)
+        call PutHex2
+        ld hl,Txt_Pos
+        call PutStr
+        ld a,(Cm_E_Pos)
+        call PutHex2
+        ld hl,Txt_Pat
+        call PutStr
+        ld a,(Cm_E_Pat)
+        call PutHex2
+        ld hl,Txt_Row
+        call PutStr
+        ld a,(Cm_E_Row)
+        call PutHex2
+        ld hl,Txt_EChip
+        call PutStr
+        ld a,(Cm_E_Chip)
+        inc a
+        call PutHex2
+        ld hl,Txt_Reg
+        call PutStr
+        ld a,(Cm_E_Reg)
+        call PutHex2
+        ld hl,Txt_RefV
+        call PutStr
+        ld a,(Cm_E_Ref)
+        call PutHex2
+        ld hl,Txt_OurV
+        call PutStr
+        ld a,(Cm_E_Our)
+        call PutHex2
 .key    ld a,(THEME_ATTR+CLR_TEXT)
         ld c,a
         ld de,1+256*(CM_SCR_H+CM_Y_RES+13)
@@ -1224,6 +1310,8 @@ Txt_Same        db "All frames match",0
 Txt_End         db "End of song frame (ref/our): ",0
 Txt_First       db "First diff: frame ",0
 Txt_Chip        db "Chip ",0
+Txt_EFirst      db "Env diff: frame ",0
+Txt_EChip       db "  Chip ",0
 Txt_Reg         db "  R",0
 Txt_RefV        db "  ref ",0
 Txt_OurV        db "  our ",0
