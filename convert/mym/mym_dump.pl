@@ -34,11 +34,20 @@ sub note {
     return $nn[$n % 12] . ($o < 0 ? '?' : $o);
 }
 
+if (@ARGV == 3 && $ARGV[0] eq '-u') {      # -u вход выход: только распаковать ICE!
+    open my $fh, '<:raw', $ARGV[1] or die "$ARGV[1]: $!";
+    local $/; my $d = <$fh>; close $fh;
+    $d = unice($d) if substr($d, 0, 4) eq 'ICE!';
+    open $fh, '>:raw', $ARGV[2] or die "$ARGV[2]: $!";
+    print $fh $d; close $fh;
+    exit;
+}
+
 my ($mys, $myv);
 for my $f (@ARGV) {
     open my $fh, '<:raw', $f or die "$f: $!";
     local $/; my $d = <$fh>; close $fh;
-    die "$f: ICE!-упакован - сначала распаковать\n" if substr($d, 0, 4) eq 'ICE!';
+    $d = unice($d) if substr($d, 0, 4) eq 'ICE!';   # ICE! 2.40 - распаковать
     if ($d =~ /MYM.TRAK/g) {        # песня: тег, дальше до конца (в SNDH - до конца файла)
         $mys = substr($d, pos($d) - 8);
     }
@@ -47,7 +56,22 @@ for my $f (@ARGV) {
         my $p = pos($d) - 8 - 32;
         $myv = substr($d, $p < 0 ? 0 : $p);
     }
-    die "$f: нет тегов MYM?TRAK / MYM?INST - не maxYMiser?\n" unless $mys || $myv;
+    unless ($mys || $myv) {         # старые выгрузки (2006): вместо тегов - 8 нулей; перед голосами -
+        for (my $p = 0; $p + 16 < length($d); $p += 2) {  #   смещения: до голосов (= 8) и до песни
+            next unless unpack('N', substr($d, $p, 4)) == 8;
+            my $so = unpack('N', substr($d, $p + 4, 4));
+            my $v = $p + 8;
+            my $s = $p + 4 + $so;
+            next if $so < 0x800 || $s + 8 + 1090 > length($d);
+            next if substr($d, $v + 32, 8) ne "\0" x 8 || substr($d, $s, 8) ne "\0" x 8;
+            my $len = ord(substr($d, $s + 8 + 1088, 1));
+            next if $len == 0;
+            $myv = substr($d, $v, $s - $v);
+            $mys = substr($d, $s);
+            last;
+        }
+    }
+    die "$f: нет данных maxYMiser (ни тегов MYM?TRAK / MYM?INST, ни старой раскладки)\n" unless $mys || $myv;
 }
 
 if ($mys) { dump_song($mys) }
@@ -144,4 +168,77 @@ sub dump_voices {
         my @w = map { b($v, $o + 2 * $_) * 256 + b($v, $o + 2 * $_ + 1) } 0 .. ($len ? $len - 1 : 0);
         printf "%02X len %d rep %d: %s\n", $n, $len, $rep, join(' ', map { sprintf '%04X', $_ } @w);
     }
+}
+
+# =========================================================================
+# Распаковка ICE! 2.40 (Pack-Ice, Axe/Superior) - по unice68 (sc68, Benjamin Gerard, GPL), это
+# построчный перевод рутины 68000. Данные читаются и пишутся с конца к началу.
+# =========================================================================
+my (@src, @dst, $a5, $a6, $d7);
+
+sub ice_bit {                       # get_1_bit: следующий бит (с конца, байты - назад)
+    my $r = ($d7 & 255) << 1;
+    if (!($r & 255)) { $r = ($r >> 8) + ($src[--$a5] << 1) }
+    $d7 = $r & 255;
+    return $r >> 8;
+}
+sub ice_bits {                      # get_d0_bits: n+1 бит
+    my $n = shift;
+    my $r1 = 0;
+    for (0 .. $n) { $r1 = $r1 * 2 + ice_bit() }
+    return $r1;
+}
+
+my (@direkt, @lentab, @moreof, @morew);
+BEGIN {                             # таблицы - до выполнения основного кода
+    @direkt = (0x7fff000e, 0x00ff0007, 0x00070002, 0x00030001, 0x00030001, 269, 14, 7, 4, 1);
+    @lentab = (9, 1, 0, -1, -1, 8, 4, 2, 1, 0);
+    @moreof = (11, 4, 7, 0, 1, 0x1f, -1, -1, 0, 0x1f);
+    @morew = (0x0b04, 0x0700, 0x011f, -1, 0x001f);
+}
+
+sub unice {
+    my $d = shift;
+    my ($id, $cs, $ds) = unpack 'a4 N N', $d;
+    @src = unpack 'C*', substr($d, 0, $cs);
+    @dst = (0) x $ds;
+    $a5 = $cs;                      # с конца упакованного
+    $a6 = $ds;                      # с конца распакованного
+    $d7 = $src[--$a5];
+    while (1) {                     # normal_bytes
+        if (ice_bit()) {            # литералы
+            my $d1 = 0;
+            if (ice_bit()) {
+                my $t = 5;
+                for (my $d3 = 4; $d3 >= 0; $d3--) {
+                    $t--;
+                    $d1 = ice_bits($direkt[$t] & 0xFFFF);
+                    last if $d1 != ($direkt[$t] >> 16);
+                }
+                $d1 += $direkt[$t + 5];
+            }
+            $dst[--$a6] = $src[--$a5] for 0 .. $d1;
+        }
+        last if $a6 <= 0;
+        my $d2 = 3;                 # strings: длина
+        while ($d2 >= 0 && ice_bit()) { $d2-- }
+        my $d1 = 0;
+        my $nb = $lentab[1 + $d2];
+        $d1 = ice_bits($nb) if $nb >= 0;
+        my $d4 = $lentab[6 + $d2] + $d1;
+        if ($d4 != 0) {             # смещение
+            my $e = 1;
+            while ($e >= 0 && ice_bit()) { $e-- }
+            $d1 = ice_bits($moreof[1 + $e]);
+            $d1 += $morew[3 + $e];
+            $d1 -= $d4 if $d1 < 0;
+        } else {
+            my ($n, $add) = (5, -1);
+            if (ice_bit()) { ($n, $add) = (8, 0x3f) }
+            $d1 = ice_bits($n) + $add;
+        }
+        my $a1 = $a6 + 2 + $d4 + $d1;   # depack_bytes: d4+2 байта из уже распакованного
+        for (0 .. $d4 + 1) { $dst[--$a6] = $dst[--$a1] if $a6 > 0 }
+    }
+    return pack 'C*', @dst;         # (картиночный режим ICE - для звука не нужен)
 }
