@@ -59,6 +59,7 @@ Pl_Looped       db 0                ; 1 - сонг дошёл до конца о
 ;-------- Старт: таблицы громкости и стерео, каналы с нуля, тишина
 Pl_Init
         call Pl_VolTab
+        call Fx_Detect              ; карта AY FX
         xor a
         ld (SV_PLAY_STATE),a
         ld (SV_PLAY_CMD),a
@@ -128,6 +129,11 @@ Pl_Mute
 .z2     ld (hl),a
         inc l
         djnz .z2
+        ld hl,Fx_Ch                 ; FX: каналы без FX, строки - нули (эффекты стоп)
+        ld b,FC_SIZE*CHANNELS+FX_ROW_SIZE*CHANNELS
+.z3     ld (hl),a
+        inc hl
+        djnz .z3
         ld a,#3F
         ld (Pl_Regs+7),a
         ld (Pl_Regs2+7),a
@@ -522,6 +528,9 @@ RiG     jr RiEnd                    ; инструмент - со строки R
 RiB     ld hl,#C000                 ;   блок сэмпла
 RiR     ld a,0
         call InsSet
+        ld hl,(RiB+1)               ;   и его FX (карта AY FX)
+        ld a,m_n
+        call Fx_Start
 RiEnd
 RoG     jr RoEnd                    ; орнамент - со строки RoR
 RoB     ld hl,0                     ;   блок орнамента (старший 0 - нет)
@@ -1511,7 +1520,7 @@ Pl_Channels
         call nz,Pl_EPer
         call es1.Tk
 .end    RESTPAGE3
-        ret
+        jp Fx_Tick                  ; FX каналов - в буфер карты
 
 ; PT: (HL) R11/R12 = (DE) база - сумма Pc_ESum (со знаком) + (BC) слайд огибающей
 Pl_EPer
@@ -1570,11 +1579,19 @@ St_Cur  cp 0
         out (c),a
         ld hl,Pl_Regs
         call Po_Chip
+        ld a,(Fx_Card)              ; карта AY FX чипа 1
+        or a
+        ld hl,Fx_Buf
+        call nz,Fx_Out
         ld a,#FE                    ; чип 2
         ld b,d
         out (c),a
         ld hl,Pl_Regs2
         call Po_Chip
+        ld a,(Fx_Card+1)            ;   чипа 2
+        or a
+        ld hl,Fx_Buf+3*FX_ROW_SIZE
+        call nz,Fx_Out
         ld a,#FF                    ; в конце выбран чип 1 (как после сброса)
         ld b,d
         out (c),a
@@ -1700,6 +1717,271 @@ St_Tab  ST_CH c0.Wt,c0.Wv1,c0.Wv2,c0.Mt,c0.Mn
         ST_CH c4.Wt,c4.Wv1,c4.Wv2,c4.Mt,c4.Mn
         ST_CH c5.Wt,c5.Wv1,c5.Wv2,c5.Mt,c5.Mn
 Po_Maps db 0,1,2, 0,2,1, 1,0,2, 1,2,0, 2,0,1  ; ABC ACB BAC BCA CAB - как в VT (Hd_Stereos)
+
+; =========================================================================
+; FX - таймерные эффекты карты AY FX (doc/ay-ports-map.md п.5а, sdk: FX_*, AYFX_*).
+; Карта есть, если ответила на ключ (Fx_Detect, по чипу) - иначе в её регистры не пишем.
+; Нота с инструментом - его FX с первой строки (Fx_Start из InsSet канала); тик - строка FX
+; канала в буфер (Fx_Tick, страница FX - за страницей инструментов), в начале следующего тика -
+; в карту вместе с регистрами AY (Fx_Out), строка = регистры канала карты.
+; =========================================================================
+FC_NUM          equ 0               ; номер FX (0 - нет)
+FC_NEW          equ 1               ; 1 - начать с первой строки
+FC_CNT          equ 2               ; строк до конца
+FC_PTR          equ 3               ; 2 строка
+FC_LPTR         equ 5               ; 2 строка цикла
+FC_LCNT         equ 7               ; строк в цикле
+FC_SIZE         equ 8
+Fx_Ch           ds FC_SIZE*CHANNELS
+Fx_Buf          ds FX_ROW_SIZE*CHANNELS ; строки каналов для карты (нули - эффектов нет)
+Fx_Card         db 0,0              ; карта на чипе 1 / 2
+
+;-------- Есть ли карта: на каждом чипе ключ и чтение #C0 ('T'), потом закрыть
+Fx_Detect
+        ld a,#FF
+        call .chip
+        ld (Fx_Card),a
+        ld a,#FE
+        call .chip
+        ld (Fx_Card+1),a
+        ld bc,#FFFD                 ; выбран чип 1 (как после сброса)
+        ld a,#FF
+        out (c),a
+        ret
+; A - чип -> A: 1 - карта есть
+.chip   ld bc,#FFFD
+        out (c),a
+        call Fx_Key
+        ld b,#FF
+        ld a,AYFX_KEY
+        out (c),a
+        in a,(c)
+        cp 'T'
+        ld a,0
+        ret nz
+        ld a,AYFX_GO                ; закрыть: GO с нулём
+        out (c),a
+        ld b,#BF
+        xor a
+        out (c),a
+        inc a
+        ret
+
+;-------- Ключ "TRIN" выбранному чипу. C = #FD; портит A, B
+Fx_Key  ld b,#FF
+        ld a,AYFX_KEY
+        out (c),a
+        ld b,#BF
+        ld a,'T'
+        out (c),a
+        ld a,'R'
+        out (c),a
+        ld a,'I'
+        out (c),a
+        ld a,'N'
+        out (c),a
+        ret
+
+;-------- Канал A (0..5) -> IX - его состояние. DE сохраняет
+Fx_IX   push de
+        add a,a
+        add a,a
+        add a,a                     ; *FC_SIZE
+        ld e,a
+        ld d,0
+        ld ix,Fx_Ch
+        add ix,de
+        pop de
+        ret
+    ASSERT FC_SIZE == 8
+
+;-------- Инструмент канала A начался (InsSet): HL - его блок (окно 3) -> номер его FX,
+; строки - с первой (в Fx_Tick: там страница FX)
+Fx_Start
+        push af
+        ld de,INS_FX
+        add hl,de
+        ld e,(hl)
+        pop af
+        call Fx_IX
+        ld (ix+FC_NUM),e
+        ld (ix+FC_NEW),1
+        ret
+
+;-------- Тик (после каналов): строки FX всех каналов -> Fx_Buf
+Fx_Tick
+        ld a,(Fx_Card)              ; карты нет - нечего считать
+        ld hl,Fx_Card+1
+        or (hl)
+        ret z
+        ld a,(Pl_InsPage)           ; страница FX - за страницей инструментов
+        inc a
+        SETPAGE3 a
+        ld ix,Fx_Ch
+        ld hl,Fx_Buf
+        ld b,CHANNELS
+.ch     push bc
+        push hl
+        call Fx_Row
+        pop hl
+        ld de,FX_ROW_SIZE
+        add hl,de
+        ld de,FC_SIZE
+        add ix,de
+        pop bc
+        djnz .ch
+        RESTPAGE3
+        ret
+
+; IX - канал, HL - его строка в Fx_Buf: строка FX (окно 3) и шаг, или нули
+Fx_Row
+        ld a,(ix+FC_NUM)
+        or a
+        jr z,.off
+        ld a,(ix+FC_NEW)
+        or a
+        call nz,Fx_Begin
+        ex de,hl                    ; DE - буфер
+        ld l,(ix+FC_PTR)
+        ld h,(ix+FC_PTR+1)
+        ld bc,FX_ROW_SIZE
+        ldir                        ; HL - следующая строка
+        dec (ix+FC_CNT)
+        jr nz,.st
+        ld l,(ix+FC_LPTR)           ; конец - на цикл
+        ld h,(ix+FC_LPTR+1)
+        ld a,(ix+FC_LCNT)
+        ld (ix+FC_CNT),a
+.st     ld (ix+FC_PTR),l
+        ld (ix+FC_PTR+1),h
+        ret
+.off    ld b,FX_ROW_SIZE
+.z      ld (hl),0
+        inc hl
+        djnz .z
+        ret
+
+; FX канала IX - с первой строки: блок #C000 + (n-1)*FX_BLOCK, строк до конца и цикл. HL сохраняет
+Fx_Begin
+        push hl
+        ld (ix+FC_NEW),0
+        ld a,(ix+FC_NUM)
+        dec a
+        ld l,a                      ; (n-1)*448 = *512 - *64
+        ld h,0
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        ld d,h
+        ld e,l
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        or a
+        sbc hl,de
+        ld de,#C000+OH_LOOP
+        add hl,de
+        ld c,(hl)                   ; C - цикл
+        inc hl
+        ld a,(hl)                   ; B - последняя (не дальше FX_ROWS_MAX-1)
+        cp FX_ROWS_MAX
+        jr c,$+4
+        ld a,FX_ROWS_MAX-1
+        ld b,a
+        inc hl                      ; HL - строка 0
+        cp c                        ; цикл за концом - последняя
+        jr nc,$+3
+        ld c,b
+        ld (ix+FC_PTR),l
+        ld (ix+FC_PTR+1),h
+        inc a
+        ld (ix+FC_CNT),a
+        ld a,b
+        sub c
+        inc a
+        ld (ix+FC_LCNT),a
+        ex de,hl                    ; строка цикла: строка 0 + C*12
+        ld l,c
+        ld h,0
+        add hl,hl
+        add hl,hl
+        ld b,h
+        ld c,l
+        add hl,hl
+        add hl,bc
+        add hl,de
+        ld (ix+FC_LPTR),l
+        ld (ix+FC_LPTR+1),h
+        pop hl
+        ret
+    ASSERT FX_BLOCK == 512-64 && FX_ROW_SIZE == 12
+
+;-------- Карта выбранного чипа: ключ, строки трёх выходов (выход q - канал Po_Maps[стерео][q]),
+; GO с закрытием. HL - строки каналов чипа в Fx_Buf. C = #FD; DE сохраняет
+Fo_Base         dw 0
+Fo_Map          dw 0
+Fo_Q            db 0
+Fx_Out
+        push de
+        ld (Fo_Base),hl
+        call Fx_Key
+        ld a,(St_Cur+1)             ; раскладка стерео: Po_Maps + режим*3
+        ld e,a
+        add a,a
+        add a,e
+        ld hl,Po_Maps
+        add a,l
+        ld l,a
+        jr nc,$+3
+        inc h
+        ld (Fo_Map),hl
+        xor a
+.q      ld (Fo_Q),a
+        ld b,#FF                    ; выход q
+        ld e,AYFX_CH
+        out (c),e
+        ld b,#BF
+        out (c),a
+        ld hl,(Fo_Map)              ; его канал -> строка: Fo_Base + канал*12
+        add a,l
+        ld l,a
+        jr nc,$+3
+        inc h
+        ld a,(hl)
+        ld e,a
+        add a,a
+        add a,e
+        add a,a
+        add a,a
+        ld hl,(Fo_Base)
+        add a,l
+        ld l,a
+        jr nc,$+3
+        inc h
+        ld e,AYFX_ROW               ; регистры строки
+.r      ld b,#FF
+        out (c),e
+        ld b,#C0                    ; OUTI: B-1 = #BF
+        outi
+        inc e
+        ld a,e
+        cp AYFX_ROW+FX_ROW_SIZE
+        jr c,.r
+        ld a,(Fo_Q)
+        inc a
+        cp 3
+        jr c,.q
+        ld b,#FF                    ; GO и закрыть
+        ld a,AYFX_GO
+        out (c),a
+        ld b,#BF
+        xor a
+        out (c),a
+        pop de
+        ret
 
 player1_end
     ASSERT player1_end <= #8000
