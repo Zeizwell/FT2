@@ -1,7 +1,8 @@
 ; =========================================================================
 ; ОСЦИЛЛЯТОРЫ: генерация - раз при старте (стартовый код, страница #02: после запуска не
-; нужен). Строки меандра (Osc_MRows, вторая страница плеера): на рисунок p - одна строка окна
-; 96 точек: полосы шириной p+1 точек (0..27 - по периоду тона), 28 - сплошная (тон выкл).
+; нужен). Полоса меандра (Osc_Strip, вторая страница плеера) - одна длинная, как в индикаторе FT:
+; полупериод плавно растёт по ней (в точке x - как у периода x/4), окно тона берёт 96 точек с
+; места 4*период; Osc_Solid - сплошная строка (тон выкл).
 ; Точки 4 бита: 1 - полоса (цвет нот темы, палитра тайлов OSC_PALN), 0 - прозрачно (текст виден).
 ; Окно каждый кадр собирает DMA (srs/osc.asm).
 ; =========================================================================
@@ -10,8 +11,8 @@ OSC_WB          equ OSC_W/2         ; байт строки окна
 OSC_TW          equ OSC_W/8         ; тайлов в окне (ряд из 3 окон по 12 - 36 в строке: больше TSU в
                                     ;   текстовом режиме за строку не успевает)
 OSC_H           equ 32              ; строк в окне: 0..30 - громкость (по 2 на уровень), 31 - линия нуля
-OSC_PATS        equ 49              ; рисунков: 0..47 - полупериод 1..48 точек (до полокна), 48 - сплошной
-OSC_SOLID       equ 48
+OSC_SOLID       equ 48              ; полупериодов в Osc_PT: 0..47 - 1..48 точек (картинки огибающей)
+OSC_STRIP       equ 4096*2+OSC_WB   ; полоса меандра: период 0..4095 по 4 точки + хвост на окно
 OSC_FBPAGE      equ PAGE_SPRITE+4   ; окна чипа 1: строки 32..63 страницы (битмап 288..319), чипа 2 -
                                     ;   строки 0..31 следующей (320..351)
 OSC_FBROW       equ 32
@@ -24,31 +25,44 @@ OSC_COL_W       equ 1               ; номер цвета полосы (0 - п
 OSC_NOISE       equ 8               ; строк шума (случайные точки; кадр - следующая)
     ASSERT OSC_PALN != PALET_NUM
 
-Og_Row          ds OSC_WB           ; строка рисунка
-Og_P            db 0                ; рисунок
-Os_W            db 0                ; полупериод
+Og_X            dw 0                ; точка полосы
+Og_Acc          dw 0                ; полупериод: накопление с дробной частью (как GetStep в FT)
 Os_C            db 0                ;   счётчик точек
 Os_On           db 0                ;   0 - полоса, 1 - промежуток
 
-;-------- Строки меандра всех рисунков - в Osc_MRows (вторая страница плеера, через окно 3)
+;-------- Полоса меандра, сплошная строка и строки шума - во вторую страницу плеера (окно 3)
 Osc_Gen
         ld a,PAGE_PLAYER2
         SETPAGE3 a
-        ld de,Osc_MRows-#8000+#C000
-        xor a
-        ld (Og_P),a
-.p      push de
-        ld a,(Og_P)
-        call Osc_Stripe
-        pop de
-        ld hl,Og_Row
-        ld bc,OSC_WB
-        ldir
-        ld hl,Og_P
-        inc (hl)
-        ld a,(hl)
-        cp OSC_PATS
-        jr c,.p
+        ld hl,0
+        ld (Og_X),hl
+        ld (Og_Acc),hl
+        xor a                       ; сначала полоса, полупериод - первый шаг
+        ld (Os_On),a
+        call Og_Step
+        ld de,Osc_Strip-#8000+#C000
+        ld bc,OSC_STRIP
+.st     push bc
+        call Og_Px                  ; левая точка
+        rlca
+        rlca
+        rlca
+        rlca
+        ld c,a
+        call Og_Px                  ; правая
+        or c
+        ld (de),a
+        inc de
+        pop bc
+        dec bc
+        ld a,b
+        or c
+        jr nz,.st
+        ld b,OSC_WB                 ; сплошная строка (DE - сразу за полосой)
+.so     ld a,OSC_COL_W*#11
+        ld (de),a
+        inc de
+        djnz .so
         ld de,Osc_NRows-#8000+#C000 ; строки шума: случайные точки (LFSR)
         ld bc,OSC_NOISE*OSC_WB
 .nz     push bc
@@ -86,51 +100,42 @@ Og_Bit  ld hl,(Og_Rnd)
         xor a
         ret
 
-;-------- A - рисунок -> Og_Row: 96 точек (старший полубайт - левая), полоса / промежуток по
-; полупериоду A+1, сначала полоса; OSC_SOLID - сплошная полоса
-Osc_Stripe
-        ld hl,Og_Row
-        cp OSC_SOLID
-        jr nz,.st
-        ld b,OSC_WB
-.s      ld (hl),OSC_COL_W*#11
+;-------- Очередная точка полосы -> A (номер цвета); полупериод кончился - другой (Og_Step)
+Og_Px   ld hl,(Og_X)
         inc hl
-        djnz .s
-        ret
-.st     inc a
-        ld (Os_W),a
-        ld (Os_C),a
-        xor a
-        ld (Os_On),a
-        ld b,OSC_WB
-.b      call .px                    ; левая точка
-        rlca
-        rlca
-        rlca
-        rlca
-        ld c,a
-        call .px                    ; правая
-        or c
-        ld (hl),a
-        inc hl
-        djnz .b
-        ret
-; очередная точка -> A (номер цвета), счёт полупериода
-.px     ld a,(Os_On)
+        ld (Og_X),hl
+        ld a,(Os_On)
         or a
         ld a,OSC_COL_W
         jr z,$+3
         xor a
         push af
-        ld a,(Os_C)
-        dec a
+        ld hl,Os_C
+        dec (hl)
         jr nz,.k
-        ld a,(Os_On)                ; полупериод кончился - другой
+        ld a,(Os_On)
         xor 1
         ld (Os_On),a
-        ld a,(Os_W)
-.k      ld (Os_C),a
-        pop af
+        call Og_Step
+.k      pop af
+        ret
+
+; Полупериод в точке Og_X -> Os_C: накопление += x + 32 (период x/4: шаг 4P+32 как в FT, /256),
+; целая часть - точки (не меньше 1), дробная остаётся
+Og_Step push de
+        ld hl,(Og_X)
+        ld de,32
+        add hl,de
+        ld de,(Og_Acc)
+        add hl,de
+        ld a,h
+        ld h,0
+        ld (Og_Acc),hl
+        or a
+        jr nz,$+3
+        inc a
+        ld (Os_C),a
+        pop de
         ret
 
 ;-------- Пила огибающей: картинки на всё окно (96 x 31 строк, строка 31 - линия нуля - не
