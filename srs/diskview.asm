@@ -1172,9 +1172,22 @@ Dv_File_Info
         jr c,.out
         ld a,(Fi_Type)              ; где имя и автор
         cp 1
-        ld hl,#C000+SH_NAME
+        jr nz,.pt3
+        ld a,(#C000+3)              ; контейнер "FT2C": HEAD - первый блок, имя - +13 его данных
+        cp 'C'
+        jr nz,.dump
+        ld hl,#C000+6+6+13
+        ld d,h
+        ld e,l
+.nz     ld a,(de)                   ; автор - за нулём имени
+        inc de
+        or a
+        jr nz,.nz
+        jr .copy
+.dump   ld hl,#C000+SH_NAME
         ld de,#C000+SH_AUTHOR
-        jr z,.copy
+        jr .copy
+.pt3
         ld hl,#C000+30              ; PT3: +30 имя, +66 автор
         ld de,#C000+66
 .copy   push de
@@ -1308,11 +1321,11 @@ Dv_Load
         jr nc,.pages
         ld hl,Txt_BadPt3
         jp Dv_Error
-.ft2min ld a,e                      ; FT2 - хотя бы две страницы
-        or a
+.ft2min ld a,e                      ; FT2 - хотя бы заголовок контейнера (старый дамп - проверит Ft2_Load)
+        or h
         jr nz,.pages
-        ld a,h
-        cp #80
+        ld a,l
+        cp 12
         jr nc,.pages
         ld hl,Txt_NotFT2
         jp Dv_Error
@@ -1396,6 +1409,28 @@ Ft2_Load
         ld hl,(#C000+SH_SIGN)
         ld de,(#C000+SH_SIGN+2)
         RESTPAGE3
+        ld bc,"F"+"T"*256           ; "FT2C" - контейнер
+        or a
+        sbc hl,bc
+        add hl,bc
+        jr nz,.old
+        push hl
+        ex de,hl
+        ld bc,"2"+"C"*256
+        or a
+        sbc hl,bc
+        ex de,hl
+        pop hl
+        jp z,Cn_Read
+.old    ld a,(Ld_Size+2)            ; старый дамп - хотя бы две страницы (32К)
+        ld c,a
+        ld a,(Ld_Size+3)
+        or c
+        jr nz,.sz
+        ld a,(Ld_Size+1)
+        cp #80
+        jr c,.bad
+.sz
         ld bc,"F"+"T"*256
         or a
         sbc hl,bc
@@ -1421,6 +1456,43 @@ Ft2_Load
         ld (Fs_Ptr),hl
         jr Ld_Unpack
 .bad    ld hl,Txt_NotFT2
+        jp Dv_Error
+.err    ld a,(Ld_Res)
+        jp Dv_Disk_Code
+
+;-------- Контейнер: первые 16К уже в буфере - остальное (до 64К) туда же, потом разбор
+Cn_Read
+        ld a,(Ld_Size+2)            ; больше 64К - не берём
+        or a
+        jr nz,.big
+        ld a,(Ld_Size+3)
+        or a
+        jr nz,.big
+        ld a,1
+        ld (Ld_Page),a
+.r      ld a,(Ld_Page)
+        ld hl,Ld_Pages
+        cp (hl)
+        jr nc,.go
+        add a,PAGE_FILEBUF
+        SETPAGE3 a
+        ld ix,DK_READ
+        ld hl,#C000
+        ld b,32
+        call Disk_Call
+        ld (Ld_Res),a
+        sbc a,a
+        ld (Ld_Err),a
+        RESTPAGE3
+        ld a,(Ld_Err)
+        or a
+        jr nz,.err
+        ld hl,Ld_Page
+        inc (hl)
+        jr .r
+.go     ld hl,(Ld_Size)
+        jp Cn_Load
+.big    ld hl,Txt_TooBig
         jp Dv_Error
 .err    ld a,(Ld_Res)
         jp Dv_Disk_Code
@@ -1594,7 +1666,7 @@ Dv_Save
         ld hl,Sv_Spec
         call Disk_Call
         jp nz,Dv_Disk_Err
-        call Sv_Stream              ; трек - в файл потоком
+        call Cn_Save                ; трек - в файл (контейнер)
         ret c
         ld ix,DK_CLOSE
         call Disk_Call
@@ -1877,6 +1949,7 @@ Fs_Fill
     include "srs/pt3imp.asm"
     include "srs/pt2imp.asm"
     include "srs/ftcimp.asm"
+    include "srs/ft2c.asm"         ; контейнер FT2 (doc/formats/ft2.md)
 
 ; =========================================================================
 ; СООБЩЕНИЯ
