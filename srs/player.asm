@@ -491,10 +491,30 @@ DlGo
 DlN     ld a,0                      ;   пора: ворота закроет NoteGo
         call NoteGo
 DlEnd
-SndJ    jp Silent                   ; звучит - Snd, молчит - Silent
-Silent  xor a                       ; молчит: громкость 0
-Wv1     ld (REGS+8+IDX),a           ;   (адреса записи - по стерео, St_Apply)
+SndJ    jp Silent                   ; звучит - Snd, молчит - Silent (R--, тишина команды 6)
+Silent  xor a                       ; молчит: громкость 0, канал стоит (как PT3: ни сэмпл, ни
+Wv1     ld (REGS+8+IDX),a           ;   слайды; адреса записи - по стерео, St_Apply)
+OoG     jr OoEnd                    ; 6 вкл / выкл - после вывода (как CH_EXIT в PT3: смена
+OoC     ld a,0                      ;   фазы - со следующего тика): фаза кончилась - другая
+        dec a
+        jr nz,OoSt
+        ld hl,Snd                   ;   звук <-> тишина (тишина - тик идёт в Silent)
+        ld a,(SndJ+1)
+        cp low Silent
+        jr z,OoSnd
+        ld hl,Silent
+        ld (SndJ+1),hl
+OoOff   ld a,0                      ;   тиков тишины
+        jr OoCnt
+OoSnd   ld (SndJ+1),hl
+OoOn    ld a,0                      ;   тиков звука
+OoCnt   or a                        ;   0 - больше не переключать (как PT3)
+        jr nz,OoSt
+        GATE_OFF OoG,OoEnd
         ret
+OoSt    ld (OoC+1),a
+OoEnd   ret
+    ASSERT low Silent != low Snd
 Snd
 RiG     jr RiEnd                    ; инструмент - со строки RiR (нота, 4, смена сэмпла)
 RiB     ld hl,#C000                 ;   блок сэмпла
@@ -771,29 +791,9 @@ EG      jr VOut
         add hl,de
         ld (REGS+11),hl
 VOut
-OsG     jr OsEnd                    ; 6: фаза "выкл" (ON) - тишина
-        ld b,0
-OsEnd   ld a,b
+        ld a,b
 Wv2     ld (REGS+8+IDX),a
-OoG     jr OoEnd                    ; 6 вкл / выкл - после вывода (как CH_EXIT в PT3: смена
-OoC     ld a,0                      ;   фазы - со следующего тика): фаза кончилась - другая
-        dec a
-        jr nz,OoSt
-        ld a,(OsG)                  ;   ворота тишины - наоборот
-        xor #18^#FE
-        ld (OsG),a
-        cp #FE                      ;   теперь тишина - тиков "выкл"
-        jr nz,OoSnd
-OoOff   ld a,0
-        jr OoCnt
-OoSnd
-OoOn    ld a,0
-OoCnt   or a                        ;   0 - больше не переключать (как PT3)
-        jr nz,OoSt
-        GATE_OFF OoG,OoEnd
-        ret
-OoSt    ld (OoC+1),a
-OoEnd   ret
+        jp OoG                      ; 6 вкл / выкл - после вывода
 
 ; Смещение огибающей строки + накопленное (бит 7 громкости, C - сохранить) -> A
 EOffs
@@ -1015,7 +1015,6 @@ ROff    xor a
         ld (SndJ+1),hl
         GATE_OFF GG,GEnd
         GATE_OFF OoG,OoEnd
-        GATE_OFF OsG,OsEnd
         GATE_OFF VsG,VsEnd
         GATE_OFF VbG,VbEnd
         GATE_OFF ArG,ArEnd
@@ -1159,7 +1158,6 @@ CGl     ld a,c                      ; 1, 2, 3 - после ноты (Post)
         ld a,e
         ld (Pr_GPar),a
         GATE_OFF OoG,OoEnd          ;   слайды снимают 6
-        GATE_OFF OsG,OsEnd
         ret
 CSo     inc e                       ; 4 / 5 - при ноте (+1: 0 - нет)
         ld a,e
@@ -1169,9 +1167,10 @@ COo     inc e
         ld a,e
         ld (Pr_OOfs),a
         ret
-C6      GATE_OFF OsG,OsEnd          ; 6 вкл / выкл: со звука; 0 - стоп
-        GATE_OFF OoG,OoEnd
+C6      GATE_OFF OoG,OoEnd          ; 6 вкл / выкл: фаза как есть, счёт - со "вкл"; 0 - стоп
         GATE_OFF GG,GEnd            ;   6 снимает слайды
+        ld hl,0                     ;   и их смещение (как PT3)
+        ld (GOF+1),hl
         ld a,e
         or a
         ret z
