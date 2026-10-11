@@ -507,6 +507,12 @@ D3 — SD2, D4 — ESP32; данные `#57`; `pentevo/fpga/current/z80/zports.v
 - **Скиллы** (`SKILL.md` в `~/.claude/skills/`): `aklofas/kicad-happy` (ревью проектов KiCad),
   `l3wi/claude-eda` (`eda-pcb` — разводка после схемы), Circuit Synth (схемы из Python для KiCad),
   `diodeinc/pcb` (свой язык Zener + KiCad, SPICE).
+- **Нашёл пользователь (2026-10-11):**
+  - [drandyhaas/KiCadRoutingTools](https://github.com/drandyhaas/KiCadRoutingTools/tree/main/.claude/skills) — скиллы Claude для
+    трассировки в KiCad (папка `.claude/skills`);
+  - [NijoP/pcbflow](https://github.com/NijoP/pcbflow) — поток проектирования платы;
+  - [aklofas/kicad-happy](https://github.com/aklofas/kicad-happy) — ревью проектов KiCad (он же выше).
+  Не смотрели и не ставили: перед установкой читать исходник.
 - Трассировку дорожек ИИ делает плохо (есть автотрассировщик Freerouting); критичное — земля, аналоговый
   звук, шина — разводить руками. Claude полезен в схеме, правилах, проверках, BOM.
 - План: KiCad 9 + `kicad-mcp` (анализ и DRC) — когда будет схема Trinity.
