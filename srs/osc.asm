@@ -110,7 +110,7 @@ Osc_Tick
         pop hl
         pop de
         pop bc
-        ld a,e                      ; окно правее - 7 тайлов
+        ld a,e                      ; окно правее - 7 тайлов (6 окна + зазор)
         add a,7*2
         ld e,a
         inc b
@@ -201,7 +201,7 @@ Osc_Win
         inc hl
         ld h,(hl)
         ld l,a
-        ld b,7                      ; 7 тайлов подряд
+        ld b,OSC_TW                 ; тайлы окна подряд
 .t      ld a,l
         ld (de),a
         inc e
@@ -212,7 +212,7 @@ Osc_Win
         djnz .t
         jr .next
 .bg     ld hl,0                     ; тайл 0 - прозрачный (виден текст)
-        ld b,7
+        ld b,OSC_TW
 .tb     ld a,l
         ld (de),a
         inc e
@@ -221,7 +221,7 @@ Osc_Win
         inc e
         djnz .tb
 .next   ld a,e                      ; ряд карты ниже
-        sub 7*2
+        sub OSC_TW*2
         ld e,a
         inc d
         ret
@@ -237,7 +237,7 @@ Osc_Win
     MACRO OSC_GT_GEN
 Ok = 0
     DUP OSC_GROUPS
-        dw ((OSC_TROW + Ok/OSC_GPR)*64 + (Ok%OSC_GPR)*7) | OSC_PAL
+        dw ((OSC_TROW + Ok/OSC_GPR)*64 + (Ok%OSC_GPR)*OSC_TW) | OSC_PAL
 Ok = Ok + 1
     EDUP
     ENDM

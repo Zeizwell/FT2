@@ -15,10 +15,12 @@ OSC_VARS        equ 8               ; вариантов ряда: 0..3 - зап
                                     ;   4..7 - нижний ряд окна: то же + линия нуля (строка 7)
 OSC_GBASE       equ OSC_PATS*OSC_VARS   ; группа "только линия" (громкость 0)
 OSC_GROUPS      equ OSC_GBASE+1     ; групп по 7 тайлов: рисунок*OSC_VARS + вариант, + линия
-OSC_GPR         equ 9               ; групп в ряду тайлов (63 тайла из 64)
+OSC_TW          equ 6               ; тайлов в окне (48 точек): больше в строке TSU в текстовом
+                                    ;   режиме не успевает (42 - правые пропадали); зазор - 1 тайл
+OSC_WB          equ OSC_TW*4        ; байт строки окна
+OSC_GPR         equ 64/OSC_TW       ; групп в ряду тайлов
 OSC_MAPROW      equ 32              ; ряд карты = строка экрана 256: окна - ряды 32..35
-OSC_XOFFS       equ 512-8           ; окна - 42 тайла (336 точек): слева 8, справа 16 - сдвиг кратен 8
-                                    ;   (дробный сдвиг тайлов давал черту у правого края)
+OSC_XOFFS       equ 512-16          ; окна: 6 по 48 точек через 8 (328) по центру 360, сдвиг кратен 8
 OSC_PALN        equ 14              ; палитра тайлов: PALSEL тайлов 3, палитра в слове 2
 OSC_PAL         equ (OSC_PALN&3)<<12
 OSC_COL_W       equ 1               ; номер цвета полос
@@ -26,9 +28,9 @@ OSC_COL_BG      equ 0               ;   прозрачно
     ASSERT (OSC_TROW+(OSC_GROUPS+OSC_GPR-1)/OSC_GPR)*8 <= 512
     ASSERT OSC_PALN != PALET_NUM
 
-Osc_Row         ds 28               ; строка рисунка: 56 точек
-Osc_BgRow       ds 28               ;   прозрачная (0)
-Osc_LineRow     ds 28               ;   линия нуля (сплошная)
+Osc_Row         ds OSC_WB           ; строка рисунка: 48 точек
+Osc_BgRow       ds OSC_WB           ;   прозрачная (0)
+Osc_LineRow     ds OSC_WB           ;   линия нуля (сплошная)
 Og_Var          db 0                ; вариант группы
 Og_P            db 0                ; рисунок
 Og_L            db 0                ; вариант 0..7
@@ -40,7 +42,7 @@ Os_On           db 0                ;   0 - полоса, 1 - фон
 ;-------- Тайлы всех рисунков и вариантов + группа "только линия"
 Osc_Gen
         ld hl,Osc_LineRow           ; линия нуля
-        ld b,28
+        ld b,OSC_WB
 .ln     ld (hl),OSC_COL_W*#11
         inc hl
         djnz .ln
@@ -103,7 +105,7 @@ Og_Group
         jr c,.cp
         ld hl,Osc_Row
 .cp     push de
-        ld bc,28                    ; 7 тайлов подряд - 28 байт строки битмапа
+        ld bc,OSC_WB                ; тайлы окна подряд - строка битмапа
         ldir
         pop de
         inc d                       ; следующая строка битмапа (+256)
@@ -115,13 +117,13 @@ Og_Group
         RESTPAGE3
         ret
 
-;-------- A - рисунок -> Osc_Row: 56 точек (старший полубайт - левая точка): полосы шириной
+;-------- A - рисунок -> Osc_Row: 48 точек (старший полубайт - левая точка): полосы шириной
 ; A+1 (сначала цвет полос, потом фон), OSC_SOLID - сплошной
 Osc_Stripe
         ld hl,Osc_Row
         cp OSC_SOLID
         jr nz,.st
-        ld b,28
+        ld b,OSC_WB
 .s      ld (hl),OSC_COL_W*#11
         inc hl
         djnz .s
@@ -131,7 +133,7 @@ Osc_Stripe
         ld (Os_C),a
         xor a
         ld (Os_On),a
-        ld b,28
+        ld b,OSC_WB
 .b      call .px                    ; левая точка
         rlca
         rlca
@@ -167,7 +169,7 @@ Osc_Stripe
 Ok = 0
     DUP OSC_GROUPS
 Oy = (OSC_TROW + Ok/OSC_GPR)*8
-        dw #C000 + (Oy%64)*256 + (Ok%OSC_GPR)*7*4
+        dw #C000 + (Oy%64)*256 + (Ok%OSC_GPR)*OSC_WB
         db PAGE_SPRITE + Oy/64
 Ok = Ok + 1
     EDUP
