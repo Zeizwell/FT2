@@ -949,6 +949,14 @@ Or_Body
 
 ;-------- Строка FX по подвкладке: IX - строка, DE - экран (колонка ER_DATA_X)
 Fx_Body
+        push de                     ; сначала - пробелы до иконок (у подвкладок разные колонки)
+        ld a,(THEME_ATTR+CLR_BG)
+        ld c,a
+        ld b,ER_INS_X-ER_DATA_X
+.cl     ld a,' '
+        call PutCh
+        djnz .cl
+        pop de
         ld a,(Fx_Sub)
         or a
         jr nz,.fm
