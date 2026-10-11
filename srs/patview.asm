@@ -2027,6 +2027,7 @@ K_Timing
 INT_LINE_VISIBLE equ 32
 Int_Line_Set
         ld a,(Timing)
+        ld (Pl_Band),a              ; плеер (IM1 коре) - тоже голубым
         or a
         jr z,$+4
         ld a,INT_LINE_VISIBLE

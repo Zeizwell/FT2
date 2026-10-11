@@ -58,11 +58,19 @@ IM1_Handler
     ld a,(SV_PLAYER)
     or a
     jr z,.nomusic
+    ld a,(Pl_Band)              ; полоса времени: плеер - голубым
+    or a
+    ld hl,Pb_On
+    call nz,set_ports_int
+    ld a,(SV_PLAYER)
     SETPAGE1 a
     SETPAGE2 PAGE_PLAYER2
     call PLAYER_TICK
     RESTPAGE2
     RESTPAGE1
+    ld a,(Pl_Band)              ;   дальше - фон темы
+    or a
+    call nz,Pb_Back
 .nomusic
     ; 2. мышь
     call Read_Mouse
@@ -303,3 +311,24 @@ Key_Chars
 Prv_Row
         ds CHIP_SIZE
     ASSERT high Prv_Row == high (Prv_Row+CHIP_SIZE-1)
+
+; =========================================================================
+; ПОЛОСА ВРЕМЕНИ ПЛЕЕРА (Ctrl+T в виде паттерна ставит Pl_Band): на время тика плеера цвет #0
+; палитры - голубой, после - фон темы (Pal_Bg). Высота голубого = время плеера
+; =========================================================================
+Pl_Band         db 0
+PB_W            equ PALET_NUM*16    ; слово CRAM
+Pb_Back
+        ld hl,(Pal_Bg)              ; фон темы - в выровненное слово (DMA берёт слова)
+        ld (Pb_Bg),hl
+        ld hl,Pb_Off
+        jp set_ports_int
+Pb_On   db high DMASADDRL,low Pb_Cyan, high DMASADDRH,high Pb_Cyan, high DMASADDRX,PAGE_CORE0
+        db high DMADADDRL,(PB_W&127)*2, high DMADADDRH,PB_W>>7, high DMADADDRX,0
+        db high DMALEN,0, high DMANUM,0, high DMACTR,DMA_RAM_CRAM, #FF
+Pb_Off  db high DMASADDRL,low Pb_Bg, high DMASADDRH,high Pb_Bg, high DMASADDRX,PAGE_CORE0
+        db high DMADADDRL,(PB_W&127)*2, high DMADADDRH,PB_W>>7, high DMADADDRX,0
+        db high DMALEN,0, high DMANUM,0, high DMACTR,DMA_RAM_CRAM, #FF
+        ALIGN 2                     ; цвет: младший gggBBbbb, старший 0RRrrrGG
+Pb_Cyan         db %00011000, %00000011
+Pb_Bg           dw 0
