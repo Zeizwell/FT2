@@ -512,7 +512,7 @@ Sw_Draw
         push hl
         ld hl,Sw_Names
         call Hl_Add_A
-        ld e,SW_V
+        ld de,SW_V+256*(IV_SCR_H+SUB_Y)
         ld b,3
 .n      ld a,(hl)
         call PutCh
