@@ -116,10 +116,13 @@ class SNDCHIP : public SNDRENDER
       unsigned base;             // timer base period (TAKE)
       TRIN_FX fx[3];
       unsigned sweep;            // PWM sweep phase 0..65535
+      u8 shape, start;           // #BC: sweep shape (bits 2..0) + keep on RESET (bit 3); #BD: start phase
       u8 lvl;                    // SID level 0..15
    };
    u8 trin_on, trin_key, trin_ch, trin_cmd, trin_tn, trin_tp;
    u8 trin_sh[3][TRIN_REGS];     // shadow, goes to work on GO (#C1)
+   u8 trin_sh2[3][2];            // shadow of #BC, #BD
+   double trin_sweep_pos(const TRIN_CH &ch);
    TRIN_CH trin[3];
    u8 trin_tab[TRIN_TABS + 1][1 + TRIN_STEPS];   // 1..32: header (len-1 | loop<<4), steps
    bool trin_write(unsigned timestamp, u8 val);

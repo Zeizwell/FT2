@@ -360,6 +360,7 @@ void SNDCHIP::trin_reset()
 {
    trin_on = trin_key = trin_ch = trin_cmd = trin_tn = trin_tp = 0;
    memset(trin_sh, 0, sizeof trin_sh);
+   memset(trin_sh2, 0, sizeof trin_sh2);
    memset(trin, 0, sizeof trin);
    memset(trin_tab, 0, sizeof trin_tab);
    for (int c = 0; c < 3; c++) trin[c].lvl = 15;
@@ -414,7 +415,7 @@ void SNDCHIP::trin_apply(int c, int k)
          ch.lvl = v & 15;
          if (len == 2 && ch.reg[1]) {               // PWM: 2 steps share 2P by the duty
             double lo = (ch.reg[1] & 15) / 30.0, hi = (ch.reg[1] >> 4) / 30.0, d = hi;   // 0..50%; no sweep - max
-            if (ch.reg[2]) d = lo + (hi - lo) * (ch.sweep < 32768 ? ch.sweep : 65536 - ch.sweep) / 32768.0;
+            if (ch.reg[2]) d = lo + (hi - lo) * trin_sweep_pos(ch);
             unsigned h = trin_clamp(2.0 * p * d, 2 * p - 1);
             fx.dur = fx.step == 0 ? h : 2 * p - h;
          }
@@ -456,7 +457,20 @@ void SNDCHIP::trin_tick()
    }
 }
 
-// once per frame: PWM sweep, triangle min -> max -> min
+// sweep position 0..1 by shape (#BC bits 2..0): triangle, sine, saw up, saw down, square
+double SNDCHIP::trin_sweep_pos(const TRIN_CH &ch)
+{
+   double p = ch.sweep / 65536.0;
+   switch (ch.shape & 7) {
+      case 1: return 0.5 - 0.5 * cos(2.0 * 3.14159265358979 * p);   // sine
+      case 2: return p;                                               // saw up
+      case 3: return 1.0 - p;                                         // saw down
+      case 4: return p < 0.5 ? 1.0 : 0.0;                             // square: max, then min
+      default: return p < 0.5 ? 2.0 * p : 2.0 - 2.0 * p;              // triangle
+   }
+}
+
+// once per frame: PWM sweep (shape - #BC)
 void SNDCHIP::trin_frame()
 {
    for (int c = 0; c < 3; c++)
@@ -470,6 +484,7 @@ void SNDCHIP::trin_go(u8 val)
       TRIN_CH &ch = trin[c];
       u8 was = ch.reg[0];
       memcpy(ch.reg, trin_sh[c], TRIN_REGS);
+      ch.shape = trin_sh2[c][0], ch.start = trin_sh2[c][1];
       u8 now = ch.reg[0];
       if ((was & TF_FM) && !(now & TF_FM)) {
          if (c == 0) fa = r.fA; else if (c == 1) fb = r.fB; else fc = r.fC;
@@ -488,7 +503,7 @@ void SNDCHIP::trin_go(u8 val)
             trin_apply(c, k);
          }
       }
-      if (trin_cmd & (8 << c)) ch.sweep = 0;
+      if ((trin_cmd & (8 << c)) && !(ch.shape & 8)) ch.sweep = ch.start << 8;   // RESET: sweep from start phase
    }
    trin_cmd = 0;
    if (!(val & 1)) trin_on = 0;
@@ -511,6 +526,7 @@ bool SNDCHIP::trin_write(unsigned timestamp, u8 val)
    }
    else if (n == 0xC2) { if (val < 3) trin_ch = val; }
    else if (n >= 0xC3 && n <= 0xCE) trin_sh[trin_ch][n - 0xC3] = val;
+   else if (n == 0xBC || n == 0xBD) trin_sh2[trin_ch][n - 0xBC] = val;
    else if (n == 0xCF) trin_cmd = val;
    else if (n == 0xB8) trin_tn = val, trin_tp = 0;
    else if (n == 0xB9) {
