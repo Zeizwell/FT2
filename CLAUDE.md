@@ -114,6 +114,7 @@
   (TurboSound, TS-FM, AYX-32, MultiSound, SAA), свободное поле для Trinity.
 - `doc/zx-trinity.md` — звуковая карта ZX Trinity (AY-эффекты, GS/Paula): всё обсуждённое,
   требования автора, разбор NeoGS и MultiSound (`schemes/`). Читать перед любым разговором о карте.
+- `doc/evo-rev-d.md` — что внутри ZX Evolution rev D+ (схема в `schemes/rev_d+.r1368/`).
 - `doc/instruments.md` — инструменты и орнаменты FTC / PT3 / Bitphase, формат FT2.
 - Присланные пользователем материалы (`docs/`, `formats/`, `players/`,
   `trackers/`, `Modules for test/`, `schemes/`, `fonts/`) в git не добавлены —
