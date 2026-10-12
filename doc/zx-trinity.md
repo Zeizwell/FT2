@@ -347,7 +347,7 @@ USB-крутилка ───┘                        └─► PS/2 мышь
 | Что | Решение |
 |---|---|
 | AY | 2 × панелька DIP-40 под YM2149 / AY-3-8910 (совместимы по ножкам; у YM2149 ещё SEL) |
-| Wi-Fi (ZiFi) | **не ставим** (решено): у Evo свой, родным путём (ESP32 по SPI Evo или ZiFi по UART Evo). На Еве — модуль [ZiFi-ESP32-S3-Zero](https://github.com/andrewinsidelazarev/ZiFi-ESP32-S3-Zero) в слот ZiFi (UART 115200, двоичный протокол ZiFi, HTTP/HTTPS, FTP, SMB, OTA, плагины WC); Gerber переходника в репозитории есть — **заказать вместе с платой Trinity** (отдельным проектом в той же корзине JLC). Для машин без ZiFi — потом, по их протоколу команд поверх нашего потока |
+| Wi-Fi (ZiFi) | **не ставим** (решено): у Evo свой, родным путём (ESP32 по SPI Evo или ZiFi по UART Evo). На Еве — модуль [ZiFi-ESP32-S3-Zero](https://github.com/andrewinsidelazarev/ZiFi-ESP32-S3-Zero) в слот ZiFi (UART 115200, двоичный протокол ZiFi, HTTP/HTTPS, FTP, SMB, OTA, плагины WC); Gerber переходника в репозитории есть — **заказать вместе с платой Trinity** (отдельным проектом в той же корзине JLC). Под другие машины Wi-Fi не делаем: софт (FT2) — только под TS-Config (решение пользователя) |
 | FM (2 × YM2203, как TurboSound FM) | **не ставим** (решено): +YM3014B, ОУ, фильтр на чип, своя разводка; FM есть у MultiSound; FT2 FM не планирует |
 | SAA1099 | не ставим: звук SAM Coupé, на Спектруме единицы программ |
 | SounDrive / Covox (`#FB`, `#0F/#1F/#4F/#5F`) | ставим: бесплатно в RP-GS, MOD-плееры и демки |
