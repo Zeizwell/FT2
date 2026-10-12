@@ -568,7 +568,9 @@ OR_NOTE         equ 1               ; смещение ноты, полутон�
 FX_ROWS_MAX     equ 32
 FX_ROW_SIZE     equ 12
 FX_BLOCK        equ 448             ; 3 + 32*12 = 387, дальше имя
+FX_SWEEP        equ OH_ROWS+FX_ROWS_MAX*FX_ROW_SIZE ; 2 свип ШИМ на весь FX: форма (= регистр карты #BC), фаза (#BD)
 FX_NAME         equ 400             ; 16 имя
+    ASSERT FX_SWEEP+2 <= FX_NAME
     ASSERT OH_ROWS+FX_ROWS_MAX*FX_ROW_SIZE <= FX_NAME
     ASSERT FX_NAME+16 <= FX_BLOCK
 ; строка (= регистры #C3..#CE):
@@ -608,6 +610,7 @@ AYFX_GO         equ #C1             ; тень -> в работу; 0 - ещё и
 AYFX_CH         equ #C2             ; канал 0..2 для AYFX_ROW
 AYFX_ROW        equ #C3             ; #C3..#CE - строка FX канала
 AYFX_CMD        equ #CF             ; 0..2 TAKE A..C, 3..5 RESET A..C (на GO)
+AYFX_SWEEP      equ #BC             ; #BC, #BD - форма свипа ШИМ (2..0; бит 3 - не сбрасывать на RESET) и фаза
 AYFX_TABN       equ #B8             ; номер таблицы для заливки (1..32)
 AYFX_TABD       equ #B9             ; данные таблицы подряд: TB_HEAD, шаги
 

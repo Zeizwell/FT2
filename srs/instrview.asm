@@ -99,6 +99,14 @@ SUB_Y           equ IV_TOP+4
 SUB_MIX_X       equ 23              ; " Mix "
 SUB_FM_X        equ 29              ; " FM "
 SUB_EFM_X       equ 34              ; " Env FM "
+SW_L            equ 43              ; свип ШИМ на весь FX: "Sw" форма, "St" [-]фаза%[+], "Kp"
+SW_V            equ 46
+ST_L            equ 50
+ST_M            equ 53
+ST_V            equ 55
+ST_P            equ 59
+KP_X            equ 62
+    ASSERT KP_X+2 < ED_X+ED_W-1
     ASSERT SUB_Y == BT_Y+1 && SUB_Y+1 == CAP_Y
 ; --- FX (режим 2): номер FX инструмента - на верхней рамке редактора (режим Instr)
 FXN_L           equ 52              ; "FX" [-]nn[+]
@@ -448,6 +456,7 @@ Iv_Draw
         call Iv_Draw_List
         call Iv_Draw_Top
         call Fx_Subs
+        call Sw_Draw
         call Prv_Draw
         jp Iv_Draw_Rows
 
@@ -475,6 +484,127 @@ Fx_Subs
         ld a,(THEME_ATTR+CLR_CURSOR)
         ld c,a
         jp PutStr
+
+;-------- FX: свип ШИМ на весь FX - форма, стартовая фаза, "не сбрасывать на новой ноте"
+Sw_Draw
+        ld a,(Iv_Mode)
+        cp 2
+        ret nz
+        ld a,(THEME_ATTR+CLR_TITLE)
+        ld c,a
+        ld de,SW_L+256*(IV_SCR_H+SUB_Y)
+        ld hl,Txt_Sw
+        call PutStr
+        ld e,ST_L
+        ld hl,Txt_St
+        call PutStr
+        call Sw_Addr                ; форма
+        ld a,(THEME_ATTR+CLR_TEXT)
+        ld c,a
+        ld a,(hl)
+        and 7
+        cp 5
+        jr c,$+4
+        ld a,5
+        ld b,a
+        add a,a
+        add a,b
+        push hl
+        ld hl,Sw_Names
+        call Hl_Add_A
+        ld e,SW_V
+        ld b,3
+.n      ld a,(hl)
+        call PutCh
+        inc hl
+        djnz .n
+        pop hl
+        inc hl                      ; фаза: %
+        ld a,(hl)
+        push hl
+        ld l,a
+        ld h,0
+        ld d,h
+        ld e,l
+        add hl,hl
+        add hl,hl                   ; *4
+        push hl
+        add hl,hl
+        add hl,hl
+        add hl,hl                   ; *32
+        ld d,h
+        ld e,l
+        add hl,hl                   ; *64
+        add hl,de
+        pop de
+        add hl,de                   ; *100
+        ld a,h                      ; /256
+        ld de,ST_V+256*(IV_SCR_H+SUB_Y)
+        call Put_Dec3
+        ld a,'%'
+        call PutCh
+        pop hl
+        dec hl                      ; Kp - не сбрасывать на новой ноте
+        bit 3,(hl)
+        ld a,(THEME_ATTR+CLR_HEAD_TEXT)
+        jr z,$+5
+        ld a,(THEME_ATTR+CLR_CURSOR)
+        ld c,a
+        ld de,KP_X+256*(IV_SCR_H+SUB_Y)
+        ld hl,Txt_Kp
+        jp PutStr
+Sw_Names        db "TriSinUp Dn Sqr???"
+
+; HL - байт формы свипа текущего FX (за ним - фаза)
+Sw_Addr
+        call Iv_Block
+        ld de,FX_SWEEP
+        add hl,de
+        ret
+
+;-------- Клики: форма по кругу, фаза -/+ (шаг 16 = 6%), Kp
+Iv_SwEv
+        cp EV_CLICK
+        ret nz
+        ld a,(Iv_Mode)
+        cp 2
+        ret nz
+        call Sw_Addr
+        ld a,(ix+FLD_PARAM)
+        or a
+        jr nz,.st
+        ld a,(hl)                   ; форма: 0..4 по кругу, бит 3 - как был
+        ld b,a
+        and 7
+        inc a
+        cp 5
+        jr c,$+3
+        xor a
+        ld c,a
+        ld a,b
+        and %11111000
+        or c
+        ld (hl),a
+        jp Iv_Changed
+.st     cp 3
+        jr z,.kp
+        inc hl                      ; фаза: 1 - минус, 2 - плюс
+        cp 1
+        ld a,(hl)
+        jr nz,.pl
+        sub 16
+        jr nc,$+3
+        xor a
+        jr .sv
+.pl     add a,16
+        jr nc,$+4
+        ld a,#F0
+.sv     ld (hl),a
+        jp Iv_Changed
+.kp     ld a,(hl)
+        xor 8
+        ld (hl),a
+        jp Iv_Changed
 
 ;-------- Клик по подвкладке FX
 Iv_SubEv
@@ -1280,6 +1410,10 @@ Iv_Buttons
         or a
         ld hl,Btn_Fx_Glyphs
         call z,Bg_List
+        ld a,(Iv_Mode)              ; фаза свипа -/+ - только у FX
+        cp 2
+        ld hl,Btn_Sw_Glyphs
+        call z,Bg_List
         jr Bt_Texts
 ; значки списка HL (поле; колонка, строка, значок), конец - 0
 Bg_List
@@ -1400,6 +1534,12 @@ Btn_Glyphs                          ; поле; колонка, строка, з
         dw F_EnvP
         db PV_ENV+6, PV_Y, GLYPH_BTN_PLUS
         dw 0
+Btn_Sw_Glyphs
+        dw F_SwM
+        db ST_M, SUB_Y, GLYPH_BTN_MINUS
+        dw F_SwP
+        db ST_P, SUB_Y, GLYPH_BTN_PLUS
+        dw 0
 Btn_Fx_Glyphs
         dw F_FxM
         db FXN_M, IV_TOP, GLYPH_BTN_MINUS
@@ -1474,6 +1614,10 @@ F_FxP   IV_FIELD FXN_P,IV_TOP,2,1, FF_HAND, Iv_BtnEv, 12              ;         
 F_SubM  IV_FIELD SUB_MIX_X,SUB_Y,5,1, FF_HAND, Iv_SubEv, 0           ; FX: Mix
 F_SubF  IV_FIELD SUB_FM_X,SUB_Y,4,1, FF_HAND, Iv_SubEv, 1            ;     FM
 F_SubE  IV_FIELD SUB_EFM_X,SUB_Y,8,1, FF_HAND, Iv_SubEv, 2           ;     Env FM
+F_SwShp IV_FIELD SW_V,SUB_Y,3,1, FF_HAND, Iv_SwEv, 0                ; FX: форма свипа
+F_SwM   IV_FIELD ST_M,SUB_Y,2,1, FF_HAND, Iv_SwEv, 1                ;     фаза -
+F_SwP   IV_FIELD ST_P,SUB_Y,2,1, FF_HAND, Iv_SwEv, 2                ;          +
+F_SwKp  IV_FIELD KP_X,SUB_Y,2,1, FF_HAND, Iv_SwEv, 3                ;     Kp
 F_Edit  IV_FIELD ED_IN_X,ER_ROW0,ED_IN_W,ER_ROWS, FF_FOCUS, Iv_EditEv, 0 ; строки
 F_Play  IV_FIELD PV_PLAY,PV_Y,2,1, FF_HAND, Prv_PlayEv, 0             ; ▶ - пока держат
 F_OctM  IV_FIELD PV_OCT+3,PV_Y,2,1, FF_HAND, Prv_BtnEv, 0             ; Oct -
@@ -3192,6 +3336,9 @@ Txt_Caps_Fm     db "Rw On Semi  Det Tb Step",0
 Txt_Sub_Mix     db " Mix ",0
 Txt_Sub_Fm      db " FM ",0
 Txt_Sub_Efm     db " Env FM ",0
+Txt_Sw          db "Sw",0
+Txt_St          db "St",0
+Txt_Kp          db "Kp",0
 Txt_Clone       db " Clone ",0
 Txt_Copy        db " Copy ",0
 Txt_Paste       db " Paste ",0

@@ -130,7 +130,7 @@ Pl_Mute
         inc l
         djnz .z2
         ld hl,Fx_Ch                 ; FX: каналы без FX, строки - нули (эффекты стоп)
-        ld b,FC_SIZE*CHANNELS+FX_ROW_SIZE*CHANNELS
+        ld b,FC_SIZE*CHANNELS+FB_SIZE*CHANNELS
 .z3     ld (hl),a
         inc hl
         djnz .z3
@@ -1590,7 +1590,7 @@ St_Cur  cp 0
         call Po_Chip
         ld a,(Fx_Card+1)            ;   чипа 2
         or a
-        ld hl,Fx_Buf+3*FX_ROW_SIZE
+        ld hl,Fx_Buf+3*FB_SIZE
         call nz,Fx_Out
         ld a,#FF                    ; в конце выбран чип 1 (как после сброса)
         ld b,d
@@ -1733,7 +1733,8 @@ FC_LPTR         equ 5               ; 2 строка цикла
 FC_LCNT         equ 7               ; строк в цикле
 FC_SIZE         equ 8
 Fx_Ch           ds FC_SIZE*CHANNELS
-Fx_Buf          ds FX_ROW_SIZE*CHANNELS ; строки каналов для карты (нули - эффектов нет)
+FB_SIZE         equ FX_ROW_SIZE+2   ; строка канала для карты + форма и фаза свипа (#BC, #BD)
+Fx_Buf          ds FB_SIZE*CHANNELS ; строки каналов для карты (нули - эффектов нет)
 Fx_Card         db 0,0              ; карта на чипе 1 / 2
 
 ;-------- Есть ли карта: на каждом чипе ключ и чтение #C0 ('T'), потом закрыть
@@ -1824,7 +1825,7 @@ Fx_Tick
         push hl
         call Fx_Row
         pop hl
-        ld de,FX_ROW_SIZE
+        ld de,FB_SIZE
         add hl,de
         ld de,FC_SIZE
         add ix,de
@@ -1855,7 +1856,7 @@ Fx_Row
 .st     ld (ix+FC_PTR),l
         ld (ix+FC_PTR+1),h
         ret
-.off    ld b,FX_ROW_SIZE
+.off    ld b,FB_SIZE
 .z      ld (hl),0
         inc hl
         djnz .z
@@ -1884,6 +1885,22 @@ Fx_Begin
         sbc hl,de
         ld de,#C000+OH_LOOP
         add hl,de
+        push hl                     ; форма и фаза свипа - в буфер канала (за строкой), один раз
+        ld de,FX_SWEEP-OH_LOOP
+        add hl,de
+        ld a,(hl)
+        inc hl
+        ld e,(hl)
+        pop hl
+        ex (sp),hl                  ; HL - буфер, на стеке - блок
+        push hl
+        ld bc,FX_ROW_SIZE
+        add hl,bc
+        ld (hl),a
+        inc hl
+        ld (hl),e
+        pop hl
+        ex (sp),hl                  ; HL - блок, на стеке - буфер
         ld c,(hl)                   ; C - цикл
         inc hl
         ld a,(hl)                   ; B - последняя (не дальше FX_ROWS_MAX-1)
@@ -1917,7 +1934,7 @@ Fx_Begin
         ld (ix+FC_LPTR+1),h
         pop hl
         ret
-    ASSERT FX_BLOCK == 512-64 && FX_ROW_SIZE == 12
+    ASSERT FX_BLOCK == 512-64 && FX_ROW_SIZE == 12 && FB_SIZE == 14
 
 ;-------- Карта выбранного чипа: ключ, строки трёх выходов (выход q - канал Po_Maps[стерео][q]),
 ; GO с закрытием. HL - строки каналов чипа в Fx_Buf. C = #FD; DE сохраняет
@@ -1945,7 +1962,7 @@ Fx_Out
         out (c),e
         ld b,#BF
         out (c),a
-        ld hl,(Fo_Map)              ; его канал -> строка: Fo_Base + канал*12
+        ld hl,(Fo_Map)              ; его канал -> строка: Fo_Base + канал*14
         add a,l
         ld l,a
         jr nc,$+3
@@ -1953,8 +1970,9 @@ Fx_Out
         ld a,(hl)
         ld e,a
         add a,a
-        add a,e
         add a,a
+        add a,a
+        sub e
         add a,a
         ld hl,(Fo_Base)
         add a,l
@@ -1970,6 +1988,15 @@ Fx_Out
         ld a,e
         cp AYFX_ROW+FX_ROW_SIZE
         jr c,.r
+        ld e,AYFX_SWEEP             ; форма и фаза свипа
+.s      ld b,#FF
+        out (c),e
+        ld b,#C0
+        outi
+        inc e
+        ld a,e
+        cp AYFX_SWEEP+2
+        jr c,.s
         ld a,(Fo_Q)
         inc a
         cp 3

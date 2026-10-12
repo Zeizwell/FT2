@@ -783,6 +783,15 @@ Ser_Rows
         ld de,OH_ROWS
         add hl,de
         call Put_Bytes
+        ld a,(Cn_RowSz)             ; FX: форма и фаза свипа
+        cp FX_ROW_SIZE
+        jr nz,.nm
+        ld hl,(Cn_Addr)
+        ld de,FX_SWEEP
+        add hl,de
+        ld bc,2
+        call Put_Bytes
+.nm
         ld hl,(Cn_Addr)
         ld de,(Cn_NameOfs)
         add hl,de
@@ -1216,6 +1225,15 @@ Ld_Rows
         ld de,OH_ROWS
         add hl,de
         call Get_Bytes
+        ld a,(Cn_RowSz)             ; FX: форма и фаза свипа
+        cp FX_ROW_SIZE
+        jr nz,.nm
+        ld hl,(Cn_Addr)
+        ld de,FX_SWEEP
+        add hl,de
+        ld bc,2
+        call Get_Bytes
+.nm
         ld hl,(Cn_Addr)
         ld de,(Cn_NameOfs)
         add hl,de
