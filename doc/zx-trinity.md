@@ -570,3 +570,12 @@ TS-Config + сетевая карта + звуковой модуль». Пла�
   `ESP32_SPI` («VDAC3»): SCK `ide_a[0]` (IDE 35), MOSI `ide_a[1]` (33), CS FT812 `ide_rd_n`, CS ESP `ide_rs_n` (IDE 1),
   MISO общий `ide_rdy` (27), `esp_ft_spi_dis` — Ева отпускает SPI, ESP говорит с FT812 сам. VDAC2 и ESP — вместе,
   нельзя только IDE-винт (те же ноги).
+- **Сетевые модули ZiFi — варианты (Andrew Lazarev, чат 2026-10-12):**
+  - ESP-01 (512К флеш), прошивка AT 1.1 / 1.2 — `zifi.spg`, FTP-сервер с пассивным приёмом до 256К;
+  - ESP-01S (1М), свой C++ — `zifi.spg`, NTP, FTP с активным приёмом, WebDAV;
+  - ESP32-S3-Zero N4R2 — `zifi.spg`, NTP, FTP (активный), SMB-сервер, скринсейвер погоды (обычный и под VDAC2),
+    обновление прошивки и WC;
+  - ESP32-S3-Zero **N8R8** — то же + **музыкальный плеер**: MIDI (SF2), MOD, IT, XM, OPL2–4, SAA, AY-TSFM, MP3, FLAC,
+    WAV (чипы — программной эмуляцией на ESP, звук в I2S);
+  - ESP32-S3 N16R8 («Highlander») — VFS: FTP, vtrd.in, музыка, видео.
+  Зоопарк вариантов; звук — плеер файлов, не звуковая карта для софта (своё API, не GS / не TS-FM).
