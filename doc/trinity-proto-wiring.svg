@@ -13,7 +13,7 @@
 <text x="52" y="254">/RD (36)</text>
 <text x="52" y="284">φM (38)</text>
 <text x="52" y="314">/IC (24)</text>
-<text x="52" y="344">+5VA (21), GND (1)</text>
+<text x="52" y="344">+5VA (21) → диод, GND (1)</text>
 <rect x="280" y="60" width="120" height="320" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.8"/>
 <text x="340" y="86" text-anchor="middle" font-size="14" font-weight="600" fill="#3C3489">RP2350B</text>
 <text x="340" y="104" text-anchor="middle" fill="#534AB7">Spotpear</text>
@@ -25,7 +25,7 @@
 <text x="290" y="254">GP10</text>
 <text x="290" y="284">GP12</text>
 <text x="290" y="314">GP13</text>
-<text x="290" y="344">5V, G</text>
+<text x="290" y="344">5V (катод), G</text>
 </g>
 <rect x="460" y="60" width="180" height="320" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.8"/>
 <text x="550" y="86" text-anchor="middle" font-size="14" font-weight="600" fill="#085041">Панелька YM2203</text>
@@ -60,5 +60,7 @@
 <text x="340" y="436">Проводом напрямую: 1, 17 (GND), 21 (+5VA), 18, 19, 20 (SSG C, B, A),</text>
 <text x="340" y="456">24 (/IC), 38 (φM). Не паяем: 22, 39, 23, 14 (FM и MIDI)</text>
 </g>
+<text x="40" y="20" font-size="12" fill="#5F5E5A">Питание RP: 21 → диод Шоттки SS14 / 1N5817 (полоска к Spotpear) → 5V. Тогда USB можно втыкать в слоте.</text>
 <text x="40" y="36" font-size="12" fill="#5F5E5A">Spotpear: не трогать GP19 (PSRAM), GP20 (RGB), GP24 (VBUS), GP40–47 (АЦП, 5 В не терпят)</text>
+<text x="40" y="52" font-size="12" fill="#5F5E5A">По желанию на отладку: 100–220 Ом в каждую линию D0–D7 между разъёмом и GP0–7.</text>
 </svg>
