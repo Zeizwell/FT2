@@ -103,11 +103,16 @@ Cmp_Run
         ld hl,0
         ld (Cm_Frame),hl
         ld (Cm_Diffs),hl
+        ld (Cm_LogI),hl
         xor a
         ld (Cm_First),a
+        ld (Cm_LogT),a
+        ld (Cm_LogPB),a
         ld (Cm_EFirst),a
 .frame  call Cm_Tick_Our
         call Cm_Tick_Ref
+        xor a                       ; кадр не сравнивали (трек кончился) - не разошёлся
+        ld (Cm_Bad),a
         ld hl,(Cm_EndRef)           ; трек уже кончился у кого-то - кадры не сравниваем
         ld a,h                      ;   (наш ушёл на цикл, эталон молчит), ждём конец
         or l                        ;   у второго: видна только разница в длине
@@ -634,23 +639,56 @@ Cm_Diff ld e,a
 
 ; =========================================================================
 ; ЖУРНАЛ для разбора на PC: буфер файла, страницы 1..3 (48К; в странице 0 - модуль).
-; +0 заголовок 64 байта, дальше запись на кадр по 64 байта (первые CM_LOG_N кадров):
+; +0 заголовок 64 байта, дальше записи по 64 байта (до CM_LOG_N): только разошедшиеся кадры
+; и по одному совпавшему кадру перед каждым участком расхождения (для сравнения «до»):
 ;   +0 кадр (2), +2 позиция, +3 роу, +4 чипов, +5 1 - кадр разошёлся, +6 резерв (2),
 ;   +8 эталон чип 1 R0..R13, +22 эталон чип 2, +36 наш чип 1, +50 наш чип 2
-;   (R13: #FF - в этом кадре не пишется, иначе значение). Тулза диска сохраняет его
-;   файлом FT2CMP.BIN в текущую папку
+;   (R13: #FF - в этом кадре не пишется, иначе значение). После сравнения тулза диска
+;   сохраняет его файлом FT2CMP.BIN в папку модуля (Cmp_Save). Заголовок +30 - сколько записей
 ; =========================================================================
 CM_LOG_PAGE     equ PAGE_FILEBUF+2         ; страницы 0, 1 - модуль
 CM_LOG_REC      equ 64
 CM_LOG_N        equ 2*16384/CM_LOG_REC-1    ; 511 кадров
 
-;-------- Запись кадра Cm_Frame (пока влезает)
-Cm_Log  ld hl,(Cm_Frame)
+;-------- Запись кадра Cm_Frame в журнал (пока влезает): разошёлся - запись остаётся;
+; совпал - пишется на место следующей и остаётся, только если следом начнётся участок расхождения
+Cm_LogI         dw 0                ; номер следующей записи (с 0)
+Cm_LogT         db 0                ; 1 - на месте Cm_LogI лежит совпавший кадр (пока не нужен)
+Cm_LogPB        db 0                ; прошлый кадр разошёлся
+Cm_Log  call .full
+        ret nc
+        ld a,(Cm_Bad)               ; разошёлся после совпавшего - совпавший оставить
+        or a
+        jr z,.rec
+        ld a,(Cm_LogPB)
+        or a
+        jr nz,.rec
+        ld a,(Cm_LogT)
+        or a
+        jr z,.rec
+        call .next
+        call .full
+        ret nc
+.rec    call .write
+        ld a,(Cm_Bad)
+        ld (Cm_LogPB),a
+        or a
+        ld a,1                      ; совпал - лежит на месте следующей
+        jr z,.tent
+        call .next                  ; разошёлся - остаётся
+        xor a
+.tent   ld (Cm_LogT),a
+        ret
+.next   ld hl,(Cm_LogI)
+        inc hl
+        ld (Cm_LogI),hl
+        ret
+.full   ld hl,(Cm_LogI)             ; CF = 1 - ещё есть место
         ld de,CM_LOG_N
         or a
         sbc hl,de
-        ret nc
-        ld hl,(Cm_Frame)            ; адрес: (кадр+1)*64 от начала журнала
+        ret
+.write  ld hl,(Cm_LogI)             ; адрес: (номер+1)*64 от начала журнала
         inc hl
         call Cm_Log_Addr            ; E - страница, HL - запись (окно 2)
         ld (Cm_LP),hl
@@ -760,9 +798,13 @@ Cm_Log_Head
         inc de
         ld a,(Cmp_TS)
         ld (de),a
+        inc de
+        ld hl,Cm_LogI               ; +30: сколько записей
+        ld bc,2
+        ldir
         RESTPAGE2
         ret
-Txt_Sig         db "FT2CMP1",0
+Txt_Sig         db "FT2CMP2",0
     ASSERT Cm_Diffs == Cm_Frame+2 && Cm_First == Cm_Diffs+2
     ASSERT Cm_F_Pos == Cm_F_Frame+2 && Cm_F_Our == Cm_F_Frame+7
     ASSERT Cm_EndOur == Cm_EndRef+2

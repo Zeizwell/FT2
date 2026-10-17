@@ -1564,6 +1564,7 @@ Dv_Compare
 .ts     ld (cmpview.Cmp_TS),a
         call cmpview.Cmp_Run
         RESTPAGE3
+        call Cmp_Save               ; журнал сравнения -> FT2CMP.BIN (для разбора на PC)
         ld a,1                      ; экран диска - заново
         ld (Dv_Dirty),a
         jp Dv_Head
