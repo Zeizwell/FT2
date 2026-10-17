@@ -111,6 +111,7 @@
 - `doc/formats/pt2.md`, `pt3.md`, `ftc.md` — форматы модулей (FTC восстановлен
   по плееру и проверен на модуле);
 - `doc/bitphase.md` — интерфейс Bitphase (эталон): ордер, колонки, эффекты;
+- `doc/bitphase-fx.md` — таймерные эффекты Bitphase физически (SID, Sync, FM, Env FM, PWM, свип) по коду ayumi.c;
 - `doc/ay.md` — AY; `doc/architecture.md` — план интерфейса.
 - `doc/ay-ports-map.md` — порты AY: кто занимает какие номера регистров и значения `#FFFD`
   (TurboSound, TS-FM, AYX-32, MultiSound, SAA), свободное поле для Trinity.
