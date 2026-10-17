@@ -543,9 +543,9 @@ Ser_Head
         call Put_Str
         RESTPAGE2
         ret
-Head_Fields     db SH_CHIPS, SH_SPEED, SH_TUNING, SH_DEVICE, SH_STEREO, SH_ENVMODE, SH_STEP
+Head_Fields     db SH_CHIPS, SH_SPEED, SH_TUNING, SH_DEVICE, SH_STEREO, SH_ENVMODE ; настроек редактора нет
 HEAD_FIELDS     equ $-Head_Fields
-    ASSERT SH_STEP < 256 && SH_ENVMODE < 256
+    ASSERT SH_ENVMODE < 256
 
 ; ORDR: последняя позиция, цикл, номера паттернов
 Ser_Ordr
