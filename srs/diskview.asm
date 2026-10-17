@@ -56,6 +56,8 @@ SAVE_X          equ FP_L+10
 BTN_W           equ 8
 CMP_X           equ FP_L+20         ; [ Compare ]: после загрузки PT3 / PT2 - сравнить плееры
 CMP_W           equ 11
+CHK_Y           equ BTN_Y+1         ; [ Check ]: выбранный FT2 - во второй слот и сравнить (проверка контейнера)
+CHK_W           equ 9
 MSG_Y           equ DV_TOP+10       ; сообщение
 
 ; --- запись каталога в PAGE_DIRLIST (переменной длины, адрес - из таблицы, Dl_Ofs)
@@ -505,6 +507,10 @@ Dv_Buttons
         ld de,SAVE_X+256*(DV_SCR_H+BTN_Y)
         ld hl,Txt_Save
         call .one
+        ld ix,F_Chk
+        ld de,LOAD_X+256*(DV_SCR_H+CHK_Y)
+        ld hl,Txt_Check
+        call .one
         ld ix,F_Cmp                 ; Compare: вкл / выкл
         ld de,CMP_X+256*(DV_SCR_H+BTN_Y)
         ld hl,Txt_CmpOff
@@ -559,6 +565,7 @@ F_Name  DV_FIELD FP_V,NAME_Y,NAME_W,1, FF_FOCUS|FF_HAND, Dv_NameEv, 0   ; имя
 F_Load  DV_FIELD LOAD_X,BTN_Y,BTN_W,1, FF_HAND, Dv_BtnEv, 0              ; Load
 F_Save  DV_FIELD SAVE_X,BTN_Y,BTN_W,1, FF_HAND, Dv_BtnEv, 1              ; Save
 F_Cmp   DV_FIELD CMP_X,BTN_Y,CMP_W,1, FF_HAND, Dv_BtnEv, 2              ; Compare
+F_Chk   DV_FIELD LOAD_X,CHK_Y,CHK_W,1, FF_HAND, Dv_BtnEv, 3             ; Check
         db FLD_END
 
 ;-------- Клик в шапку: Instr / Orn - тулза инструментов, остальное - назад в вид паттерна
@@ -586,7 +593,7 @@ Dv_TabPat
         ret
 
 
-;-------- Кнопки: Load - открыть выбранную запись, Save - сохранить под Name
+;-------- Кнопки: Load - открыть выбранную запись, Save - сохранить под Name, Check - сравнить файл с треком
 Dv_BtnEv
         cp EV_CLICK
         ret nz
@@ -595,6 +602,8 @@ Dv_BtnEv
         jp z,Dv_Open
         dec a
         jp z,Dv_Save
+        dec a
+        jp nz,Dv_Check
         ld a,(Dv_Cmp)               ; Compare - переключить
         xor 1
         ld (Dv_Cmp),a
@@ -1589,6 +1598,12 @@ Dv_Song_File
 
 ;-------- Загрузили без потерь - экран диска закрываем, назад в вид паттерна
 Dv_Loaded
+        ld a,(Ck_On)                ; Check: остаёмся в диске, дальше - сравнение
+        or a
+        jr z,.exit
+        ld (Ck_Ok),a
+        ret
+.exit
         ld a,PAGE_TOOL_PATVIEW
         ld (SV_TOOL),a
         ld a,1
@@ -1995,6 +2010,7 @@ Fs_Fill
     include "srs/pt2imp.asm"
     include "srs/ftcimp.asm"
     include "srs/ft2c.asm"         ; контейнер FT2 (doc/formats/ft2.md)
+    include "srs/cncheck.asm"      ; Check: файл FT2 против трека в памяти
 
 ; =========================================================================
 ; СООБЩЕНИЯ
@@ -2181,6 +2197,7 @@ Txt_By          db "By:",0
 Txt_Size        db "Size:",0
 Txt_Load        db "[ Load ]",0
 Txt_Save        db "[ Save ]",0
+Txt_Check       db "[ Check ]",0
 Txt_CmpOff      db "[ ] Compare",0  ; одной длины: старое не остаётся; #FB - галочка CP866
 Txt_CmpOn       db "[",#FB,"] Compare",0
 Txt_Dir         db "  <DIR>",0
