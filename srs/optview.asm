@@ -3,13 +3,13 @@
 ; =========================================================================
 ; ЭКРАН (строки 0..3 - копия шапки; клик по ней - вкладки / назад в вид паттерна):
 ;   Palette - темы (Set_Palette, коре), клик - сразу;
-;   Font    - шрифты банка (Set_Font), клик - сразу;   Save - в \FT2\FT2.INI;
+;   Mouse   - скорость, ускорение, курсор паттерна;     Save - в \FT2\FT2.INI;
 ; Вход с SV_TOOL_ARG = OPT_HELP - экран Help: горячие клавиши (справка), рамка во всю ширину.
 ; Вход с SV_TOOL_ARG = OPT_LOAD (коре при старте): прочитать \FT2\FT2.INI, поставить
-; тему и шрифт и сразу вернуться, без экрана.
+; тему и мышь и сразу вернуться, без экрана.
 ;
 ; FT2.INI - текст, строки "ключ=число" (пробелов нет, ';' - комментарий):
-;   palette=0..5   font=0..3   mouse_speed=0..9   mouse_accel=0..8
+;   palette=0..5   mouse_speed=0..9   mouse_accel=0..8
 ; Диск - через Disk_Call (коре). Буферы драйвера - в окне 3 (PAGE_FILEBUF). Текущий
 ; каталог драйвера потом возвращаем (им живёт тулза диска).
 ; =========================================================================
@@ -18,7 +18,7 @@
 OV_SCR_H        equ TL_SCR_H
 OV_TOP          equ TL_TOP
 
-; --- рамки: темы, шрифты (Setup); клавиши - экран Help
+; --- рамки: темы, мышь (Setup); клавиши - экран Help
 PL_X            equ 0
 PL_W            equ 22
 FN_X            equ 22
@@ -31,7 +31,7 @@ SAVE_X          equ 2
 MSG_Y           equ OV_TOP+12       ; сообщение
 MEM_Y           equ OV_TOP+14       ; свободная память
 IMR_Y           equ OV_TOP+15       ; IM1: повторных входов (должно быть 00)
-MS_Y            equ LIST_Y+FONTS_COUNT+2 ; мышь: заголовок, скорость, ускорение (рамка Font)
+MS_Y            equ LIST_Y-1        ; мышь: строка над скоростью (рамка Mouse)
 MS_X            equ FN_X+2
 MS_BAR_X        equ MS_X+6          ; полоса - за подписью
 MS_SPEED_MAX    equ 9               ; MOUSE_SPEED 0..9 (5 - 100%)
@@ -361,7 +361,7 @@ Hlp_Tab
 
 Ov_Boxes
         db PL_X,PL_W,"Palette",0
-        db FN_X,FN_W,"Font",0
+        db FN_X,FN_W,"Mouse",0
 Hp_Box  db KY_X,KY_W,"Help",0
 HP_TAB_Y        equ OV_TOP+1        ; закладки Help
 HP_TAB1         equ KY_X+2
@@ -390,12 +390,6 @@ Ov_Draw
         ld b,PALETTES
         ld e,PL_X+2
         call Ov_List
-        ld hl,Font_Names            ; шрифты: имена по 8... по 14
-        ld a,(SV_FONT)
-        ld c,a
-        ld b,FONTS_COUNT
-        ld e,FN_X+2
-        call Ov_List14
         call Ov_Mouse
         ld a,(THEME_ATTR+CLR_BG)    ; сообщение
         ld c,a
@@ -416,9 +410,6 @@ Ov_Draw
 ; Список имён по 8 знаков: HL - имена, B - сколько, C - выбранный, E - колонка
 Ov_List
         ld a,8
-        jr Ov_Names
-Ov_List14
-        ld a,14
 Ov_Names
         ld (Ol_W),a
         ld d,OV_SCR_H+LIST_Y
@@ -454,13 +445,8 @@ Ol_W            db 0
 Ol_Sel          db 0
 Ol_I            db 0
 
-;-------- Мышь: заголовок и две полосы
+;-------- Мышь: две полосы
 Ov_Mouse
-        ld a,(THEME_ATTR+CLR_HEADER)
-        ld c,a
-        ld de,MS_X+256*(OV_SCR_H+MS_Y)
-        ld hl,Txt_Mouse
-        call PutStr
         ld de,MS_X+256*(OV_SCR_H+MS_Y+1)
         ld hl,Txt_Speed
         ld a,(MOUSE_SPEED)
@@ -549,7 +535,6 @@ Ov_Fields
         OV_FIELD patview.HD_ABOUT_X,  patview.HD_TABS_Y,5,1, FF_HAND, Win_AboutEv, 0 ; About
         OV_FIELD 0,0,90,OV_TOP, 0, Ov_TabEv, 0                          ; остальное - назад
         OV_FIELD PL_X+2,LIST_Y,8,PALETTES, FF_HAND, Ov_PalEv, 0          ; темы
-        OV_FIELD FN_X+2,LIST_Y,14,FONTS_COUNT, FF_HAND, Ov_FontEv, 0     ; шрифты
 ;-------- Help: те же транспорт и вкладки, Setup - назад в настройки
 Hp_Fields
         OV_FIELD HP_TAB1,HP_TAB_Y,6,1, FF_HAND, Hp_TabEv, 0             ; закладки
@@ -607,14 +592,6 @@ Ov_PalEv
         call Set_Palette
         jr Ov_Changed
 
-;-------- Шрифт: клик - сразу (значки - поверх)
-Ov_FontEv
-        cp EV_PRESS
-        ret nz
-        ld a,(SV_MOUSE_ROW)
-        sub LIST_Y
-        call Set_Font
-        call Apply_UI_Glyphs
 Ov_Changed
         ld hl,0
         ld (Ov_Msg),hl
@@ -719,7 +696,7 @@ Ini_Parse
         ld hl,INI_BUF
 .line   ld de,Key_Palette           ; palette=
         call Ini_Key
-        jr nz,.font
+        jr nz,.mspd
         call Ini_Num
         cp PALETTES
         jr nc,.next
@@ -730,17 +707,6 @@ Ini_Parse
         ld a,b
         push hl
         call Set_Palette
-        pop hl
-        jr .next
-.font   ld de,Key_Font              ; font=
-        call Ini_Key
-        jr nz,.mspd
-        call Ini_Num
-        cp FONTS_COUNT
-        jr nc,.next
-        push hl
-        call Set_Font
-        call Apply_UI_Glyphs
         pop hl
         jr .next
 .mspd   ld de,Key_MSpeed            ; mouse_speed=
@@ -861,10 +827,6 @@ Ini_Text
         call Str_Put
         ld a,(Cur_Palette)
         call Dec_Put
-        ld hl,Key_Font
-        call Str_Put
-        ld a,(SV_FONT)
-        call Dec_Put
         ld hl,Key_MSpeed
         call Str_Put
         ld a,(MOUSE_SPEED)
@@ -967,7 +929,6 @@ Spec_Ini        db FD_FILE,"FT2.INI",0
 Spec_New        db #20,0,0,0,0,"FT2.INI",0      ; CREATE: атрибут, размер 0, имя
 Spec_MkDir      db "FT2",0                      ; MKDIR: [имя, 0] (README драйвера)
 Key_Palette     db "palette=",0
-Key_Font        db "font=",0
 Key_MSpeed      db "mouse_speed=",0
 Key_MAccel      db "mouse_accel=",0
 Key_CBlink      db "cursor_blink=",0
@@ -976,7 +937,6 @@ Txt_Save        db " Save ",0
 Txt_Saved       db "Saved \\FT2\\FT2.INI",0
 Txt_DiskErr     db "Disk error",0
 Txt_ImRe        db "IM1 re-entry: ",0
-Txt_Mouse       db "Mouse",0
 Txt_Speed       db "Speed ",0
 Txt_Accel       db "Accel ",0
 Txt_Cursor      db "Cursor ",0
@@ -984,7 +944,5 @@ Txt_Solid       db "Solid",0
 Txt_Blink       db "Blink",0
 
 ; Имена шрифтов банка (как в srs/main.asm), по 14 знаков
-Font_Names      db "cp866         Toshiba TxL1  Toshiba TxL2  Compaq Thin   "
-    ASSERT $-Font_Names == FONTS_COUNT*14
 
     ENDMODULE

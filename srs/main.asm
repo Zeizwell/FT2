@@ -141,17 +141,5 @@ fatwork
 fatwork_end
     SAVEBIN     "srs/fatwork.bin",fatwork,fatwork_end-fatwork
 
-    ; --- банк шрифтов (страница PAGE_FONTS): шрифты по слотам, в UI_GLYPH_SLOT - значки
-    org #C000
-fontbank
-    incbin      "srs/fonts/866_code.fnt"        ; шрифт 0
-    incbin      "srs/fonts/cp866bold.SpecCHR"     ; шрифт 1 - проба: латиница Toshiba, остальное 866
-    incbin      "srs/fonts/ToshibaTxL2.fnt"     ; шрифт 2 - проба
-    incbin      "srs/fonts/CompaqThin.fnt"      ; шрифт 3 - проба
-    ds          fontbank+UI_GLYPH_SLOT*FONT_SIZE-$,0
-    include     "srs/fonts/ui_glyphs.asm"
-fontbank_end
-    SAVEBIN     "srs/fonts.bin",fontbank,fontbank_end-fontbank
-
     LABELSLIST  "tools/unreal/ft.l",3
     bplist      "tools/unreal/bpx.ini" unreal

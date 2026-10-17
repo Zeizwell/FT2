@@ -53,12 +53,11 @@ PAGE_CMP          equ #1E   ; компаратор плеера и эталон 
 PAGE_SPRITE equ #08         ; Спрайты
 ; Внимательно смотрим сборщик и тд, куда кто грузится через spg!
 PAGE_TEXT   EQU #10         ; Текст режим, 128 символов+128 атр на строку
-PAGE_FONT   EQU #11         ; Шрифт текст режима = PAGE_TEXT XOR 1 (так берёт ПЛИС)
+PAGE_FONT   EQU #11         ; Шрифт текст режима = PAGE_TEXT XOR 1 (так берёт ПЛИС); грузит spg (cp866bold.SpecCHR)
     ASSERT PAGE_FONT == (PAGE_TEXT ^ 1)
 PAGE_TEXT2  EQU #12         ; второй экран - двойной буфер
 PAGE_FONT2  EQU #13
     ASSERT PAGE_FONT2 == (PAGE_TEXT2 ^ 1)
-PAGE_FONTS  EQU #06         ; банк шрифтов: слоты по FONT_SIZE
 PAGE_FAT_CODE EQU #14       ; FAT32: код, таблица входов с #4000 (окно 1)
 PAGE_FAT_WORK EQU #15       ; FAT32: рабочая память (на время вызова - в окне 0)
 PAGE_DISK_APP EQU #18       ; переходник к FAT32 (srs/disk.asm): на время вызова - в окне 2
@@ -85,13 +84,9 @@ PAGES_PER_SONG EQU PATTERNS_MAX+2   ; полный трек: паттерн = с
 PAGE_INS1     EQU PAGE_POOL+PATTERNS_MAX ; инструменты и орнаменты трека 1 (пока место фиксировано)
     ASSERT PAGES_COMPBUF*16384 >= COMPILED_MAX      ; откомпилированный влезает
     ASSERT PAGE_POOL_END-PAGE_POOL >= SONGS_MAX*PAGES_PER_SONG ; два полных трека влезают (143 >= 132)
-; Свободно (никому не отдано): остаток пула за двумя треками + #05, #1F, #BF.
+; Свободно (никому не отдано): остаток пула за двумя треками + #05, #06, #1F, #BF.
 ; Распределение жёсткое: у каждого трека свои PAGES_PER_SONG страниц, без динамики
-FREE_PAGES      EQU PAGE_POOL_END-PAGE_POOL-SONGS_MAX*PAGES_PER_SONG+4
-
-FONT_SIZE       equ #800    ; шрифт 256 символов x 8 байт
-FONTS_COUNT     equ 4      ; сколько шрифтов в банке (слоты 0..)
-UI_GLYPH_SLOT   equ 7       ; слот банка со значками интерфейса
+FREE_PAGES      EQU PAGE_POOL_END-PAGE_POOL-SONGS_MAX*PAGES_PER_SONG+5
 
 ;------------------------------------------------------------------
 ; Стек живёт в коре (пейдж 0, окно #0000), чтобы не пропадал при
