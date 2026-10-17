@@ -108,6 +108,8 @@ Core_Start
         ld de,THEME_ATTR
         ld bc,Theme_Default_end-Theme_Default
         ldir
+        xor a                   ; тема 0 из набора тем - в CRAM (выбранную в INI ставит
+        call Set_Palette_Di     ;   Setup, OPT_LOAD). Прерывания ещё выкл - без EI
 
         im 1
         ld hl,100
@@ -134,8 +136,6 @@ Core_Start
 
         call Clear_Screen       ; экран - пробелы цветом фона (макета больше нет)
                                 ; шрифт (со значками) уже в PAGE_FONT - его грузит spg
-        ld hl,(Pal_Data)        ; тема 0 уже в CRAM (Load_Text_Palette): только её фон
-        ld (Pal_Bg),hl
         ld a,OPT_LOAD           ; настройки из /FT2/FT2.INI (нет карты или файла - как есть)
         ld (SV_TOOL_ARG),a
         ld a,PAGE_TOOL_OPT

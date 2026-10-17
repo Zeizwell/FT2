@@ -133,7 +133,9 @@ BAND_BG         equ 0
 BAND_TILES      equ 1               ; IM1: поля (черепица)          - красный
 BAND_ATTR       equ 2               ; IM1: атрибуты                 - жёлтый
 BAND_SEPS       equ 3               ; IM1: разделители, номера      - зелёный
-BAND_INPUT      equ 4               ; ввод, таблица роу             - синий
+BAND_INPUT      equ 4               ; ввод, мышь, время, за плеером - синий
+BAND_HEAD       equ 6               ; шапка (Head_Show)             - голубой
+BAND_ROWTAB     equ 8               ; таблица роу (Build_Row_Tab)   - оранжевый
 BAND_LAYOUT     equ 5               ; смена раскладки               - фиолетовый
 BAND_ORDER      equ 7               ; ордер                         - белый
 
@@ -197,7 +199,9 @@ Main_Loop
         call Handle_Keys
         call Ln_Check               ; отпустили клавишу ввода - строка молчит
         call En_Check               ; отпустили Enter - стоп
+        BAND_M BAND_HEAD
         call Head_Show              ; шапка: значения (srs/head.asm)
+        BAND_M BAND_INPUT
         call Mem_Show               ; свободная память - в нижней строке
         call Time_Tick              ; время игры
         call Fld_Update             ; мышь и колесо - полям (коре, srs/fields.asm)
@@ -205,6 +209,7 @@ Main_Loop
         or a
         jr nz,Pv_Leave
         call Play_Step
+        BAND_M BAND_ROWTAB
         call Build_Row_Tab
         ld a,(Layout_Pending)       ; сменился открытый элемент
         or a
@@ -1377,8 +1382,15 @@ T_Pass          db 0                ; проход: 0 - текущий, +-1 - с
 T_Dead          db 0                ; 1 - дальше пусто
 
 Build_Row_Tab
-        ld ix,(Row_Tab_Build)       ; IX - запись текущей роу (центр)
-        ld de,VIEW_CENTER*3
+        ld hl,(Row_Tab_Show)        ; строим всегда в ту, что сейчас НЕ показывается: если IM1
+        ld de,Row_Tab_A             ;   влез между прошлыми записями, ссылки не слипнутся
+        or a
+        sbc hl,de
+        ld ix,Row_Tab_A
+        jr nz,$+6
+        ld ix,Row_Tab_B
+        ld (Row_Tab_Build),ix
+        ld de,VIEW_CENTER*3         ; IX - запись текущей роу (центр)
         add ix,de
         push ix
         call T_From_Cur
@@ -1401,10 +1413,8 @@ Build_Row_Tab
         call Put_Entry
         pop bc
         djnz .dn
-        ld hl,(Row_Tab_Show)        ; готово - меняем местами
-        ld de,(Row_Tab_Build)
-        ld (Row_Tab_Show),de        ; одна команда - IM1 не застанет половину
-        ld (Row_Tab_Build),hl
+        ld de,(Row_Tab_Build)       ; готово - показывать её: одна команда, IM1 не застанет
+        ld (Row_Tab_Show),de        ;   половину; Build в следующий раз - по Show
         ret
 
 T_From_Cur
@@ -1972,17 +1982,26 @@ Txt_EnvP
         db F_ENVP, CHIP_SIZE+CHIP_ENVPER, TX_BLOCK+CX_ENV2-CONT_X
         db 0
 
-; Плей / стоп - как в VT
-K_PlayStart                         ; сонг с первой позиции
+; Плей / стоп - как в VT. Каждый запуск запоминает свою кнопку транспорта (Tr_Btn, коре):
+; она горит значком ■, пока играет
+K_PlayStart                         ; сонг с первой позиции (кнопка |◀)
+        ld a,TR_K_START
+        ld (Tr_Btn),a
         xor a
         ld (Cur_Pos),a
         inc a                       ; позиция сменилась - перерисовать ордер
         ld (Order_Pending),a
+        jr Play_Song0
 ; Играет ли и что - только у плеера (SV_PLAY_STATE), своих копий у вида нет
-K_PlaySong                          ; сонг с начала текущей позиции
+K_PlaySong                          ; сонг с начала текущей позиции (кнопка ▶)
+        ld a,TR_K_PLAY
+        ld (Tr_Btn),a
+Play_Song0
         ld a,PC_SONG
         jr Play_From0
-K_PlayPat                           ; текущий паттерн по кругу с начала
+K_PlayPat                           ; текущий паттерн по кругу с начала (кнопка ⇄)
+        ld a,TR_K_LOOP
+        ld (Tr_Btn),a
         ld a,PC_PATTERN
 Play_From0
         ld b,a
@@ -1990,7 +2009,9 @@ Play_From0
         ld (Cur_Row),a
         ld a,b
         jr Play_Go
-K_PlayPatRow                        ; текущий паттерн по кругу с текущей роу
+K_PlayPatRow                        ; текущий паттерн по кругу с текущей роу (кнопка ▷)
+        ld a,TR_K_ROW
+        ld (Tr_Btn),a
         ld a,PC_PATTERN
         jr Play_Go
 K_Continue                          ; продолжить сонг с текущего места (для кнопки)
@@ -2143,6 +2164,8 @@ Btn_Field
 Ord_Field
         cp EV_PRESS
         jr z,.click
+        cp EV_RCLICK                ; правая - повтор с этой позиции
+        jr z,.loop
         cp EV_WHEEL
         jr z,.wheel
         cp EV_KEY
@@ -2152,9 +2175,28 @@ Ord_Field
         cp EV_FOCUS_OUT
         ret nz
 .focus  jp Draw_Frame               ; заголовок "Ord" - ярче в фокусе
-.click  ld a,(SV_MOUSE_COL)         ; по кнопкам (колонки 4..5) - не выбор
+.click  call Ord_At
+        ret c
+        jr Ord_Go
+.loop   call Ord_At
+        ret c
+        ld (Loop_Pos),a
+        call Song_Sync              ; повтор - в страницу трека (для плеера)
+        ld a,1                      ; ордер перерисовать
+        ld (Order_Pending),a
+        ret
+.wheel  ld a,c                      ; колесо: вверх - назад по ордеру
+        or a
+        jp m,Ord_Next
+        jr Ord_Prev
+.key    ld hl,Ord_Keys
+        jp Keys_Table
+
+; Позиция под мышью -> A. CF = 1 - не позиция (кнопки, за концом ордера)
+Ord_At  ld a,(SV_MOUSE_COL)         ; по кнопкам (колонки 4..5) - не позиция
         cp ORD_BTN_X
-        ret nc
+        ccf
+        ret c
         ld a,(SV_MOUSE_ROW)         ; строка -> позиция (текущая - в центре)
         sub EDIT_LINE
         ld b,a
@@ -2162,16 +2204,9 @@ Ord_Field
         add a,b
         ld b,a
         ld a,(Ord_Last)
-        cp b
-        ret c                       ; за концом ордера
+        cp b                        ; за концом ордера - CF
         ld a,b
-        jr Ord_Go
-.wheel  ld a,c                      ; колесо: вверх - назад по ордеру
-        or a
-        jp m,Ord_Next
-        jr Ord_Prev
-.key    ld hl,Ord_Keys
-        jp Keys_Table
+        ret
 
 Ord_Keys
         db ACT_UP
@@ -3891,23 +3926,32 @@ Build_Layout_Keep
         ret
 
 
-;-------- Проигрывание: полотно идёт за плеером (SV_PLAY_POS / ROW)
-Play_Step                           ; полотно - за плеером: он на другой роу - шаг вниз
-        ld a,(SV_PLAY_CMD)          ; команду плеер ещё не взял - его роу старая:
-        or a                        ; не шагаем, иначе курсор убежит вперёд и будет
-        ret nz                      ; догонять плеер по кругу каждый кадр
+;-------- Проигрывание: полотно - прямо там, где плеер (SV_PLAY_POS / ROW), без шагов
+Play_Step
+        ld a,(SV_PLAY_CMD)          ; команду плеер ещё не взял - его роу и позиция
+        or a                        ;   старые: не трогаем
+        ret nz
         ld a,(SV_PLAY_STATE)
         or a
         ret z
+        cp PS_PATTERN               ; паттерн по кругу: роу пошла с начала - ещё круг (полотно)
+        jr nz,.row
         ld a,(SV_PLAY_ROW)
         ld hl,Cur_Row
         cp (hl)
-        jp nz,K_RowDn
+        jr nc,.row
+        ld hl,Pat_Loops
+        inc (hl)
+.row    ld a,(SV_PLAY_ROW)          ; роу и позиция - у плеера
+        ld (Cur_Row),a
         ld a,(SV_PLAY_POS)
         ld hl,Cur_Pos
         cp (hl)
         ret z
-        jp K_RowDn
+        ld (hl),a
+        ld a,1                      ; позиция сменилась - перерисовать ордер
+        ld (Order_Pending),a
+        ret
 
 ; =========================================================================
 ; КНОПКИ ОРДЕРА (как в Bitphase). Номера паттернов руками не ведём: новый
@@ -4191,7 +4235,7 @@ Band_Bg         dw 0                ; 0 - обычный фон (копия из
                 db %00011000, %01100000     ; 5 фиолетовый
                 db %00011000, %00000011     ; 6 голубой
                 db %00011000, %01100011     ; 7 белый
-                db %00000000, %01100001     ; 8 оранжевый - замер DMA
+                db %00000000, %01100001     ; 8 оранжевый - таблица роу
 
     include "srs/head.asm"
 

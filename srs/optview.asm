@@ -333,6 +333,7 @@ Hlp_Tab
         db HL_ACT,ACT_ENTER,"play pattern (hold)",0
         db HL_TEXT,"Left Right        fields",0
         db HL_TEXT,"Click             cursor (Shift - select)",0
+        db HL_TEXT,"R-click order     loop from position",0
         db HL_COL
         db HL_ACT,ACT_PLAY_SONG,"play song from position",0
         db HL_ACT,ACT_PLAY_START,"play song from start",0
@@ -527,7 +528,6 @@ Ov_Fields
         OV_FIELD patview.HD_PLAY_X+4, patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 1
         OV_FIELD patview.HD_PLAY_X+8, patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 2
         OV_FIELD patview.HD_PLAY_X+12,patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 3
-        OV_FIELD patview.HD_PLAY_X+16,patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 4
         OV_FIELD patview.HD_TAB_INSTR,patview.HD_TABS_Y,5,1, FF_HAND, Ov_TabEv, 1  ; Instr
         OV_FIELD patview.HD_TAB_ORN,  patview.HD_TABS_Y,3,1, FF_HAND, Ov_TabEv, 2  ; Orn
         OV_FIELD patview.HD_TAB_DISK, patview.HD_TABS_Y,4,1, FF_HAND, Ov_TabEv, 3  ; Disk
@@ -544,7 +544,6 @@ Hp_Fields
         OV_FIELD patview.HD_PLAY_X+4, patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 1
         OV_FIELD patview.HD_PLAY_X+8, patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 2
         OV_FIELD patview.HD_PLAY_X+12,patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 3
-        OV_FIELD patview.HD_PLAY_X+16,patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 4
         OV_FIELD patview.HD_TAB_INSTR,patview.HD_TABS_Y,5,1, FF_HAND, Ov_TabEv, 1  ; Instr
         OV_FIELD patview.HD_TAB_ORN,  patview.HD_TABS_Y,3,1, FF_HAND, Ov_TabEv, 2  ; Orn
         OV_FIELD patview.HD_TAB_DISK, patview.HD_TABS_Y,4,1, FF_HAND, Ov_TabEv, 3  ; Disk
@@ -700,12 +699,7 @@ Ini_Parse
         call Ini_Num
         cp PALETTES
         jr nc,.next
-        ld b,a                      ; та же, что стоит - CRAM не трогаем
-        ld a,(Cur_Palette)
-        cp b
-        jr z,.next
-        ld a,b
-        push hl
+        push hl                     ; тема из INI - в CRAM (всегда: при старте там тема 0)
         call Set_Palette
         pop hl
         jr .next

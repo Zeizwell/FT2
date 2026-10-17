@@ -548,7 +548,6 @@ Dv_Fields
         DV_FIELD patview.HD_PLAY_X+4, patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 1  ; |◀ сонг с начала
         DV_FIELD patview.HD_PLAY_X+8, patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 2  ; ▶ сонг
         DV_FIELD patview.HD_PLAY_X+12,patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 3  ; ▷ паттерн с роу
-        DV_FIELD patview.HD_PLAY_X+16,patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 4  ; ■ стоп
         DV_FIELD patview.HD_TAB_INSTR,patview.HD_TABS_Y,5,1, FF_HAND, Dv_TabPat, 1 ; Instr
         DV_FIELD patview.HD_TAB_ORN,  patview.HD_TABS_Y,3,1, FF_HAND, Dv_TabPat, 2 ; Orn
         DV_FIELD patview.HD_TAB_SETUP,patview.HD_TABS_Y,5,1, FF_HAND, Dv_TabPat, 3 ; Setup
@@ -1139,7 +1138,7 @@ Path_Up
         ld (hl),0
         ret
 
-;-------- Сведения о файле Dv_Spec: тип по расширению; FT2, PT3 - Song / By из файла
+;-------- Сведения о файле Dv_Spec: тип по расширению; FT2, PT3, FTC - Song / By из файла
 Dv_File_Info
         call Dv_Ext                 ; A - тип: 1 FT2, 2 PT3, 3 PT2, 4 FTC, 0 - другой
         or a
@@ -1158,8 +1157,8 @@ Dv_File_Info
         ld l,a
         ld (Dv_Type),hl
         ld a,(Fi_Type)
-        cp 3                        ; PT2, FTC - имени не читаем
-        ret nc
+        cp 3                        ; PT2 - имени не читаем
+        ret z
         ld hl,Dv_Spec               ; первый сектор файла - в буфер файла
         call Dv_Find
         ret c
@@ -1171,12 +1170,14 @@ Dv_File_Info
         call Disk_Call
         jr c,.out
         ld a,(Fi_Type)              ; где имя и автор
+        cp 4                        ; FTC - описание режем на имя и автора, как импорт
+        jr z,.ftc
         cp 1
         jr nz,.pt3
-        ld a,(#C000+3)              ; контейнер "FT2C": HEAD - первый блок, имя - +13 его данных
+        ld a,(#C000+3)              ; контейнер "FT2C": HEAD - первый блок, имя - +12 его данных
         cp 'C'
         jr nz,.dump
-        ld hl,#C000+6+6+13
+        ld hl,#C000+6+6+12
         ld d,h
         ld e,l
 .nz     ld a,(de)                   ; автор - за нулём имени
@@ -1196,9 +1197,38 @@ Dv_File_Info
         pop hl
         ld de,Dv_By
         call .str
+        jr .out
+.ftc    ld hl,0                     ; описание - из буфера файла с начала (Pt_Get)
+        ld (Pt_Base),hl
+        call Fc_Split
+        ld hl,Fc_Txt                ; имя: [0, Fc_Cut)
+        ld de,Dv_Song
+        ld a,(Fc_Cut)
+        call .part
+        ld hl,Fc_Txt                ; автор: [Fc_By, Fc_Len)
+        ld a,(Fc_By)
+        call Hl_Add_A
+        ld de,Dv_By
+        ld a,(Fc_By)
+        ld b,a
+        ld a,(Fc_Len)
+        sub b
+        call .part
 .out    RESTPAGE3
         ret
 ; 32 знака HL -> DE, хвостовые пробелы и нули - конец
+; A знаков (не больше 32) HL -> DE, 0 на конце
+.part   cp 33
+        jr c,$+4
+        ld a,32
+        or a
+        jr z,.pz
+        ld c,a
+        ld b,0
+        ldir
+.pz     xor a
+        ld (de),a
+        ret
 .str    ld bc,32
         ldir
         xor a
@@ -1713,20 +1743,35 @@ Spec_Tmp        db FD_FILE
 Txt_TmpName     db "FT2TMP.$$",0
 
 ; Нет точки в имени - добавить ".ft2" (если влезает)
+;-------- Имя для записи: расширение всегда .ft2 - своё (после последней точки) долой;
+; длинное имя укорачиваем, чтобы .ft2 влезло
 Name_Ext
         ld hl,Dv_Name
+        ld b,0                      ; B - сколько знаков прошли
+        ld c,#FF                    ; C - длина до последней точки (#FF - точки нет)
 .f      ld a,(hl)
         or a
-        jr z,.add
+        jr z,.end
         cp '.'
-        ret z
-        inc hl
+        jr nz,.n
+        ld c,b
+.n      inc hl
+        inc b
         jr .f
-.add    ld a,(Dv_Name_Len)
-        cp NAME_W-3
-        ret nc
+.end    ld a,c                      ; есть точка - имя до неё
+        inc a
+        jr z,$+3
+        ld b,c
+        ld a,b                      ; A - длина имени без расширения
+        cp NAME_W-3                 ; + ".ft2" должно влезть в поле
+        jr c,$+4
+        ld a,NAME_W-4
+        ld e,a
         add a,4
         ld (Dv_Name_Len),a
+        ld d,0
+        ld hl,Dv_Name
+        add hl,de
         ex de,hl
         ld hl,Txt_Ft2Ext
         ld bc,5

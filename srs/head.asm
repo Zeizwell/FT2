@@ -131,7 +131,11 @@ Head_Load
         ld bc,32
         ldir
         RESTPAGE2
+        ld a,1                      ; имена сменились - нарисовать (Head_Show)
+        ld (Hd_TxtNew),a
+        ld (Hd_ValNew),a            ;   и значения (трек другой)
         ret
+Hd_TxtNew       db 1                ; 1 - нарисовать имя файла, трека, автора
 
 Hd_Song         ds 32               ; имя трека (32 знака, хвост - пробелы или 0)
 Hd_Author       ds 32
@@ -184,7 +188,33 @@ Head_Draw
         call PutCh
         bit 7,e
         jr z,.bar
-        ret
+        ld a,#FF                    ; подсветки под мышью ещё нет
+        ld (Hv_W),a
+        ld hl,0
+        ld (Hv_Field),hl
+        ld a,1                      ; и имена - в первом же кадре
+        ld (Hd_TxtNew),a
+        ld (Hd_ValNew),a            ;   и значения
+        ld hl,Hd_Static             ; надписи - один раз: их никто не трогает
+.s      ld a,(hl)
+        cp #FF
+        ret z
+        add a,HD_SCR_H
+        ld d,a
+        inc hl
+        ld e,(hl)
+        inc hl
+        ld a,(hl)
+        inc hl
+        push hl
+        add a,low THEME_ATTR
+        ld l,a
+        ld h,high THEME_ATTR
+        ld c,(hl)
+        pop hl
+        call PutStr
+        inc hl
+        jr .s
 
 ; Надписи: строка, колонка, роль цвета, текст, 0. Конец - #FF
 Hd_Static
@@ -211,29 +241,10 @@ Hd_Static
         db HD_ROW_EDIT,HD_ENVM_L,CLR_TOP_TEXT,"Env:",0
         db #FF
 
-;-------- Каждый кадр: надписи, значения, кнопки, подсветка под мышью
+;-------- Каждый кадр: Speed и Size (скорость плеера меняется на ходу), кнопки, подсветка под
+; мышью. Остальные значения - только когда сменились (Hd_Changed); надписи - один раз (Head_Draw)
 Head_Show
-        ld hl,Hd_Static             ; надписи
-.s      ld a,(hl)
-        cp #FF
-        jr z,.values
-        add a,HD_SCR_H
-        ld d,a
-        inc hl
-        ld e,(hl)
-        inc hl
-        ld a,(hl)
-        inc hl
-        push hl
-        add a,low THEME_ATTR
-        ld l,a
-        ld h,high THEME_ATTR
-        ld c,(hl)
-        pop hl
-        call PutStr
-        inc hl
-        jr .s
-.values ld a,(THEME_ATTR+CLR_TOP_VALUE) ; значения - на своём фоне
+        ld a,(THEME_ATTR+CLR_TOP_VALUE) ; значения - на своём фоне
         ld c,a
         ld a,(SV_PLAY_STATE)        ; скорость: играет - плеера, иначе трека
         or a
@@ -249,6 +260,12 @@ Head_Show
         call Arr_Get
         ld de,HD_LEN_X+256*(HD_SCR_H+HD_ROW_EDIT)
         call PutHex2
+        call Hd_Changed             ; остальное - только когда сменилось
+        jp z,.fixed
+        xor a
+        ld (Hd_ValNew),a
+        ld a,(THEME_ATTR+CLR_TOP_VALUE)
+        ld c,a
         ld a,(Cur_Octave)           ; октава
         add a,'0'
         ld de,HD_OCT_X+256*(HD_SCR_H+HD_ROW_EDIT)
@@ -308,15 +325,49 @@ Head_Show
         ld b,7
         ld de,HD_TUNE_X+256*(HD_SCR_H+HD_ROW_FILE)
         call Hd_Name
-        call Hd_Texts               ; имя файла, трека, автор
         call Hd_Track               ; трек "1 2"
+.fixed
+        ld a,(Hd_TxtNew)            ; имя файла, трека, автор - только когда сменились
+        or a
+        call nz,Hd_Texts
         call Hd_Buttons             ; кнопки [-][+]
         call Tr_State_Update        ; кнопки транспорта: нажата, активна, под мышью
         jp Hd_Hover                 ; подсветка поля под мышью
 
 
+;-------- Сменилось ли что-то из значений шапки (кроме Speed и Size): сравниваем переменные
+; со снимком прошлого кадра и обновляем его. NZ - перерисовать (или Hd_ValNew - после входа,
+; загрузки трека)
+Hd_ValNew       db 1
+HD_SIG_N        equ 12
+Hd_Sig          ds HD_SIG_N
+Hd_SigVars      dw Cur_Octave, Cur_Step, Auto_Step, Env_As_Note, Auto_Env, Auto_Ratio
+                dw Song_Device, Song_Chips, Song_Stereo, Song_EnvMode, Song_Tuning, SV_SONG_NUM
+    ASSERT $-Hd_SigVars == HD_SIG_N*2
+Hd_Changed
+        ld ix,Hd_Sig
+        ld hl,Hd_SigVars
+        ld b,HD_SIG_N
+        ld c,0                      ; C - сменилось
+.l      ld e,(hl)
+        inc hl
+        ld d,(hl)
+        inc hl
+        ld a,(de)
+        cp (ix+0)
+        jr z,.n
+        ld (ix+0),a
+        ld c,1
+.n      inc ix
+        djnz .l
+        ld a,(Hd_ValNew)
+        or c
+        ret
+
 ;-------- Имя файла, трека, автор: знаки до 0, остаток поля - пробелы
 Hd_Texts
+        xor a
+        ld (Hd_TxtNew),a
         ld a,(THEME_ATTR+CLR_TOP_VALUE)
         ld c,a
         ld hl,Hd_File
@@ -456,23 +507,69 @@ Hd_Buttons
         jr .b
 
 ;-------- Подсветка: поле шапки под мышью - атрибуты CLR_HOVER на всю его ширину
+;-------- Подсветка поля шапки под мышью. Надписи не перерисовываются - поэтому цвета под
+; подсветкой запоминаем (Hv_Save) и возвращаем, когда мышь ушла с поля. Красим каждый
+; кадр: значения под ней перерисовываются каждый кадр своим цветом
+Hv_Field        dw 0                ; подсвеченное поле
+Hv_Addr         dw 0                ; его атрибуты в буфере шапки
+Hv_W            db #FF              ; ширина (#FF - подсветки нет)
+Hv_Save         ds 32               ; цвета под ней
+
 Hd_Hover
-        ld hl,(SV_HOVER)            ; поле шапки? (адрес внутри Head_Fields)
-        ld de,Head_Fields
+        ld hl,(SV_HOVER)            ; то же поле - только покрасить снова
+        ld de,(Hv_Field)
+        or a
+        sbc hl,de
+        jr nz,.new
+        ld a,(Hv_W)
+        cp #FF
+        ret z
+        jr .paint
+.new    ld a,(Hv_W)                 ; прошлое - вернуть цвета
+        cp #FF
+        jr z,.find
+        ld b,a
+        ld de,(Hv_Addr)
+        ld hl,Hv_Save
+.r      ld a,(hl)
+        ld (de),a
+        inc hl
+        inc e
+        djnz .r
+.find   ld a,#FF
+        ld (Hv_W),a
+        ld hl,(SV_HOVER)
+        ld (Hv_Field),hl
+        ld de,Head_Fields           ; поле шапки? (адрес внутри Head_Fields)
         or a
         sbc hl,de
         ret c
         ld de,Head_Fields_End-Head_Fields
         sbc hl,de
         ret nc
-        ld ix,(SV_HOVER)
+        ld ix,(SV_HOVER)            ; новое - запомнить его цвета
         ld a,(ix+FLD_Y)
         add a,HD_SCR_H
         ld h,a
         ld a,(ix+FLD_X)
         or SCR_ATTR
         ld l,a
-        ld b,(ix+FLD_W)
+        ld (Hv_Addr),hl
+        ld a,(ix+FLD_W)
+        cp 33
+        jr c,$+4
+        ld a,32
+        ld (Hv_W),a
+        ld b,a
+        ld de,Hv_Save
+.s      ld a,(hl)
+        ld (de),a
+        inc l
+        inc de
+        djnz .s
+.paint  ld hl,(Hv_Addr)
+        ld a,(Hv_W)
+        ld b,a
         ld a,(THEME_ATTR+CLR_HOVER)
 .a      ld (hl),a
         inc l
@@ -553,14 +650,13 @@ Tr_Fields                           ; кнопки транспорта (спр�
         FIELD HD_PLAY_X+4, HD_PLAY_Y, 4,2, FF_HAND, Hd_Field, 0, 16          ; |◀ сонг с начала (F6)
         FIELD HD_PLAY_X+8, HD_PLAY_Y, 4,2, FF_HAND, Hd_Field, 0, 17          ; ▶ сонг с позиции (F5)
         FIELD HD_PLAY_X+12,HD_PLAY_Y, 4,2, FF_HAND, Hd_Field, 0, 18          ; ▷ паттерн с роу (F7)
-        FIELD HD_PLAY_X+16,HD_PLAY_Y, 4,2, FF_HAND, Hd_Field, 0, 19          ; ■ стоп (Esc)
 Head_Fields_End
         db FLD_END
 
 Hd_Act  dw H_SpdDn, H_SpdUp, H_OctDn, H_OctUp, H_StepDn, H_StepUp
         dw H_LenDn, H_LenUp, H_RatUp
         dw H_Tune, H_Chip, H_Stereo, K_EnvNote, H_AutoEnv, H_AutoStep
-        dw K_PlayPat, K_PlayStart, K_PlaySong, K_PlayPatRow, K_Stop
+        dw H_TrLoop, H_TrStart, H_TrSong, H_TrRow, K_Stop     ; (19 - кнопки ■ больше нет)
         dw H_Chips, H_Trk1, H_Trk2, Win_About, H_TabDisk, H_TabInstr, H_TabOrn, H_TabSetup
         dw H_TabHelp, H_EnvMode, H_TabFx
 
@@ -578,6 +674,27 @@ Hd_Field
         jp (hl)
 
 ;-------- Действия
+; Кнопки транспорта (как в Bitphase): играет с этой кнопки - стоп, иначе - запуск
+H_TrLoop
+        ld a,TR_K_LOOP
+        ld hl,K_PlayPat
+        jr H_Tr
+H_TrStart
+        ld a,TR_K_START
+        ld hl,K_PlayStart
+        jr H_Tr
+H_TrSong
+        ld a,TR_K_PLAY
+        ld hl,K_PlaySong
+        jr H_Tr
+H_TrRow ld a,TR_K_ROW
+        ld hl,K_PlayPatRow
+H_Tr    push hl
+        call Tr_Press               ; Z - играет с неё
+        pop hl
+        jp z,K_Stop
+        jp (hl)
+
 H_SpdDn ld hl,Song_Speed            ; скорость 1..255
         ld a,(hl)
         dec a
@@ -747,8 +864,11 @@ TRV_NORMAL      equ 0               ; наборы (v)
 TRV_HOVER       equ 1
 TRV_PRESSED     equ 2
 TRV_ACTIVE      equ 3
-TR_K_LOOP       equ 0               ; кнопки (k)
+TR_K_LOOP       equ 0               ; кнопки (k): ⇄ |◀ ▶ ▷ (4 - значок ■ горящей)
+TR_K_START      equ 1
 TR_K_PLAY       equ 2
+TR_K_ROW        equ 3
+TR_K_STOP       equ 4
 
 ;-------- Раз при старте: 4 набора кнопок рисуются в страницу спрайтов, описатели - в SFILE.
 ; Кнопка: грань, кромки (светлая сверху-слева, тёмная снизу-справа; нажата - наоборот),
@@ -761,7 +881,7 @@ TG_INK          equ #1              ; значок
 Tr_Sets db #9,0                     ; обычная: серая
         db #6,0                     ; под мышью: светлее
         db #9,1                     ; нажата
-        db #D,0                     ; активна (играет): зелёная
+        db #D,0                     ; горит (играет с неё): зелёная, значок ■
 
 ; Значки 8x8, бит 7 - левая точка: ⇄, |◀, ▶, ▷, ■
 Tr_Icons
@@ -773,6 +893,7 @@ Tr_Icons
 
 Tg_Face db 0                        ; цвет грани набора
 Tg_Press db 0                       ; 1 - нажатый набор
+Tg_Stop db 0                        ; 0 - горящий набор: значок ■ у всех
 Tg_R    db 0                        ; строка кнопки 0..15
 Tg_M    dw 0                        ; строка значка по колонкам 0..15 (бит 15 - колонка 0)
 
@@ -788,10 +909,17 @@ Head_Sprites
         ld a,(hl)
         ld (Tg_Press),a
         inc hl
+        ld a,b                      ; последний набор (горящий) - у всех кнопок значок ■
+        dec a
+        ld (Tg_Stop),a
         push hl
         ld hl,Tr_Icons
         ld b,TR_BUTTONS
 .btn    push bc
+        ld a,(Tg_Stop)
+        or a
+        jr nz,$+5
+        ld hl,Tr_Icons+TR_K_STOP*8
         call Tg_Button
         pop bc
         djnz .btn
@@ -945,19 +1073,10 @@ Tr_State_Update
         or a
         ld a,TRV_PRESSED
         jr nz,.tile
-.act    ld a,(SV_PLAY_STATE)        ; активна: ▶ - играет сонг, ⇄ - паттерн
-        ld e,a
-        ld a,c
-        cp TR_K_PLAY
-        jr nz,.loop
-        ld a,e
-        cp PS_SONG
-        jr .isact
-.loop   cp TR_K_LOOP
-        jr nz,.hov
-        ld a,e
-        cp PS_PATTERN
-.isact  ld a,TRV_ACTIVE
+.act    call Tr_Lit                 ; горит: играет, запущено этой кнопкой
+        jr c,.hov
+        cp c
+        ld a,TRV_ACTIVE
         jr z,.tile
 .hov    ld a,(Tr_Hv)                ; под мышью - 1, иначе 0 (TRV_HOVER / TRV_NORMAL)
 .tile   ld e,a                      ; тайл = TR_ROW*64 + v*10 + 2k
@@ -979,7 +1098,7 @@ Tr_State_Update
         add ix,de
         inc c
         ld a,c
-        cp TR_BUTTONS
+        cp TR_SHOWN
         jr c,.k
         ld a,(Tr_Chg)
         or a

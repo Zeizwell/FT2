@@ -13,6 +13,19 @@ Cur_Blink       db 0                ; курсор паттерна: 0 - спл�
 
 ;-------- Тема A: 16 цветов в CRAM (DMA). Портит AF, BC, DE, HL
 Set_Palette
+        call Pal_Prep
+        ld hl,Pal_Dma               ; 16 цветов - в CRAM через DMA (запись ЦП через
+        jp set_ports                ;   FM-окно портит память под ним)
+
+;-------- То же при старте (Init_Video_90x36): прерывания выключены и включать их ещё
+; нельзя - set_ports делает EI, поэтому без него
+Set_Palette_Di
+        call Pal_Prep
+        ld hl,Pal_Dma
+        jp set_ports_int
+
+; Тема A -> Cur_Palette, Pal_Bg, источник Pal_Dma
+Pal_Prep
         ld (Cur_Palette),a
         add a,a                     ; *32
         add a,a
@@ -32,8 +45,7 @@ Set_Palette
         ld (Pal_Dma+1),a
         ld a,h
         ld (Pal_Dma+3),a
-        ld hl,Pal_Dma               ; 16 цветов - в CRAM через DMA (запись ЦП через
-        jp set_ports                ;   FM-окно портит память под ним)
+        ret
 
 PAL_CRAM        equ PALET_NUM*16    ; первый цвет палитры 13 в CRAM
 Pal_Dma db high DMASADDRL,0, high DMASADDRH,0, high DMASADDRX,PAGE_CORE0

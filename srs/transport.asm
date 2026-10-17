@@ -1,11 +1,14 @@
 ; =========================================================================
 ; КНОПКИ ТРАНСПОРТА: описатели спрайтов (SFILE) - в коре, чтобы их видели все экраны.
 ; Графику и состояния (Tr_State_Update) ведёт шапка в виде паттерна (srs/head.asm).
-TR_BUTTONS      equ 5               ; кнопок (их поля и графика - srs/head.asm)
+; Как в Bitphase: нажатая кнопка, пока играет, на месте горит значком ■ - клик по ней - стоп.
+TR_BUTTONS      equ 5               ; кнопок в графике (5-я - значок ■ для горящей)
+TR_SHOWN        equ 4               ; на экране: ⇄ |◀ ▶ ▷ (отдельного ■ нет)
+Tr_Btn          db #FF              ; какой кнопкой (или её клавишей) запущено (#FF - никакой)
 
 ; =========================================================================
-;-------- Кнопки по состоянию плеера (экраны без шапки - диск): все обычные, горит
-; ▶ (играет сонг) или ⇄ (паттерн по кругу). Под мышью / нажата - только в шапке
+;-------- Кнопки по состоянию плеера (тулзы): все обычные, горит (■) та, которой запустили,
+; пока играет. Под мышью / нажата - только в шапке вида паттерна
 TR_TILE_N       equ patview.TR_ROW*64                       ; тайл кнопки 0, обычный
 TR_TILE_A       equ patview.TR_ROW*64+patview.TRV_ACTIVE*10 ;   и горящий
 
@@ -18,17 +21,56 @@ Tr_Active
         add hl,de
         add a,2
         djnz .k
-        ld a,(SV_PLAY_STATE)
-        cp PS_SONG
-        ld hl,Tr_SAT+4+patview.TR_K_PLAY*6
-        ld b,TR_TILE_A+patview.TR_K_PLAY*2
-        jr z,.on
-        cp PS_PATTERN
-        jr nz,Tr_Send
-        ld hl,Tr_SAT+4+patview.TR_K_LOOP*6
-        ld b,TR_TILE_A+patview.TR_K_LOOP*2
-.on     ld (hl),b
+        call Tr_Lit                 ; горящая: A - её номер (CF - никакой)
+        jr c,Tr_Send
+        ld e,a                      ; описатель: Tr_SAT + 6k, тайл - горящий + 2k
+        add a,a
+        ld b,a
+        add a,e
+        add a,a
+        ld e,a
+        ld d,0
+        ld hl,Tr_SAT+4
+        add hl,de
+        ld a,TR_TILE_A
+        add a,b
+        ld (hl),a
         jr Tr_Send
+
+; Каждый кадр (Fld_Update): горящая кнопка сменилась (трек кончился, запустили клавишей) -
+; кнопки заново. В виде паттерна его Tr_State_Update тут же наложит подсветку поверх
+Tr_LitOld       db #FF
+Tr_Watch
+        call Tr_Lit
+        jr nc,$+4
+        ld a,#FF
+        ld hl,Tr_LitOld
+        cp (hl)
+        ret z
+        ld (hl),a
+        jp Tr_Active
+
+; Горящая кнопка: играет - A = Tr_Btn, CF = 0; не играет или кнопки нет - CF = 1
+Tr_Lit  ld a,(SV_PLAY_STATE)
+        or a
+        scf
+        ret z
+        ld a,(Tr_Btn)
+        cp TR_SHOWN
+        ccf
+        ret
+
+; Клик по кнопке A: играет с неё - Z (значит стоп); иначе запомнить её, NZ
+Tr_Press
+        ld b,a
+        call Tr_Lit
+        jr c,.new
+        cp b
+        ret z
+.new    ld a,b
+        ld (Tr_Btn),a
+        or #FF                      ; NZ
+        ret
 
 ; Описатели кнопок - в SFILE (DMA, из основного цикла)
 Tr_Send
@@ -40,7 +82,11 @@ Tr_Send
 Tr_SAT
 .k = 0
         DUP TR_BUTTONS
+        IF .k < TR_SHOWN
         db patview.HD_PLAY_Y*8, SP_ACT|SP_SIZE16, (patview.HD_PLAY_X+.k*4)*4, SP_SIZE16, patview.TR_ROW*64+.k*2, patview.TR_PAL
+        ELSE
+        db 0, SP_SIZE16, 0, SP_SIZE16, 0, patview.TR_PAL      ; 5-я (■) не показывается
+        ENDIF
 .k = .k+1
         EDUP
 Tr_SAT_End
