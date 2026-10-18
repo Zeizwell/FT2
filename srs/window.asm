@@ -240,8 +240,6 @@ Win_Wait
         call Mouse_Btn
         and 1<<ME_PRESS
         jr z,.l
-        call Win_OnClose            ; крестик - закрыть
-        jr c,Win_End
         call Win_In                 ; в окне - ничего
         jr c,.l
         ld a,(Win_Flags)            ; мимо: обычное окно - ничего
@@ -307,10 +305,9 @@ Win_Draw                            ; на примитивах (srs/prim.asm): 
         ld hl,(Wd_Fn)               ; строки: текст (About) или пункты меню
         jp (hl)
 
-; Заголовок (пусто - нет): верхняя строка между углами - шахматка, по центру " текст ", справа - крестик ×
-; (WIN_CLOSE_DX от правого края). Углы - цвета окна, остальное - цветом рамки или инверсным (WF_INVERT)
+; Заголовок (пусто - нет): верхняя строка между углами - шахматка, по центру " текст ". Углы - цвета окна,
+; остальное - цветом рамки или инверсным (WF_INVERT). Закрытие - Esc / клик мимо / свои кнопки (крестика нет)
 WB_CHECK        equ #B1             ; ▒ - шахматка заголовка
-WIN_CLOSE_DX    equ 2               ; крестик - в колонке x+w-2 (перед углом)
 Wd_Title
         ld hl,(Wo_Title)
         ld a,(hl)
@@ -354,39 +351,7 @@ Wd_Title
         ld hl,(Wo_Title)
         call PutStr
         ld a,' '
-        call PutCh
-        ld a,(Win_X)                ; крестик - знак шрифта, у правого угла
-        ld hl,Win_W
-        add a,(hl)
-        sub WIN_CLOSE_DX
-        ld e,a
-        ld a,GLYPH_CLOSE
         jp PutCh
-GLYPH_CLOSE     equ #17             ; × (шрифт cp866bold, код 23)
-
-; Мышь на крестике окна с заголовком? CF - да
-Win_OnClose
-        ld hl,(Wo_Title)
-        ld a,(hl)
-        or a
-        ret z                       ; без заголовка - крестика нет (CF = 0)
-        ld a,(Win_Y)
-        ld b,a
-        ld a,(SV_MOUSE_ROW)
-        cp b
-        jr nz,.no
-        ld a,(Win_X)
-        ld hl,Win_W
-        add a,(hl)
-        sub WIN_CLOSE_DX
-        ld b,a
-        ld a,(SV_MOUSE_COL)
-        sub b
-        jr c,.no
-        cp 1
-        ret                         ; CF - на крестике
-.no     or a
-        ret
 
 ; Тень: атрибуты справа (2 колонки, строки y+1..y+h) и снизу (строка y+h, колонки x+2..x+w+1) -
 ; цвет тени, знаки под ней остаются
