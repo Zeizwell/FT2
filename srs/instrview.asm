@@ -38,14 +38,10 @@ NM_Y            equ IV_TOP+1        ; Name, Len, Loop
 NM_L            equ 23
 NM_V            equ 28              ; имя - 16 знаков
 NAME_LEN        equ 16
-LEN_L           equ 46              ; Len [-]nn[+]
-LEN_M           equ 50
-LEN_V           equ 52
-LEN_P           equ 54
-LOOP_L          equ 57              ; Loop [-]nn[+]
-LOOP_M          equ 62
-LOOP_V          equ 64
-LOOP_P          equ 66
+LEN_L           equ 46              ; Len nn[+][-] (поле числа, srs/spin.asm)
+LEN_V           equ 50
+LOOP_L          equ 57              ; Loop nn[+][-]
+LOOP_V          equ 62
 BT_Y            equ IV_TOP+3        ; кнопки
 CAP_Y           equ IV_TOP+5        ; заголовки колонок
 ER_ROW0         equ IV_TOP+6        ; первая строка данных
@@ -67,7 +63,7 @@ PV_Y            equ SEP_Y+1         ; строка пробы
     ASSERT PV_Y == TL_LAST-1
 PV_PLAY         equ 22              ; ▶ (2 знака)
 PV_NOTE         equ 25              ; нота (3 знака)
-PV_OCT          equ 29              ; подписи; [-] - +3, значение - +5, [+] - +6
+PV_OCT          equ 29              ; подписи; поле числа n[+][-] - с +3 (значение +3, кнопки +4..+7)
 PV_ORN          equ 38
 PV_VOL          equ 47
 PV_ENV          equ 56
@@ -116,11 +112,9 @@ KP_X            equ 62
     ASSERT KP_X+2 < ED_X+ED_W-1
     ASSERT SUB_Y == BT_Y+1 && SUB_Y+1 == CAP_Y
 ; --- FX (режим 2): номер FX инструмента - на верхней рамке редактора (режим Instr)
-FXN_L           equ 52              ; "FX" [-]nn[+]
-FXN_M           equ 55
-FXN_V           equ 58
-FXN_P           equ 61
-    ASSERT FXN_P+2 < ED_X+ED_W-1
+FXN_L           equ 52              ; "FX" nn[+][-]
+FXN_V           equ 55
+    ASSERT FXN_V+6 < ED_X+ED_W-1
 
 ; клавиши (KEY_*) и действия (ACT_*) - в sdk/plugin.asm
 PG_STEP         equ 8               ; PgUp / PgDn - строк
@@ -1474,12 +1468,16 @@ Er_Cursor
 
 ;-------- Кнопки: под мышью - подсветка, держат - нажата. [-]/[+] - значки
 Iv_Buttons
-        ld hl,Btn_Glyphs
-        call Bg_List
+        ld ix,Iv_Fields             ; поля чисел (srs/spin.asm)
+        ld a,IV_SCR_H
+        call Sp_DrawList
         ld a,(Iv_Mode)              ; номер FX - только у инструмента
         or a
-        ld hl,Btn_Fx_Glyphs
-        call z,Bg_List
+        jr nz,.nofx
+        ld ix,F_FxN
+        ld d,IV_SCR_H+IV_TOP
+        call Sp_Draw
+.nofx
         ld a,(Iv_Mode)              ; фаза свипа -/+ - только у FX
         cp 2
         ld hl,Btn_Sw_Glyphs
@@ -1578,43 +1576,11 @@ Btn_State
         ret
 
 Bg_Row          db 0
-Btn_Glyphs                          ; поле; колонка, строка, значок
-        dw F_LenM
-        db LEN_M, NM_Y, GLYPH_BTN_MINUS
-        dw F_LenP
-        db LEN_P, NM_Y, GLYPH_BTN_PLUS
-        dw F_LoopM
-        db LOOP_M, NM_Y, GLYPH_BTN_MINUS
-        dw F_LoopP
-        db LOOP_P, NM_Y, GLYPH_BTN_PLUS
-        dw F_OctM
-        db PV_OCT+3, PV_Y, GLYPH_BTN_MINUS
-        dw F_OctP
-        db PV_OCT+6, PV_Y, GLYPH_BTN_PLUS
-        dw F_OrnM
-        db PV_ORN+3, PV_Y, GLYPH_BTN_MINUS
-        dw F_OrnP
-        db PV_ORN+6, PV_Y, GLYPH_BTN_PLUS
-        dw F_VolM
-        db PV_VOL+3, PV_Y, GLYPH_BTN_MINUS
-        dw F_VolP
-        db PV_VOL+6, PV_Y, GLYPH_BTN_PLUS
-        dw F_EnvM
-        db PV_ENV+3, PV_Y, GLYPH_BTN_MINUS
-        dw F_EnvP
-        db PV_ENV+6, PV_Y, GLYPH_BTN_PLUS
-        dw 0
 Btn_Sw_Glyphs
         dw F_SwM
         db ST_M, SUB_Y, GLYPH_BTN_MINUS
         dw F_SwP
         db ST_P, SUB_Y, GLYPH_BTN_PLUS
-        dw 0
-Btn_Fx_Glyphs
-        dw F_FxM
-        db FXN_M, IV_TOP, GLYPH_BTN_MINUS
-        dw F_FxP
-        db FXN_P, IV_TOP, GLYPH_BTN_PLUS
         dw 0
 Btn_Texts
         dw F_Clone
@@ -1667,13 +1633,10 @@ Fe_Fields                           ; FX: только шапка (как в н�
         IV_FIELD 0,0,90,IV_TOP, 0, Iv_TabEv, 3                          ; остальная шапка: назад
         IV_FIELD 1,IV_TOP+1,17,FE_LIST_ROWS, 0, Fe_ListEv, 0          ; FX: список
         IV_FIELD 18,IV_TOP+1,1,FE_LIST_ROWS, FF_HAND, Fe_ScrEv, 0     ;     его скролл
-        IV_FIELD FE_MID+4,IV_TOP+2,2,1, FF_HAND, Fe_HdrEv, 0          ;     Len -
-        IV_FIELD FE_MID+8,IV_TOP+2,2,1, FF_HAND, Fe_HdrEv, 1          ;     Len +
-        IV_FIELD FE_MID+17,IV_TOP+2,2,1, FF_HAND, Fe_HdrEv, 2         ;     Loop -
-        IV_FIELD FE_MID+21,IV_TOP+2,2,1, FF_HAND, Fe_HdrEv, 3         ;     Loop +
+        IV_FIELD FE_MID+4,IV_TOP+2,2+4,1, FF_SPIN|FF_HAND, Sp_Ev, Sd_FeLen   ;     Len nn[+][-]
+        IV_FIELD FE_MID+17,IV_TOP+2,2+4,1, FF_SPIN|FF_HAND, Sp_Ev, Sd_FeLoop ;     Loop nn[+][-]
         IV_FIELD FE_MID+7,IV_TOP+3,3,1, FF_HAND, Fe_HdrEv, 4          ;     форма свипа
-        IV_FIELD FE_MID+18,IV_TOP+3,2,1, FF_HAND, Fe_HdrEv, 5         ;     Start -
-        IV_FIELD FE_MID+23,IV_TOP+3,2,1, FF_HAND, Fe_HdrEv, 6         ;     Start +
+        IV_FIELD FE_MID+18,IV_TOP+3,3+4,1, FF_SPIN|FF_HAND, Sp_Ev, Sd_FeSt   ;     Start nnn[+][-]
         IV_FIELD FE_MID+27,IV_TOP+3,2,1, FF_HAND, Fe_HdrEv, 7         ;     Kp
         IV_FIELD FE_MID,IV_TOP+4,7,1, FF_HAND, Fe_SubEv, 0            ;     [ Mix ]
         IV_FIELD FE_MID+9,IV_TOP+4,6,1, FF_HAND, Fe_SubEv, 1          ;     [ FM ]
@@ -1702,10 +1665,8 @@ Iv_Fields
         IV_FIELD 0,0,90,IV_TOP, 0, Iv_TabEv, 3                          ; остальная шапка: назад
 F_List  IV_FIELD LI_X+1,LI_ROW0,LI_W-2,LI_ROWS, 0, Iv_ListEv, 0       ; список
 F_Name  IV_FIELD NM_V,NM_Y,NAME_LEN,1, FF_FOCUS|FF_HAND, Iv_NameEv, 0 ; имя
-F_LenM  IV_FIELD LEN_M,NM_Y,2,1, FF_HAND, Iv_BtnEv, 0                 ; Len -
-F_LenP  IV_FIELD LEN_P,NM_Y,2,1, FF_HAND, Iv_BtnEv, 1                 ; Len +
-F_LoopM IV_FIELD LOOP_M,NM_Y,2,1, FF_HAND, Iv_BtnEv, 2                ; Loop -
-F_LoopP IV_FIELD LOOP_P,NM_Y,2,1, FF_HAND, Iv_BtnEv, 3                ; Loop +
+        IV_FIELD LEN_V,NM_Y,2+4,1, FF_SPIN|FF_HAND, Sp_Ev, Sd_Len       ; Len nn[+][-]
+        IV_FIELD LOOP_V,NM_Y,2+4,1, FF_SPIN|FF_HAND, Sp_Ev, Sd_Loop     ; Loop nn[+][-]
 F_Clone IV_FIELD BC_X,BT_Y,7,1, FF_HAND, Iv_BtnEv, 4
 F_Copy  IV_FIELD BY_X,BT_Y,6,1, FF_HAND, Iv_BtnEv, 5
 F_Paste IV_FIELD BP_X,BT_Y,7,1, FF_HAND, Iv_BtnEv, 6
@@ -1713,8 +1674,8 @@ F_Clear IV_FIELD BL_X,BT_Y,7,1, FF_HAND, Iv_BtnEv, 7
 F_Unloop IV_FIELD BU_X,BT_Y,8,1, FF_HAND, Iv_BtnEv, 8
 F_Prev  IV_FIELD BV_X,BT_Y,3,1, FF_HAND, Iv_BtnEv, 9                  ; < предыдущий
 F_Next  IV_FIELD BN_X,BT_Y,3,1, FF_HAND, Iv_BtnEv, 10                 ; > следующий
-F_FxM   IV_FIELD FXN_M,IV_TOP,2,1, FF_HAND, Iv_BtnEv, 11              ; FX инструмента -
-F_FxP   IV_FIELD FXN_P,IV_TOP,2,1, FF_HAND, Iv_BtnEv, 12              ;                +
+F_FxN   IV_FIELD FXN_V,IV_TOP,2+4,1, FF_HAND, Sp_Ev, Sd_Fx            ; FX инструмента nn[+][-] (без FF_SPIN:
+                                    ;   кнопки - только в режиме Instr, Iv_Buttons)
 F_SubM  IV_FIELD SUB_MIX_X,SUB_Y,5,1, FF_HAND, Iv_SubEv, 0           ; FX: Mix
 F_SubF  IV_FIELD SUB_FM_X,SUB_Y,4,1, FF_HAND, Iv_SubEv, 1            ;     FM
 F_SubE  IV_FIELD SUB_EFM_X,SUB_Y,8,1, FF_HAND, Iv_SubEv, 2           ;     Env FM
@@ -1724,14 +1685,10 @@ F_SwP   IV_FIELD ST_P,SUB_Y,2,1, FF_HAND, Iv_SwEv, 2                ;          +
 F_SwKp  IV_FIELD KP_X,SUB_Y,2,1, FF_HAND, Iv_SwEv, 3                ;     Kp
 F_Edit  IV_FIELD ED_IN_X,ER_ROW0,ED_IN_W,ER_ROWS, FF_FOCUS, Iv_EditEv, 0 ; строки
 F_Play  IV_FIELD PV_PLAY,PV_Y,2,1, FF_HAND, Prv_PlayEv, 0             ; ▶ - пока держат
-F_OctM  IV_FIELD PV_OCT+3,PV_Y,2,1, FF_HAND, Prv_BtnEv, 0             ; Oct -
-F_OctP  IV_FIELD PV_OCT+6,PV_Y,2,1, FF_HAND, Prv_BtnEv, 1             ;     +
-F_OrnM  IV_FIELD PV_ORN+3,PV_Y,2,1, FF_HAND, Prv_BtnEv, 2             ; Orn / Ins -
-F_OrnP  IV_FIELD PV_ORN+6,PV_Y,2,1, FF_HAND, Prv_BtnEv, 3             ;           +
-F_VolM  IV_FIELD PV_VOL+3,PV_Y,2,1, FF_HAND, Prv_BtnEv, 4             ; Vol -
-F_VolP  IV_FIELD PV_VOL+6,PV_Y,2,1, FF_HAND, Prv_BtnEv, 5             ;     +
-F_EnvM  IV_FIELD PV_ENV+3,PV_Y,2,1, FF_HAND, Prv_BtnEv, 6             ; Env -
-F_EnvP  IV_FIELD PV_ENV+6,PV_Y,2,1, FF_HAND, Prv_BtnEv, 7             ;     +
+        IV_FIELD PV_OCT+3,PV_Y,1+4,1, FF_SPIN|FF_HAND, Sp_Ev, Sd_POct   ; Oct n[+][-]
+        IV_FIELD PV_ORN+3,PV_Y,1+4,1, FF_SPIN|FF_HAND, Sp_Ev, Sd_POrn   ; Orn / Ins
+        IV_FIELD PV_VOL+3,PV_Y,1+4,1, FF_SPIN|FF_HAND, Sp_Ev, Sd_PVol   ; Vol
+        IV_FIELD PV_ENV+3,PV_Y,1+4,1, FF_SPIN|FF_HAND, Sp_Ev, Sd_PEnv   ; Env
 F_Test  IV_FIELD ED_IN_X,PV_Y,ED_IN_W,1, FF_FOCUS, Prv_KeyEv, 0       ; строка пробы: пианино
         db FLD_END
 
@@ -3241,11 +3198,11 @@ Prv_Draw
         call Note_Str
         ld a,(THEME_ATTR+CLR_TEXT)
         ld c,a
-        ld e,PV_OCT+5
+        ld e,PV_OCT+3
         ld a,(Prv_Oct)
         add a,'0'
         call PutCh
-        ld e,PV_ORN+5               ; Instr: орнамент ('0' - нет); Orn: инструмент
+        ld e,PV_ORN+3               ; Instr: орнамент ('0' - нет); Orn: инструмент
         ld a,(Iv_Mode)
         or a
         jr nz,.ins
@@ -3260,11 +3217,11 @@ Prv_Draw
 .ins    ld a,(Iv_Nums)
         call Num_Sym
 .put    call PutCh
-        ld e,PV_VOL+5
+        ld e,PV_VOL+3
         ld a,(Prv_Vol)
         call HexDigit
         call PutCh
-        ld e,PV_ENV+5               ; форма: '-' - выкл
+        ld e,PV_ENV+3               ; форма: '-' - выкл
         ld a,(Prv_Env)
         or a
         ld a,'-'
@@ -3417,11 +3374,24 @@ Prv_KeyEv
 ; Пианино - таблица Piano в коре (srs/input.asm)
 
 ;-------- Кнопки пробы: октава, орнамент / инструмент, громкость, форма
-Prv_BtnEv
-        cp EV_CLICK
-        ret nz
-        ld a,(ix+FLD_PARAM)
-        ld b,a
+; Поля чисел пробы (srs/spin.asm): уменьшить / увеличить - B = номер (чётный - -, нечётный - +)
+Prv_OctM ld b,0
+        jr Prv_Step
+Prv_OctP ld b,1
+        jr Prv_Step
+Prv_OrnM ld b,2
+        jr Prv_Step
+Prv_OrnP ld b,3
+        jr Prv_Step
+Prv_VolM ld b,4
+        jr Prv_Step
+Prv_VolP ld b,5
+        jr Prv_Step
+Prv_EnvM ld b,6
+        jr Prv_Step
+Prv_EnvP ld b,7
+Prv_Step
+        ld a,b
         srl a                       ; что: 0 октава, 1 Orn/Ins, 2 громкость, 3 форма
         add a,a
         add a,a                     ; *4: переменная, минимум, максимум
@@ -3452,7 +3422,30 @@ Prv_BtnEv
         ret z
         inc a
 .st     ld (de),a
-        jp Iv_Changed
+        ret
+
+; Описания полей чисел (srs/spin.asm): уменьшить, увеличить, знаков, цвет кнопок, после
+Sd_Len          dw Len_Dn, Len_Up
+                db 2, CLR_BUTTON
+                dw Iv_Changed
+Sd_Loop         dw Loop_Dn, Loop_Up
+                db 2, CLR_BUTTON
+                dw Iv_Changed
+Sd_Fx           dw Fx_Dn, Fx_Up
+                db 2, CLR_BUTTON
+                dw Iv_Changed
+Sd_POct         dw Prv_OctM, Prv_OctP
+                db 1, CLR_BUTTON
+                dw Iv_Changed
+Sd_POrn         dw Prv_OrnM, Prv_OrnP
+                db 1, CLR_BUTTON
+                dw Iv_Changed
+Sd_PVol         dw Prv_VolM, Prv_VolP
+                db 1, CLR_BUTTON
+                dw Iv_Changed
+Sd_PEnv         dw Prv_EnvM, Prv_EnvP
+                db 1, CLR_BUTTON
+                dw Iv_Changed
 
 Prv_Lims
         dw Prv_Oct

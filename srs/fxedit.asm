@@ -61,6 +61,9 @@ Fe_Draw
         call Fe_Load
         call Fe_List
         call Fe_Mid
+        ld ix,Fe_Fields             ; кнопки полей чисел (Len, Loop, Start - srs/spin.asm)
+        ld a,IV_SCR_H
+        call Sp_DrawList
         call Fe_RowSb               ; скроллбар строк - на правой рамке
         call Vsb_Draw
         jp Fe_Rows
@@ -282,16 +285,15 @@ Fe_Mid
         ld c,a
         ld hl,Txt_FeStart
         call PutStr
-        call Fe_Minus
-        ld a,(THEME_ATTR+CLR_TEXT)
+        ld a,(THEME_ATTR+CLR_TEXT)  ; число, за ним [+][-] (их рисует Sp_DrawList)
         ld c,a
         ld a,(Fe_Hdr+FXH_SWPHASE)
         call Put_Dec3
         ld a,(THEME_ATTR+CLR_HEADER)
         ld c,a
-        call Fe_Plus
-        inc e
-        inc e
+        ld a,e
+        add a,4+2
+        ld e,a
         ld a,(Fe_Hdr+FXH_FLAGS)     ; Kp: включено - цветом выделения
         rrca
         ld a,(THEME_ATTR+CLR_HEAD_TEXT) ; как Kp в инструменте
@@ -319,38 +321,18 @@ Fe_Mid
         jr c,.sub
         ret
 
-;-------- "[-]nn[+]": A - число; кнопки - наши значки в 2 знака (цвет C), число - цветом значений
+;-------- "nn[+][-]": A - число цветом значений, место под кнопки (их рисует Sp_DrawList); свой C - вернуть
 Fe_Val2
+        push bc
         push af
-        call Fe_Minus
         ld a,(THEME_ATTR+CLR_TEXT)
-        ld b,c
         ld c,a
         pop af
-        push bc
         call Dec2
         pop bc
-        ld c,b
-        jp Fe_Plus
-
-;-------- Значки кнопок [-] / [+] (2 знака, GLYPH_BTN_*), цвет кнопок
-Fe_Minus
-        ld a,GLYPH_BTN_MINUS
-        jr Fe_Glyph
-Fe_Plus
-        ld a,GLYPH_BTN_PLUS
-Fe_Glyph
-        push bc                     ; цвет кнопок (как в инструменте), свой C - вернуть
-        push af
-        ld a,(THEME_ATTR+CLR_BUTTON)
-        ld c,a
-        pop af
-        push af                     ; PutCh портит A
-        call PutCh
-        pop af
-        inc a
-        call PutCh
-        pop bc
+        ld a,e
+        add a,4
+        ld e,a
         ret
 
 ;-------- Форма свипа A (номер таблицы): пресет 1..5 - имя, иначе "Tnn" (hex)
@@ -821,18 +803,38 @@ Fe_RScrEv
         jr .up
 
 ;-------- Заголовок FX: 0 Len-, 1 Len+, 2 Loop-, 3 Loop+, 4 форма свипа, 5 Start-, 6 Start+, 7 Kp
+;-------- Поля чисел заголовка (srs/spin.asm): Len, Loop, Start - уменьшить / увеличить
+Fe_LenM xor a
+        jr Fe_Hdr_Do
+Fe_LenP ld a,1
+        jr Fe_Hdr_Do
+Fe_LoopM ld a,2
+        jr Fe_Hdr_Do
+Fe_LoopP ld a,3
+        jr Fe_Hdr_Do
+Fe_StM  ld a,5
+        jr Fe_Hdr_Do
+Fe_StP  ld a,6
+        jr Fe_Hdr_Do
+
+; Описания полей чисел: уменьшить, увеличить, знаков, цвет кнопок, после
+Sd_FeLen        dw Fe_LenM, Fe_LenP
+                db 2, CLR_BUTTON
+                dw Fe_Dirty
+Sd_FeLoop       dw Fe_LoopM, Fe_LoopP
+                db 2, CLR_BUTTON
+                dw Fe_Dirty
+Sd_FeSt         dw Fe_StM, Fe_StP
+                db 3, CLR_BUTTON
+                dw Fe_Dirty
+
+;-------- Клик по заголовку: форма свипа (4), Kp (7)
 Fe_HdrEv
-        cp EV_REPEAT                ; держат: повтор - только у +/-
-        jr z,.rep
         cp EV_PRESS
         ret nz
-        jr .go
-.rep    ld a,(ix+FLD_PARAM)
-        cp 4
-        ret z
-        cp 7
-        ret z
-.go     ld a,(ix+FLD_PARAM)
+        ld a,(ix+FLD_PARAM)
+; A - что: 0/1 Len -/+, 2/3 Loop -/+, 4 форма, 5/6 Start -/+, 7 Kp
+Fe_Hdr_Do
         or a
         jr z,.lenm
         dec a

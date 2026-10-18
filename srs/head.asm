@@ -469,23 +469,12 @@ Hd_Dec2
         pop af
         jp PutCh
 
-;-------- Кнопки полей чисел (флаг HF_BUTTON): стандартные, Sp_Draw - вдавлена, пока её держат и мышь
+;-------- Кнопки полей чисел (флаг FF_SPIN): стандартные (Sp_DrawList), вдавлена, пока её держат и мышь
 ; над ней (как в Windows)
 Hd_Buttons
         ld ix,Head_Fields
-.b      ld a,(ix+FLD_X)
-        cp FLD_END
-        ret z
-        ld a,(ix+FLD_FLAGS)
-        and HF_BUTTON
-        jr z,.n
-        ld a,(ix+FLD_Y)
-        add a,HD_SCR_H
-        ld d,a
-        call Sp_Draw
-.n      ld de,FLD_SIZE
-        add ix,de
-        jr .b
+        ld a,HD_SCR_H
+        jp Sp_DrawList
 
 ;-------- Подсветка: поле шапки под мышью - атрибуты CLR_HOVER на всю его ширину
 ;-------- Подсветка поля шапки под мышью. Надписи не перерисовываются - поэтому цвета под
@@ -603,17 +592,22 @@ Time_Reset
 ; HF_BUTTON: кнопки рисует Hd_Buttons), параметр - описание Sd_*.
 ; Надпись + галочка - одно поле: кликать можно по надписи.
 ; =========================================================================
-HF_BUTTON       equ %10000000       ; флаг поля (FLD_FLAGS): поле числа nn[+][-]
+HF_BUTTON       equ FF_SPIN         ; флаг поля (FLD_FLAGS): поле числа nn[+][-]
 
-; Описания полей чисел (srs/spin.asm): уменьшить, увеличить, знаков числа, цвет кнопок
+; Описания полей чисел (srs/spin.asm): уменьшить, увеличить, знаков числа, цвет кнопок, после (0 - шапка
+; перерисовывается каждый кадр)
 Sd_Speed        dw H_SpdDn, H_SpdUp
                 db 2, CLR_TOP_BTN
+                dw 0
 Sd_Oct          dw H_OctDn, H_OctUp
                 db 1, CLR_TOP_BTN
+                dw 0
 Sd_Step         dw H_StepDn, H_StepUp
                 db 2, CLR_TOP_BTN
+                dw 0
 Sd_Len          dw H_LenDn, H_LenUp
                 db 2, CLR_TOP_BTN
+                dw 0
 
 Head_Fields
         FIELD HD_SPEED_X,  HD_ROW_EDIT,2+4,1, HF_BUTTON|FF_HAND, Sp_Ev, 0, Sd_Speed ; Speed nn[+][-]
