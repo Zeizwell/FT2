@@ -447,10 +447,11 @@ Hd_Name
         djnz .p
         ret
 
-; A - флаг: включён - атрибуты B знаков с DE - цвет активного (фон темнее, буква та же)
+; A - флаг: атрибуты B знаков с DE - включён: цвет активного (фон темнее), выключен - как надпись
 Hd_Mark
         or a
-        ret z
+        ld a,(THEME_ATTR+CLR_TOP_TEXT)  ; выключено - как надпись
+        jr z,$+5
         ld a,(THEME_ATTR+CLR_TOP_HI)
         set 7,e                     ; атрибуты - на +128
 .m      ld (de),a
@@ -673,18 +674,20 @@ Hd_Act  dw H_SpdDn, H_SpdUp, H_OctDn, H_OctUp, H_StepDn, H_StepUp
 ;-------- Song / By: ввод как имя в инструменте - буквы, Shift - заглавные, Backspace, Enter - назад в паттерн.
 ; Буфер шапки (Hd_Song / Hd_Author) и сразу - в страницу трека (SH_NAME / SH_AUTHOR)
 Hd_NameEv
-        cp EV_FOCUS_IN
-        jr z,.redraw
-        cp EV_FOCUS_OUT
-        jr z,.redraw
-        cp EV_KEY
-        ret nz
+        ld (Hn_Ev),a
         ld a,(ix+FLD_PARAM)         ; буфер: 0 - Song, 1 - By
         or a
         ld hl,Hd_Song
         jr z,$+5
         ld hl,Hd_Author
         ld (Hn_Buf),hl
+        ld a,(Hn_Ev)
+        cp EV_FOCUS_IN
+        jr z,.in
+        cp EV_FOCUS_OUT
+        jr z,.redraw
+        cp EV_KEY
+        ret nz
         ld a,b
         cp KEY_BACK
         jr z,.back
@@ -730,11 +733,14 @@ Hd_NameEv
         jr .redraw
 .done   ld hl,F_Pat
         call Fld_Set_Focus
+        jr .redraw
+.in     call Hn_Trim                ; пробелы в хвосте - не текст
 .redraw ld a,1
         ld (Hd_TxtNew),a
 .eat    scf
         ret
 Hn_Buf          dw 0
+Hn_Ev           db 0
 
 ; HL - первый 0 буфера (или за 32-м знаком), A - длина. BC сохраняет
 Hn_Len
@@ -749,6 +755,20 @@ Hn_Len
         cp 32
         jr c,.l
 .e      ld a,e
+        ret
+
+; Хвост из пробелов (имена из модулей дополнены до 32) - нулями: курсор - сразу за текстом
+Hn_Trim
+        ld hl,(Hn_Buf)
+        ld de,31
+        add hl,de
+        ld b,32
+.t      ld a,(hl)
+        cp ' '+1
+        ret nc
+        ld (hl),0
+        dec hl
+        djnz .t
         ret
 
 ; Буфер (Hn_Buf) - в страницу трека: Hd_Song -> SH_NAME, Hd_Author -> SH_AUTHOR (32 байта)
