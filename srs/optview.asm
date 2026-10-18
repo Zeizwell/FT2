@@ -546,14 +546,12 @@ Ov_Bar
         call PutStr
         ld a,(Ob_V)
         ld l,a                      ; L - сколько клеток ещё горит
-.c      ld a,(THEME_ATTR+CLR_WIN_VALUE) ; горит - сплошной квадрат тёмным цветом окна
+.c      ld a,(THEME_ATTR+CLR_WIN_VALUE) ; как полоса громкости в инструменте: горит - клетка с зазором
         ld c,a
-        ld a,#DB                    ; █
+        ld a,GLYPH_VOL
         dec l
         jp p,.put
-        ld a,(THEME_ATTR+CLR_WIN_TEXT) ; нет - точка, как пустое поле
-        ld c,a
-        ld a,'.'
+        ld a,' '                    ; нет - пробел
 .put    call PutCh
         djnz .c
         ld a,(THEME_ATTR+CLR_WIN_TEXT)
