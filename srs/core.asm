@@ -218,6 +218,7 @@ dma_wait	ld bc,DMASTATUS
 
 
     include "srs/screen.asm"       ; двойной буфер экрана тулз
+    include "srs/textin.asm"       ; строка ввода текста (Song / By, имена, файл)
     include "srs/mouse.asm"
     include "srs/input.asm"
     include "srs/fields.asm"

@@ -808,18 +808,18 @@ Iv_Draw_Top
         ld e,LOOP_L
         ld hl,Txt_Loop
         call PutStr
-        ld hl,(SV_FOCUS)            ; имя: в фокусе - цветом курсора
-        ld de,F_Name
-        or a
-        sbc hl,de
-        ld a,(THEME_ATTR+CLR_SELECT)
-        jr nz,$+5
-        ld a,(THEME_ATTR+CLR_CURSOR)
+        ld a,(THEME_ATTR+CLR_SELECT) ; имя - на фоне поля ввода, в фокусе - курсор строки ввода
         ld c,a
         call Iv_Name_Addr
         ld de,NM_V+256*(IV_SCR_H+NM_Y)
         ld b,NAME_LEN
         call Put_Name
+        ld hl,(SV_FOCUS)
+        ld de,F_Name
+        or a
+        sbc hl,de
+        ld de,NM_V+256*(IV_SCR_H+NM_Y)
+        call z,Ti_Cursor
         ld a,(THEME_ATTR+CLR_TEXT)  ; длина и цикл
         ld c,a
         call Iv_End
@@ -1937,71 +1937,41 @@ Iv_EditEv
 .tog    call Ed_Toggle
         jp Iv_Changed
 
-;-------- Имя: буквы, Backspace (Enter, Tab - фокус в строки)
+;-------- Имя: стандартная строка ввода (Ti_*, коре), 16 знаков прямо в блоке; Enter / Esc - в строки
 Iv_NameEv
+        ld (Iv_NEv),a
+        push bc
+        call Iv_Name_Addr           ; буфер - имя текущего (мог смениться)
+        pop bc
+        ld a,NAME_LEN
+        call Ti_Set
+        ld a,(Iv_NEv)
         cp EV_FOCUS_IN
-        jr z,.redraw
+        jr z,.in
         cp EV_FOCUS_OUT
         jr z,.redraw
+        cp EV_PRESS
+        jr z,.click
         cp EV_KEY
         ret nz
-        ld a,b
-        cp KEY_BACK
-        jr z,.back
-        cp KEY_ENTER
-        jr z,.done
-        cp KEY_TAB                  ; Tab - не наш (фокус - в Iv_Keys)
-        ret z
-        or a                        ; E0-коды - не буквы
-        ret m
-        ld h,high Key_Chars         ; код -> символ (0 - не символ)
-        ld l,a
-        ld a,(hl)
-        or a
-        ret z
-        bit 0,c                     ; Shift: буквы - заглавные, минус - подчёркивание
-        jr z,.put
-        cp '-'
-        jr nz,.up
-        ld a,'_'
-        jr .put
-.up     cp 'a'
-        jr c,.put
-        cp 'z'+1
-        jr nc,.put
-        sub 'a'-'A'
-.put    ld b,a
-        call Iv_Name_Len            ; HL - на конец, A - длина
-        cp NAME_LEN
-        jr nc,.eat
-        ld (hl),b
-        jr .redraw
-.back   call Iv_Name_Len
-        or a
-        jr z,.eat
-        dec hl
-        ld (hl),0
-        jr .redraw
-.done   ld hl,F_Edit
+        call Ti_Key
+        ret nc                      ; не наша
+        cp TI_DONE
+        jr nz,.redraw               ; курсор / правка - имя уже в блоке
+        ld hl,F_Edit
         call Fld_Set_Focus
+        jr .redraw
+.in     ld hl,(Ti_Buf)
+        ld a,NAME_LEN
+        call Ti_Begin
+        jr .redraw
+.click  ld a,(SV_MOUSE_COL)         ; курсор - на знак под мышью
+        sub (ix+FLD_X)
+        call Ti_Click
 .redraw call Iv_Changed
-.eat    scf                         ; клавиша - наша
+        scf                         ; событие - наше
         ret
-
-; HL - первый 0 имени (или за 16-м знаком), A - длина. BC сохраняет
-Iv_Name_Len
-        call Iv_Name_Addr
-        ld e,0
-.l      ld a,(hl)
-        or a
-        jr z,.e
-        inc hl
-        inc e
-        ld a,e
-        cp NAME_LEN
-        jr c,.l
-.e      ld a,e
-        ret
+Iv_NEv          db 0
 
 ;-------- Клавиши: полю в фокусе; Tab - фокус строки <-> имя
 Iv_Keys

@@ -675,10 +675,8 @@ Hd_Act  dw H_SpdDn, H_SpdUp, H_OctDn, H_OctUp, H_StepDn, H_StepUp
         dw H_TabHelp, H_EnvMode, H_TabFx
 
 ;-------- Поле шапки: клик - действие (вид нажатой кнопки рисует Hd_Buttons)
-;-------- Song / By: строка ввода с курсором (Hn_Pos). Клик - курсор на знак под мышью (дальше текста -
-; в конец), буква - вставить под курсор (хвост - вправо, 32-й знак уходит), Shift - заглавные,
-; <- -> Home End - курсор, Backspace - знак слева, Delete - под курсором, Enter / Esc - в паттерн.
-; Буфер шапки (Hd_Song / Hd_Author) и сразу - в страницу трека (SH_NAME / SH_AUTHOR)
+;-------- Song / By: стандартная строка ввода (Ti_*, srs/textin.asm), 32 знака. Правка - сразу в
+; страницу трека (SH_NAME / SH_AUTHOR), Enter / Esc - назад в паттерн
 Hd_NameEv
         ld (Hn_Ev),a
         ld a,(ix+FLD_PARAM)         ; буфер: 0 - Song, 1 - By
@@ -687,86 +685,32 @@ Hd_NameEv
         jr z,$+5
         ld hl,Hd_Author
         ld (Hn_Buf),hl
+        ld a,32
+        call Ti_Set
         ld a,(Hn_Ev)
         cp EV_FOCUS_IN
         jr z,.in
         cp EV_FOCUS_OUT
-        jp z,.redraw
+        jr z,.redraw
         cp EV_PRESS
         jr z,.click
         cp EV_KEY
         ret nz
-        ld a,b
-        cp KEY_ENTER
-        jp z,.done
-        cp KEY_ESC
-        jp z,.done
-        cp KEY_LEFT
-        jr z,.left
-        cp KEY_RIGHT
-        jr z,.right
-        cp KEY_HOME
-        jr z,.home
-        cp KEY_END
-        jr z,.end
-        cp KEY_BACK
-        jr z,.back
-        cp KEY_DEL
-        jr z,.del
-        cp KEY_TAB
-        ret z
-        or a                        ; E0-коды - не наши
-        ret m
-        ld h,high Key_Chars         ; код -> символ (0 - не символ)
-        ld l,a
-        ld a,(hl)
-        or a
-        ret z
-        bit 0,c                     ; Shift: буквы - заглавные, минус - подчёркивание
-        jr z,.put
-        cp '-'
-        jr nz,.up
-        ld a,'_'
-        jr .put
-.up     cp 'a'
-        jr c,.put
-        cp 'z'+1
-        jr nc,.put
-        sub 'a'-'A'
-.put    call Hn_Ins
-        jr .save
-
-.in     call Hn_Trim                ; пробелы в хвосте - не текст
+        call Ti_Key
+        ret nc                      ; не наша
+        cp TI_MOVE
+        jr z,.redraw
+        cp TI_EDIT
+        jr nz,.done
+        call Hn_Save
         jr .redraw
-.click  ld a,(SV_MOUSE_COL)         ; курсор - на знак под мышью, не дальше текста
+.in     ld hl,(Hn_Buf)
+        ld a,32
+        call Ti_Begin
+        jr .redraw
+.click  ld a,(SV_MOUSE_COL)         ; курсор - на знак под мышью
         sub (ix+FLD_X)
-        ld (Hn_Pos),a
-        call Hn_Clamp
-        jr .redraw
-.left   ld hl,Hn_Pos
-        ld a,(hl)
-        or a
-        jr z,.redraw
-        dec (hl)
-        jr .redraw
-.right  ld hl,Hn_Pos
-        inc (hl)
-        call Hn_Clamp
-        jr .redraw
-.home   xor a
-        ld (Hn_Pos),a
-        jr .redraw
-.end    ld a,32
-        ld (Hn_Pos),a
-        call Hn_Clamp
-        jr .redraw
-.back   ld hl,Hn_Pos                ; знак слева: курсор влево и стереть под ним
-        ld a,(hl)
-        or a
-        jr z,.redraw
-        dec (hl)
-.del    call Hn_Del
-.save   call Hn_Save
+        call Ti_Click
         jr .redraw
 .done   ld hl,F_Pat
         call Fld_Set_Focus
@@ -774,110 +718,8 @@ Hd_NameEv
         ld (Hd_TxtNew),a
         scf                         ; событие - наше
         ret
-
-;-------- Курсор не дальше конца текста и не дальше 31-го знака
-Hn_Clamp
-        call Hn_Len                 ; A - длина
-        cp 32
-        jr c,$+4
-        ld a,31
-        ld hl,Hn_Pos
-        cp (hl)
-        ret nc
-        ld (hl),a
-        ret
-
-;-------- Знак A - вставить под курсор: хвост вправо (32-й знак уходит), курсор вправо
-Hn_Ins
-        ld (Hn_Ch),a
-        ld a,(Hn_Pos)               ; сдвинуть знаков: 31 - курсор
-        ld c,a
-        ld a,31
-        sub c
-        jr z,.set
-        ld hl,(Hn_Buf)              ; с конца: 30 -> 31, 29 -> 30 ...
-        ld de,30
-        add hl,de
-        ld d,h
-        ld e,l
-        inc de
-        ld c,a
-        ld b,0
-        lddr
-.set    ld hl,(Hn_Buf)
-        ld a,(Hn_Pos)
-        ld e,a
-        ld d,0
-        add hl,de
-        ld a,(Hn_Ch)
-        ld (hl),a
-        ld hl,Hn_Pos
-        ld a,(hl)
-        cp 31
-        ret nc
-        inc (hl)
-        ret
-Hn_Ch           db 0
-
-;-------- Стереть знак под курсором: хвост влево, в конце - 0
-Hn_Del
-        call Hn_Len                 ; курсор за текстом - нечего
-        ld hl,Hn_Pos
-        cp (hl)
-        ret z
-        ret c
-        ld a,(hl)                   ; HL - под курсором
-        ld hl,(Hn_Buf)
-        ld e,a
-        ld d,0
-        add hl,de
-        ld d,h
-        ld e,l
-        inc hl
-        ld a,(Hn_Pos)               ; сдвинуть знаков: 31 - курсор
-        ld c,a
-        ld a,31
-        sub c
-        jr z,.z
-        ld c,a
-        ld b,0
-        ldir
-.z      xor a                       ; последний знак - 0
-        ld (de),a
-        ret
-
 Hn_Buf          dw 0
-Hn_Pos          db 0                ; курсор в строке 0..31
 Hn_Ev           db 0
-
-; HL - первый 0 буфера (или за 32-м знаком), A - длина. BC сохраняет
-Hn_Len
-        ld hl,(Hn_Buf)
-        ld e,0
-.l      ld a,(hl)
-        or a
-        jr z,.e
-        inc hl
-        inc e
-        ld a,e
-        cp 32
-        jr c,.l
-.e      ld a,e
-        ret
-
-; Хвост из пробелов (имена из модулей дополнены до 32) - нулями: курсор - сразу за текстом
-Hn_Trim
-        ld hl,(Hn_Buf)
-        ld de,31
-        add hl,de
-        ld b,32
-.t      ld a,(hl)
-        cp ' '+1
-        ret nc
-        ld (hl),0
-        dec hl
-        djnz .t
-        ret
 
 ; Буфер (Hn_Buf) - в страницу трека: Hd_Song -> SH_NAME, Hd_Author -> SH_AUTHOR (32 байта)
 Hn_Save
@@ -910,7 +752,7 @@ Hd_NameClr
         ld c,a
         ret
 
-;-------- Курсор ввода Song / By: поле в фокусе - знак под курсором (Hn_Pos) цветом курсора
+;-------- Курсор ввода Song / By: поле в фокусе - курсор строки ввода (Ti_Cursor)
 Hd_NameCur
         ld hl,(SV_FOCUS)
         ld de,F_HdSong
@@ -926,14 +768,9 @@ Hd_NameCur
         ret nz
         ld hl,Hd_Author
         ld c,HD_AUTH_X
-.put    ld a,(Hn_Pos)               ; знак под курсором
-        add a,c
-        or SCR_ATTR
-        ld l,a
-        ld h,HD_SCR_H+HD_ROW_SONG
-        ld a,(THEME_ATTR+CLR_CURSOR)
-        ld (hl),a
-        ret
+.put    ld d,HD_SCR_H+HD_ROW_SONG
+        ld e,c
+        jp Ti_Cursor
 
 Hd_Field
         cp EV_CLICK

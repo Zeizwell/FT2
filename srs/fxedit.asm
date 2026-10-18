@@ -245,19 +245,20 @@ Fe_Mid
         ld de,FE_MID+256*(IV_SCR_H+IV_TOP+1)
         ld hl,Txt_FeName
         call PutStr
-        ld hl,(SV_FOCUS)            ; имя - как в инструменте: в фокусе - цветом курсора
+        ld a,(THEME_ATTR+CLR_SELECT) ; имя - как в инструменте: фон поля ввода, в фокусе - курсор
+        ld c,a
+        push de
+        ld hl,Fe_Name
+        ld b,16
+        call Put_Name
+        pop de
+        ld hl,(SV_FOCUS)
         push de
         ld de,F_FeName
         or a
         sbc hl,de
         pop de
-        ld a,(THEME_ATTR+CLR_SELECT)
-        jr nz,$+5
-        ld a,(THEME_ATTR+CLR_CURSOR)
-        ld c,a
-        ld hl,Fe_Name
-        ld b,16
-        call Put_Name
+        call z,Ti_Cursor
         ld a,(THEME_ATTR+CLR_HEADER) ; Len -nn+   Loop -nn+
         ld c,a
         ld de,FE_MID+256*(IV_SCR_H+IV_TOP+2)
@@ -1711,72 +1712,44 @@ Fe_Unloop
 Fe_ClipOk       db 0                ; 1 - в буфере FX
 Fe_Clip         ds FXR_BLOCK+FXH_SIZE+16
 
-;-------- Имя FX - как в инструменте (Iv_NameEv): буквы, Shift - заглавные, Backspace, Enter - к строкам
+;-------- Имя FX: стандартная строка ввода (Ti_*, коре), 16 знаков; правка - в страницу трека,
+; Enter / Esc - к строкам
 Fe_NameEv
+        ld (Fe_NEv),a
+        ld hl,Fe_Name
+        ld a,16
+        call Ti_Set
+        ld a,(Fe_NEv)
         cp EV_FOCUS_IN
-        jr z,.redraw
+        jr z,.in
         cp EV_FOCUS_OUT
         jr z,.redraw
+        cp EV_PRESS
+        jr z,.click
         cp EV_KEY
         ret nz
-        ld a,b
-        cp KEY_BACK
-        jr z,.back
-        cp KEY_ENTER
-        jr z,.done
-        cp KEY_TAB                  ; Tab - не наш (фокус - в Fe_Keys)
-        ret z
-        or a                        ; E0-коды - не буквы
-        ret m
-        ld h,high Key_Chars         ; код -> символ (0 - не символ)
-        ld l,a
-        ld a,(hl)
-        or a
-        ret z
-        bit 0,c                     ; Shift: буквы - заглавные, минус - подчёркивание
-        jr z,.put
-        cp '-'
-        jr nz,.up
-        ld a,'_'
-        jr .put
-.up     cp 'a'
-        jr c,.put
-        cp 'z'+1
-        jr nc,.put
-        sub 'a'-'A'
-.put    ld b,a
-        call Fe_Name_Len            ; HL - на конец, A - длина
-        cp 16
-        jr nc,.eat
-        ld (hl),b
-        jr .save
-.back   call Fe_Name_Len
-        or a
-        jr z,.eat
-        dec hl
-        ld (hl),0
-.save   call Fe_Put_Name            ; в страницу трека
+        call Ti_Key
+        ret nc                      ; не наша
+        cp TI_MOVE
+        jr z,.redraw
+        cp TI_EDIT
+        jr nz,.done
+        call Fe_Put_Name            ; в страницу трека
         jr .redraw
 .done   ld hl,F_FeEdit
         call Fld_Set_Focus
+        jr .redraw
+.in     ld hl,Fe_Name
+        ld a,16
+        call Ti_Begin
+        jr .redraw
+.click  ld a,(SV_MOUSE_COL)         ; курсор - на знак под мышью
+        sub (ix+FLD_X)
+        call Ti_Click
 .redraw call Iv_Changed
-.eat    scf                         ; клавиша - наша
+        scf                         ; событие - наше
         ret
-
-; HL - первый 0 имени (или за 16-м знаком), A - длина. BC сохраняет
-Fe_Name_Len
-        ld hl,Fe_Name
-        ld e,0
-.l      ld a,(hl)
-        or a
-        jr z,.e
-        inc hl
-        inc e
-        ld a,e
-        cp 16
-        jr c,.l
-.e      ld a,e
-        ret
+Fe_NEv          db 0
 
 ; =========================================================================
 ; ВЕРТИКАЛЬНЫЙ СКРОЛЛБАР - стандарт (как был в паттерне, f16da38; как в DOS / Turbo Vision):

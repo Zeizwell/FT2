@@ -448,7 +448,7 @@ Dv_Draw_File
         call PutStr
         jp Lg_Draw                  ; лог сообщений
 
-;-------- Поле Name: текст на фоне поля ввода, в фокусе - курсор "_"
+;-------- Поле Name: текст на фоне поля ввода, в фокусе - курсор строки ввода (Ti_Cursor)
 Dv_Draw_Name
         ld a,(THEME_ATTR+CLR_EDIT_ROW)
         ld c,a
@@ -460,18 +460,13 @@ Dv_Draw_Name
         ld de,FP_V+256*(DV_SCR_H+NAME_Y)
         ld hl,Dv_Name
         call PutStr
-        ld hl,(SV_FOCUS)
-        push de
+        ld hl,(SV_FOCUS)            ; в фокусе - курсор строки ввода
         ld de,F_Name
         or a
         sbc hl,de
-        pop de
         ret nz
-        ld a,(Dv_Name_Len)
-        cp NAME_W
-        ret nc
-        ld a,'_'
-        jp PutCh
+        ld de,FP_V+256*(DV_SCR_H+NAME_Y)
+        jp Ti_Cursor
 
 ;-------- Кнопки Load / Save: под мышью - подсветка, держат - "нажата" (цвет курсора)
 Dv_Buttons
@@ -760,65 +755,45 @@ Dv_Clear_Info
         ld (Dv_By),a
         ret
 
-;-------- Поле Name: буквы, цифры, точка, минус / подчёркивание; Backspace; Enter - Save
+;-------- Поле Name: стандартная строка ввода (Ti_*, коре); Enter - Save, Esc - не наш (выход из Disk)
 Dv_NameEv
+        ld (Dv_NEv),a
+        ld hl,Dv_Name
+        ld a,NAME_W
+        call Ti_Set
+        ld a,(Dv_NEv)
         cp EV_FOCUS_IN
-        jr z,.focus
+        jr z,.in
         cp EV_FOCUS_OUT
         jr z,.focus
+        cp EV_PRESS
+        jr z,.click
         cp EV_KEY
         ret nz
         ld a,b
-        cp KEY_ENTER
-        jr z,.save
-        cp KEY_BACK
-        jr z,.back
-        cp KEY_TAB                  ; Tab - не наш (фокус - в Dv_Keys)
+        cp KEY_ESC                  ; CF = 0: не наша
         ret z
-        or a                        ; E0-коды - не буквы (CF = 0: не наша)
-        ret m
-        ld h,high Key_Chars         ; код -> символ (0 - не символ)
-        ld l,a
-        ld a,(hl)
-        or a
-        ret z
-        bit 0,c                     ; Shift: буквы - заглавные, минус - подчёркивание
-        jr z,.put
-        cp '-'
-        jr nz,.up
-        ld a,'_'
-        jr .put
-.up     cp 'a'
-        jr c,.put
-        cp 'z'+1
-        jr nc,.put
-        sub 'a'-'A'
-.put    ld b,a
-        ld a,(Dv_Name_Len)
-        cp NAME_W
-        jr nc,.eat
-        ld hl,Dv_Name
-        call Hl_Add_A
-        ld (hl),b
-        inc hl
-        ld (hl),0
-        ld hl,Dv_Name_Len
-        inc (hl)
-        jr .focus
-.back   ld a,(Dv_Name_Len)
-        or a
-        jr z,.eat
-        dec a
+        call Ti_Key
+        ret nc
+        ld (Dv_NEv),a               ; итог
+        call Ti_Len                 ; длина имени - до Save (он берёт её)
         ld (Dv_Name_Len),a
-        ld hl,Dv_Name
-        call Hl_Add_A
-        ld (hl),0
+        ld a,(Dv_NEv)
+        cp TI_DONE
+        call z,Dv_Save              ; Enter
         jr .focus
-.save   call Dv_Save
+.in     ld hl,Dv_Name
+        ld a,NAME_W
+        call Ti_Begin
+        jr .focus
+.click  ld a,(SV_MOUSE_COL)         ; курсор - на знак под мышью
+        sub (ix+FLD_X)
+        call Ti_Click
 .focus  ld a,1
         ld (Dv_Dirty),a
-.eat    scf                         ; клавиша - наша
+        scf                         ; событие - наше
         ret
+Dv_NEv          db 0
 
 ;-------- Клавиши: полю в фокусе; Tab - фокус каталог <-> Name
 Dv_Keys
