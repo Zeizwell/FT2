@@ -425,6 +425,7 @@ Ov_Draw
         ld b,PALETTES
         ld e,PL_X+2
         call Ov_List
+        call Ov_Swatch
         call Ov_Mouse
         ld a,(THEME_ATTR+CLR_BG)    ; сообщение
         ld c,a
@@ -441,6 +442,29 @@ Ov_Draw
         ld c,a
         ld e,SAVE_X
         jp PutStr
+
+;-------- Текущая палитра: 16 клеток по 2 знака - номер цвета (hex) на фоне этого цвета. Атрибуты -
+; готовой таблицей (палитровый образец: фон = номер цвета, буква - читаемая на нём)
+SW_Y            equ OV_TOP+8
+Ov_Swatch
+        ld de,PL_X+256*(OV_SCR_H+SW_Y)
+        ld hl,Sw_Attr
+        ld b,0                      ; B - номер цвета
+.c      ld c,(hl)
+        inc hl
+        ld a,b
+        call HexDigit
+        call PutCh
+        ld a,' '
+        call PutCh
+        inc b
+        ld a,b
+        cp 16
+        jr c,.c
+        ret
+Sw_Attr db #0F,#1F,#2F,#3F,#4F,#50,#60,#70,#80,#90,#A0,#B0,#C0,#DF,#E0,#F0 ; фон n; буква: F на тёмных, 0 на светлых
+    ASSERT FN_X >= PL_X                    ; строка образца (32 знака) - ниже блока мыши, в нём не пересекается
+    ASSERT SW_Y > CB_Y && SW_Y < SAVE_Y
 
 ; Список имён по 8 знаков: HL - имена, B - сколько, C - выбранный, E - колонка
 Ov_List
