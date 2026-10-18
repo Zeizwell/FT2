@@ -187,6 +187,13 @@ Fe_List
         ld de,Fe_LName
         call Fe_Get_Name
         pop de
+        ld hl,Iv_Num               ; цвет - заново (SETPAGE в Fe_Get_Name портит C)
+        ld a,(Fe_Rn)
+        cp (hl)
+        ld a,(THEME_ATTR+CLR_ED_VAL)
+        jr nz,$+5
+        ld a,(THEME_ATTR+CLR_SELECT)
+        ld c,a
         ld hl,Fe_LName
         ld b,14
         call Put_Name
@@ -225,7 +232,7 @@ Fe_Mid
         ld de,FE_MID+256*(IV_SCR_H+IV_TOP+1)
         ld hl,Txt_FeName
         call PutStr
-        ld a,(THEME_ATTR+CLR_ED_VAL)
+        ld a,(THEME_ATTR+CLR_EDIT_ROW) ; имя - на фоне поля ввода
         ld c,a
         ld hl,Fe_Name
         ld b,16
@@ -253,14 +260,14 @@ Fe_Mid
         ld c,a
         ld hl,Txt_FeStart
         call PutStr
+        call Fe_Minus
         ld a,(THEME_ATTR+CLR_ED_VAL)
         ld c,a
         ld a,(Fe_Hdr+FXH_SWPHASE)
         call Put_Dec3
         ld a,(THEME_ATTR+CLR_ED_CAP)
         ld c,a
-        ld a,'+'
-        call PutCh
+        call Fe_Plus
         inc e
         inc e
         ld a,(Fe_Hdr+FXH_FLAGS)     ; Kp: включено - цветом выделения
@@ -290,11 +297,10 @@ Fe_Mid
         jr c,.sub
         ret
 
-;-------- "-nn+": A - число, значение цветом значений, -/+ - цветом подписей (C)
+;-------- "[-]nn[+]": A - число; кнопки - наши значки в 2 знака (цвет C), число - цветом значений
 Fe_Val2
         push af
-        ld a,'-'
-        call PutCh
+        call Fe_Minus
         ld a,(THEME_ATTR+CLR_ED_VAL)
         ld b,c
         ld c,a
@@ -303,7 +309,17 @@ Fe_Val2
         call Dec2
         pop bc
         ld c,b
-        ld a,'+'
+        jp Fe_Plus
+
+;-------- Значки кнопок [-] / [+] (2 знака, GLYPH_BTN_*), цвет C
+Fe_Minus
+        ld a,GLYPH_BTN_MINUS
+        jr Fe_Glyph
+Fe_Plus
+        ld a,GLYPH_BTN_PLUS
+Fe_Glyph
+        call PutCh
+        inc a
         jp PutCh
 
 ;-------- Форма свипа A (номер таблицы): пресет 1..5 - имя, иначе "Tnn" (hex)
@@ -613,9 +629,9 @@ Fe_LName        ds 17               ; имя для списка
 
 Txt_FeName      db "Name: ",0
 Txt_FeLen       db "Len ",0
-Txt_FeLoop      db "   Loop ",0
+Txt_FeLoop      db "  Loop ",0
 Txt_FeSweep     db "Sweep: ",0
-Txt_FeStart     db "  Start -",0
+Txt_FeStart     db "  Start ",0
 Txt_FeKp        db "Kp",0
 Txt_FeSubs      db "[ Mix ]",0,"[ FM ]",0,"[ Env FM ]",0
 Txt_FeShapes    db "TriSinUp Dn Sqr"   ; таблицы 1..5 пресета
