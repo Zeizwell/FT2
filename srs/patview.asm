@@ -1204,6 +1204,7 @@ Draw_Frame
         jr nz,$+5
         ld a,(THEME_ATTR+CLR_HEAD_HI)
         ld c,a
+        call Mute_Clr               ; заглушённый канал - цветом заглушённого
         call PutStr
         pop bc
         push bc
@@ -2098,6 +2099,10 @@ Head_Kids                           ; кнопки [+]/[-] элементов: �
         DUP ITEMS
         FIELD 0,VIEW_LINE,2,1, FF_HAND, Btn_Field, 0, 0
         EDUP
+Mute_Kids                           ; имена каналов "Ch:X" - клик: заглушить / включить (Build_Head_Kids)
+        DUP ITEMS
+        FIELD 0,VIEW_LINE,4,1, FF_HAND, Mute_Field, 0, 0
+        EDUP
         db FLD_END
 
 ;-------- Кнопки заголовков - на свои колонки (после смены раскладки):
@@ -2128,6 +2133,32 @@ Build_Head_Kids
         ld a,b
         cp ITEMS
         jr c,.it
+        ld ix,Mute_Kids             ; имена каналов: колонка элемента, Env и скрытые - за экраном
+        ld b,0
+.mu     ld a,b
+        ld hl,Item_Col
+        call Arr_Get
+        ld (ix+FLD_X),a
+        ld a,b
+        and 3
+        jr z,.mh
+        ld a,b
+        ld hl,Vis_Items
+        cp (hl)
+        jr c,.mv
+.mh     ld (ix+FLD_X),HIDDEN_X
+.mv     ld a,b                      ; параметр - канал: 1..3 -> 0..2, 5..7 -> 3..5
+        dec a
+        cp 4
+        jr c,$+3
+        dec a
+        ld (ix+FLD_PARAM),a
+        ld de,FLD_SIZE
+        add ix,de
+        inc b
+        ld a,b
+        cp ITEMS
+        jr c,.mu
         ret
 
 ;-------- Кнопка (заголовка или ордера). Параметр поля - номер кнопки (Btn_Show/Action)
@@ -2364,6 +2395,13 @@ Pt_Chan
 
 ; Поле Env чипа 0..9: цифры периода (4), шума (2), огибающей-2 (4)
 Pt_Env
+        ld a,(Env_As_Note)          ; период нотой: клавиши пианино - нота огибающей
+        or a
+        jr z,.hex
+        ld a,(Cur_Field)
+        cp 4
+        jp c,Pt_EnvNote
+.hex
         call Key_Hex
         ret nc
         ld (Cp_Val),a
@@ -4480,5 +4518,127 @@ Tables_End
     ASSERT Sym_T == Row_A+256
     ASSERT Hx1_T == Sym_T+256
     ASSERT Tables_End == Hx1_T+256
+
+
+;-------- Env as Note: в поле периода - нота с клавиш пианино (как в канале: октава, Shift - выше).
+; Период = период ноты / 16 (как у пробы ноты), нота - в CHIP_ENVNOTE (ею и показывается)
+En_Note         db 0
+En_Per          dw 0
+Pt_EnvNote
+        push bc
+        call Piano_Get              ; A - полутон
+        pop bc
+        ret nc
+        ld e,a                      ; нота = (октава-1)*12 + полутон
+        ld a,(Cur_Octave)
+        dec a
+        ld d,a
+        add a,a
+        add a,d
+        add a,a
+        add a,a
+        add a,e
+        bit 0,c                     ; Shift - на октаву выше
+        jr z,$+4
+        add a,12
+        cp NOTE_COUNT
+        ret nc
+        push af
+        call En_Period              ; En_Per - период ноты / 16
+        pop af
+        add a,NOTE_FIRST
+        ld (En_Note),a
+        ld a,1                      ; нота остаётся (не стирать CHIP_ENVNOTE)
+        ld (Cp_EnvNote),a
+        ld a,CHIP_ENVPER
+        ld (Cp_Fld),a
+        ld hl,Op_EnvN
+        jp Pt_Do
+    ASSERT KM_SHIFT == 1
+
+; A - нота 0..95 -> En_Per = её период (таблица строя трека, страница плеера 2) / 16
+En_Period
+        add a,a
+        ld e,a
+        ld d,0
+        ld a,(Song_Tuning)
+        or a
+        ld hl,Note_175+#4000        ; страница таблиц плеера - в окне 3 (метки - окна 2)
+        jr z,$+5
+        ld hl,Note_177+#4000
+        add hl,de
+        ld (En_Per),hl
+        SETPAGE3 PAGE_PLAYER2
+        ld hl,(En_Per)
+        ld e,(hl)
+        inc hl
+        ld d,(hl)
+        RESTPAGE3
+        ld b,4                      ; / 16 с округлением
+        ld hl,8
+        add hl,de
+.sh     srl h
+        rr l
+        djnz .sh
+        ld (En_Per),hl
+        ret
+
+; Правка: период (слово) и нота огибающей. L - заголовок чипа
+Op_EnvN push hl
+        ld a,(Cp_Fld)
+        add a,l
+        ld l,a
+        ld de,(En_Per)
+        ld (hl),e
+        inc l
+        ld (hl),d
+        ld a,l
+        add a,CHIP_ENVNOTE-CHIP_ENVPER-1
+        ld l,a
+        ld a,(En_Note)
+        ld (hl),a
+        pop hl
+        ret
+
+
+;-------- Имя канала: клик - заглушить / включить (Ch_Mute, коре; плеер глушит громкость и FX)
+Mute_Field
+        cp EV_CLICK
+        ret nz
+        ld a,(ix+FLD_PARAM)         ; канал 0..5 -> бит
+        ld b,a
+        inc b
+        xor a
+        scf
+.b      rla
+        djnz .b
+        ld hl,Ch_Mute
+        xor (hl)
+        ld (hl),a
+        jp Draw_Frame               ; имя канала - другим цветом
+
+;-------- Заголовок элемента B (канал - не Env): заглушён - C = цвет заглушённого. HL, DE, B сохраняет
+Mute_Clr
+        ld a,b
+        and 3
+        ret z                       ; Env
+        push bc
+        push hl
+        ld a,b                      ; элемент -> канал
+        dec a
+        cp 4
+        jr c,$+3
+        dec a
+        ld b,a
+        inc b
+        ld a,(Ch_Mute)
+.s      rrca
+        djnz .s
+        pop hl
+        pop bc
+        ret nc
+        ld a,(THEME_ATTR+CLR_MUTED)
+        ld c,a
+        ret
 
     ENDMODULE

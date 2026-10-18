@@ -1571,6 +1571,9 @@ Pl_Out
         and (hl)
 St_Cur  cp 0
         call nz,St_Apply
+        ld a,(Ch_Mute)              ; заглушенные каналы - громкость 0
+        or a
+        call nz,Mu_Apply
         ld de,#FFC0                 ; D - выбор регистра, E - запись (OUTI: B-1 = #BF)
         ld bc,#FFFD
         ld a,#FF                    ; чип 1
@@ -1959,11 +1962,15 @@ Ft_C            db 0                ; канал в чипе 0..2
 Fx_Ch_Tick
         ld a,(ix+FC_NUM)
         or a
-        jr nz,.fx
+        jr z,.nofx
+        call Mu_Is                  ; заглушён - как без FX
+        jr z,.fx
+.nofx
         ld a,(ix+FC_ON)             ; FX нет: был у карты - выключить (строка нулей)
         or a
         ret z
         ld (ix+FC_ON),0
+        ld (ix+FC_SENT),#FF         ; снова включат (mute снят) - строку заново
         call Fx_Card_Ch
         ld a,AYFX_P_ROW
         call Fq_Put
@@ -2247,6 +2254,82 @@ Fx_Out
         jr nz,.b
         call Fx_Close
 .e      pop de
+        ret
+
+;-------- Заглушенные каналы (Ch_Mute, коре): громкость их выхода - 0. Выход - по стерео (Po_Maps)
+Mu_Apply
+        ld hl,Pl_Regs+8             ; чип 1: каналы 0..2
+        ld a,(Ch_Mute)
+        call .chip
+        ld hl,Pl_Regs2+8            ; чип 2: 3..5
+        ld a,(Ch_Mute)
+        rrca
+        rrca
+        rrca
+.chip   ld (Mu_M),a
+        ld b,0                      ; канал в чипе
+.c      ld a,(Mu_M)
+        rrca
+        ld (Mu_M),a
+        jr nc,.n
+        ld a,b
+        push hl
+        call Mu_Out                 ; C - выход
+        pop hl
+        push hl
+        ld a,l
+        add a,c
+        ld l,a
+        ld (hl),0
+        pop hl
+.n      inc b
+        ld a,b
+        cp 3
+        jr c,.c
+        ret
+Mu_M            db 0
+
+;-------- A - канал в чипе 0..2 -> C - выход AY (Po_Maps[стерео][q] = канал). Портит A, E, HL
+Mu_Out
+        ld e,a
+        ld a,(St_Cur+1)
+        ld l,a
+        add a,a
+        add a,l
+        ld hl,Po_Maps
+        add a,l
+        ld l,a
+        jr nc,$+3
+        inc h
+        ld a,e
+        ld c,0
+.f      cp (hl)
+        ret z
+        inc hl
+        inc c
+        ld e,a
+        ld a,c
+        cp 3
+        ld a,e
+        jr c,.f
+        ld c,0
+        ret
+
+;-------- Канал плеера (чип Ft_Chip, канал Ft_C) заглушён? NZ - да
+Mu_Is
+        ld a,(Ft_Chip)
+        ld b,a
+        add a,a
+        add a,b
+        ld hl,Ft_C
+        add a,(hl)
+        ld b,a
+        inc b
+        ld a,(Ch_Mute)
+.s      rrca
+        djnz .s
+        sbc a,a                     ; CF - бит канала
+        or a
         ret
 
 player1_end
