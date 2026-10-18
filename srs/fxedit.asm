@@ -395,11 +395,11 @@ Fe_Btns
 ; =========================================================================
 ;-------- Заголовки колонок подвкладки и строки 0..последняя
 Fe_Rows
-        ld d,IV_SCR_H+FE_CAP
+        ld d,IV_SCR_H+FE_SCRATCH    ; заголовки - собрать в невидимой строке, потом на экран
         call Fe_Clr_Row
         ld a,(THEME_ATTR+CLR_HEADER)
         ld c,a
-        ld de,FE_RW+256*(IV_SCR_H+FE_CAP)
+        ld de,FE_RW+256*(IV_SCR_H+FE_SCRATCH)
         ld a,(Fx_Sub)               ; заголовки: Mix / FM / Env FM
         ld hl,Txt_FeCapMix
         or a
@@ -409,6 +409,8 @@ Fe_Rows
         jr z,.cap
         ld hl,Txt_FeCapEfm
 .cap    call PutStr
+        ld a,IV_SCR_H+FE_CAP
+        call Fe_Blit
         ld a,(Fx_Sub)               ; FM / Env FM: где поля и биты
         cp 2
         ld a,FXR_FM
@@ -425,8 +427,7 @@ Fe_Rows
 .row    ld (Fe_I),a
         cp FE_ROWS                  ; все строки экрана
         ret nc
-        add a,IV_SCR_H+FE_ROW0      ; строка - пустая (старое не остаётся)
-        ld d,a
+        ld d,IV_SCR_H+FE_SCRATCH    ; строка - в невидимой строке (пустая), готовая - на экран
         call Fe_Clr_Row
         ld a,(Ed_Top)
         ld hl,Fe_I
@@ -437,9 +438,7 @@ Fe_Rows
         jr z,.go
         jr nc,.next
 .go     call Fe_Get_Row
-        ld a,(Fe_I)
-        add a,IV_SCR_H+FE_ROW0
-        ld d,a
+        ld d,IV_SCR_H+FE_SCRATCH
         call Fe_Row_Head
         ld a,(Fx_Sub)
         or a
@@ -451,14 +450,29 @@ Fe_Rows
         ld hl,Ed_Row
         cp (hl)
         jr nz,.next
-        ld a,(Fe_I)
-        add a,IV_SCR_H+FE_ROW0
-        ld d,a
+        ld d,IV_SCR_H+FE_SCRATCH
         call Fe_Cursor
-.next   ld a,(Fe_I)
+.next   ld a,(Fe_I)                 ; готовая строка - на экран одним переносом
+        add a,IV_SCR_H+FE_ROW0
+        call Fe_Blit
+        ld a,(Fe_I)
         inc a
         jr .row
 Fe_I            db 0                ; строка экрана
+
+FE_SCRATCH      equ 63              ; невидимая строка текстовой страницы: строка FX собирается здесь (без мигания)
+;-------- Строка FE_SCRATCH (колонки 1..88: знаки и атрибуты) -> строка экрана A
+Fe_Blit
+        ld d,a
+        ld e,1
+        ld hl,1+256*(IV_SCR_H+FE_SCRATCH)
+        ld bc,88
+        ldir
+        ld e,128+1
+        ld l,128+1
+        ld bc,88
+        ldir
+        ret
 
 ;-------- Строка экрана D - пробелы (колонки 1..88)
 Fe_Clr_Row
