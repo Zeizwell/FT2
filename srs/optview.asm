@@ -546,9 +546,9 @@ Ov_Bar
         call PutStr
         ld a,(Ob_V)
         ld l,a                      ; L - сколько клеток ещё горит
-.c      ld a,(THEME_ATTR+CLR_WIN_HI) ; горит - клетка цветом громкости
+.c      ld a,(THEME_ATTR+CLR_WIN_VALUE) ; горит - сплошной квадрат тёмным цветом окна
         ld c,a
-        ld a,GLYPH_VOL
+        ld a,#DB                    ; █
         dec l
         jp p,.put
         ld a,(THEME_ATTR+CLR_WIN_TEXT) ; нет - точка, как пустое поле
