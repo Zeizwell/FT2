@@ -11,8 +11,8 @@ FE_CAP          equ IV_TOP+6        ; заголовки колонок (под 
 FE_ROW0         equ IV_TOP+7        ; первая строка FX
 FE_ROWS         equ TL_LAST-1-FE_ROW0   ; строк FX на экране (до нижней рамки)
 ; колонки строки: Mix
-FE_RW           equ 1               ; номер строки (hex)
-FE_LP           equ 3               ; L - строка цикла
+FE_RW           equ 2               ; номер строки (hex)
+FE_LP           equ 1               ; скобка цикла (как в инструменте: Loop_Char)
 FE_MIX          equ 5               ; ---, SID, Buz
 FE_MAX          equ 9               ; скважность max / min (4 знака)
 FE_MIN          equ 14
@@ -22,11 +22,11 @@ FE_DET          equ 29
 FE_LN           equ 35              ; длина (2)
 FE_STEPS        equ 39              ; шаги: hex-цифра и пробел
 ; колонки строки: FM / Env FM
-FE_ON           equ 4               ; on / --
-FE_FSEMI        equ 7               ; детюн: полутоны, сырой (по 4)
-FE_FDET         equ 12
-FE_UNIT         equ 17              ; semi / per
-FE_FLN          equ 22              ; длина (2)
+FE_ON           equ 5               ; on / --
+FE_FSEMI        equ 8               ; детюн: полутоны, сырой (по 4)
+FE_FDET         equ 13
+FE_UNIT         equ 18              ; semi / per
+FE_FLN          equ 23              ; длина (2)
 FE_FSTEPS       equ 25              ; шаги по 4 знака: semi - "+12", per - "+0C"
 
 Fe_Hdr          ds FXH_SIZE         ; заголовок текущего FX
@@ -369,7 +369,7 @@ Fe_Rows
         call Fe_Clr_Row
         ld a,(THEME_ATTR+CLR_ED_CAP)
         ld c,a
-        ld de,1+256*(IV_SCR_H+FE_CAP)
+        ld de,FE_RW+256*(IV_SCR_H+FE_CAP)
         ld a,(Fx_Sub)               ; заголовки: Mix / FM / Env FM
         ld hl,Txt_FeCapMix
         or a
@@ -430,22 +430,27 @@ Fe_Clr_Row
         jr c,.c
         ret
 
-;-------- Номер строки (hex) и L у строки цикла. D - строка экрана
+;-------- Скобка цикла (как в инструменте) и номер строки (hex). D - строка экрана
 Fe_Row_Head
-        ld e,FE_RW
+        ld a,(Fe_Hdr+FXH_LOOP)       ; Loop_Char ждёт [цикл, последняя]
+        ld (Fe_LE),a
+        ld a,(Fe_Hdr+FXH_END)
+        ld (Fe_LE+1),a
+        ld a,(Fe_Rn)
+        ld b,a
+        ld hl,Fe_LE
+        call Loop_Char
+        ld e,FE_LP
+        push af
+        ld a,(THEME_ATTR+CLR_ED_LOOP)
+        ld c,a
+        pop af
+        call PutCh
         ld a,(THEME_ATTR+CLR_ED_ROW)
         ld c,a
         ld a,(Fe_Rn)
-        call PutHex2
-        ld a,(Fe_Rn)
-        ld hl,Fe_Hdr+FXH_LOOP
-        cp (hl)
-        ret nz
-        ld e,FE_LP
-        ld a,(THEME_ATTR+CLR_ED_LOOP)
-        ld c,a
-        ld a,'L'
-        jp PutCh
+        jp PutHex2
+Fe_LE           ds 2
 
 ;-------- Строка Mix: тип, скважность max / min, свип, детюн, длина, шаги (hex)
 Fe_Mix_Row
@@ -638,7 +643,7 @@ Txt_FeShapes    db "TriSinUp Dn Sqr"   ; таблицы 1..5 пресета
 Txt_FeBtn1      db "[Clone] [Copy] [Paste]",0
 Txt_FeBtn2      db "[Clear] [Unloop]",0
 Txt_FeBtn3      db "[Save]  [Load]",0
-Txt_FeCapMix    db "Rw  Mix  Max  Min Swp Semi   Det  Ln  Steps (hex)",0
+Txt_FeCapMix    db "Rw Mix  Max  Min Swp Semi   Det  Ln  Steps (hex)",0
 Txt_FeCapFm     db "Rw FM Semi  Det Unit Ln Steps (semi - dec, per - hex)",0
 Txt_FeCapEfm    db "Rw EF Semi  Det Unit Ln Steps (semi - dec, per - hex)",0
 Txt_FeMix       db "SIDBuz???"
