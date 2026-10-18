@@ -400,20 +400,23 @@ Fe_Rows
         ld (Fe_OnBit),a
         ld a,b
         ld (Fe_PerBit),a
-        xor a
-.row    ld (Fe_Rn),a
+        xor a                       ; строка экрана 0..FE_ROWS-1, строка FX - Ed_Top + она
+.row    ld (Fe_I),a
         cp FE_ROWS                  ; все строки экрана
         ret nc
         add a,IV_SCR_H+FE_ROW0      ; строка - пустая (старое не остаётся)
         ld d,a
         call Fe_Clr_Row
-        ld a,(Fe_Rn)                ; дальше последней строки FX - пусто
+        ld a,(Ed_Top)
+        ld hl,Fe_I
+        add a,(hl)
+        ld (Fe_Rn),a                ; дальше последней строки FX - пусто
         ld hl,Fe_Hdr+FXH_END
         cp (hl)
         jr z,.go
         jr nc,.next
 .go     call Fe_Get_Row
-        ld a,(Fe_Rn)
+        ld a,(Fe_I)
         add a,IV_SCR_H+FE_ROW0
         ld d,a
         call Fe_Row_Head
@@ -423,9 +426,18 @@ Fe_Rows
         ld a,(Fx_Sub)
         or a
         call nz,Fe_Fm_Row
-.next   ld a,(Fe_Rn)
+        ld a,(Fe_Rn)                ; строка курсора - курсор поверх
+        ld hl,Ed_Row
+        cp (hl)
+        jr nz,.next
+        ld a,(Fe_I)
+        add a,IV_SCR_H+FE_ROW0
+        ld d,a
+        call Fe_Cursor
+.next   ld a,(Fe_I)
         inc a
         jr .row
+Fe_I            db 0                ; строка экрана
 
 ;-------- Строка экрана D - пробелы (колонки 1..88)
 Fe_Clr_Row
@@ -696,6 +708,8 @@ Fe_Next
         ret nc
 Fe_SetNum
         ld (Iv_Num),a
+        call Fe_Load                ; его заголовок (длина) - для курсора
+        call Ed_Clamp               ; курсор - в пределах строк этого FX
 Fe_Dirty
         ld a,1
         ld (Iv_Dirty),a
@@ -808,6 +822,7 @@ Fe_Put_Hdr
         ld bc,FXH_SIZE
         ld a,(Trk_FxT)
         call Fe_Copy
+        call Ed_Clamp               ; длина могла стать меньше - курсор в строки
         jp Fe_Dirty
 
 ;-------- Подвкладки Mix / FM / Env FM
@@ -816,33 +831,130 @@ Fe_SubEv
         ret nz
         ld a,(ix+FLD_PARAM)
         ld (Fx_Sub),a
+        call Ed_Clamp               ; колонка - в пределах подвкладки
         jp Fe_Dirty
 
-;-------- Клавиши FX: вверх / вниз - FX, PgUp / PgDn - первый / последний; прочие - как везде (Fld_Key)
+;-------- Клавиши FX: всё - полю в фокусе (строки FX: Ed_Key), общие - как везде (Fld_Key)
 Fe_Keys
 .k      call Key_Get                ; A - код, C - флаги; Z - пусто
         ret z
         ld b,a
-        push bc
-        ld hl,Fe_Key_Tab
-        call Keys_Table
-        pop bc
-        jr c,.k
-        call Fld_Key
+        call Fld_Key                ; полю в фокусе (строки FX) и общим клавишам
         jr .k
-Fe_Key_Tab
-        db ACT_UP
-        dw Fe_Prev
-        db ACT_DOWN
-        dw Fe_Next
-        db ACT_PGUP
-        dw Fe_First
-        db ACT_PGDN
-        dw Fe_Last
-        db 0
 Fe_First
         xor a
         jp Fe_SetNum
 Fe_Last
         ld a,FXS_MAX-1
         jp Fe_SetNum
+
+; =========================================================================
+; СТРОКИ FX: КУРСОР И ВВОД (шаг 3б) - общий движок редактора (Ed_Key, Ed_Type, Ed_Row / Ed_Col);
+; колонки нового формата - здесь. Колонка: экран (ПРАВЫЙ край поля, как у старых FX), вид, байт, параметр
+; =========================================================================
+Fe_Cols_Mix
+        db FE_MIX+2,  KD_MIX,  FXR_FLAGS, 0
+        db FE_MAX+3,  KD_PCT,  FXR_PWM, #10             ; max
+        db FE_MIN+3,  KD_PCT,  FXR_PWM, #01             ; min
+        db FE_SWP+2,  KD_UDEC, FXR_SWP, 255
+        db FE_SEMI+3, KD_SDEC, FXR_MIX, 0               ; детюн: полутоны
+        db FE_DET+3,  KD_SDEC, FXR_MIX+1, 0             ;   сырой
+        db FE_LN+1,   KD_LEN,  FXR_LEN1, #01            ; длина Mix
+FE_MIX_COLS     equ ($-Fe_Cols_Mix)/CL_SIZE
+Fe_Cols_Fm
+        db FE_ON+1,    KD_BIT,  FXR_FLAGS, 1<<FXRB_FM
+        db FE_FSEMI+3, KD_SDEC, FXR_FM, 0
+        db FE_FDET+3,  KD_SDEC, FXR_FM+1, 0
+        db FE_UNIT+3,  KD_BIT,  FXR_FLAGS, 1<<FXRB_FMPER
+        db FE_FLN+1,   KD_LEN,  FXR_LEN1, #10           ; длина FM - старший полубайт
+FE_FM_COLS      equ ($-Fe_Cols_Fm)/CL_SIZE
+Fe_Cols_Efm
+        db FE_ON+1,    KD_BIT,  FXR_FLAGS, 1<<FXRB_EFM
+        db FE_FSEMI+3, KD_SDEC, FXR_EFM, 0
+        db FE_FDET+3,  KD_SDEC, FXR_EFM+1, 0
+        db FE_UNIT+3,  KD_BIT,  FXR_FLAGS, 1<<FXRB_EFMPER
+        db FE_FLN+1,   KD_LEN,  FXR_LEN2, #01
+    ASSERT ($-Fe_Cols_Efm)/CL_SIZE == FE_FM_COLS
+    ASSERT FXR_FLAGS == FR_FLAGS        ; Mix (KD_MIX) пишет FR_FLAGS: биты те же
+
+;-------- Поле строк: клавиши - общему редактору, колесо - строка, клик - строка и колонка;
+; клик по скобке / номеру - цикл сюда (как в инструменте)
+Fe_EditEv
+        cp EV_KEY
+        jp z,Ed_Key
+        cp EV_WHEEL
+        jr z,.wh
+        cp EV_FOCUS_IN
+        jp z,Iv_Changed
+        cp EV_PRESS
+        ret nz
+        ld a,(SV_MOUSE_ROW)         ; строка
+        sub FE_ROW0
+        ld hl,Ed_Top
+        add a,(hl)
+        ld b,a
+        call Iv_End
+        cp b
+        ret c                       ; за концом
+        ld a,b
+        ld (Ed_Row),a
+        ld a,(SV_MOUSE_COL)
+        cp FE_RW+2                  ; скобка и номер - цикл сюда
+        jr nc,.col
+        ld a,b
+        ld (Fe_Hdr+FXH_LOOP),a
+        jp Fe_Put_Hdr
+.col    ld c,a                      ; колонка: поле до 4 знаков левее правого края
+        call Iv_Cols
+        ld e,0
+.f      ld a,(hl)
+        sub c
+        cp 4
+        jr c,.hit
+        inc hl
+        inc hl
+        inc hl
+        inc hl
+        inc e
+        djnz .f
+        jp Iv_Changed
+.hit    ld a,e
+        ld (Ed_Col),a
+        jp Iv_Changed
+.wh     bit 7,c                     ; вниз - строка ниже
+        call nz,Ed_Down
+        bit 7,c
+        call z,Ed_Up
+        jp Iv_Changed
+
+;-------- Курсор: колонка Ed_Col строки D (экран) - цветом курсора, ширина - по виду колонки
+Fe_Cursor
+        push de
+        call Iv_Cur_Col             ; IY - колонка
+        pop de
+        ld a,(iy+1)                 ; ширина поля
+        ld b,3
+        cp KD_MIX
+        jr z,.w
+        cp KD_UDEC
+        jr z,.w
+        ld b,2
+        cp KD_LEN
+        jr z,.w
+        ld b,4
+        cp KD_BIT
+        jr nz,.w
+        ld a,(iy+3)                 ; флаг: semi / per - 4 знака, on - 2
+        and (1<<FXRB_FMPER)|(1<<FXRB_EFMPER)
+        jr nz,.w
+        ld b,2
+.w      ld a,(iy+0)                 ; левый край = правый - ширина + 1
+        sub b
+        inc a
+        or #80                      ; атрибуты
+        ld e,a
+        ld a,(THEME_ATTR+CLR_CURSOR)
+.p      ld (de),a
+        inc e
+        djnz .p
+        ret

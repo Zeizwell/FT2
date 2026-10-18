@@ -92,6 +92,7 @@ KD_MIX          equ 11              ; FX: Mix - выкл -> SID -> Sync
 KD_PCT          equ 12              ; FX: скважность ШИМ (полубайт, %): hex-цифра, +/- - шаг
 KD_UDEC         equ 13              ; FX: байт 0..параметр, десятичный: цифры, +/- - шаг
 KD_SDEC         equ 14              ; FX: байт со знаком, десятичный: цифры, +/- - знак
+KD_LEN          equ 15              ; FX: длина 1..16 - полубайт (iy+3: #10 - старший, #01 - младший), десятичный
 CL_SIZE         equ 4               ; колонка: экран, вид, байт, параметр
 
 ; --- FX: подвкладки Mix / FM / Env FM (строка между кнопками и заголовками колонок)
@@ -244,7 +245,11 @@ Iv_Fld_Init
         ld a,(Iv_Mode)
         cp 2
         ld hl,Fe_Fields
-        jp z,Fld_Init
+        jr nz,.iv
+        call Fld_Init
+        ld hl,F_FeEdit
+        jp Fld_Set_Focus
+.iv
         ld hl,Iv_Fields
         call Fld_Init
         ld hl,F_Edit
@@ -329,6 +334,11 @@ Iv_Block
 Iv_Row_Addr
         push bc
         push af
+        ld a,(Iv_Mode)              ; FX (новый формат): #8000 + n*512 + r*16 (строки FX - в окне 2)
+        cp 2
+        jr z,.fx
+        pop af
+        push af
         call Iv_Block
         pop af
         ld e,a
@@ -342,6 +352,21 @@ Iv_Row_Addr
         jr nz,.m
         pop bc
         ret
+.fx     pop af
+        ld l,a
+        ld h,0
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        ld a,(Iv_Num)
+        add a,a
+        add a,#80
+        add a,h
+        ld h,a
+        pop bc
+        ret
+    ASSERT FXR_BLOCK == 512 && FXR_SIZE == 16
 
 ;-------- DE - смещение имени в блоке режима. Портит A
 Name_Ofs
@@ -364,6 +389,10 @@ Iv_Name_Addr
 
 ;-------- A - последняя строка текущего (длина-1)
 Iv_End
+        ld a,(Iv_Mode)              ; FX: последняя строка - в заголовке FX (Fe_Hdr)
+        cp 2
+        ld a,(Fe_Hdr+FXH_END)
+        ret z
         call Iv_Block
         inc hl
         inc hl                      ; OH_END
@@ -391,15 +420,15 @@ Iv_Cols
         ret z
         ld a,(Fx_Sub)               ; FX - по подвкладке
         or a
-        ld hl,Fx_Cols_Mix
-        ld b,FX_MIX_COLS
+        ld hl,Fe_Cols_Mix             ; новый формат (srs/fxedit.asm)
+        ld b,FE_MIX_COLS
         ret z
         dec a
-        ld hl,Fx_Cols_Fm
-        ld b,FX_FM_COLS
+        ld hl,Fe_Cols_Fm
+        ld b,FE_FM_COLS
         ret z
-        ld hl,Fx_Cols_Efm
-        ld b,FX_FM_COLS
+        ld hl,Fe_Cols_Efm
+        ld b,FE_FM_COLS
         ret
 
 ;-------- IY - колонка курсора в таблице
@@ -1640,6 +1669,7 @@ Fe_Fields                           ; FX: только шапка (как в н�
         IV_FIELD FE_MID,IV_TOP+4,7,1, FF_HAND, Fe_SubEv, 0            ;     [ Mix ]
         IV_FIELD FE_MID+9,IV_TOP+4,6,1, FF_HAND, Fe_SubEv, 1          ;     [ FM ]
         IV_FIELD FE_MID+17,IV_TOP+4,10,1, FF_HAND, Fe_SubEv, 2        ;     [ Env FM ]
+F_FeEdit IV_FIELD 1,FE_ROW0,88,FE_ROWS, FF_FOCUS, Fe_EditEv, 0    ;     строки FX
         db FLD_END
 Iv_Fields
         IV_FIELD patview.HD_PLAY_X,   patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 0  ; ⇄ паттерн по кругу
@@ -2166,6 +2196,8 @@ Ed_Type
         jp z,Ty_UDec
         cp KD_SDEC
         jp z,Ty_SDec
+        cp KD_LEN
+        jp z,Ty_Len
         or a                        ; остальным цифры не нужны
         ret
 .space  ld a,(iy+1)
@@ -2182,6 +2214,8 @@ Ed_Type
         ld a,(iy+1)
         cp KD_PCT
         jp z,Dn_Pct
+        cp KD_LEN
+        jp z,Dn_Pct
         cp KD_UDEC
         jp z,Dn_UDec
         cp KD_SLIDE
@@ -2194,6 +2228,8 @@ Ed_Type
 .plus   ld b,'+'
         ld a,(iy+1)
         cp KD_PCT
+        jp z,Up_Pct
+        cp KD_LEN
         jp z,Up_Pct
         cp KD_UDEC
         jp z,Up_UDec
@@ -2385,6 +2421,8 @@ Fx_Erase
         ld a,(iy+1)
         cp KD_PCT
         jr z,.pct
+        cp KD_LEN                   ; длина - 1 шаг
+        jr z,.pct
         cp KD_UDEC
         jr z,.dec
         cp KD_SDEC
@@ -2459,6 +2497,27 @@ Ty_Pct  call Fx_Fld
 .st     ld (hl),a
         scf
         ret
+;-------- Длина 1..16 (полубайт - длина-1): десятичная цифра B дописывается справа (больше 16 - с нуля)
+Ty_Len  ld a,b
+        cp 10
+        jr nc,Fx_Eat
+        ld c,a
+        call Pct_Get                ; текущая длина
+        inc a
+        ld b,a                      ; *10 + цифра
+        add a,a
+        add a,a
+        add a,b
+        add a,a
+        add a,c
+        cp 17
+        jr c,.ok
+        ld a,c
+.ok     or a                        ; 0 - это 1
+        jr nz,$+3
+        inc a
+        dec a
+        jp Ty_Pct.put
 Dn_Pct  call Pct_Get
         or a
         jr z,Fx_Eat
@@ -2779,7 +2838,10 @@ Len_Dn  call Iv_Block
 
 ;-------- Вставить: строки курсор..конец - вниз на одну (под курсорной - её копия, как Len +).
 ; Цикл за курсором - вместе со строками
-Row_Ins call Rows_Last
+Row_Ins ld a,(Iv_Mode)              ; FX: вставка / удаление строк - позже (шаг кнопок)
+        cp 2
+        ret z
+        call Rows_Last
         ld b,a
         call Iv_End
         cp b
@@ -2821,7 +2883,10 @@ Row_Ins call Rows_Last
 
 ;-------- Удалить строку курсора: строки ниже - вверх на одну. Одну строку не удаляем.
 ; Цикл за курсором - вместе со строками, не за концом
-Row_Del call Iv_End
+Row_Del ld a,(Iv_Mode)
+        cp 2
+        ret z
+        call Iv_End
         or a
         ret z
         inc a                       ; Ri_End - за последней строкой
@@ -2890,7 +2955,7 @@ Row_Size
         ld bc,ORN_ROW_SIZE
         dec a
         ret z
-        ld bc,FX_ROW_SIZE
+        ld bc,FXR_SIZE              ; FX - новый формат
         ret
 
 ; A - последняя возможная строка режима (строк - 1)
