@@ -135,6 +135,7 @@ Core_Start
         ld (SV_PLAYER),a
 
         call Clear_Screen       ; экран - пробелы цветом фона (макета больше нет)
+        call Font2_Init         ; шрифт - и для второго экрана (двойной буфер тулз)
                                 ; шрифт (со значками) уже в PAGE_FONT - его грузит spg
         ld a,OPT_LOAD           ; настройки из /FT2/FT2.INI (нет карты или файла - как есть)
         ld (SV_TOOL_ARG),a
