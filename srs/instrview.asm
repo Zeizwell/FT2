@@ -134,6 +134,7 @@ PG_STEP         equ 8               ; PgUp / PgDn - строк
 ; ВХОД (коре: Tools_Loop -> Call_Tool)
 ; =========================================================================
 Iv_Start
+        call Scr_Begin              ; двойной буфер: рисуем в невидимую страницу
         ld a,(SV_DRAW_PAGE)         ; экран - в окно 3 на всё время работы
         SETPAGE3 a
         ld a,(SV_SONG_PAGE)         ; страница инструментов - из заголовка трека
@@ -169,13 +170,14 @@ Iv_Loop
         ld a,(Iv_Dirty)
         or a
         call nz,Iv_Draw
-        ld a,(Iv_Mode)              ; FX - макет: кнопок и иконок редактора нет
+        ld a,(Iv_Mode)              ; FX: кнопок и иконок редактора инструментов нет
         cp 2
-        jr z,Iv_Loop
+        jr z,.show
         call Iv_Buttons             ; кнопки - каждый кадр (под мышью - подсветка)
         call Er_Icons_All           ; иконки строк - так же
         call Prv_Btn                ; ▶ - горит, пока звучит проба
-        jr Iv_Loop
+.show   call Scr_Show               ; кадр нарисован - показать (двойной буфер)
+        jp Iv_Loop
 
 ;-------- Выход в коре (страница следующей тулзы - уже в SV_TOOL)
 Iv_Leave
@@ -185,6 +187,7 @@ Iv_Leave
         or a
         call nz,Prv_Stop
         call Tool_Clear             ; экран - под вид паттерна
+        call Scr_End                ; показать, дальше - одна страница
         RESTPAGE2
         RESTPAGE3
         ret

@@ -513,12 +513,20 @@ Fe_Mix_Row
         ld e,FE_MIX
         ld a,(Fe_Row+FXR_FLAGS)
         and FXR_MIXMASK
+        ld (Fe_Dim),a               ; выключен - "---", поля тусклые (видны, как в инструменте)
         jr nz,.on
-        ld a,(THEME_ATTR+CLR_EMPTY) ; выключен - "---", остальное не рисуем
+        inc a
+        ld (Fe_Dim),a
+        ld a,(THEME_ATTR+CLR_EMPTY)
         ld c,a
         ld hl,Txt_FeOff3
-        jp PutStr
-.on     dec a                       ; SID / Buz / ???
+        call PutStr
+        jr .fields
+.on     xor a
+        ld (Fe_Dim),a
+        ld a,(Fe_Row+FXR_FLAGS)
+        and FXR_MIXMASK
+        dec a                       ; SID / Buz / ???
         ld l,a
         add a,a
         add a,l
@@ -531,6 +539,7 @@ Fe_Mix_Row
         call PutCh
         inc hl
         djnz .t
+.fields
         ld a,(Fe_Row+FXR_LEN1)      ; длина: 1..16
         and 15
         inc a
@@ -539,7 +548,7 @@ Fe_Mix_Row
         ld a,(THEME_ATTR+CLR_PARAM)
         jr z,$+5
         ld a,(THEME_ATTR+CLR_EMPTY)
-        ld c,a
+        call Fe_DimC
         ld e,FE_MAX
         ld a,(Fe_Row+FXR_PWM)
         rrca
@@ -556,7 +565,7 @@ Fe_Mix_Row
         ld a,(Fe_Row+FXR_SWP)
         call Put_D3Z
         ld a,(THEME_ATTR+CLR_VOLUME)
-        ld c,a
+        call Fe_DimC
         ld e,FE_SEMI
         ld a,(Fe_Row+FXR_MIX)
         call Put_S3
@@ -572,7 +581,7 @@ Fe_Mix_Row
         pop de
         ld e,FE_STEPS
         ld a,(THEME_ATTR+CLR_PARAM)
-        ld c,a
+        call Fe_DimC
         ld hl,Fe_Tab
         ld b,FXT_SIZE               ; все 16 шагов: за длиной - тускло
 .s      call Fe_Step_Clr
@@ -591,17 +600,21 @@ Fe_Fm_Row
         ld a,(Fe_OnBit)
         ld hl,Fe_Row+FXR_FLAGS
         and (hl)
-        jr nz,.on
-        ld a,(THEME_ATTR+CLR_EMPTY) ; выключен - "--"
-        ld c,a
-        ld hl,Txt_FeOff2
-        jp PutStr
-.on     ld a,(THEME_ATTR+CLR_INSTR)
+        ld a,0                      ; выключен - "--", поля тусклые
+        jr nz,$+3
+        inc a
+        ld (Fe_Dim),a
+        or a
+        ld a,(THEME_ATTR+CLR_INSTR)
         ld c,a
         ld hl,Txt_FeOn
-        call PutStr
-        ld a,(THEME_ATTR+CLR_VOLUME)
+        jr z,.on
+        ld a,(THEME_ATTR+CLR_EMPTY)
         ld c,a
+        ld hl,Txt_FeOff2
+.on     call PutStr
+        ld a,(THEME_ATTR+CLR_VOLUME)
+        call Fe_DimC
         ld a,(Fe_Off)               ; детюн: полутоны, сырой
         ld hl,Fe_Row
         call Hl_Add_A
@@ -648,7 +661,7 @@ Fe_Fm_Row
         pop de
         ld e,FE_FSTEPS
         ld a,(THEME_ATTR+CLR_PARAM)
-        ld c,a
+        call Fe_DimC
         ld hl,Fe_Tab
         ld b,FXT_SIZE               ; все 16 шагов: за длиной - тускло
 .s      call Fe_Step_Clr
@@ -1078,8 +1091,7 @@ Fe_Step_Clr
         ld a,(THEME_ATTR+CLR_PARAM)
         jr c,$+5
         ld a,(THEME_ATTR+CLR_EMPTY)
-        ld c,a
-        ret
+        jp Fe_DimC
 
 ; =========================================================================
 ; ШАГИ ТАЙМЕРА (шаг 4): ввод в шаг под курсором. Таблица строки - своя: если её номер
@@ -2088,3 +2100,14 @@ Fe_Step2
         ld a,l
         jp nz,PutHex2
         jp Dec2
+
+;-------- C = цвет A; эффект строки выключен (Fe_Dim) - тусклый
+Fe_DimC
+        ld c,a
+        ld a,(Fe_Dim)
+        or a
+        ret z
+        ld a,(THEME_ATTR+CLR_EMPTY)
+        ld c,a
+        ret
+Fe_Dim          db 0                ; 1 - эффект строки выключен: поля тусклые

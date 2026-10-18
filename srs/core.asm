@@ -216,6 +216,7 @@ dma_wait	ld bc,DMASTATUS
 		ret
 
 
+    include "srs/screen.asm"       ; двойной буфер экрана тулз
     include "srs/mouse.asm"
     include "srs/input.asm"
     include "srs/fields.asm"
