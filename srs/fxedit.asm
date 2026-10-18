@@ -1291,3 +1291,287 @@ Fe_Count
 
         ALIGN 256
 Fe_Cnt          ds 256              ; счётчики номеров таблиц (на границе 256)
+
+; =========================================================================
+; СТРОКИ И КНОПКИ FX (шаг 5): вставка / удаление строк (клавиши как в инструменте - Row_Ins /
+; Row_Del зовут сюда), Clone / Copy / Paste / Clear / Unloop. Строки FX - в окне 2 (Trk_Fx)
+; =========================================================================
+;-------- Вставить: под строкой курсора - её копия (строки ниже - вниз), последняя +1
+Fe_Row_Ins
+        ld a,(Fe_Hdr+FXH_END)
+        cp FX_ROWS_MAX-1
+        ret nc                      ; уже 32
+        ld hl,Ed_Row                ; строк сдвигать: последняя - курсор + 1
+        sub (hl)
+        inc a
+        call Fe_Rows16              ; BC - байт
+        push bc
+        ld a,(Fe_Hdr+FXH_END)       ; с конца последней строки - на строку ниже
+        call Iv_Row_Addr
+        ld de,FXR_SIZE-1
+        add hl,de
+        ld d,h
+        ld e,l
+        ld a,FXR_SIZE
+        call Hl_Add_A
+        ex de,hl
+        pop bc
+        lddr
+        ld hl,Fe_Hdr+FXH_END        ; строк +1
+        inc (hl)
+        ld a,(Ed_Row)               ; цикл ниже курсора - за своей строкой
+        ld hl,Fe_Hdr+FXH_LOOP
+        cp (hl)
+        jr nc,.p
+        inc (hl)
+.p      jp Fe_Put_Hdr
+
+;-------- Удалить строку курсора: ниже - вверх, последняя - нули, строк -1
+Fe_Row_Del
+        ld a,(Fe_Hdr+FXH_END)
+        or a
+        ret z                       ; последняя строка не удаляется
+        ld hl,Ed_Row                ; сдвигать: последняя - курсор
+        sub (hl)
+        jr z,.last
+        call Fe_Rows16
+        push bc
+        ld a,(Ed_Row)
+        inc a
+        call Iv_Row_Addr            ; откуда - строка ниже
+        push hl
+        ld a,(Ed_Row)
+        call Iv_Row_Addr            ; куда - строка курсора
+        ex de,hl
+        pop hl
+        pop bc
+        ldir
+.last   ld a,(Fe_Hdr+FXH_END)       ; последняя - нули
+        call Iv_Row_Addr
+        ld b,FXR_SIZE
+.z      ld (hl),0
+        inc hl
+        djnz .z
+        ld hl,Fe_Hdr+FXH_END
+        dec (hl)
+        ld a,(Ed_Row)               ; цикл ниже курсора - за своей строкой, не за концом
+        ld hl,Fe_Hdr+FXH_LOOP
+        cp (hl)
+        jr nc,.e
+        dec (hl)
+.e      ld a,(Fe_Hdr+FXH_END)
+        cp (hl)
+        jr nc,.p
+        ld (hl),a
+.p      jp Fe_Put_Hdr
+
+;-------- BC = A * 16 (байт в A строках)
+Fe_Rows16
+        ld l,a
+        ld h,0
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        ld b,h
+        ld c,l
+        ret
+
+;-------- Кнопки справа: 0 Clone, 1 Copy, 2 Paste, 3 Clear, 4 Unloop (5 Save, 6 Load - позже)
+Fe_BtnEv
+        cp EV_CLICK
+        ret nz
+        ld a,(ix+FLD_PARAM)
+        or a
+        jr z,Fe_Clone
+        dec a
+        jp z,Fe_CopyB
+        dec a
+        jp z,Fe_Paste
+        dec a
+        jp z,Fe_Clear
+        dec a
+        jp z,Fe_Unloop
+        ret
+
+;-------- Clone: текущий -> в первый пустой FX, он и становится текущим
+Fe_Clone
+        ld c,0
+.f      ld a,(Iv_Num)
+        cp c
+        jr z,.n
+        ld a,c
+        push bc
+        call Fe_Free
+        pop bc
+        jr z,.got
+.n      inc c
+        ld a,c
+        cp FXS_MAX
+        jr c,.f
+        ret                         ; пустых нет
+.got    push bc
+        call Fe_CopyB               ; текущий - в буфер
+        pop bc
+        ld a,c
+        ld (Iv_Num),a
+        call Fe_Paste               ; буфер - в новый
+        ld a,(Iv_Num)
+        jp Fe_SetNum
+
+;-------- FX A пустой? (строки - нули, заголовок - как у нового, имени нет). Z - да
+Fe_Free
+        ld (Fe_FN),a
+        add a,a                     ; строки: #8000 + n*512, 512 байт
+        add a,#80
+        ld h,a
+        ld l,0
+        ld bc,FXR_BLOCK
+.r      ld a,(hl)
+        or a
+        ret nz
+        inc hl
+        dec bc
+        ld a,b
+        or c
+        jr nz,.r
+        ld a,(Fe_FN)                ; заголовок
+        call Fe_Hdr_Addr
+        ld de,Fe_Tmp
+        ld bc,FXH_SIZE
+        ld a,(Trk_FxT)
+        call Fe_Copy
+        ld hl,Fe_Tmp
+        ld a,(Fe_Tmp+FXH_SWSHAPE)
+        xor FXT_TRI
+        or (hl)
+        inc hl
+        or (hl)
+        ld hl,Fe_Tmp+FXH_SWPHASE
+        or (hl)
+        inc hl
+        or (hl)
+        ret nz
+        ld a,(Fe_FN)                ; имя
+        ld de,Fe_Tmp
+        call Fe_Get_Name
+        ld a,(Fe_Tmp)
+        or a
+        ret
+Fe_FN           db 0
+Fe_Tmp          ds 17
+
+;-------- A - номер FX -> HL - его заголовок (#8000 + FXH_BASE + n*8, страница Trk_FxT)
+Fe_Hdr_Addr
+        ld l,a
+        ld h,0
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        ld de,#8000+FXH_BASE
+        add hl,de
+        ret
+
+;-------- Copy: строки, заголовок и имя текущего - в буфер
+Fe_CopyB
+        ld a,(Iv_Num)               ; строки
+        add a,a
+        add a,#80
+        ld h,a
+        ld l,0
+        ld de,Fe_Clip
+        ld bc,FXR_BLOCK
+        ldir
+        ld hl,Fe_Hdr                ; заголовок
+        ld de,Fe_Clip+FXR_BLOCK
+        ld bc,FXH_SIZE
+        ldir
+        ld hl,Fe_Name               ; имя
+        ld de,Fe_Clip+FXR_BLOCK+FXH_SIZE
+        ld bc,16
+        ldir
+        ld a,1
+        ld (Fe_ClipOk),a
+        ret
+
+;-------- Paste: буфер - в текущий (строки, заголовок, имя)
+Fe_Paste
+        ld a,(Fe_ClipOk)
+        or a
+        ret z
+        ld a,(Iv_Num)
+        add a,a
+        add a,#80
+        ld d,a
+        ld e,0
+        ld hl,Fe_Clip
+        ld bc,FXR_BLOCK
+        ldir
+        ld hl,Fe_Clip+FXR_BLOCK
+        ld de,Fe_Hdr
+        ld bc,FXH_SIZE
+        ldir
+        ld hl,Fe_Clip+FXR_BLOCK+FXH_SIZE
+        ld de,Fe_Name
+        ld bc,16
+        ldir
+        call Fe_Put_Name
+        jp Fe_Put_Hdr
+
+;-------- Имя Fe_Name - в страницу трека (SONG_FX_NAMES + n*16)
+Fe_Put_Name
+        ld a,(Iv_Num)
+        ld l,a
+        ld h,0
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        ld de,#8000+SONG_FX_NAMES
+        add hl,de
+        ex de,hl
+        ld hl,Fe_Name
+        ld bc,16
+        ld a,(SV_SONG_PAGE)
+        jp Fe_Copy
+
+;-------- Clear: строки - нули, заголовок - как у нового (имя остаётся)
+Fe_Clear
+        ld a,(Iv_Num)
+        add a,a
+        add a,#80
+        ld h,a
+        ld l,0
+        ld d,h
+        ld e,1
+        ld (hl),0
+        ld bc,FXR_BLOCK-1
+        ldir
+        ld hl,Fe_Hdr
+        ld b,FXH_SIZE
+.z      ld (hl),0
+        inc hl
+        djnz .z
+        ld a,FXT_TRI
+        ld (Fe_Hdr+FXH_SWSHAPE),a
+        xor a
+        ld (Ed_Row),a
+        jp Fe_Put_Hdr
+
+;-------- Unloop: в конец - пустая строка (эффекты выкл), цикл - на неё: FX доиграл и молчит
+Fe_Unloop
+        ld a,(Fe_Hdr+FXH_END)
+        cp FX_ROWS_MAX-1
+        ret nc
+        inc a
+        ld (Fe_Hdr+FXH_END),a
+        ld (Fe_Hdr+FXH_LOOP),a
+        call Iv_Row_Addr
+        ld b,FXR_SIZE
+.z      ld (hl),0
+        inc hl
+        djnz .z
+        jp Fe_Put_Hdr
+
+Fe_ClipOk       db 0                ; 1 - в буфере FX
+Fe_Clip         ds FXR_BLOCK+FXH_SIZE+16

@@ -1671,6 +1671,11 @@ Fe_Fields                           ; FX: только шапка (как в н�
         IV_FIELD FE_MID+9,IV_TOP+4,6,1, FF_HAND, Fe_SubEv, 1          ;     [ FM ]
         IV_FIELD FE_MID+17,IV_TOP+4,10,1, FF_HAND, Fe_SubEv, 2        ;     [ Env FM ]
 F_FeEdit IV_FIELD 1,FE_ROW0,88,FE_ROWS, FF_FOCUS, Fe_EditEv, 0    ;     строки FX
+        IV_FIELD FE_BTN,IV_TOP+1,7,1, FF_HAND, Fe_BtnEv, 0            ;     [Clone]
+        IV_FIELD FE_BTN+8,IV_TOP+1,6,1, FF_HAND, Fe_BtnEv, 1          ;     [Copy]
+        IV_FIELD FE_BTN+15,IV_TOP+1,7,1, FF_HAND, Fe_BtnEv, 2         ;     [Paste]
+        IV_FIELD FE_BTN,IV_TOP+2,7,1, FF_HAND, Fe_BtnEv, 3            ;     [Clear]
+        IV_FIELD FE_BTN+8,IV_TOP+2,8,1, FF_HAND, Fe_BtnEv, 4          ;     [Unloop]
         db FLD_END
 Iv_Fields
         IV_FIELD patview.HD_PLAY_X,   patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 0  ; ⇄ паттерн по кругу
@@ -2843,9 +2848,9 @@ Len_Dn  call Iv_Block
 
 ;-------- Вставить: строки курсор..конец - вниз на одну (под курсорной - её копия, как Len +).
 ; Цикл за курсором - вместе со строками
-Row_Ins ld a,(Iv_Mode)              ; FX: вставка / удаление строк - позже (шаг кнопок)
+Row_Ins ld a,(Iv_Mode)              ; FX - свои (srs/fxedit.asm)
         cp 2
-        ret z
+        jp z,Fe_Row_Ins
         call Rows_Last
         ld b,a
         call Iv_End
@@ -2890,7 +2895,7 @@ Row_Ins ld a,(Iv_Mode)              ; FX: вставка / удаление ст
 ; Цикл за курсором - вместе со строками, не за концом
 Row_Del ld a,(Iv_Mode)
         cp 2
-        ret z
+        jp z,Fe_Row_Del
         call Iv_End
         or a
         ret z
