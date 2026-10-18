@@ -21,6 +21,7 @@ WIN_SCR_H       equ #C0
 WIN_END         equ #FF             ; конец строк окна
 WIN_CENTER      equ #FF             ; x / y в описателе: по центру экрана
 WF_CONTEXT      equ %00000001       ; флаг окна: контекстное - клик мимо закрывает
+WF_INVERT       equ %00000100       ;   заголовок - сплошной тёмной полосой (CLR_WIN_INV), не шахматкой
 WIN_SCR_W       equ 90              ; видимый экран
 WIN_SCR_ROWS    equ 36
 
@@ -315,18 +316,24 @@ Wd_Title
         ld a,(hl)
         or a
         ret z
+        ld a,(Win_Flags)            ; строка заголовка - от края до края (без углов): WF_INVERT - сплошная
+        and WF_INVERT               ;   тёмная полоса, иначе - шахматка цветом рамки
         ld a,(Wd_AF)
-        ld c,a
-        ld a,(Win_Y)                ; шахматка от x+1 до x+w-2
+        ld b,WB_CHECK
+        jr z,.cl
+        ld a,(THEME_ATTR+CLR_WIN_INV)
+        ld b,' '
+.cl     ld c,a
+        ld a,b
+        ld (.ch+1),a
+        ld a,(Win_Y)
         add a,WIN_SCR_H
         ld d,a
         ld a,(Win_X)
-        inc a
         ld e,a
         ld a,(Win_W)
-        sub 2
         ld b,a
-.ch     ld a,WB_CHECK
+.ch     ld a,WB_CHECK               ; (знак полосы - сюда)
         call PutCh
         djnz .ch
         ld hl,(Wo_Title)            ; длина заголовка
@@ -731,7 +738,7 @@ Win_AboutEv
         jp Win_About
 
 Win_About_D
-        db WIN_CENTER, WIN_CENTER, 34, 9, WF_CONTEXT
+        db WIN_CENTER, WIN_CENTER, 34, 9, WF_CONTEXT|WF_INVERT
         db "About",0
         db CLR_WIN_TEXT,"FAST TRACKER 2.01b",0
         db CLR_WIN_TEXT,"by Orion/DR",0

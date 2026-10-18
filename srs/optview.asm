@@ -144,7 +144,7 @@ OV_WX           equ OV_X-1              ; окно Setup: колонка, шир
 OV_WW           equ 46
 OV_WH           equ 17                  ;   (строки OV_WY .. OV_WY+16: содержимое до IMR_Y)
 Ov_Win_D
-        db OV_WX, OV_WY, OV_WW, OV_WH, 0    ; окно как все
+        db OV_WX, OV_WY, OV_WW, OV_WH, WF_INVERT ; окно как все
         db "Setup",0
         db WIN_END
 
@@ -558,12 +558,12 @@ Ov_Bar
         djnz .c
         ld a,(THEME_ATTR+CLR_WIN_TEXT)
         ld c,a
-        ld a,' '
-        call PutCh
+        ld e,MS_BAR_X+MS_SPEED_MAX+1 ; цифра - в одной колонке у всех полос (по самой длинной)
         ld a,(Ob_V)
         add a,'0'
         jp PutCh
 Ob_V            db 0
+    ASSERT MS_SPEED_MAX >= MS_ACCEL_MAX
 
 ; =========================================================================
 ; ПОЛЯ
