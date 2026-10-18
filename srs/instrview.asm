@@ -1624,6 +1624,19 @@ Fe_Fields                           ; FX: только шапка (как в н�
         IV_FIELD patview.HD_HELP_X,   patview.HD_TABS_Y,4,1, FF_HAND, Iv_TabEv, 5   ; Help
         IV_FIELD patview.HD_ABOUT_X,  patview.HD_TABS_Y,5,1, FF_HAND, Win_AboutEv, 0  ; About
         IV_FIELD 0,0,90,IV_TOP, 0, Iv_TabEv, 3                          ; остальная шапка: назад
+        IV_FIELD 1,IV_TOP+1,17,FE_LIST_ROWS, 0, Fe_ListEv, 0          ; FX: список
+        IV_FIELD 18,IV_TOP+1,1,FE_LIST_ROWS, FF_HAND, Fe_ScrEv, 0     ;     его скролл
+        IV_FIELD FE_MID+4,IV_TOP+2,1,1, FF_HAND, Fe_HdrEv, 0          ;     Len -
+        IV_FIELD FE_MID+7,IV_TOP+2,1,1, FF_HAND, Fe_HdrEv, 1          ;     Len +
+        IV_FIELD FE_MID+16,IV_TOP+2,1,1, FF_HAND, Fe_HdrEv, 2         ;     Loop -
+        IV_FIELD FE_MID+19,IV_TOP+2,1,1, FF_HAND, Fe_HdrEv, 3         ;     Loop +
+        IV_FIELD FE_MID+7,IV_TOP+3,3,1, FF_HAND, Fe_HdrEv, 4          ;     форма свипа
+        IV_FIELD FE_MID+18,IV_TOP+3,1,1, FF_HAND, Fe_HdrEv, 5         ;     Start -
+        IV_FIELD FE_MID+22,IV_TOP+3,1,1, FF_HAND, Fe_HdrEv, 6         ;     Start +
+        IV_FIELD FE_MID+25,IV_TOP+3,2,1, FF_HAND, Fe_HdrEv, 7         ;     Kp
+        IV_FIELD FE_MID,IV_TOP+4,7,1, FF_HAND, Fe_SubEv, 0            ;     [ Mix ]
+        IV_FIELD FE_MID+9,IV_TOP+4,6,1, FF_HAND, Fe_SubEv, 1          ;     [ FM ]
+        IV_FIELD FE_MID+17,IV_TOP+4,10,1, FF_HAND, Fe_SubEv, 2        ;     [ Env FM ]
         db FLD_END
 Iv_Fields
         IV_FIELD patview.HD_PLAY_X,   patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 0  ; ⇄ паттерн по кругу

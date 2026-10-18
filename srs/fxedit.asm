@@ -631,3 +631,159 @@ Txt_FeOff2      db "--",0
 Txt_FeOn        db "on",0
 Txt_FeSemi      db "semi",0
 Txt_FePer       db "per ",0
+
+; =========================================================================
+; ПОЛЯ ШАПКИ FX (шаг 3а): выбор FX, Len / Loop, свип, Kp, подвкладки
+; =========================================================================
+;-------- Список: клик - выбрать, колесо - соседний
+Fe_ListEv
+        cp EV_WHEEL
+        jr z,Fe_Wheel
+        cp EV_PRESS
+        ret nz
+        ld a,(SV_MOUSE_ROW)         ; строка списка -> номер FX
+        sub IV_TOP+1
+        ret c
+        cp FE_LIST_ROWS
+        ret nc
+        ld hl,Fe_LTop
+        add a,(hl)
+        jr Fe_SetNum
+Fe_Wheel
+        ld a,c                      ; вниз (C < 0) - следующий
+        or a
+        jp m,Fe_Next
+Fe_Prev
+        ld a,(Iv_Num)
+        or a
+        ret z
+        dec a
+        jr Fe_SetNum
+Fe_Next
+        ld a,(Iv_Num)
+        inc a
+        cp FXS_MAX
+        ret nc
+Fe_SetNum
+        ld (Iv_Num),a
+Fe_Dirty
+        ld a,1
+        ld (Iv_Dirty),a
+        ret
+
+;-------- Скролл списка: ^ - предыдущий, v - следующий, середина - к началу / ко второй половине
+Fe_ScrEv
+        cp EV_WHEEL
+        jr z,Fe_Wheel
+        cp EV_PRESS
+        jr z,.p
+        cp EV_REPEAT
+        ret nz
+.p      ld a,(SV_MOUSE_ROW)
+        sub IV_TOP+1
+        jr z,Fe_Prev
+        cp FE_LIST_ROWS-1
+        jr z,Fe_Next
+        dec a                       ; 1 - первая половина, 2 - вторая
+        ld a,0
+        jr z,Fe_SetNum
+        ld a,FXS_MAX/2
+        jr Fe_SetNum
+
+;-------- Заголовок FX: 0 Len-, 1 Len+, 2 Loop-, 3 Loop+, 4 форма свипа, 5 Start-, 6 Start+, 7 Kp
+Fe_HdrEv
+        cp EV_REPEAT                ; держат: повтор - только у +/-
+        jr z,.rep
+        cp EV_PRESS
+        ret nz
+        jr .go
+.rep    ld a,(ix+FLD_PARAM)
+        cp 4
+        ret z
+        cp 7
+        ret z
+.go     ld a,(ix+FLD_PARAM)
+        or a
+        jr z,.lenm
+        dec a
+        jr z,.lenp
+        dec a
+        jr z,.loopm
+        dec a
+        jr z,.loopp
+        dec a
+        jr z,.shape
+        dec a
+        jr z,.stm
+        dec a
+        jr z,.stp
+        ld a,(Fe_Hdr+FXH_FLAGS)     ; Kp - переключить
+        xor 1
+        ld (Fe_Hdr+FXH_FLAGS),a
+        jr Fe_Put_Hdr
+.lenm   ld a,(Fe_Hdr+FXH_END)       ; Len - (цикл - не дальше конца)
+        or a
+        ret z
+        dec a
+        ld (Fe_Hdr+FXH_END),a
+        ld hl,Fe_Hdr+FXH_LOOP
+        cp (hl)
+        jr nc,Fe_Put_Hdr
+        ld (hl),a
+        jr Fe_Put_Hdr
+.lenp   ld a,(Fe_Hdr+FXH_END)       ; Len +
+        cp FX_ROWS_MAX-1
+        ret nc
+        inc a
+        ld (Fe_Hdr+FXH_END),a
+        jr Fe_Put_Hdr
+.loopm  ld a,(Fe_Hdr+FXH_LOOP)      ; Loop -
+        or a
+        ret z
+        dec a
+        ld (Fe_Hdr+FXH_LOOP),a
+        jr Fe_Put_Hdr
+.loopp  ld a,(Fe_Hdr+FXH_LOOP)      ; Loop + (до конца)
+        ld hl,Fe_Hdr+FXH_END
+        cp (hl)
+        ret nc
+        inc a
+        ld (Fe_Hdr+FXH_LOOP),a
+        jr Fe_Put_Hdr
+.shape  ld a,(Fe_Hdr+FXH_SWSHAPE)   ; форма: Tri -> Sin -> Up -> Dn -> Sqr -> Tri
+        inc a
+        cp FXT_PRESETS
+        jr c,$+4
+        ld a,FXT_TRI
+        ld (Fe_Hdr+FXH_SWSHAPE),a
+        jr Fe_Put_Hdr
+.stm    ld a,(Fe_Hdr+FXH_SWPHASE)   ; Start -8 / +8 (по кругу 0..255)
+        sub 8
+        jr .st
+.stp    ld a,(Fe_Hdr+FXH_SWPHASE)
+        add a,8
+.st     ld (Fe_Hdr+FXH_SWPHASE),a
+; Fe_Hdr - в заголовок текущего FX (страница Trk_FxT), перерисовать
+Fe_Put_Hdr
+        ld a,(Iv_Num)
+        ld l,a
+        ld h,0
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        ld de,#8000+FXH_BASE
+        add hl,de
+        ex de,hl
+        ld hl,Fe_Hdr
+        ld bc,FXH_SIZE
+        ld a,(Trk_FxT)
+        call Fe_Copy
+        jp Fe_Dirty
+
+;-------- Подвкладки Mix / FM / Env FM
+Fe_SubEv
+        cp EV_PRESS
+        ret nz
+        ld a,(ix+FLD_PARAM)
+        ld (Fx_Sub),a
+        jp Fe_Dirty
