@@ -318,7 +318,9 @@ Fe_Minus
 Fe_Plus
         ld a,GLYPH_BTN_PLUS
 Fe_Glyph
+        push af                     ; PutCh портит A
         call PutCh
+        pop af
         inc a
         jp PutCh
 
