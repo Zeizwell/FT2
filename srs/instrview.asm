@@ -460,7 +460,7 @@ Iv_Draw
         ld (Iv_Dirty),a
         ld a,(Iv_Mode)              ; FX - пока пробный макет (srs/fxmaket.asm)
         cp 2
-        jp z,Fxm_Draw
+        jp z,Fe_Draw
         call Iv_Draw_List
         call Iv_Draw_Top
         call Fx_Subs
@@ -3360,37 +3360,6 @@ Txt_Vol         db "Vol",0
 Txt_Env         db "Env",0
 
 
-;-------- Пробный макет FX: строки Fxm_Lines с первой строки тулзы, хвосты и низ - пробелами
-Fxm_Draw
-        xor a                       ; общая рамка тулзы на всю ширину, внутри - пробелы
-        ld (Bx_X),a
-        ld a,90
-        ld (Bx_W),a
-        call Tool_Box
-        ld a,(THEME_ATTR+CLR_HEADER)
-        ld c,a
-        ld de,2+256*(IV_SCR_H+IV_TOP)
-        ld hl,Txt_FxmTitle
-        call PutStr
-        ld hl,Fxm_Lines             ; макет - внутри рамки
-        ld d,IV_SCR_H+IV_TOP+1
-.line   ld a,(hl)
-        cp #FF
-        jr z,.end
-        ld e,1
-        cp '!'                      ; "!" - строка цветом заголовков
-        ld a,(THEME_ATTR+CLR_TEXT)
-        jr nz,.put
-        inc hl
-        ld a,(THEME_ATTR+CLR_HEADER)
-.put    ld c,a
-        call PutStr
-        inc hl
-        inc d
-        ld a,d
-        cp IV_SCR_H+TL_LAST-1        ; до нижней рамки
-        jr c,.line
-.end    jp Fxm_Lines_Hd             ; поверх строк: черта у списка, линия под шапкой
 Txt_FxmTitle    db " FX ",0
 
 FXM_DIV         equ 19              ; колонка черты за списком FX
@@ -3439,6 +3408,6 @@ Fxm_Lines_Hd
         jr c,.h
         ret
 
-    include "srs/fxmaket.asm"
+    include "srs/fxedit.asm"       ; редактор FX (реворк): отрисовка
 
     ENDMODULE
