@@ -58,6 +58,10 @@ CMP_X           equ FP_L+20         ; [ Compare ]: после загрузки P
 CMP_W           equ 11
 CHK_Y           equ BTN_Y+1         ; [ Check ]: выбранный FT2 - во второй слот и сравнить (проверка контейнера)
 CHK_W           equ 9
+YES_X           equ FP_L+10         ; [ Yes ] [ No ]: перезаписать файл? (строка Check)
+YES_W           equ 7
+NO_X            equ FP_L+18
+NO_W            equ 6
 MSG_Y           equ DV_TOP+10       ; сообщение
 
 ; --- запись каталога в PAGE_DIRLIST (переменной длины, адрес - из таблицы, Dl_Ofs)
@@ -503,6 +507,24 @@ Dv_Buttons
         ld de,LOAD_X+256*(DV_SCR_H+CHK_Y)
         ld hl,Txt_Check
         call .one
+        ld a,(Sv_Ask)               ; Yes / No - только пока спрашиваем
+        or a
+        jr z,.noask
+        ld ix,F_Yes
+        ld de,YES_X+256*(DV_SCR_H+CHK_Y)
+        ld hl,Txt_Yes
+        call .one
+        ld ix,F_No
+        ld de,NO_X+256*(DV_SCR_H+CHK_Y)
+        ld hl,Txt_No
+        call .one
+        jr .cmp
+.noask  ld a,(THEME_ATTR+CLR_TEXT)
+        ld c,a
+        ld de,YES_X+256*(DV_SCR_H+CHK_Y)
+        ld hl,Txt_AskSp
+        call PutStr
+.cmp
         ld ix,F_Cmp                 ; Compare: вкл / выкл
         ld de,CMP_X+256*(DV_SCR_H+BTN_Y)
         ld hl,Txt_CmpOff
@@ -558,6 +580,8 @@ F_Load  DV_FIELD LOAD_X,BTN_Y,BTN_W,1, FF_HAND, Dv_BtnEv, 0              ; Load
 F_Save  DV_FIELD SAVE_X,BTN_Y,BTN_W,1, FF_HAND, Dv_BtnEv, 1              ; Save
 F_Cmp   DV_FIELD CMP_X,BTN_Y,CMP_W,1, FF_HAND, Dv_BtnEv, 2              ; Compare
 F_Chk   DV_FIELD LOAD_X,CHK_Y,CHK_W,1, FF_HAND, Dv_BtnEv, 3             ; Check
+F_Yes   DV_FIELD YES_X,CHK_Y,YES_W,1, FF_HAND, Dv_BtnEv, 4              ; Yes - перезаписать
+F_No    DV_FIELD NO_X,CHK_Y,NO_W,1, FF_HAND, Dv_BtnEv, 5                ; No
         db FLD_END
 
 ;-------- Клик в шапку: Instr / Orn - тулза инструментов, остальное - назад в вид паттерна
@@ -590,6 +614,12 @@ Dv_BtnEv
         cp EV_CLICK
         ret nz
         ld a,(ix+FLD_PARAM)
+        cp 4
+        jr nc,.ask
+        push af                     ; другая кнопка - вопрос снят
+        xor a
+        ld (Sv_Ask),a
+        pop af
         or a
         jp z,Dv_Open
         dec a
@@ -600,6 +630,22 @@ Dv_BtnEv
         xor 1
         ld (Dv_Cmp),a
         ret
+.ask    ld a,(Sv_Ask)               ; Yes / No: кнопок нет - клик мимо
+        or a
+        ret z
+        xor a
+        ld (Sv_Ask),a
+        ld a,(ix+FLD_PARAM)
+        cp 4
+        jr nz,.no
+        ld a,1                      ; Yes - Save ещё раз, поверх
+        ld (Sv_Force),a
+        call Dv_Save
+        xor a                       ; не дошёл до вопроса (ошибка) - не оставлять
+        ld (Sv_Force),a
+        ret
+.no     ld hl,Txt_SvCancel
+        jp Dv_Ok
 
 ;-------- Каталог: клик - выбрать, двойной - открыть, колесо, клавиши
 Dv_ListEv
@@ -1699,10 +1745,21 @@ Dv_Save
         jr z,$+4
         ld a,1
         ld (Sv_Repl),a
-        ld hl,Dv_Name               ; имя, под которым создаём
-        jr z,$+5
-        ld hl,Txt_TmpName
-        ld de,Sv_Spec+5
+        or a
+        jr z,.nm
+        ld a,(Sv_Force)             ; файл есть: без подтверждения - спросить (кнопки Yes / No)
+        or a
+        jr nz,.ovr
+        inc a
+        ld (Sv_Ask),a
+        ld hl,Txt_Exists
+        jp Dv_Ok
+.ovr    xor a
+        ld (Sv_Force),a
+        ld hl,Txt_TmpName           ; есть - пишем во временный
+        jr .cr
+.nm     ld hl,Dv_Name               ; имя, под которым создаём
+.cr     ld de,Sv_Spec+5
         ld bc,NAME_W+1
         ldir
         ld ix,DK_CREATE+256
@@ -1749,6 +1806,8 @@ Sv_Append
         ret
 
 Sv_Repl         db 0                ; 1 - файл был, пишем через временный
+Sv_Ask          db 0                ; 1 - файл есть, спрашиваем: кнопки Yes / No
+Sv_Force        db 0                ; 1 - Yes: писать поверх
 Sv_N            dw 0
 Sv_Spec         db #20,0,0,0,0      ; CREATE: атрибут (архивный), размер 0, имя
                 ds NAME_W+1
@@ -2310,6 +2369,11 @@ Txt_Size        db "Size:",0
 Txt_Load        db "[ Load ]",0
 Txt_Save        db "[ Save ]",0
 Txt_Check       db "[ Check ]",0
+Txt_Yes         db "[ Yes ]",0
+Txt_No          db "[ No ]",0
+Txt_AskSp       db "              ",0   ; на месте Yes / No
+Txt_Exists      db "file exists - overwrite?",0
+Txt_SvCancel    db "Save cancelled",0
 Txt_CmpOff      db "[ ] Compare",0  ; одной длины: старое не остаётся; #FB - галочка CP866
 Txt_CmpOn       db "[",#FB,"] Compare",0
 Txt_Dir         db "  <DIR>",0
