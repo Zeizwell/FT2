@@ -120,6 +120,7 @@
 - `doc/trinity-sndh.md` — SNDH-плеер в RP-AY (AtariAudio, MIT): где врезаться, память, такт;
 - `doc/zx-trinity.md` — звуковая карта ZX Trinity (AY-эффекты, GS/Paula): всё обсуждённое,
   требования автора, разбор NeoGS и MultiSound (`schemes/`). Читать перед любым разговором о карте.
+- `doc/trinity-sources.md` — **указатель найденных материалов по Trinity** (Paula, GS / NeoGS исходники, WC, PicoGUS, PiCard3): где лежат и что в них. Смотреть до поиска в интернете.
 - `doc/paula.md` — звук Paula: устройство, фильтры A500 / A1200, BLEP (pt2-clone), нагрузка RP2350, что выносить наружу.
 - `doc/evo-rev-d.md` — что внутри ZX Evolution rev D+ (схема в `schemes/rev_d+.r1368/`).
 - `doc/revolution.md` — концепт пользователя ZX Evolution Revolution и разбор (риски, лестница шагов).
