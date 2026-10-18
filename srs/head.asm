@@ -81,7 +81,6 @@ Auto_Env        db 0
 Auto_Step       db 1                ; шаг при вводе: 1 - курсор идёт на Cur_Step роу
 Auto_Ratio      db 0                ; номер в Hd_Ratios
 TUNINGS         equ 2
-DEVICES         equ 4
 STEREOS         equ 5
 ENVMODES        equ 2
 RATIOS          equ 8
@@ -90,10 +89,6 @@ RATIOS          equ 8
 Hd_Tunings      db "1.75MHz"
                 db "1.77MHz"
 Hd_Chips        db "AY       ","AY+TS    ","AYFX     ","AYFX+TS  " ; Hw_Fx * 2 + Hw_Ts
-Hd_Devices      db "AY       "
-                db "YM       "
-                db "AYX-32   "
-                db "FT2 board"
 Hd_Stereos      db "ABC","ACB","BAC","BCA","CAB"         ; как Po_Maps в плеере
 Hd_EnvModes     db "FT","PT"
 ; Соотношения автоогибающей A:B - как в Vortex Tracker II (StdAutoEnv, main.pas).
@@ -647,7 +642,7 @@ Head_Fields_End
 
 Hd_Act  dw H_SpdDn, H_SpdUp, H_OctDn, H_OctUp, H_StepDn, H_StepUp ; 0..7 - теперь поля чисел (Sd_*), номера держим
         dw H_LenDn, H_LenUp, H_RatUp
-        dw H_Tune, H_Chip, H_Stereo, K_EnvNote, H_AutoEnv, H_AutoStep
+        dw H_Tune, 0, H_Stereo, K_EnvNote, H_AutoEnv, H_AutoStep
         dw H_TrLoop, H_TrStart, H_TrSong, H_TrRow, K_Stop     ; (19 - кнопки ■ больше нет)
         dw H_Chips, H_Trk1, H_Trk2, Win_About, H_TabDisk, H_TabInstr, H_TabOrn, H_TabSetup
         dw H_TabHelp, H_EnvMode, H_TabFx
@@ -850,10 +845,6 @@ H_RatUp ld hl,Auto_Ratio
         jp Hd_Cycle
 H_Tune  ld hl,Song_Tuning
         ld b,TUNINGS
-        call Hd_Cycle
-        jp Hd_Save
-H_Chip  ld hl,Song_Device
-        ld b,DEVICES
         call Hd_Cycle
         jp Hd_Save
 H_Stereo
