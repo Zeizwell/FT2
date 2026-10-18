@@ -569,7 +569,7 @@ Ob_V            db 0
 Ov_Fields                           ; Setup - окно: вне его поля не работают (шапка, транспорт, вкладки -
                                     ;   нет), клик мимо окна - только закрыть
         OV_FIELD 0,0,90,OV_TOP, 0, Ov_TabEv, 0                          ; шапка - мимо окна
-        OV_FIELD PL_X+2,LIST_Y,8,PALETTES, FF_HAND, Ov_PalEv, 0          ; темы
+        OV_FIELD PL_X+1,LIST_Y,21-2,PALETTES, FF_HAND, Ov_PalEv, 0       ; темы - вся строка группы (попадать легко)
         OV_FIELD SAVE_BX,SAVE_BY,6,1, FF_BTN|FF_HAND, Bn_Ev, Bd_OvSave ; Save (srs/button.asm) - справа внизу окна
         OV_FIELD MS_X,MS_Y+1,6+MS_SPEED_MAX,1, FF_HAND, Ov_MouseEv, 0    ; мышь: скорость
         OV_FIELD MS_X,MS_Y+2,6+MS_ACCEL_MAX,1, FF_HAND, Ov_MouseEv, 1    ;   ускорение
