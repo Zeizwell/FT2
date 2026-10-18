@@ -374,10 +374,14 @@ Hd_Texts
         ld b,HD_FILE_W
         ld de,HD_FILE_X+256*(HD_SCR_H+HD_ROW_FILE)
         call Hd_Text
+        ld hl,F_HdSong              ; в фокусе (вводят) - цветом курсора
+        call Hd_NameClr
         ld hl,Hd_Song
         ld b,32
         ld de,HD_NAME_X+256*(HD_SCR_H+HD_ROW_SONG)
         call Hd_Text
+        ld hl,F_HdBy
+        call Hd_NameClr
         ld hl,Hd_Author
         ld b,32
         ld de,HD_AUTH_X+256*(HD_SCR_H+HD_ROW_SONG)
@@ -645,6 +649,8 @@ Head_Fields
         FIELD HD_TAB_ORN,  HD_TABS_Y, 3,1, FF_HAND, Hd_Field, 0, 26          ; вкладка Orn
         FIELD HD_TAB_FX,   HD_TABS_Y, 2,1, FF_HAND, Hd_Field, 0, 30          ; вкладка FX
         FIELD HD_TAB_SETUP,HD_TABS_Y, 5,1, FF_HAND, Hd_Field, 0, 27          ; вкладка Setup
+F_HdSong FIELD HD_NAME_X,   HD_ROW_SONG,32,1, FF_FOCUS|FF_HAND, Hd_NameEv, 0, 0 ; Song - ввод
+F_HdBy  FIELD HD_AUTH_X,    HD_ROW_SONG,32,1, FF_FOCUS|FF_HAND, Hd_NameEv, 0, 1 ; By - ввод
 Tr_Fields                           ; кнопки транспорта (спрайты Tr_*), подряд
         FIELD HD_PLAY_X,   HD_PLAY_Y, 4,2, FF_HAND, Hd_Field, 0, 15          ; ⇄ паттерн по кругу (F8)
         FIELD HD_PLAY_X+4, HD_PLAY_Y, 4,2, FF_HAND, Hd_Field, 0, 16          ; |◀ сонг с начала (F6)
@@ -661,6 +667,118 @@ Hd_Act  dw H_SpdDn, H_SpdUp, H_OctDn, H_OctUp, H_StepDn, H_StepUp
         dw H_TabHelp, H_EnvMode, H_TabFx
 
 ;-------- Поле шапки: клик - действие (вид нажатой кнопки рисует Hd_Buttons)
+;-------- Song / By: ввод как имя в инструменте - буквы, Shift - заглавные, Backspace, Enter - назад в паттерн.
+; Буфер шапки (Hd_Song / Hd_Author) и сразу - в страницу трека (SH_NAME / SH_AUTHOR)
+Hd_NameEv
+        cp EV_FOCUS_IN
+        jr z,.redraw
+        cp EV_FOCUS_OUT
+        jr z,.redraw
+        cp EV_KEY
+        ret nz
+        ld a,(ix+FLD_PARAM)         ; буфер: 0 - Song, 1 - By
+        or a
+        ld hl,Hd_Song
+        jr z,$+5
+        ld hl,Hd_Author
+        ld (Hn_Buf),hl
+        ld a,b
+        cp KEY_BACK
+        jr z,.back
+        cp KEY_ENTER
+        jr z,.done
+        cp KEY_TAB
+        ret z
+        or a                        ; E0-коды - не буквы
+        ret m
+        ld h,high Key_Chars         ; код -> символ (0 - не символ)
+        ld l,a
+        ld a,(hl)
+        or a
+        ret z
+        bit 0,c                     ; Shift: буквы - заглавные, минус - подчёркивание
+        jr z,.put
+        cp '-'
+        jr nz,.up
+        ld a,'_'
+        jr .put
+.up     cp 'a'
+        jr c,.put
+        cp 'z'+1
+        jr nc,.put
+        sub 'a'-'A'
+.put    ld b,a
+        call Hn_Len                 ; HL - на конец, A - длина
+        cp 32
+        jr nc,.eat
+        ld (hl),b
+        inc a                       ; не последний знак - за ним 0 (32-й - без 0)
+        cp 32
+        jr nc,.save
+        inc hl
+        ld (hl),0
+        jr .save
+.back   call Hn_Len
+        or a
+        jr z,.eat
+        dec hl
+        ld (hl),0
+.save   call Hn_Save
+        jr .redraw
+.done   ld hl,F_Pat
+        call Fld_Set_Focus
+.redraw ld a,1
+        ld (Hd_TxtNew),a
+.eat    scf
+        ret
+Hn_Buf          dw 0
+
+; HL - первый 0 буфера (или за 32-м знаком), A - длина. BC сохраняет
+Hn_Len
+        ld hl,(Hn_Buf)
+        ld e,0
+.l      ld a,(hl)
+        or a
+        jr z,.e
+        inc hl
+        inc e
+        ld a,e
+        cp 32
+        jr c,.l
+.e      ld a,e
+        ret
+
+; Буфер (Hn_Buf) - в страницу трека: Hd_Song -> SH_NAME, Hd_Author -> SH_AUTHOR (32 байта)
+Hn_Save
+        ld hl,(Hn_Buf)
+        ld de,#8000+SH_NAME
+        ld bc,Hd_Song
+        or a
+        sbc hl,bc
+        jr z,$+5
+        ld de,#8000+SH_AUTHOR
+        ld (Hn_Dst),de
+        ld a,(SV_SONG_PAGE)
+        SETPAGE2 a
+        ld hl,(Hn_Buf)
+        ld de,(Hn_Dst)
+        ld bc,32
+        ldir
+        RESTPAGE2
+        ret
+Hn_Dst          dw 0
+
+; HL - поле Song / By: в фокусе - C = цвет курсора, иначе - значений шапки
+Hd_NameClr
+        ld de,(SV_FOCUS)
+        or a
+        sbc hl,de
+        ld a,(THEME_ATTR+CLR_TOP_VALUE)
+        jr nz,$+5
+        ld a,(THEME_ATTR+CLR_CURSOR)
+        ld c,a
+        ret
+
 Hd_Field
         cp EV_CLICK
         ret nz
