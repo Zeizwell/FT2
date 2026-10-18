@@ -2140,7 +2140,7 @@ Dv_Error
         jr Lg_End
 ; HL - текст "готово"
 Dv_Ok
-        ld a,CLR_CMD
+        ld a,CLR_OK
 ; HL - текст, A - цвет (роль CLR_*): начатая строка - дописать, иначе - новая
 Lg_End
         ld (Lg_C),a
