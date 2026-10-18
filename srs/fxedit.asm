@@ -1079,9 +1079,12 @@ Fe_T            db 0                ; номер таблицы строки
 Fe_SIdx         db 0                ; шаг
 Fe_SVal         db 0
 Fe_New          db 0
+Fe_K            db 0                ; клавиша
 
 ;-------- Клавиша B: в шаг под курсором. CF - наша (Ed_Key перерисует), NC - не шаг / не наша
 Fe_StepKey
+        ld a,b                      ; клавиша - в память (Iv_Cur_Col портит B)
+        ld (Fe_K),a
         call Iv_Cur_Col
         ld a,(iy+1)
         cp KD_STEP
@@ -1090,7 +1093,7 @@ Fe_StepKey
         ret
 .go     call Iv_Cur_Row             ; IX - строка
         call Fe_Step_Get            ; Fe_SVal, Fe_SMode
-        ld a,b
+        ld a,(Fe_K)
         cp KEY_DEL
         jr z,.zero
         cp KEY_BACK

@@ -2313,6 +2313,12 @@ Ed_Toggle
         and ~FXF_MIX
         or c
         ld (ix+FR_FLAGS),a
+        dec c                       ; включили (выкл -> SID) и длина 1 - длина 2: меандр "F 0",
+        ret nz                      ;   ШИМ и свип работают (как у Bitphase)
+        ld a,(ix+FXR_LEN1)
+        and #0F
+        ret nz
+        inc (ix+FXR_LEN1)
         ret
 
 ;-------- Код клавиши A -> цифра 0..15 (A..F - hex). CF - не цифра
