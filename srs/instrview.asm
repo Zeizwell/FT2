@@ -166,10 +166,17 @@ Iv_Loop
         call nz,Iv_Draw
         ld a,(Iv_Mode)              ; FX: кнопок и иконок редактора инструментов нет
         cp 2
-        jr z,.show
+        jr z,.fx
         call Iv_Buttons             ; кнопки - каждый кадр (под мышью - подсветка)
         call Er_Icons_All           ; иконки строк - так же
         call Prv_Btn                ; ▶ - горит, пока звучит проба
+        jr .show
+.fx     ld ix,Fe_Fields             ; FX: кнопки и поля чисел - каждый кадр (подсветка, нажатие)
+        ld a,IV_SCR_H
+        call Bn_DrawList
+        ld ix,Fe_Fields
+        ld a,IV_SCR_H
+        call Sp_DrawList
 .show   call Scr_Show               ; кадр нарисован - показать (двойной буфер)
         jp Iv_Loop
 
@@ -1482,7 +1489,9 @@ Iv_Buttons
         cp 2
         ld hl,Btn_Sw_Glyphs
         call z,Bg_List
-        jr Bt_Texts
+        ld ix,Iv_Fields             ; кнопки (srs/button.asm)
+        ld a,IV_SCR_H
+        jp Bn_DrawList
 ; значки списка HL (поле; колонка, строка, значок), конец - 0
 Bg_List
 .g      ld e,(hl)                   ; поле
@@ -1519,40 +1528,6 @@ Bg_List
         call PutCh
         pop hl
         jr .g
-; надписи кнопок: под мышью - подсветка, держат - нажата
-Bt_Texts
-        ld hl,Btn_Texts
-.t      ld e,(hl)                   ; поле
-        inc hl
-        ld d,(hl)
-        inc hl
-        ld a,d
-        or e
-        ret z
-        push de
-        pop ix
-        ld e,(hl)                   ; колонка
-        inc hl
-        ld a,(hl)                   ; текст
-        inc hl
-        push hl
-        ld h,(hl)
-        ld l,a
-        push hl
-        call Btn_State
-        ld a,(THEME_ATTR+CLR_HEAD_TEXT)
-        jr c,.put
-        ld a,(THEME_ATTR+CLR_HOVER)
-        jr nz,.put
-        ld a,(THEME_ATTR+CLR_CURSOR)
-.put    ld c,a
-        ld d,IV_SCR_H+BT_Y
-        pop hl
-        call PutStr
-        pop hl
-        inc hl
-        jr .t
-
 ; Кнопка IX: CF - не под мышью; иначе Z - нажата, NZ - только под мышью. E сохраняет
 Btn_State
         push de
@@ -1582,29 +1557,49 @@ Btn_Sw_Glyphs
         dw F_SwP
         db ST_P, SUB_Y, GLYPH_BTN_PLUS
         dw 0
-Btn_Texts
-        dw F_Clone
-        db BC_X
-        dw Txt_Clone
-        dw F_Copy
-        db BY_X
-        dw Txt_Copy
-        dw F_Paste
-        db BP_X
-        dw Txt_Paste
-        dw F_Clear
-        db BL_X
-        dw Txt_Clear
-        dw F_Unloop
-        db BU_X
-        dw Txt_Unloop
-        dw F_Prev
-        db BV_X
-        dw Txt_Prev
-        dw F_Next
-        db BN_X
-        dw Txt_Next
-        dw 0
+; Описания кнопок (srs/button.asm): действие, надпись, флаги, тень, фон, после
+Bd_Clone      dw Iv_Clone, Txt_Clone
+                db 0, 0, 0
+                dw Iv_Changed
+Bd_Copy       dw Iv_Copy, Txt_Copy
+                db 0, 0, 0
+                dw Iv_Changed
+Bd_Paste      dw Iv_Paste, Txt_Paste
+                db 0, 0, 0
+                dw Iv_Changed
+Bd_Clear      dw Iv_Clear, Txt_Clear
+                db 0, 0, 0
+                dw Iv_Changed
+Bd_Unloop     dw Iv_Unloop, Txt_Unloop
+                db 0, 0, 0
+                dw Iv_Changed
+Bd_Prev       dw Iv_Prev, Txt_Prev
+                db 0, 0, 0
+                dw Iv_Changed
+Bd_Next       dw Iv_Next, Txt_Next
+                db 0, 0, 0
+                dw Iv_Changed
+Bd_FeClone    dw Fe_Clone, Txt_Clone
+                db 0, 0, 0
+                dw Iv_Changed
+Bd_FeCopy     dw Fe_CopyB, Txt_Copy
+                db 0, 0, 0
+                dw Iv_Changed
+Bd_FePaste    dw Fe_Paste, Txt_Paste
+                db 0, 0, 0
+                dw Iv_Changed
+Bd_FeClear    dw Fe_Clear, Txt_Clear
+                db 0, 0, 0
+                dw Iv_Changed
+Bd_FeUnloop   dw Fe_Unloop, Txt_Unloop
+                db 0, 0, 0
+                dw Iv_Changed
+Bd_FeSave     dw 0, Txt_Save
+                db 0, 0, 0
+                dw Iv_Changed
+Bd_FeLoad     dw 0, Txt_LoadB
+                db 0, 0, 0
+                dw Iv_Changed
 
 ; --- кнопки в строке BT_Y: колонка и ширина (текст с пробелами по краям)
 BC_X            equ 23              ; " Clone "
@@ -1644,11 +1639,13 @@ Fe_Fields                           ; FX: только шапка (как в н�
 F_FeEdit IV_FIELD 1,FE_ROW0,88,FE_ROWS, FF_FOCUS, Fe_EditEv, 0    ;     строки FX
         IV_FIELD 89,FE_ROW0,1,FE_ROWS, FF_HAND, Fe_RScrEv, 0          ;     скроллбар строк
 F_FeName IV_FIELD FE_MID+6,IV_TOP+1,16,1, FF_FOCUS|FF_HAND, Fe_NameEv, 0 ;     имя
-        IV_FIELD FE_BTN,IV_TOP+1,7,1, FF_HAND, Fe_BtnEv, 0            ;     [Clone]
-        IV_FIELD FE_BTN+8,IV_TOP+1,6,1, FF_HAND, Fe_BtnEv, 1          ;     [Copy]
-        IV_FIELD FE_BTN+15,IV_TOP+1,7,1, FF_HAND, Fe_BtnEv, 2         ;     [Paste]
-        IV_FIELD FE_BTN,IV_TOP+2,7,1, FF_HAND, Fe_BtnEv, 3            ;     [Clear]
-        IV_FIELD FE_BTN+8,IV_TOP+2,8,1, FF_HAND, Fe_BtnEv, 4          ;     [Unloop]
+        IV_FIELD FE_BTN,IV_TOP+1,7,1, FF_BTN|FF_HAND, Bn_Ev, Bd_FeClone    ;     кнопки (srs/button.asm)
+        IV_FIELD FE_BTN+8,IV_TOP+1,6,1, FF_BTN|FF_HAND, Bn_Ev, Bd_FeCopy
+        IV_FIELD FE_BTN+15,IV_TOP+1,7,1, FF_BTN|FF_HAND, Bn_Ev, Bd_FePaste
+        IV_FIELD FE_BTN,IV_TOP+2,7,1, FF_BTN|FF_HAND, Bn_Ev, Bd_FeClear
+        IV_FIELD FE_BTN+8,IV_TOP+2,8,1, FF_BTN|FF_HAND, Bn_Ev, Bd_FeUnloop
+        IV_FIELD FE_BTN,IV_TOP+3,6,1, FF_BTN|FF_HAND, Bn_Ev, Bd_FeSave     ;     Save / Load - пока без действия
+        IV_FIELD FE_BTN+8,IV_TOP+3,6,1, FF_BTN|FF_HAND, Bn_Ev, Bd_FeLoad
         db FLD_END
 Iv_Fields
         IV_FIELD patview.HD_PLAY_X,   patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 0  ; ⇄ паттерн по кругу
@@ -1667,13 +1664,13 @@ F_List  IV_FIELD LI_X+1,LI_ROW0,LI_W-2,LI_ROWS, 0, Iv_ListEv, 0       ; спис
 F_Name  IV_FIELD NM_V,NM_Y,NAME_LEN,1, FF_FOCUS|FF_HAND, Iv_NameEv, 0 ; имя
         IV_FIELD LEN_V,NM_Y,2+4,1, FF_SPIN|FF_HAND, Sp_Ev, Sd_Len       ; Len nn[+][-]
         IV_FIELD LOOP_V,NM_Y,2+4,1, FF_SPIN|FF_HAND, Sp_Ev, Sd_Loop     ; Loop nn[+][-]
-F_Clone IV_FIELD BC_X,BT_Y,7,1, FF_HAND, Iv_BtnEv, 4
-F_Copy  IV_FIELD BY_X,BT_Y,6,1, FF_HAND, Iv_BtnEv, 5
-F_Paste IV_FIELD BP_X,BT_Y,7,1, FF_HAND, Iv_BtnEv, 6
-F_Clear IV_FIELD BL_X,BT_Y,7,1, FF_HAND, Iv_BtnEv, 7
-F_Unloop IV_FIELD BU_X,BT_Y,8,1, FF_HAND, Iv_BtnEv, 8
-F_Prev  IV_FIELD BV_X,BT_Y,3,1, FF_HAND, Iv_BtnEv, 9                  ; < предыдущий
-F_Next  IV_FIELD BN_X,BT_Y,3,1, FF_HAND, Iv_BtnEv, 10                 ; > следующий
+        IV_FIELD BC_X,BT_Y,7,1, FF_BTN|FF_HAND, Bn_Ev, Bd_Clone        ; кнопки (srs/button.asm)
+        IV_FIELD BY_X,BT_Y,6,1, FF_BTN|FF_HAND, Bn_Ev, Bd_Copy
+        IV_FIELD BP_X,BT_Y,7,1, FF_BTN|FF_HAND, Bn_Ev, Bd_Paste
+        IV_FIELD BL_X,BT_Y,7,1, FF_BTN|FF_HAND, Bn_Ev, Bd_Clear
+        IV_FIELD BU_X,BT_Y,8,1, FF_BTN|FF_HAND, Bn_Ev, Bd_Unloop
+        IV_FIELD BV_X,BT_Y,3,1, FF_BTN|FF_HAND, Bn_Ev, Bd_Prev         ; < предыдущий
+        IV_FIELD BN_X,BT_Y,3,1, FF_BTN|FF_HAND, Bn_Ev, Bd_Next         ; > следующий
 F_FxN   IV_FIELD FXN_V,IV_TOP,2+4,1, FF_HAND, Sp_Ev, Sd_Fx            ; FX инструмента nn[+][-] (без FF_SPIN:
                                     ;   кнопки - только в режиме Instr, Iv_Buttons)
 F_SubM  IV_FIELD SUB_MIX_X,SUB_Y,5,1, FF_HAND, Iv_SubEv, 0           ; FX: Mix
@@ -1724,25 +1721,6 @@ Iv_TabEv
         ret
 
 ;-------- Кнопки
-Iv_BtnEv
-        cp EV_CLICK
-        ret nz
-        ld a,(ix+FLD_PARAM)
-        add a,a
-        ld hl,Btn_Act
-        call Hl_Add_A
-        ld a,(hl)
-        inc hl
-        ld h,(hl)
-        ld l,a
-        call .jp
-        jp Iv_Changed
-.jp     jp (hl)
-
-Btn_Act dw Len_Dn, Len_Up, Loop_Dn, Loop_Up
-        dw Iv_Clone, Iv_Copy, Iv_Paste, Iv_Clear, Iv_Unloop, Iv_Prev, Iv_Next
-        dw Fx_Dn, Fx_Up
-
 ;-------- Номер FX инструмента: - / + (0 - без FX). Только в режиме Instr
 Fx_Dn   call Fx_Ref
         ret nz
@@ -3485,6 +3463,8 @@ Txt_Clear       db " Clear ",0
 Txt_Unloop      db " Unloop ",0
 Txt_Prev        db " < ",0
 Txt_Next        db " > ",0
+Txt_Save        db " Save ",0
+Txt_LoadB       db " Load ",0
 Txt_Oct         db "Oct",0
 Txt_Orn         db "Orn",0
 Txt_Ins         db "Ins",0

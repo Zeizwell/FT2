@@ -53,8 +53,7 @@ Fe_Frame
         ld de,2+256*(IV_SCR_H+IV_TOP)
         ld hl,Txt_FxmTitle
         call PutStr
-        call Fe_Btns
-        jp Fxm_Lines_Hd
+        jp Fxm_Lines_Hd               ; кнопки рисует цикл тулзы (Bn_DrawList) каждый кадр
 
 ;-------- Содержимое (по изменению, Iv_Dirty): список, средний блок, строки. Рамку не трогает
 Fe_Draw
@@ -360,19 +359,6 @@ Fe_Shape
         jp PutHex2
 
 ;-------- Кнопки (справа): пока только надписи
-Fe_Btns
-        ld a,(THEME_ATTR+CLR_BUTTON)
-        ld c,a
-        ld de,FE_BTN+256*(IV_SCR_H+IV_TOP+1)
-        ld hl,Txt_FeBtn1
-        call PutStr
-        ld de,FE_BTN+256*(IV_SCR_H+IV_TOP+2)
-        ld hl,Txt_FeBtn2
-        call PutStr
-        ld de,FE_BTN+256*(IV_SCR_H+IV_TOP+3)
-        ld hl,Txt_FeBtn3
-        jp PutStr
-
 ; =========================================================================
 ; СТРОКИ FX
 ; =========================================================================
@@ -687,9 +673,6 @@ Txt_FeStart     db "  Start ",0
 Txt_FeKp        db "Kp",0
 Txt_FeSubs      db "[ Mix ]",0,"[ FM ]",0,"[ Env FM ]",0
 Txt_FeShapes    db "TriSinUp Dn Sqr"   ; таблицы 1..5 пресета
-Txt_FeBtn1      db "[Clone] [Copy] [Paste]",0
-Txt_FeBtn2      db "[Clear] [Unloop]",0
-Txt_FeBtn3      db "[Save]  [Load]",0
 Txt_FeCapMix    db "Rw Mix  Max  Min Swp Semi   Det  Ln  Steps (hex)",0
 Txt_FeCapFm     db "Rw FM Semi  Det Unit Ln Steps (semi - dec, per - hex)",0
 Txt_FeCapEfm    db "Rw EF Semi  Det Unit Ln Steps (semi - dec, per - hex)",0
@@ -1516,22 +1499,6 @@ Fe_Rows16
         ret
 
 ;-------- Кнопки справа: 0 Clone, 1 Copy, 2 Paste, 3 Clear, 4 Unloop (5 Save, 6 Load - позже)
-Fe_BtnEv
-        cp EV_CLICK
-        ret nz
-        ld a,(ix+FLD_PARAM)
-        or a
-        jr z,Fe_Clone
-        dec a
-        jp z,Fe_CopyB
-        dec a
-        jp z,Fe_Paste
-        dec a
-        jp z,Fe_Clear
-        dec a
-        jp z,Fe_Unloop
-        ret
-
 ;-------- Clone: текущий -> в первый пустой FX, он и становится текущим
 Fe_Clone
         ld c,0

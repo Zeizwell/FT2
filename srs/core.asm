@@ -221,7 +221,8 @@ dma_wait	ld bc,DMASTATUS
     include "srs/screen.asm"       ; двойной буфер экрана тулз
     include "srs/sprites.asm"      ; спрайты интерфейса: палитра и карта
     include "srs/textin.asm"
-    include "srs/spin.asm"         ; поле числа nn[+][-] (как в MilkyTracker)       ; строка ввода текста (Song / By, имена, файл)
+    include "srs/spin.asm"
+    include "srs/button.asm"       ; кнопка (как в Turbo Vision)         ; поле числа nn[+][-] (как в MilkyTracker)       ; строка ввода текста (Song / By, имена, файл)
     include "srs/mouse.asm"
     include "srs/input.asm"
     include "srs/fields.asm"
