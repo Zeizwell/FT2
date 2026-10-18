@@ -10,13 +10,7 @@ TL_LAST         equ 35                              ; последняя вид�
 TL_TABS_ATTR    equ (TL_SCR_H+patview.HD_TABS_Y)*256+128+patview.HD_TABS_X ; атрибуты вкладок
 TL_TABS_W       equ patview.HD_TAB_SETUP+5-patview.HD_TABS_X    ; Instr .. Setup
 
-; --- рамки
-BOX_V           equ #B3             ; │
-BOX_H           equ #C4             ; ─
-BOX_TL          equ #DA             ; ┌
-BOX_TR          equ #BF             ; ┐
-BOX_BL          equ #C0             ; └
-BOX_BR          equ #D9             ; ┘
+; --- рамки: знаки и примитивы - srs/prim.asm
 
 ;-------- Шапка: её буфер - в строки 0..TL_TOP-1, вкладка тулзы - выбранной.
 ; HL - атрибут вкладки на экране, B - её ширина (0 - без подсветки)
@@ -63,57 +57,22 @@ Tool_Clear
 ;-------- Рамка: колонка Bx_X, ширина Bx_W, строки TL_TOP..TL_LAST (до низа экрана). Внутри - пробелы
 Bx_X            db 0
 Bx_W            db 0
-Tool_Box
-        ld a,(THEME_ATTR+CLR_TITLE)
-        ld c,a
-        ld d,TL_SCR_H+TL_TOP        ; верх ┌──┐
-        ld a,BOX_TL
-        ld b,BOX_TR
-        call .line
-        ld d,TL_SCR_H+TL_LAST       ; низ └──┘ - последняя строка экрана
-        ld a,BOX_BL
-        ld b,BOX_BR
-        call .line
-        ld d,TL_SCR_H+TL_TOP+1      ; бока, внутри - пробелы
-.side   ld a,(THEME_ATTR+CLR_TITLE)
-        ld c,a
+Tool_Box                            ; на примитивах (srs/prim.asm): внутри - фон, рамка - цветом заголовка
         ld a,(Bx_X)
-        ld e,a
-        ld a,BOX_V
-        call PutCh
+        ld (Pr_X),a
+        ld a,(Bx_W)
+        ld (Pr_W),a
+        ld a,TL_SCR_H+TL_TOP
+        ld (Pr_Y),a
+        ld a,TL_LAST-TL_TOP+1
+        ld (Pr_H),a
         ld a,(THEME_ATTR+CLR_BG)
         ld c,a
-        ld a,(Bx_W)
-        sub 2
-        ld b,a
-.sp     ld a,' '
-        call PutCh
-        djnz .sp
+        ld a,' '
+        call Pr_Fill
         ld a,(THEME_ATTR+CLR_TITLE)
         ld c,a
-        ld a,BOX_V
-        call PutCh
-        inc d
-        ld a,d
-        cp TL_SCR_H+TL_LAST
-        jr c,.side
-        ret
-; Линия рамки: A - левый угол, B - правый, D - строка
-.line   push bc
-        push af
-        ld a,(Bx_X)
-        ld e,a
-        pop af
-        call PutCh
-        ld a,(Bx_W)
-        sub 2
-        ld b,a
-.h      ld a,BOX_H
-        call PutCh
-        djnz .h
-        pop bc
-        ld a,b
-        jp PutCh
+        jp Pr_Box
 
 ;-------- Кнопки транспорта (общие для всех тулз), событие поля. Позиция - та, что
 ; играла последней (курсора паттерна здесь нет): ⇄ - её паттерн по кругу,

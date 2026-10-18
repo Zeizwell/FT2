@@ -214,6 +214,7 @@ dma_wait	ld bc,DMASTATUS
 		ret
 
 
+    include "srs/prim.asm"         ; примитивы интерфейса (doc/ui.md)
     include "srs/screen.asm"       ; двойной буфер экрана тулз
     include "srs/sprites.asm"      ; спрайты интерфейса: палитра и карта
     include "srs/textin.asm"

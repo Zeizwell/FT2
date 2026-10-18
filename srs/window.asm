@@ -23,12 +23,6 @@ WIN_CENTER      equ #FF             ; x / y в описателе: по цент
 WF_CONTEXT      equ %00000001       ; флаг окна: контекстное - клик мимо закрывает
 WIN_SCR_W       equ 90              ; видимый экран
 WIN_SCR_ROWS    equ 36
-WB_TL           equ #DA             ; рамка: ┌ ┐ └ ┘ ─ │
-WB_TR           equ #BF
-WB_BL           equ #C0
-WB_BR           equ #D9
-WB_H            equ #C4
-WB_V            equ #B3
 
 Win_On          db 0                ; 1 - окно на экране (Win_Blit кладёт его каждый кадр)
 Win_Busy        db 0                ; 1 - окно рисуют: вид паттерна кадр не собирает
@@ -210,47 +204,18 @@ Win_Dma
 
 ;-------- Группа в окне (стандарт): рамка ┌─ Заголовок ──┐ ... └──┘ цветом окна, внутри не трогает.
 ; HL - описание: x, y, ширина, высота (с рамкой), заголовок (текст, 0). Экран - в окне 3 (строка = #C0 + y)
-Gb_X            db 0
-Gb_Y            db 0
-Gb_W            db 0
-Gb_H            db 0
 Gb_Draw
-        ld de,Gb_X
-        ld bc,4
-        ldir
+        call Pr_Rect                ; на примитивах (srs/prim.asm): рамка цветом окна
+        ld a,(Pr_Y)                 ; y - от верха экрана
+        add a,WIN_SCR_H
+        ld (Pr_Y),a
         push hl                     ; заголовок
         ld a,(THEME_ATTR+CLR_WIN_TEXT)
         ld c,a
-        ld a,(Gb_Y)                 ; верх ┌──┐
-        add a,WIN_SCR_H
+        call Pr_Box
+        ld a,(Pr_Y)                 ; " Заголовок " - с x+2 на верхней линии
         ld d,a
-        ld a,WB_TL
-        ld b,WB_TR
-        call .line
-        ld a,(Gb_H)                 ; бока │ │
-        sub 2
-        ld b,a
-.s      inc d
-        ld a,(Gb_X)
-        ld e,a
-        ld a,WB_V
-        call PutCh
-        ld a,(Gb_X)
-        ld hl,Gb_W
-        add a,(hl)
-        dec a
-        ld e,a
-        ld a,WB_V
-        call PutCh
-        djnz .s
-        inc d                       ; низ └──┘
-        ld a,WB_BL
-        ld b,WB_BR
-        call .line
-        ld a,(Gb_Y)                 ; " Заголовок " - с x+2 на верхней линии
-        add a,WIN_SCR_H
-        ld d,a
-        ld a,(Gb_X)
+        ld a,(Pr_X)
         add a,2
         ld e,a
         ld a,' '
@@ -258,22 +223,6 @@ Gb_Draw
         pop hl
         call PutStr
         ld a,' '
-        jp PutCh
-; строка D: A - левый угол, B - правый, между - ─
-.line   push bc
-        push af
-        ld a,(Gb_X)
-        ld e,a
-        pop af
-        call PutCh
-        ld a,(Gb_W)
-        sub 2
-        ld b,a
-.h      ld a,WB_H
-        call PutCh
-        djnz .h
-        pop bc
-        ld a,b
         jp PutCh
 
 ;-------- Ждать (About): клавиша - закрыть; клик мимо - закрыть, если окно контекстное (WF_CONTEXT); в окне - ничего.
@@ -335,44 +284,23 @@ Wd_N            db 0                ; строк окна ещё можно
 Wd_Fn           dw Wd_Text          ; как рисовать строки: Wd_Text / Wd_Menu
 
 ;-------- Рамка, фон и строки окна (экран - в окне 3)
-Win_Draw                            ; рамка - тёмными линиями (как подписи) на фоне окна
-        ld a,(Wd_AF)
-        ld c,a
+Win_Draw                            ; на примитивах (srs/prim.asm): фон, рамка цветом окна, заголовок, тень
+        ld a,(Win_X)
+        ld (Pr_X),a
         ld a,(Win_Y)
         add a,WIN_SCR_H
-        ld d,a
-        ld a,WB_TL                  ; верх
-        ld b,WB_TR
-        call Wd_Line
-        ld a,(Win_H)                ; бока, внутри - пробелы фоном окна
-        sub 2
-        ld b,a
-.m      push bc
-        inc d
-        ld a,(Win_X)
-        ld e,a
-        ld a,(Wd_AF)
-        ld c,a
-        ld a,WB_V
-        call PutCh
+        ld (Pr_Y),a
+        ld a,(Win_W)
+        ld (Pr_W),a
+        ld a,(Win_H)
+        ld (Pr_H),a
         ld a,(Wd_AB)
         ld c,a
-        ld a,(Win_W)
-        sub 2
-        ld b,a
-.sp     ld a,' '
-        call PutCh
-        djnz .sp
+        ld a,' '
+        call Pr_Fill
         ld a,(Wd_AF)
         ld c,a
-        ld a,WB_V
-        call PutCh
-        pop bc
-        djnz .m
-        inc d                       ; низ
-        ld a,WB_BL
-        ld b,WB_BR
-        call Wd_Line
+        call Pr_Box
         call Wd_Title
         call Wd_Shadow
         ld hl,(Wd_Fn)               ; строки: текст (About) или пункты меню
@@ -460,33 +388,32 @@ Win_OnClose
 Wd_Shadow
         ld a,(THEME_ATTR+CLR_WIN_SHADOW)
         ld c,a
-        ld a,(Win_Y)                ; справа
+        ld a,(Win_X)                ; справа: колонки x+w, x+w+1, строки y+1..y+h
+        ld hl,Win_W
+        add a,(hl)
+        ld (Pr_X),a
+        ld a,(Win_Y)
         add a,WIN_SCR_H+1
-        ld h,a
+        ld (Pr_Y),a
+        ld a,2
+        ld (Pr_W),a
         ld a,(Win_H)
-        ld b,a
-.r      ld a,(Win_X)
-        ld l,a
-        ld a,(Win_W)
-        add a,l
-        or 128
-        ld l,a
-        ld (hl),c
-        inc l
-        ld (hl),c
-        inc h
-        djnz .r
-        dec h                       ; снизу: строка y+h
-        ld a,(Win_X)
-        add a,128+2
-        ld l,a
+        ld (Pr_H),a
+        call Pr_Attr
+        ld a,(Win_X)                ; снизу: строка y+h, колонки x+2..x+w-1
+        add a,2
+        ld (Pr_X),a
+        ld a,(Win_Y)
+        ld hl,Win_H
+        add a,(hl)
+        add a,WIN_SCR_H
+        ld (Pr_Y),a
         ld a,(Win_W)
         sub 2
-        ld b,a
-.b      ld (hl),c
-        inc l
-        djnz .b
-        ret
+        ld (Pr_W),a
+        ld a,1
+        ld (Pr_H),a
+        jp Pr_Attr
 
 ; Строки текста: роль цвета, текст, 0. С x+2, не больше, чем влезает
 Wd_Text
@@ -519,22 +446,6 @@ Wd_Text
         inc hl
         inc d
         jr .t
-; строка рамки D: A - левый угол, B - правый, между - ─
-Wd_Line push bc
-        push af
-        ld a,(Win_X)
-        ld e,a
-        pop af
-        call PutCh
-        ld a,(Win_W)
-        sub 2
-        ld b,a
-.h      ld a,WB_H
-        call PutCh
-        djnz .h
-        pop bc
-        ld a,b
-        jp PutCh
     ASSERT (THEME_ATTR & 255) == 0 || (THEME_ATTR & 255) + 128 <= 256
 
 ;-------- Меню у мыши: HL - ширина, пунктов, флаги (WF_*), пункты (действие ACT_*, текст, 0; WM_SEP). Пункт под
@@ -685,7 +596,7 @@ Wd_Menu
         ld a,(Win_W)
         sub 2
         ld b,a
-.h      ld a,WB_H
+.h      ld a,BOX_H
         call PutCh
         djnz .h
         ld a,#B4
