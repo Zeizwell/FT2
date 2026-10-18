@@ -62,6 +62,8 @@ Fe_Draw
         call Fe_List
         call Fe_Mid
         jp Fe_Rows
+        call Fe_RowSb               ; скроллбар строк - на правой рамке
+        call Vsb_Draw
 
 ;-------- A - страница, HL - откуда (окно 2), DE - куда, BC - сколько. SETPAGE портит BC
 Fe_Copy
@@ -198,31 +200,42 @@ Fe_List
         ld b,14
         call Put_Name
         pop bc
-        push bc
-        ld a,(THEME_ATTR+CLR_TEXT) ; скролл: ^ сверху, v снизу, █ - где текущий
-        ld c,a
-        ld a,b
-        or a
-        ld a,GLYPH_SCR_UP
-        jr z,.sc
-        ld a,b
-        cp FE_LIST_ROWS-1
-        ld a,GLYPH_SCR_DOWN
-        jr z,.sc
-        ld a,(Iv_Num)               ; ползунок: строка 1 - первая половина, 2 - вторая
-        cp FXS_MAX/2               ;   (C - первая половина)
-        ld a,2
-        sbc a,0
-        cp b
-        ld a,' '
-        jr nz,.sc
-        ld a,#DB
-.sc     call PutCh
-        pop bc
         inc b
         ld a,b
         cp FE_LIST_ROWS
         jr c,.row
+        call Fe_ListSb              ; скроллбар списка - стандарт (Vsb_Draw)
+        jp Vsb_Draw
+
+;-------- Скроллбар списка FX: колонка 18, строки шапки, 32 FX, видно 4
+Fe_ListSb
+        ld a,18
+        ld (Vsb_Col),a
+        ld a,IV_SCR_H+IV_TOP+1
+        ld (Vsb_Top),a
+        ld a,FE_LIST_ROWS
+        ld (Vsb_H),a
+        ld (Vsb_Vis),a
+        ld a,FXS_MAX
+        ld (Vsb_Total),a
+        ld a,(Fe_LTop)
+        ld (Vsb_First),a
+        ret
+
+;-------- Скроллбар строк FX: на правой рамке (как в Turbo Vision), строк - длина FX
+Fe_RowSb
+        ld a,89
+        ld (Vsb_Col),a
+        ld a,IV_SCR_H+FE_ROW0
+        ld (Vsb_Top),a
+        ld a,FE_ROWS
+        ld (Vsb_H),a
+        ld (Vsb_Vis),a
+        ld a,(Fe_Hdr+FXH_END)
+        inc a
+        ld (Vsb_Total),a
+        ld a,(Ed_Top)
+        ld (Vsb_First),a
         ret
 
 ;-------- Средний блок: Name, Len / Loop, свип, подвкладки
@@ -723,24 +736,66 @@ Fe_Dirty
         ld (Iv_Dirty),a
         ret
 
-;-------- Скролл списка: ^ - предыдущий, v - следующий, середина - к началу / ко второй половине
+;-------- Скроллбар списка: ▲ / ▼ - соседний FX, дорожка выше / ниже ползунка - на 4, колесо - соседний
 Fe_ScrEv
         cp EV_WHEEL
-        jr z,Fe_Wheel
+        jp z,Fe_Wheel
         cp EV_PRESS
         jr z,.p
         cp EV_REPEAT
         ret nz
-.p      ld a,(SV_MOUSE_ROW)
-        sub IV_TOP+1
-        jr z,Fe_Prev
-        cp FE_LIST_ROWS-1
-        jr z,Fe_Next
-        dec a                       ; 1 - первая половина, 2 - вторая
-        ld a,0
-        jr z,Fe_SetNum
-        ld a,FXS_MAX/2
-        jr Fe_SetNum
+.p      call Fe_ListSb
+        call Vsb_Calc
+        ld a,(SV_MOUSE_ROW)
+        call Vsb_Hit
+        or a
+        jp z,Fe_Prev
+        cp 4
+        jp z,Fe_Next
+        cp 2
+        ret z                       ; на ползунке - ничего
+        ld a,(Iv_Num)               ; выше - на 4 назад, ниже - на 4 вперёд
+        jr nc,.dn
+        sub FE_LIST_ROWS
+        jr nc,$+3
+        xor a
+        jp Fe_SetNum
+.dn     add a,FE_LIST_ROWS
+        cp FXS_MAX
+        jr c,$+4
+        ld a,FXS_MAX-1
+        jp Fe_SetNum
+
+;-------- Скроллбар строк FX (правая рамка): ▲ / ▼ - строка, дорожка - страница, колесо - строка
+Fe_RScrEv
+        cp EV_WHEEL
+        jr z,.wh
+        cp EV_PRESS
+        jr z,.p
+        cp EV_REPEAT
+        ret nz
+.p      call Fe_RowSb
+        call Vsb_Calc
+        ld a,(SV_MOUSE_ROW)
+        call Vsb_Hit
+        or a
+        jr z,.up
+        cp 4
+        jr z,.dn
+        cp 2
+        ret z
+        jr c,.pu
+        call Ed_PgDn
+        jp Iv_Changed
+.pu     call Ed_PgUp
+        jp Iv_Changed
+.up     call Ed_Up
+        jp Iv_Changed
+.dn     call Ed_Down
+        jp Iv_Changed
+.wh     bit 7,c
+        jr nz,.dn
+        jr .up
 
 ;-------- Заголовок FX: 0 Len-, 1 Len+, 2 Loop-, 3 Loop+, 4 форма свипа, 5 Start-, 6 Start+, 7 Kp
 Fe_HdrEv
@@ -1663,4 +1718,156 @@ Fe_Name_Len
         cp 16
         jr c,.l
 .e      ld a,e
+        ret
+
+; =========================================================================
+; ВЕРТИКАЛЬНЫЙ СКРОЛЛБАР - стандарт (как был в паттерне, f16da38; как в DOS / Turbo Vision):
+; ▲ сверху, ▼ снизу, дорожка ▒ (CLR_SB_TRACK), ползунок ▓ (CLR_SB_THUMB) - длина = доля видимой части
+; =========================================================================
+SB_TRACK        equ #B1             ; ▒ дорожка
+SB_THUMB        equ #B2             ; ▓ ползунок
+Vsb_Col         db 0                ; колонка
+Vsb_Top         db 0                ; первая строка экрана (с IV_SCR_H)
+Vsb_H           db 0                ; высота со стрелками (не меньше 3)
+Vsb_Total       db 0                ; всего строк
+Vsb_Vis         db 0                ; видно строк
+Vsb_First       db 0                ; первая видимая
+Vsb_Len         db 0                ; ползунок: длина
+Vsb_Pos         db 0                ;   начало на дорожке
+
+;-------- Длина и место ползунка по Vsb_* -> Vsb_T, Vsb_Len, Vsb_Pos
+Vsb_Calc
+        ld a,(Vsb_H)                ; дорожка = высота - 2 стрелки
+        sub 2
+        ld (Vsb_T),a
+        ld a,(Vsb_Total)            ; всё видно - ползунок во всю дорожку
+        ld hl,Vsb_Vis
+        cp (hl)
+        jr z,.all
+        jr nc,.part
+.all    ld a,(Vsb_T)
+        ld (Vsb_Len),a
+        xor a
+        ld (Vsb_Pos),a
+        ret
+.part   ld a,(Vsb_T)                ; длина = дорожка * видно / всего (не меньше 1)
+        ld hl,Vsb_Vis
+        ld e,(hl)
+        call Vsb_Mul                ; HL = A * E
+        ld a,(Vsb_Total)
+        call Vsb_Div                ; A = HL / A
+        or a
+        jr nz,$+3
+        inc a
+        ld (Vsb_Len),a
+        ld b,a                      ; начало = (дорожка - длина) * первая / (всего - видно)
+        ld a,(Vsb_T)
+        sub b
+        ld hl,Vsb_First
+        ld e,(hl)
+        call Vsb_Mul
+        ld a,(Vsb_Vis)
+        ld b,a
+        ld a,(Vsb_Total)
+        sub b
+        call Vsb_Div
+        ld (Vsb_Pos),a
+        ret
+
+;-------- Нарисовать по Vsb_*
+Vsb_Draw
+        call Vsb_Calc
+        ld a,(Vsb_Top)              ; ▲
+        ld d,a
+        ld a,(Vsb_Col)
+        ld e,a
+        ld a,(THEME_ATTR+CLR_SB_THUMB)
+        ld c,a
+        ld a,GLYPH_SCR_UP
+        call PutCh
+        ld b,0                      ; дорожка: клетка B
+.t      ld a,b
+        ld hl,Vsb_T
+        cp (hl)
+        jr nc,.dn
+        inc d
+        ld a,(Vsb_Col)
+        ld e,a
+        ld a,b                      ; в ползунке: Pos <= B < Pos + Len
+        ld hl,Vsb_Pos
+        sub (hl)
+        jr c,.tr
+        ld hl,Vsb_Len
+        cp (hl)
+        jr nc,.tr
+        ld a,(THEME_ATTR+CLR_SB_THUMB)
+        ld c,a
+        ld a,SB_THUMB
+        jr .put
+.tr     ld a,(THEME_ATTR+CLR_SB_TRACK)
+        ld c,a
+        ld a,SB_TRACK
+.put    call PutCh
+        inc b
+        jr .t
+.dn     inc d                       ; ▼
+        ld a,(Vsb_Col)
+        ld e,a
+        ld a,(THEME_ATTR+CLR_SB_THUMB)
+        ld c,a
+        ld a,GLYPH_SCR_DOWN
+        jp PutCh
+Vsb_T           db 0                ; длина дорожки
+
+;-------- HL = A * E
+Vsb_Mul
+        ld hl,0
+        ld d,0
+        or a
+        ret z
+.m      add hl,de
+        dec a
+        jr nz,.m
+        ret
+
+;-------- A = HL / A (A > 0, частное < 256)
+Vsb_Div
+        ld e,a
+        ld d,0
+        ld a,-1
+        or a
+.d      inc a
+        sbc hl,de
+        jr nc,.d
+        ret
+
+;-------- Где клик по скроллбару: A - строка экрана (без IV_SCR_H) -> A: 0 - ▲, 1 - дорожка выше
+; ползунка, 2 - ползунок, 3 - ниже, 4 - ▼ (по последней отрисовке)
+Vsb_Hit
+        ld hl,Vsb_Top
+        add a,IV_SCR_H
+        sub (hl)
+        ld b,a
+        or a
+        ld a,0
+        ret z                       ; ▲
+        ld a,(Vsb_H)
+        dec a
+        cp b
+        ld a,4
+        ret z                       ; ▼
+        ld a,b                      ; клетка дорожки
+        dec a
+        ld hl,Vsb_Pos
+        sub (hl)
+        ld a,1
+        ret c                       ; выше ползунка
+        ld a,b
+        dec a
+        sub (hl)
+        ld hl,Vsb_Len
+        cp (hl)
+        ld a,2
+        ret c                       ; на ползунке
+        ld a,3
         ret
