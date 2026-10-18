@@ -74,6 +74,8 @@ Dv_Check
         ld a,(Ck_Ok)                ; не загрузился - сообщение уже стоит
         or a
         ret z
+        ld hl,Txt_CkRun             ; статус - сразу
+        call Dv_Busy
         call Ck_All
         jp Ck_Msg
 
@@ -535,5 +537,6 @@ Txt_CkRow       db " row ",0
 Txt_CkOff       db " +",0
 Txt_CkDiff      db "Diff ",0
 Txt_CkFirst     db ", first: ",0
+Txt_CkRun       db "Checking...",0
 Txt_CkSame      db "Check OK: file = memory",0
 Txt_CkFt2       db "Check: select an FT2 file",0

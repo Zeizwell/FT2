@@ -1332,7 +1332,9 @@ Dv_Load
         jr z,.kind
         ld hl,Txt_CantLoad
         jp Dv_Error
-.kind   ld hl,Dv_Spec
+.kind   ld hl,Txt_Loading           ; статус - сразу: чтение долгое
+        call Dv_Busy
+        ld hl,Dv_Spec
         call Dv_Find
         ret c
         ld (Ld_Size),hl
@@ -1684,7 +1686,9 @@ Dv_Save
         jr nz,.name
         ld hl,Txt_NoName
         jp Dv_Error
-.name   call Name_Ext
+.name   ld hl,Txt_Saving            ; статус - сразу: запись долгая
+        call Dv_Busy
+        call Name_Ext
         ld hl,Dv_Name               ; имя файла - в трек (и в файл)
         call Dv_Song_File
         ld hl,Dv_Spec               ; такой файл есть? - пишем во временный
@@ -2019,6 +2023,11 @@ Fs_Fill
 Dv_Error
         ld a,CLR_ERROR
         jr Dv_Msg_Set
+; HL - текст "идёт работа": сразу на экран (дальше долгая операция, кадры не крутятся)
+Dv_Busy
+        call Dv_Ok
+        jp Dv_Draw
+
 ; HL - текст "готово"
 Dv_Ok
         ld a,CLR_CMD
@@ -2212,7 +2221,9 @@ Txt_NotFT2      db "Not an FT2 file",0
 Txt_TooBig      db "File too big",0
 Txt_CantLoad    db "Load: FT2 PT3 PT2 FTC only",0
 Txt_NoName      db "Type a name",0
-Txt_Saved       db "Saved",0
+Txt_Saved       db "Saving... OK",0
+Txt_Saving      db "Saving...",0
+Txt_Loading     db "Loading...",0
 Txt_DiskErr     db "Disk error #",0
 Txt_Empty       db "Empty dir",0
 Txt_Full        db "Too many files: not all shown",0
