@@ -26,14 +26,15 @@ FN_X            equ OV_X+22
 FN_W            equ 22
 KY_X            equ 0
 KY_W            equ 90
-LIST_Y          equ OV_TOP+2        ; первая строка списков
-SAVE_Y          equ OV_TOP+10       ; кнопка Save (рамка Palette)
+OV_WY           equ (36-OV_WH)/2    ; окно Setup - по центру экрана по вертикали
+LIST_Y          equ OV_WY+2         ; первая строка списков
+SAVE_Y          equ OV_WY+10       ; кнопка Save (рамка Palette)
 SAVE_X          equ OV_X+2
 SAVE_BX         equ OV_X-1+46-2-6     ; кнопка Save - справа внизу окна (как в диалогах)
-SAVE_BY         equ OV_TOP+15       ;   (строка IMR_Y)
-MSG_Y           equ OV_TOP+12       ; сообщение
-MEM_Y           equ OV_TOP+14       ; свободная память
-IMR_Y           equ OV_TOP+15       ; IM1: повторных входов (должно быть 00)
+SAVE_BY         equ OV_WY+15       ;   (строка IMR_Y)
+MSG_Y           equ OV_WY+12       ; сообщение
+MEM_Y           equ OV_WY+14       ; свободная память
+IMR_Y           equ OV_WY+15       ; IM1: повторных входов (должно быть 00)
 MS_Y            equ LIST_Y-1        ; мышь: строка над скоростью (рамка Mouse)
 MS_X            equ FN_X+2
 MS_BAR_X        equ MS_X+6          ; полоса - за подписью
@@ -141,9 +142,9 @@ Ov_Window
         jp Win_Open
 OV_WX           equ OV_X-1              ; окно Setup: колонка, ширина, высота
 OV_WW           equ 46
-OV_WH           equ IMR_Y-OV_TOP+2
+OV_WH           equ 17                  ;   (строки OV_WY .. OV_WY+16: содержимое до IMR_Y)
 Ov_Win_D
-        db OV_WX, OV_TOP, OV_WW, OV_WH, 0   ; окно как все (цвета шапки)
+        db OV_WX, OV_WY, OV_WW, OV_WH, 0    ; окно как все
         db "Setup",0
         db WIN_END
 
@@ -158,17 +159,14 @@ OV_TAB_HELP     equ OV_SCR_H*256+128+patview.HD_HELP_X
 ; =========================================================================
 ; ЭКРАН
 ; =========================================================================
-Ov_Frames                           ; Setup: подписи разделов в окне (рамка - окна)
-        ld a,(THEME_ATTR+CLR_TOP_TEXT)
-        ld c,a
-        ld de,PL_X+256*(OV_SCR_H+OV_TOP+1)
-        ld hl,Txt_OvPal
-        call PutStr
-        ld e,FN_X
-        ld hl,Txt_OvMouse
-        jp PutStr
-Txt_OvPal       db "Palette",0
-Txt_OvMouse     db "Mouse",0
+Ov_Frames                           ; Setup: группы в окне (стандарт Gb_Draw, srs/window.asm)
+        ld hl,Gb_OvPal
+        call Gb_Draw
+        ld hl,Gb_OvMouse
+        jp Gb_Draw
+Gb_OvPal        db PL_X, OV_WY+1, 21, 10, "Palette",0     ; темы + образец цветов
+Gb_OvMouse      db FN_X, OV_WY+1, 21, 10, "Mouse",0       ; скорость, ускорение, курсор
+    ASSERT FN_X >= PL_X+21 && FN_X+21 <= OV_WX+OV_WW-1
 ; Рамки во всю высоту (Help): HL - колонка, ширина, подпись; B - сколько
 Ov_Boxes_Draw
 .box    push bc
@@ -203,25 +201,25 @@ Hp_Frame
         or a
         ld a,(THEME_ATTR+CLR_SELECT)
         jr z,$+5
-        ld a,(THEME_ATTR+CLR_TOP_TEXT)
+        ld a,(THEME_ATTR+CLR_TEXT)
         ld c,a
         ld de,HP_TAB1+256*(OV_SCR_H+HP_TAB_Y)
         ld hl,Txt_TKeys
         call PutStr
         ld a,(Hp_Page)
         or a
-        ld a,(THEME_ATTR+CLR_TOP_TEXT)
+        ld a,(THEME_ATTR+CLR_TEXT)
         jr z,$+5
         ld a,(THEME_ATTR+CLR_SELECT)
         ld c,a
         ld e,HP_TAB2
         ld hl,Txt_TCmds
         call PutStr
-        ld a,(THEME_ATTR+CLR_TOP_TEXT)
+        ld a,(THEME_ATTR+CLR_TEXT)
         ld c,a
         ld a,KY_X+2                 ; первый столбец
         ld (Hl_Col),a
-        ld d,OV_SCR_H+LIST_Y
+        ld d,OV_SCR_H+HP_LIST_Y
         ld a,(Hp_Page)              ; страница: клавиши или команды
         or a
         ld hl,Hlp_Tab
@@ -235,7 +233,7 @@ Hp_Frame
         jr nz,.t
         ld a,KY_X+46                ; второй столбец
         ld (Hl_Col),a
-        ld d,OV_SCR_H+LIST_Y
+        ld d,OV_SCR_H+HP_LIST_Y
         jr .l
 .t      ld b,a
         ld a,(Hl_Col)
@@ -404,6 +402,7 @@ Hlp_Tab
 
 Hp_Box  db KY_X,KY_W,"Help",0
 HP_TAB_Y        equ OV_TOP+1        ; закладки Help
+HP_LIST_Y       equ OV_TOP+2        ; первая строка справки
 HP_TAB1         equ KY_X+2
 HP_TAB2         equ KY_X+9
 Hp_Page         db 0                ; 0 - клавиши, 1 - команды
@@ -414,7 +413,7 @@ Txt_TCmds       db " Commands ",0
 Ov_Draw
         xor a
         ld (Ov_Dirty),a
-        ld a,(THEME_ATTR+CLR_TOP_TEXT)  ; "Free: NN pages"
+        ld a,(THEME_ATTR+CLR_WIN_TEXT)  ; "Free: NN pages"
         ld c,a
         ld de,SAVE_X+256*(OV_SCR_H+MEM_Y)
         ld hl,Txt_Free
@@ -432,9 +431,9 @@ Ov_Draw
         call Ov_List
         call Ov_Swatch
         call Ov_Mouse
-        ld a,(THEME_ATTR+CLR_TOP_BG)    ; сообщение
+        ld a,(THEME_ATTR+CLR_WIN_TEXT)    ; сообщение
         ld c,a
-        ld de,OV_X+256*(OV_SCR_H+MSG_Y)
+        ld de,SAVE_X+256*(OV_SCR_H+MSG_Y)
         ld b,PL_W-2
 .sp     ld a,' '
         call PutCh
@@ -443,16 +442,16 @@ Ov_Draw
         ld a,h
         or l
         ret z
-        ld a,(THEME_ATTR+CLR_TOP_VALUE)
+        ld a,(THEME_ATTR+CLR_WIN_VALUE)
         ld c,a
         ld e,SAVE_X
         jp PutStr
 
 ;-------- Текущая палитра: 16 клеток по 2 знака - номер цвета (hex) на фоне этого цвета. Атрибуты -
 ; готовой таблицей (палитровый образец: фон = номер цвета, буква - читаемая на нём)
-SW_Y            equ OV_TOP+8
-Ov_Swatch
-        ld de,PL_X+256*(OV_SCR_H+SW_Y)
+SW_Y            equ OV_WY+8
+Ov_Swatch                           ; два ряда по 8 (в группе Palette)
+        ld de,PL_X+2+256*(OV_SCR_H+SW_Y)
         ld hl,Sw_Attr
         ld b,0                      ; B - номер цвета
 .c      ld c,(hl)
@@ -464,12 +463,15 @@ Ov_Swatch
         call PutCh
         inc b
         ld a,b
-        cp 16
+        cp 8                        ; после 7 - второй ряд
+        jr nz,.n
+        inc d
+        ld e,PL_X+2
+.n      cp 16
         jr c,.c
         ret
 Sw_Attr db #0F,#1F,#2F,#3F,#4F,#50,#60,#70,#80,#90,#A0,#B0,#C0,#DF,#E0,#F0 ; фон n; буква: F на тёмных, 0 на светлых
-    ASSERT FN_X >= PL_X                    ; строка образца (32 знака) - ниже блока мыши, в нём не пересекается
-    ASSERT SW_Y > CB_Y && SW_Y < SAVE_Y
+    ASSERT SW_Y > LIST_Y+PALETTES-1 && SW_Y+1 < OV_WY+10    ; образец - под темами, внутри группы
 
 ; Список имён по 8 знаков: HL - имена, B - сколько, C - выбранный, E - колонка
 Ov_List
@@ -487,7 +489,7 @@ Ov_Names
         ld b,a
         ld a,(Ol_Sel)
         cp b
-        ld a,(THEME_ATTR+CLR_TOP_TEXT)
+        ld a,(THEME_ATTR+CLR_WIN_TEXT)
         jr nz,$+5
         ld a,(THEME_ATTR+CLR_SELECT)
         ld c,a
@@ -521,12 +523,12 @@ Ov_Mouse
         ld a,(MOUSE_ACCEL)
         ld b,MS_ACCEL_MAX
         call Ov_Bar
-        ld a,(THEME_ATTR+CLR_TOP_TEXT)  ; курсор паттерна
+        ld a,(THEME_ATTR+CLR_WIN_TEXT)  ; курсор паттерна
         ld c,a
         ld de,MS_X+256*(OV_SCR_H+CB_Y)
         ld hl,Txt_Cursor
         call PutStr
-        ld a,(THEME_ATTR+CLR_TOP_HI)
+        ld a,(THEME_ATTR+CLR_WIN_HI)
         ld c,a
         ld a,(Cur_Blink)
         or a
@@ -539,22 +541,22 @@ Ov_Mouse
 ; DE - место. За полосой - значение цифрой
 Ov_Bar
         ld (Ob_V),a
-        ld a,(THEME_ATTR+CLR_TOP_TEXT)
+        ld a,(THEME_ATTR+CLR_WIN_TEXT)
         ld c,a
         call PutStr
         ld a,(Ob_V)
         ld l,a                      ; L - сколько клеток ещё горит
-.c      ld a,(THEME_ATTR+CLR_TOP_HI) ; горит - клетка цветом громкости
+.c      ld a,(THEME_ATTR+CLR_WIN_HI) ; горит - клетка цветом громкости
         ld c,a
         ld a,GLYPH_VOL
         dec l
         jp p,.put
-        ld a,(THEME_ATTR+CLR_TOP_TEXT) ; нет - точка, как пустое поле
+        ld a,(THEME_ATTR+CLR_WIN_TEXT) ; нет - точка, как пустое поле
         ld c,a
         ld a,'.'
 .put    call PutCh
         djnz .c
-        ld a,(THEME_ATTR+CLR_TOP_TEXT)
+        ld a,(THEME_ATTR+CLR_WIN_TEXT)
         ld c,a
         ld a,' '
         call PutCh
@@ -578,14 +580,15 @@ Ov_Fields
         OV_FIELD patview.HD_ABOUT_X,  patview.HD_TABS_Y,5,1, FF_HAND, Win_AboutEv, 0 ; About
         OV_FIELD 0,0,90,OV_TOP, 0, Ov_TabEv, 0                          ; остальное - назад
         OV_FIELD PL_X+2,LIST_Y,8,PALETTES, FF_HAND, Ov_PalEv, 0          ; темы
-        OV_FIELD OV_X-1+46-WIN_CLOSE_DX,OV_TOP,3,1, FF_HAND, Ov_TabEv, 0 ; [x] окна - назад в паттерн
+        OV_FIELD OV_WX+OV_WW-WIN_CLOSE_DX,OV_WY,3,1, FF_HAND, Ov_TabEv, 0 ; [x] окна - назад в паттерн
         OV_FIELD SAVE_BX,SAVE_BY,6,1, FF_BTN|FF_HAND, Bn_Ev, Bd_OvSave ; Save (srs/button.asm) - справа внизу окна
         OV_FIELD MS_X,MS_Y+1,6+MS_SPEED_MAX,1, FF_HAND, Ov_MouseEv, 0    ; мышь: скорость
         OV_FIELD MS_X,MS_Y+2,6+MS_ACCEL_MAX,1, FF_HAND, Ov_MouseEv, 1    ;   ускорение
         OV_FIELD MS_X,CB_Y,12+5,1, FF_HAND, Ov_CurEv, 0                  ; курсор паттерна: Solid / Blink
-        OV_FIELD 0,OV_TOP,OV_WX,TL_LAST+1-OV_TOP, 0, Ov_TabEv, 0          ; мимо окна (слева, справа, снизу) -
-        OV_FIELD OV_WX+OV_WW,OV_TOP,90-OV_WX-OV_WW,TL_LAST+1-OV_TOP, 0, Ov_TabEv, 0 ;   закрыть, назад
-        OV_FIELD OV_WX,OV_TOP+OV_WH,OV_WW,TL_LAST+1-OV_TOP-OV_WH, 0, Ov_TabEv, 0 ;   в паттерн
+        OV_FIELD 0,OV_TOP,90,OV_WY-OV_TOP, 0, Ov_TabEv, 0                 ; мимо окна (сверху, слева, справа,
+        OV_FIELD 0,OV_WY,OV_WX,TL_LAST+1-OV_WY, 0, Ov_TabEv, 0            ;   снизу) - закрыть, назад в паттерн
+        OV_FIELD OV_WX+OV_WW,OV_WY,90-OV_WX-OV_WW,TL_LAST+1-OV_WY, 0, Ov_TabEv, 0
+        OV_FIELD OV_WX,OV_WY+OV_WH,OV_WW,TL_LAST+1-OV_WY-OV_WH, 0, Ov_TabEv, 0
                                     ; дальше - поля Help (вкладки), конец списка - там
 ;-------- Help: те же транспорт и вкладки, Setup - назад в настройки
 Hp_Fields

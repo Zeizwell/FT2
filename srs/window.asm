@@ -78,9 +78,9 @@ Win_Open
 Win_Show
         ld a,1
         ld (Win_Busy),a
-        ld a,(THEME_ATTR+CLR_TOP_TEXT) ; цвета окна - одни на все окна (как шапка)
+        ld a,(THEME_ATTR+CLR_WIN_TEXT) ; цвета окна - одни на все окна (свой голубой фон)
         ld (Wd_AF),a
-        ld a,(THEME_ATTR+CLR_TOP_BG)
+        ld a,(THEME_ATTR+CLR_WIN_TEXT)
         ld (Wd_AB),a
         ld a,(Win_X)                ; DMA: колонка и ширина - чётные
         and #FE
@@ -207,6 +207,74 @@ Win_Dma
         ret z
         ei
         ret
+
+;-------- Группа в окне (стандарт): рамка ┌─ Заголовок ──┐ ... └──┘ цветом окна, внутри не трогает.
+; HL - описание: x, y, ширина, высота (с рамкой), заголовок (текст, 0). Экран - в окне 3 (строка = #C0 + y)
+Gb_X            db 0
+Gb_Y            db 0
+Gb_W            db 0
+Gb_H            db 0
+Gb_Draw
+        ld de,Gb_X
+        ld bc,4
+        ldir
+        push hl                     ; заголовок
+        ld a,(THEME_ATTR+CLR_WIN_TEXT)
+        ld c,a
+        ld a,(Gb_Y)                 ; верх ┌──┐
+        add a,WIN_SCR_H
+        ld d,a
+        ld a,WB_TL
+        ld b,WB_TR
+        call .line
+        ld a,(Gb_H)                 ; бока │ │
+        sub 2
+        ld b,a
+.s      inc d
+        ld a,(Gb_X)
+        ld e,a
+        ld a,WB_V
+        call PutCh
+        ld a,(Gb_X)
+        ld hl,Gb_W
+        add a,(hl)
+        dec a
+        ld e,a
+        ld a,WB_V
+        call PutCh
+        djnz .s
+        inc d                       ; низ └──┘
+        ld a,WB_BL
+        ld b,WB_BR
+        call .line
+        ld a,(Gb_Y)                 ; " Заголовок " - с x+2 на верхней линии
+        add a,WIN_SCR_H
+        ld d,a
+        ld a,(Gb_X)
+        add a,2
+        ld e,a
+        ld a,' '
+        call PutCh
+        pop hl
+        call PutStr
+        ld a,' '
+        jp PutCh
+; строка D: A - левый угол, B - правый, между - ─
+.line   push bc
+        push af
+        ld a,(Gb_X)
+        ld e,a
+        pop af
+        call PutCh
+        ld a,(Gb_W)
+        sub 2
+        ld b,a
+.h      ld a,WB_H
+        call PutCh
+        djnz .h
+        pop bc
+        ld a,b
+        jp PutCh
 
 ;-------- Ждать (About): клавиша - закрыть; клик мимо - закрыть, если окно контекстное (WF_CONTEXT); в окне - ничего.
 ; Клики за время окна - его, полям под ним не достаются (Win_End)
@@ -608,7 +676,7 @@ Wd_Menu
         cp WM_SEP
         jr nz,.it
         push hl                     ; разделитель: ├───┤
-        ld a,(THEME_ATTR+CLR_TOP_BG)
+        ld a,(THEME_ATTR+CLR_WIN_TEXT)
         ld c,a
         ld a,(Win_X)
         ld e,a
@@ -626,7 +694,7 @@ Wd_Menu
         inc d
         jr .t
 .it     ld (Wm_Act),a
-        ld a,(THEME_ATTR+CLR_TOP_TEXT)  ; текст
+        ld a,(THEME_ATTR+CLR_WIN_TEXT)  ; текст
         ld c,a
         ld a,(Win_X)
         add a,2
@@ -634,7 +702,7 @@ Wd_Menu
         call PutStr
         inc hl
         push hl
-        ld a,(THEME_ATTR+CLR_TOP_VALUE) ; клавиша
+        ld a,(THEME_ATTR+CLR_WIN_VALUE) ; клавиша
         ld c,a
         ld a,(Win_X)
         ld b,a
@@ -754,13 +822,13 @@ Win_AboutEv
 Win_About_D
         db WIN_CENTER, WIN_CENTER, 34, 9, WF_CONTEXT
         db "About",0
-        db CLR_TOP_TEXT,"FAST TRACKER 2.01b",0
-        db CLR_TOP_TEXT,"by Orion/DR",0
-        db CLR_TOP_TEXT," ",0
-        db CLR_TOP_TEXT,"FAT32 driver   Andrew Lazarev",0
-        db CLR_TOP_TEXT,"PT3 reference  S.V. Bulba",0
-        db CLR_TOP_TEXT,"github.com/Zeizwell/FT2",0
-        db CLR_TOP_TEXT,"build "
+        db CLR_WIN_TEXT,"FAST TRACKER 2.01b",0
+        db CLR_WIN_TEXT,"by Orion/DR",0
+        db CLR_WIN_TEXT," ",0
+        db CLR_WIN_TEXT,"FAT32 driver   Andrew Lazarev",0
+        db CLR_WIN_TEXT,"PT3 reference  S.V. Bulba",0
+        db CLR_WIN_TEXT,"github.com/Zeizwell/FT2",0
+        db CLR_WIN_TEXT,"build "
 Wa_Date db "DD.MM.YYYY",0
         db WIN_END
 Wa_Raw  db __DATE__                ; дата сборки от ассемблера: "YYYY-MM-DD"

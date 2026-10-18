@@ -67,5 +67,8 @@ Theme_Default
             db #0F      ; CLR_ED_STEP     FX: шаги таймера - белый
             db #09      ; CLR_ED_TYPE     FX: тип эффекта - оттенок темы #9
             db #04      ; CLR_WIN_SHADOW  тень окна: тёмно-серый на чёрном
+            db #C0      ; CLR_WIN_TEXT    окно: чёрный на голубом #C (фон окна - свой, не как у шапки)
+            db #C1      ; CLR_WIN_VALUE   значения: самый тёмный оттенок темы на голубом
+            db #1C      ; CLR_WIN_HI      включённое: голубой на самом тёмном
 Theme_Default_end
     ASSERT Theme_Default_end-Theme_Default <= THEME_ROLES_MAX
