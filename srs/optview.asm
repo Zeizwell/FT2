@@ -566,17 +566,9 @@ Ob_V            db 0
 ; =========================================================================
 ; ПОЛЯ
 ; =========================================================================
-Ov_Fields
-        OV_FIELD patview.HD_PLAY_X,   patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 0
-        OV_FIELD patview.HD_PLAY_X+4, patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 1
-        OV_FIELD patview.HD_PLAY_X+8, patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 2
-        OV_FIELD patview.HD_PLAY_X+12,patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 3
-        OV_FIELD patview.HD_TAB_INSTR,patview.HD_TABS_Y,5,1, FF_HAND, Ov_TabEv, 1  ; Instr
-        OV_FIELD patview.HD_TAB_ORN,  patview.HD_TABS_Y,3,1, FF_HAND, Ov_TabEv, 2  ; Orn
-        OV_FIELD patview.HD_TAB_DISK, patview.HD_TABS_Y,4,1, FF_HAND, Ov_TabEv, 3  ; Disk
-        OV_FIELD patview.HD_HELP_X,   patview.HD_TABS_Y,4,1, FF_HAND, Ov_TabEv, 5  ; Help
-        OV_FIELD patview.HD_ABOUT_X,  patview.HD_TABS_Y,5,1, FF_HAND, Win_AboutEv, 0 ; About
-        OV_FIELD 0,0,90,OV_TOP, 0, Ov_TabEv, 0                          ; остальное - назад
+Ov_Fields                           ; Setup - окно: вне его поля не работают (шапка, транспорт, вкладки -
+                                    ;   нет), клик мимо окна - только закрыть
+        OV_FIELD 0,0,90,OV_TOP, 0, Ov_TabEv, 0                          ; шапка - мимо окна
         OV_FIELD PL_X+2,LIST_Y,8,PALETTES, FF_HAND, Ov_PalEv, 0          ; темы
         OV_FIELD SAVE_BX,SAVE_BY,6,1, FF_BTN|FF_HAND, Bn_Ev, Bd_OvSave ; Save (srs/button.asm) - справа внизу окна
         OV_FIELD MS_X,MS_Y+1,6+MS_SPEED_MAX,1, FF_HAND, Ov_MouseEv, 0    ; мышь: скорость
@@ -586,7 +578,7 @@ Ov_Fields
         OV_FIELD 0,OV_WY,OV_WX,TL_LAST+1-OV_WY, 0, Ov_TabEv, 0            ;   снизу) - закрыть, назад в паттерн
         OV_FIELD OV_WX+OV_WW,OV_WY,90-OV_WX-OV_WW,TL_LAST+1-OV_WY, 0, Ov_TabEv, 0
         OV_FIELD OV_WX,OV_WY+OV_WH,OV_WW,TL_LAST+1-OV_WY-OV_WH, 0, Ov_TabEv, 0
-                                    ; дальше - поля Help (вкладки), конец списка - там
+        db FLD_END
 ;-------- Help: те же транспорт и вкладки, Setup - назад в настройки
 Hp_Fields
         OV_FIELD HP_TAB1,HP_TAB_Y,6,1, FF_HAND, Hp_TabEv, 0             ; закладки
