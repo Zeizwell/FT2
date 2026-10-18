@@ -111,6 +111,15 @@ DK_RENAME       equ 74              ; HL -> [флаг, имя, 0], DE -> [нов
 ; ВХОД (коре: Tools_Loop -> Call_Tool)
 ; =========================================================================
 Dv_Start
+        ld hl,Lg_Txt                ; лог - с чистого листа (строки пустые, без незакрытой)
+        ld de,Lg_Txt+1
+        ld bc,Lg_Open-Lg_Txt        ; + Lg_Clr, Lg_Len, Lg_Open
+        ld (hl),0
+        ldir
+        ld a,CLR_CMD                ; цвет пустых строк - как при старте
+        ld (Lg_Clr),a
+        ld (Lg_Clr+1),a
+        ld (Lg_Clr+2),a
         call Scr_Begin              ; двойной буфер: рисуем в невидимую страницу
         ld a,(SV_DRAW_PAGE)         ; экран - в окно 3 на всё время работы
         SETPAGE3 a
@@ -178,10 +187,11 @@ Dl_Free         dw 0                ; куда писать следующую �
 LG_LINES        equ 3               ; лог сообщений (как в консоли): строк, знаков в строке
 LG_W            equ 38
 LG_LAST         equ Lg_Txt+(LG_LINES-1)*(LG_W+1)
-Lg_Txt          ds LG_LINES*(LG_W+1) ; строки, старая - первая
+Lg_Txt          ds LG_LINES*(LG_W+1) ; строки, старая - первая (Dv_Start чистит с Lg_Txt по Lg_Open)
 Lg_Clr          db CLR_CMD,CLR_CMD,CLR_CMD ; цвет строки: роль CLR_* (пустые - фоном сообщений)
 Lg_Len          db 0                ; знаков в последней строке
 Lg_Open         db 0                ; 1 - последняя строка ждёт итога (её начал Dv_Busy)
+    ASSERT Lg_Open == Lg_Txt+LG_LINES*(LG_W+1)+LG_LINES+1
 Lg_C            db 0
 Lg_HexT         ds 3
 Dv_Msg_Code     db 0                ; код ошибки драйвера (отладка)

@@ -7,7 +7,7 @@ NEW_SONG_FORMAT equ 1
 NEW_SONG_DEVICE equ 0               ;   тип чипа: AY (чипов - CHIPS_MAX, 6 каналов)
 
 ;-------- Новый трек: заголовок страницы текущего трека (SV_SONG_PAGE) - нули, подпись, формат,
-; чипы, скорость, шаг, страница инструментов. Ордер и каталог пишет тот, кто зовёт
+; чипы, скорость, шаг, страница инструментов; FX, их имена и таблицы - пустые. Ордер и каталог пишет тот, кто зовёт
 ; (вид паттерна - Song_Sync). Шаг в переменную вида кладёт Head_Load
 Song_Clear
         ld a,(SV_SONG_PAGE)
@@ -33,8 +33,21 @@ Song_Clear
         ld (#8000+SH_STEP),a
         ld a,(Trk_Ins)
         ld (#8000+SH_INS_PAGE),a
+        ld hl,#8000+SONG_FX_NAMES   ; имена FX - пустые
+        ld de,#8000+SONG_FX_NAMES+1
+        ld bc,FXS_MAX*16-1
+        ld (hl),0
+        ldir
         RESTPAGE2
-        ret
+        ld a,(Trk_Fx)               ; FX - нули (и при импорте: в PT3 / PT2 / FTC их нет,
+        SETPAGE2 a                  ;   прошлые не должны остаться)
+        ld hl,#8000
+        ld de,#8001
+        ld bc,#3FFF
+        ld (hl),0
+        ldir
+        RESTPAGE2
+        jp Fx_New_Tabs              ; таблицы FX - пресет, заголовки FX - по умолчанию
 Txt_Sign        db "FT2S"
 
 ;-------- Огибающая трека: 0 FT, 1 PT (SH_ENVMODE). Одна на всех: шапка переключает (и пишет
@@ -98,11 +111,6 @@ Song_New
         ld bc,SONG_CAT_END-ORDER_LIST-1
         ld (hl),0
         ldir
-        ld hl,#8000+SONG_FX_NAMES   ; имена FX - пустые
-        ld de,#8000+SONG_FX_NAMES+1
-        ld bc,FXS_MAX*16-1
-        ld (hl),0
-        ldir
         ld a,(Trk_Pat)              ; паттерн 0: страница, 64 роу
         ld (#8000+PAT_CATALOG+PC_PAGE),a
         ld a,PAT_ROWS_MAX
@@ -116,15 +124,6 @@ Song_New
         ld (hl),0
         ldir
         RESTPAGE2
-        ld a,(Trk_Fx)               ; FX и таблицы - нули: у FX одна пустая строка, таблицы
-        SETPAGE2 a                  ;   по одному шагу 0
-        ld hl,#8000
-        ld de,#8001
-        ld bc,#3FFF
-        ld (hl),0
-        ldir
-        RESTPAGE2
-        call Fx_New_Tabs            ; таблицы FX - пресет, заголовки FX - по умолчанию
         ld a,(Trk_Ins)
         jp Ins_Clear
 

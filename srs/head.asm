@@ -244,6 +244,7 @@ Hd_Static
 ;-------- Каждый кадр: Speed и Size (скорость плеера меняется на ходу), кнопки, подсветка под
 ; мышью. Остальные значения - только когда сменились (Hd_Changed); надписи - один раз (Head_Draw)
 Head_Show
+        call Hv_Off                 ; подсветку под мышью - снять (в конце кадра - заново)
         ld a,(THEME_ATTR+CLR_TOP_VALUE) ; значения - на своём фоне
         ld c,a
         ld a,(SV_PLAY_STATE)        ; скорость: играет - плеера, иначе трека
@@ -374,17 +375,15 @@ Hd_Texts
         ld b,HD_FILE_W
         ld de,HD_FILE_X+256*(HD_SCR_H+HD_ROW_FILE)
         call Hd_Text
-        ld hl,F_HdSong              ; в фокусе (вводят) - цветом курсора
-        call Hd_NameClr
         ld hl,Hd_Song
         ld b,32
         ld de,HD_NAME_X+256*(HD_SCR_H+HD_ROW_SONG)
         call Hd_Text
-        ld hl,F_HdBy
-        call Hd_NameClr
         ld hl,Hd_Author
         ld b,32
         ld de,HD_AUTH_X+256*(HD_SCR_H+HD_ROW_SONG)
+        call Hd_Text
+        jp Hd_NameCur               ; поле ввода в фокусе - курсор
 ; HL - текст, B - ширина поля, DE - куда, C - цвет. 0 - конец, дальше точки;
 ; управляющие знаки - точки
 Hd_Text
@@ -519,19 +518,13 @@ Hv_Addr         dw 0                ; его атрибуты в буфере ш
 Hv_W            db #FF              ; ширина (#FF - подсветки нет)
 Hv_Save         ds 32               ; цвета под ней
 
-Hd_Hover
-        ld hl,(SV_HOVER)            ; то же поле - только покрасить снова
-        ld de,(Hv_Field)
-        or a
-        sbc hl,de
-        jr nz,.new
+;-------- В начале кадра (Head_Show): подсветку снять - вернуть цвета под ней. Значения рисуются
+; без неё, в конце кадра Hd_Hover запоминает цвета заново (иначе после клика по Step и т.п.
+; при уходе мыши вернулось бы старое состояние)
+Hv_Off
         ld a,(Hv_W)
         cp #FF
         ret z
-        jr .paint
-.new    ld a,(Hv_W)                 ; прошлое - вернуть цвета
-        cp #FF
-        jr z,.find
         ld b,a
         ld de,(Hv_Addr)
         ld hl,Hv_Save
@@ -540,11 +533,21 @@ Hd_Hover
         inc hl
         inc e
         djnz .r
-.find   ld a,#FF
+        ld a,#FF
         ld (Hv_W),a
+        ret
+
+;-------- В конце кадра: поле шапки под мышью - запомнить цвета под ним и покрасить
+Hd_Hover
         ld hl,(SV_HOVER)
         ld (Hv_Field),hl
-        ld de,Head_Fields           ; поле шапки? (адрес внутри Head_Fields)
+        ld a,(SV_FOCUS)             ; поле ввода в фокусе (Song / By) - без подсветки: там курсор
+        cp l
+        jr nz,.find
+        ld a,(SV_FOCUS+1)
+        cp h
+        ret z
+.find   ld de,Head_Fields           ; поле шапки? (адрес внутри Head_Fields)
         or a
         sbc hl,de
         ret c
@@ -768,15 +771,32 @@ Hn_Save
         ret
 Hn_Dst          dw 0
 
-; HL - поле Song / By: в фокусе - C = цвет курсора, иначе - значений шапки
-Hd_NameClr
-        ld de,(SV_FOCUS)
+;-------- Курсор ввода Song / By: поле в фокусе - знак за концом текста цветом курсора
+Hd_NameCur
+        ld hl,(SV_FOCUS)
+        ld de,F_HdSong
         or a
         sbc hl,de
-        ld a,(THEME_ATTR+CLR_TOP_VALUE)
-        jr nz,$+5
+        ld hl,Hd_Song
+        ld c,HD_NAME_X
+        jr z,.put
+        ld hl,(SV_FOCUS)
+        ld de,F_HdBy
+        or a
+        sbc hl,de
+        ret nz
+        ld hl,Hd_Author
+        ld c,HD_AUTH_X
+.put    ld (Hn_Buf),hl
+        call Hn_Len                 ; A - длина (BC цел)
+        cp 32
+        ret nc                      ; поле полное - курсора нет
+        add a,c
+        or SCR_ATTR
+        ld l,a
+        ld h,HD_SCR_H+HD_ROW_SONG
         ld a,(THEME_ATTR+CLR_CURSOR)
-        ld c,a
+        ld (hl),a
         ret
 
 Hd_Field
