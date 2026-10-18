@@ -1,7 +1,10 @@
 # ZX Trinity — концепт (актуально на 2026-10-17)
 
-Звуковая карта для ZX Spectrum (ZX-BUS / NemoBus, ZX Evolution): **Спектрум** (настоящие AY, TurboSound) +
-**Atari** (таймерные эффекты поверх AY: SID, бузер, FM) + **Amiga** (General Sound со звуком Paula и лучше).
+Звуковая карта для ZX Spectrum (ZX-BUS / NemoBus, ZX Evolution) на настоящих AY (TurboSound) — **три платформы в
+одной, отсюда Trinity: Atari + Amiga + MSX**:
+- **Atari** — таймерные эффекты поверх AY (SID, бузер, FM, свип), SNDH-плеер — RP-AY;
+- **Amiga** — General Sound со звуком Paula и лучше (`doc/paula.md`), совместимость с GS / NeoGS — RP-GS;
+- **MSX** — OPL4 (Moonsound) — RP-GS, режимом вместо GS.
 Подробности и история решений — `doc/zx-trinity.md`; протокол — `doc/ay-ports-map.md` п.5а; строка FX —
 `doc/fx-row.md`; эффекты физически — `doc/bitphase-fx.md`.
 
