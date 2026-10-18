@@ -146,7 +146,9 @@ Iv_Start
 
 Iv_Loop
         halt
-        call Iv_Keys
+        ld a,(Iv_Mode)              ; FX - макет: клавиши редактору не отдаём
+        cp 2
+        call nz,Iv_Keys
         call Fld_Update
         ld a,(Iv_Exit)              ; другая вкладка - выходим в коре
         or a
@@ -157,6 +159,9 @@ Iv_Loop
         ld a,(Iv_Dirty)
         or a
         call nz,Iv_Draw
+        ld a,(Iv_Mode)              ; FX - макет: кнопок и иконок редактора нет
+        cp 2
+        jr z,Iv_Loop
         call Iv_Buttons             ; кнопки - каждый кадр (под мышью - подсветка)
         call Er_Icons_All           ; иконки строк - так же
         call Prv_Btn                ; ▶ - горит, пока звучит проба
@@ -453,6 +458,9 @@ Iv_Head
 Iv_Draw
         xor a
         ld (Iv_Dirty),a
+        ld a,(Iv_Mode)              ; FX - пока пробный макет (srs/fxmaket.asm)
+        cp 2
+        jp z,Fxm_Draw
         call Iv_Draw_List
         call Iv_Draw_Top
         call Fx_Subs
@@ -3350,5 +3358,44 @@ Txt_Orn         db "Orn",0
 Txt_Ins         db "Ins",0
 Txt_Vol         db "Vol",0
 Txt_Env         db "Env",0
+
+
+;-------- Пробный макет FX: строки Fxm_Lines с первой строки тулзы, хвосты и низ - пробелами
+Fxm_Draw
+        ld hl,Fxm_Lines
+        ld d,IV_SCR_H+IV_TOP
+.line   ld a,(hl)
+        cp #FF
+        jr z,.clr
+        ld e,0
+        cp '!'                      ; "!" - строка цветом заголовков
+        ld a,(THEME_ATTR+CLR_TEXT)
+        jr nz,.put
+        inc hl
+        ld a,(THEME_ATTR+CLR_HEADER)
+.put    ld c,a
+        call PutStr
+        inc hl
+        call .pad
+        inc d
+        ld a,d
+        cp IV_SCR_H+TL_LAST+1
+        jr c,.line
+        ret
+.clr    ld a,d                      ; ниже макета - пусто
+        cp IV_SCR_H+TL_LAST+1
+        ret nc
+        ld e,0
+        call .pad
+        inc d
+        jr .clr
+.pad    ld a,e
+        cp 90
+        ret nc
+        ld a,' '
+        call PutCh
+        jr .pad
+
+    include "srs/fxmaket.asm"
 
     ENDMODULE
