@@ -24,10 +24,11 @@ Fxm_Lines
         db "07  ---",0
         db 0
         db "!FM:      Rw  FM   Semi  Det  Unit  Ln  Steps",0
-        db "          00  on    +0   +1   semi   4  +00 +0C +07 +00",0
+        db "          00  on    +0   +1   semi   4  +0 +12 +7 +0",0
         db 0
         db "!Env FM:  Rw  EFM  Semi  Det  Unit  Ln  Steps",0
         db "          00  on    +0   +1   per    2  +00 -10",0
         db 0
+        db "Steps: Mix - hex 0..F; semi - decimal (as ornaments); per - hex (as sample tone)",0
         db "Max / Min / Swp - only when Ln = 2 (as Bitphase), otherwise dimmed",0
         db #FF
