@@ -9,7 +9,8 @@
 ; Экран - Win_Pg (вид паттерна - SV_DRAW_PAGE, тулза с двойным буфером - видимая страница);
 ; рисуем процессором в окне 3: строка = #C0 + y.
 ; Стандартное окно - с описателя (Win_Open): x, y, ширина, высота (с рамкой; x / y = WIN_CENTER -
-; по центру экрана), заголовок (текст, 0; пусто - без заголовка), строки (роль цвета, текст, 0), конец -
+; по центру экрана), флаги (WF_CONTEXT - контекстное: клик мимо закрывает; без него - обычное: клик
+; мимо ничего, закрывают Esc и свои кнопки), заголовок (текст, 0; пусто - без заголовка), строки (роль цвета, текст, 0), конец -
 ; WIN_END. Рамка с заголовком сверху, тень справа (2 колонки) и снизу (1 строка) - как в Turbo Vision.
 ; Под окном вместе с тенью - в PAGE_WINSAVE, закрытие возвращает всё как было.
 ; Модально: пока окно открыто, всё остальное ждёт.
@@ -19,6 +20,7 @@ WIN_H_MAX       equ 24
 WIN_SCR_H       equ #C0
 WIN_END         equ #FF             ; конец строк окна
 WIN_CENTER      equ #FF             ; x / y в описателе: по центру экрана
+WF_CONTEXT      equ %00000001       ; флаг окна: контекстное - клик мимо закрывает
 WIN_SCR_W       equ 90              ; видимый экран
 WIN_SCR_ROWS    equ 36
 WB_TL           equ #DA             ; рамка: ┌ ┐ └ ┘ ─ │
@@ -34,6 +36,7 @@ Win_X           db 0
 Win_Y           db 0
 Win_W           db 0
 Win_H           db 0
+Win_Flags       db 0                ; WF_*
 
 ;-------- Открыть стандартное окно с описателя HL (см. начало файла)
 Win_Open
@@ -44,6 +47,9 @@ Win_Open
         ld de,Win_X                 ; x, y, w, h
         ld bc,4
         ldir
+        ld a,(hl)                   ; флаги
+        ld (Win_Flags),a
+        inc hl
         ld (Wo_Title),hl            ; заголовок - до 0, за ним строки
         xor a
         ld b,a
@@ -196,7 +202,7 @@ Win_Dma
         ei
         ret
 
-;-------- Ждать (About): клавиша или клик мимо окна - закрыть; клик в окне - ничего.
+;-------- Ждать (About): клавиша - закрыть; клик мимо - закрыть, если окно контекстное (WF_CONTEXT); в окне - ничего.
 ; Клики за время окна - его, полям под ним не достаются (Win_End)
 Win_Wait
         ld a,MB_LEFT                ; старые события кнопки - мимо
@@ -212,6 +218,9 @@ Win_Wait
         jr z,.l
         call Win_In                 ; в окне - ничего
         jr c,.l
+        ld a,(Win_Flags)            ; мимо: обычное окно - ничего
+        and WF_CONTEXT
+        jr z,.l
 ; Закрыть: кнопку отпустили, окно убрать, события мыши за время окна - не полям
 Win_End
         ld a,MB_LEFT                ; ждать, пока отпустят (отпускание - тоже окну)
@@ -395,7 +404,7 @@ Wd_Line push bc
         jp PutCh
     ASSERT (THEME_ATTR & 255) == 0 || (THEME_ATTR & 255) + 128 <= 256
 
-;-------- Меню у мыши: HL - ширина, пунктов, пункты (действие ACT_*, текст, 0; WM_SEP). Пункт под
+;-------- Меню у мыши: HL - ширина, пунктов, флаги (WF_*), пункты (действие ACT_*, текст, 0; WM_SEP). Пункт под
 ; мышью - подсвечен, Up / Down - тоже; клик или Enter - выбрать, Esc, правая, клик мимо -
 ; закрыть. Выход: A - пункт 0.., #FF - ничего
 Wm_N            db 0                ; пунктов
@@ -409,6 +418,9 @@ Win_Menu
         ld (Wm_N),a
         add a,2
         ld (Win_H),a
+        inc hl
+        ld a,(hl)                   ; флаги
+        ld (Win_Flags),a
         inc hl
         ld (Wo_Text),hl
         ld hl,Wo_None               ; меню - без заголовка
@@ -479,14 +491,21 @@ Win_Menu
 .set    ld (Wm_Sel),a
         call Wm_Redraw
         jr .l
-.m      ld a,MB_LEFT                ; левая: над пунктом - выбрать, мимо - закрыть
-        ld hl,Ww_Seen
+.m      ld a,MB_LEFT                ; левая: над пунктом - выбрать; мимо окна - закрыть, если
+        ld hl,Ww_Seen               ;   контекстное (WF_CONTEXT); в окне не на пункте - ничего
         call Mouse_Btn
         and 1<<ME_PRESS
         jr z,.r
         call Wm_At
         cp #FF
-        jr z,.none
+        jr nz,.it
+        call Win_In
+        jp c,.l
+        ld a,(Win_Flags)
+        and WF_CONTEXT
+        jp z,.l
+        jr .none
+.it
         ld (Wm_Sel),a
         jr .pick
 .r      ld a,MB_RIGHT               ; правая - закрыть
@@ -567,6 +586,7 @@ Wm_Act          db 0
 
 ;-------- Пункт A меню HL (ширина, пунктов, пункты) -> A - его действие (0 - разделитель)
 Wm_Item_Act
+        inc hl                      ; ширина, пунктов, флаги
         inc hl
         inc hl
         ld b,a
@@ -667,7 +687,7 @@ Win_AboutEv
         jp Win_About
 
 Win_About_D
-        db WIN_CENTER, WIN_CENTER, 34, 9
+        db WIN_CENTER, WIN_CENTER, 34, 9, WF_CONTEXT
         db "About",0
         db CLR_TOP_HI,  "     FAST TRACKER 2.01b",0
         db CLR_TOP_TEXT,"         by Orion/DR",0

@@ -3530,7 +3530,7 @@ Pat_Menu
         ld hl,Pat_Keys
         jp Act_Run
 Pm_Items
-        db 34, 18                   ; ширина, строк
+        db 34, 18, WF_CONTEXT       ; ширина, строк, флаги (контекстное: клик мимо - закрыть)
         db ACT_UNDO,"Undo",0
         db WM_SEP
         db ACT_COPY,"Copy",0
