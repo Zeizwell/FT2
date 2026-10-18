@@ -64,8 +64,8 @@
 <path d="M130 382 L130 410 L550 410 L550 384" marker-end="url(#a)"/>
 </g>
 <g font-size="12" fill="#2C2C2A" text-anchor="middle">
-<text x="340" y="436">Проводом напрямую разъём ↔ панелька: 1, 17 (GND), 21 (+5VA), 18, 19, 20 (SSG C, B, A),</text>
-<text x="340" y="456">24 (/IC), 38 (φM). Не паяем: 22, 39, 23, 14 (FM и MIDI). Второй YM2203 (U10) из MultiSound вынуть.</text>
+<text x="340" y="436">Проводом напрямую разъём ↔ панелька: 1, 17 (GND), 21 (+5VA), 18, 19, 20 (SSG C, B, A), 24 (/IC),</text>
+<text x="340" y="456">38 (φM), 22, 39, 23 (FM в ЦАП MultiSound). Не паяем: 14 (MIDI). Второй YM2203 (U10) вынуть.</text>
 </g>
 <line x1="40" y1="480" x2="640" y2="480" stroke="#D3D1C7" stroke-width="1"/>
 
