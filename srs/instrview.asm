@@ -3390,8 +3390,42 @@ Fxm_Draw
         ld a,d
         cp IV_SCR_H+TL_LAST-1        ; до нижней рамки
         jr c,.line
-.end    ret
+.end    jp Fxm_Lines_Hd             ; поверх строк: черта у списка, линия под шапкой
 Txt_FxmTitle    db " FX ",0
+
+FXM_DIV         equ 19              ; колонка черты за списком FX
+FXM_SEP         equ 4               ; строка макета под шапкой - линия
+;-------- Черта за списком (┬ │ … ┴) и линия под шапкой (├──┤) цветом рамок
+Fxm_Lines_Hd
+        ld a,(THEME_ATTR+CLR_TITLE)
+        ld c,a
+        ld de,FXM_DIV+256*(IV_SCR_H+IV_TOP)
+        ld a,#C2                    ; ┬ на верхней рамке
+        call PutCh
+        ld b,FXM_SEP
+.v      inc d                       ; │ вниз до линии
+        ld e,FXM_DIV
+        ld a,#B3
+        call PutCh
+        djnz .v
+        inc d                       ; линия: ├ ─── ┴ ─── ┤
+        ld e,0
+        ld a,#C3
+        call PutCh
+.h      ld a,e
+        cp FXM_DIV
+        ld a,#C1
+        jr z,.put
+        ld a,e
+        cp 89
+        ld a,#B4
+        jr z,.put
+        ld a,#C4
+.put    call PutCh
+        ld a,e
+        cp 90
+        jr c,.h
+        ret
 
     include "srs/fxmaket.asm"
 
