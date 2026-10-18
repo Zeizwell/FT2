@@ -6,12 +6,21 @@
 ; в PAGE_WINSAVE, при закрытии возвращается. Обе страницы - в раскладке экрана
 ; (строка 256 байт: символы, атрибуты +128), поэтому пересылка - DMA прямоугольником
 ; (символы и атрибуты), колонка и ширина окна - чётные (DMA ходит словами).
-; Экран - SV_DRAW_PAGE; рисуем процессором в окне 3: строка = #C0 + y.
+; Экран - Win_Pg (вид паттерна - SV_DRAW_PAGE, тулза с двойным буфером - видимая страница);
+; рисуем процессором в окне 3: строка = #C0 + y.
+; Стандартное окно - с описателя (Win_Open): x, y, ширина, высота (с рамкой; x / y = WIN_CENTER -
+; по центру экрана), заголовок (текст, 0; пусто - без заголовка), строки (роль цвета, текст, 0), конец -
+; WIN_END. Рамка с заголовком сверху, тень справа (2 колонки) и снизу (1 строка) - как в Turbo Vision.
+; Под окном вместе с тенью - в PAGE_WINSAVE, закрытие возвращает всё как было.
+; Модально: пока окно открыто, всё остальное ждёт.
 ; =========================================================================
 WIN_W_MAX       equ 48
 WIN_H_MAX       equ 24
 WIN_SCR_H       equ #C0
 WIN_END         equ #FF             ; конец строк окна
+WIN_CENTER      equ #FF             ; x / y в описателе: по центру экрана
+WIN_SCR_W       equ 90              ; видимый экран
+WIN_SCR_ROWS    equ 36
 WB_TL           equ #DA             ; рамка: ┌ ┐ └ ┘ ─ │
 WB_TR           equ #BF
 WB_BL           equ #C0
@@ -26,7 +35,7 @@ Win_Y           db 0
 Win_W           db 0
 Win_H           db 0
 
-;-------- Открыть окно HL: x, y, w, h, строки (роль цвета CLR_*, текст, 0), конец - WIN_END
+;-------- Открыть стандартное окно с описателя HL (см. начало файла)
 Win_Open
         ld a,1                      ; пока рисуем - вид паттерна кадр не собирает
         ld (Win_Busy),a
@@ -35,7 +44,30 @@ Win_Open
         ld de,Win_X                 ; x, y, w, h
         ld bc,4
         ldir
+        ld (Wo_Title),hl            ; заголовок - до 0, за ним строки
+        xor a
+        ld b,a
+        ld c,a
+        cpir
         ld (Wo_Text),hl
+        ld a,(Win_X)                ; по центру
+        cp WIN_CENTER
+        jr nz,.y
+        ld a,(Win_W)
+        ld b,a
+        ld a,WIN_SCR_W
+        sub b
+        srl a
+        ld (Win_X),a
+.y      ld a,(Win_Y)
+        cp WIN_CENTER
+        jr nz,Win_Show
+        ld a,(Win_H)
+        ld b,a
+        ld a,WIN_SCR_ROWS
+        sub b
+        srl a
+        ld (Win_Y),a
 ; Показать окно Win_X..Win_H, строки - Wo_Text
 Win_Show
         ld a,1
@@ -47,12 +79,12 @@ Win_Show
         inc a
         and #FE
         ld (Win_W),a
-        ld a,(SV_DRAW_PAGE)         ; что под окном - в PAGE_WINSAVE
+        call Win_Pg                 ; что под окном (и тенью) - в PAGE_WINSAVE
         ld (Wd_Src),a
         ld a,PAGE_WINSAVE
         ld (Wd_Dst),a
         call Win_DmaM
-        ld a,(SV_DRAW_PAGE)
+        call Win_Pg
         SETPAGE3 a
         call Win_Draw
         RESTPAGE3
@@ -63,10 +95,20 @@ Win_Show
         ld (Win_Busy),a
         ret
 Wo_Text         dw 0
+Wo_Title        dw Wo_None          ; заголовок окна (пусто - без него)
+Wo_None         db 0
+
+;-------- A - страница экрана для окна: тулза с двойным буфером - видимая, иначе - SV_DRAW_PAGE
+Win_Pg  ld a,(Scr_On)
+        or a
+        ld a,(SV_DRAW_PAGE)
+        ret z
+        ld a,(Scr_Show_Pg)
+        ret
 
 ;-------- Окно с экрана - в PAGE_WINIMG (после рисования)
 Win_Snap
-        ld a,(SV_DRAW_PAGE)
+        call Win_Pg
         ld (Wd_Src),a
         ld a,PAGE_WINIMG
         ld (Wd_Dst),a
@@ -80,7 +122,7 @@ Win_Close
         ld (Win_On),a
         ld a,PAGE_WINSAVE
         ld (Wd_Src),a
-        ld a,(SV_DRAW_PAGE)
+        call Win_Pg
         ld (Wd_Dst),a
         call Win_DmaM
         xor a
@@ -138,13 +180,11 @@ Win_Dma
         out (c),a
         ld b,high DMADADDRH
         out (c),a
-        ld a,(Win_W)                ; слов в строке - 1
+        ld a,(Win_W)                ; слов в строке - 1: окно + 2 колонки тени
         srl a
-        dec a
         ld b,high DMALEN
         out (c),a
-        ld a,(Win_H)                ; строк - 1
-        dec a
+        ld a,(Win_H)                ; строк - 1: окно + строка тени
         ld b,high DMANUM
         out (c),a
         ld a,DMA_RAM|DMA_SALGN|DMA_DALGN
@@ -248,8 +288,63 @@ Win_Draw                            ; рамка - цветом фона окн�
         ld a,WB_BL
         ld b,WB_BR
         call Wd_Line
+        call Wd_Title
+        call Wd_Shadow
         ld hl,(Wd_Fn)               ; строки: текст (About) или пункты меню
         jp (hl)
+
+; Заголовок на верхней рамке с x+2: " текст " (пусто - нет)
+Wd_Title
+        ld hl,(Wo_Title)
+        ld a,(hl)
+        or a
+        ret z
+        ld a,(Win_Y)
+        add a,WIN_SCR_H
+        ld d,a
+        ld a,(Win_X)
+        add a,2
+        ld e,a
+        ld a,(THEME_ATTR+CLR_TOP_HI)
+        ld c,a
+        ld a,' '
+        call PutCh
+        call PutStr
+        ld a,' '
+        jp PutCh
+
+; Тень: атрибуты справа (2 колонки, строки y+1..y+h) и снизу (строка y+h, колонки x+2..x+w+1) -
+; цвет тени, знаки под ней остаются
+Wd_Shadow
+        ld a,(THEME_ATTR+CLR_WIN_SHADOW)
+        ld c,a
+        ld a,(Win_Y)                ; справа
+        add a,WIN_SCR_H+1
+        ld h,a
+        ld a,(Win_H)
+        ld b,a
+.r      ld a,(Win_X)
+        ld l,a
+        ld a,(Win_W)
+        add a,l
+        or 128
+        ld l,a
+        ld (hl),c
+        inc l
+        ld (hl),c
+        inc h
+        djnz .r
+        dec h                       ; снизу: строка y+h
+        ld a,(Win_X)
+        add a,128+2
+        ld l,a
+        ld a,(Win_W)
+        sub 2
+        ld b,a
+.b      ld (hl),c
+        inc l
+        djnz .b
+        ret
 
 ; Строки текста: роль цвета, текст, 0. С x+2, не больше, чем влезает
 Wd_Text
@@ -316,7 +411,10 @@ Win_Menu
         ld (Win_H),a
         inc hl
         ld (Wo_Text),hl
-        ld a,(Win_W)                ; x - у мыши, не за правый край
+        ld hl,Wo_None               ; меню - без заголовка
+        ld (Wo_Title),hl
+        ld a,(Win_W)                ; x - у мыши, не за правый край (и тень)
+        add a,2
         ld b,a
         ld a,90
         sub b
@@ -519,7 +617,7 @@ Wm_At
 Wm_Redraw
         ld a,1
         ld (Win_Busy),a
-        ld a,(SV_DRAW_PAGE)
+        call Win_Pg
         SETPAGE3 a
         call Win_Draw
         ld a,(Wm_Sel)
@@ -569,7 +667,8 @@ Win_AboutEv
         jp Win_About
 
 Win_About_D
-        db 28, 13, 34, 9
+        db WIN_CENTER, WIN_CENTER, 34, 9
+        db "About",0
         db CLR_TOP_HI,  "     FAST TRACKER 2.01b",0
         db CLR_TOP_TEXT,"         by Orion/DR",0
         db CLR_TOP_TEXT," ",0

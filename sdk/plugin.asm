@@ -388,6 +388,7 @@ CLR_ED_OFF      equ 46              ; выключено / не действуе
 CLR_ED_LOOP     equ 47              ; маркер цикла L
 CLR_ED_STEP     equ 48              ; FX: шаги таймера
 CLR_ED_TYPE     equ 49              ; FX: тип эффекта (SID, Buz, on)
+CLR_WIN_SHADOW  equ 50              ; тень окна (srs/window.asm)
 
 ; =========================================================================
 ; API (#3C00, по 3 байта на вход: jp ...)

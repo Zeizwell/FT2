@@ -66,5 +66,6 @@ Theme_Default
             db #0A      ; CLR_ED_LOOP     маркер цикла (как луп)
             db #0F      ; CLR_ED_STEP     FX: шаги таймера - белый
             db #09      ; CLR_ED_TYPE     FX: тип эффекта - оттенок темы #9
+            db #04      ; CLR_WIN_SHADOW  тень окна: тёмно-серый на чёрном
 Theme_Default_end
     ASSERT Theme_Default_end-Theme_Default <= THEME_ROLES_MAX
