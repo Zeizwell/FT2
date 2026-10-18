@@ -173,7 +173,7 @@ Fe_List
         ld (Fe_Rn),a
         ld hl,Iv_Num
         cp (hl)
-        ld a,(THEME_ATTR+CLR_ED_VAL)
+        ld a,(THEME_ATTR+CLR_TEXT)
         jr nz,$+5
         ld a,(THEME_ATTR+CLR_SELECT)
         ld c,a
@@ -190,7 +190,7 @@ Fe_List
         ld hl,Iv_Num               ; цвет - заново (SETPAGE в Fe_Get_Name портит C)
         ld a,(Fe_Rn)
         cp (hl)
-        ld a,(THEME_ATTR+CLR_ED_VAL)
+        ld a,(THEME_ATTR+CLR_TEXT)
         jr nz,$+5
         ld a,(THEME_ATTR+CLR_SELECT)
         ld c,a
@@ -199,7 +199,7 @@ Fe_List
         call Put_Name
         pop bc
         push bc
-        ld a,(THEME_ATTR+CLR_ED_OFF) ; скролл: ^ сверху, v снизу, █ - где текущий
+        ld a,(THEME_ATTR+CLR_TEXT) ; скролл: ^ сверху, v снизу, █ - где текущий
         ld c,a
         ld a,b
         or a
@@ -227,17 +227,17 @@ Fe_List
 
 ;-------- Средний блок: Name, Len / Loop, свип, подвкладки
 Fe_Mid
-        ld a,(THEME_ATTR+CLR_ED_CAP)
+        ld a,(THEME_ATTR+CLR_HEADER)
         ld c,a
         ld de,FE_MID+256*(IV_SCR_H+IV_TOP+1)
         ld hl,Txt_FeName
         call PutStr
-        ld a,(THEME_ATTR+CLR_EDIT_ROW) ; имя - на фоне поля ввода
+        ld a,(THEME_ATTR+CLR_SELECT) ; имя - как в инструменте
         ld c,a
         ld hl,Fe_Name
         ld b,16
         call Put_Name
-        ld a,(THEME_ATTR+CLR_ED_CAP) ; Len -nn+   Loop -nn+
+        ld a,(THEME_ATTR+CLR_HEADER) ; Len -nn+   Loop -nn+
         ld c,a
         ld de,FE_MID+256*(IV_SCR_H+IV_TOP+2)
         ld hl,Txt_FeLen
@@ -252,29 +252,29 @@ Fe_Mid
         ld de,FE_MID+256*(IV_SCR_H+IV_TOP+3)  ; Sweep: Tri  Start -nnn+  Kp
         ld hl,Txt_FeSweep
         call PutStr
-        ld a,(THEME_ATTR+CLR_ED_VAL)
+        ld a,(THEME_ATTR+CLR_TEXT)
         ld c,a
         ld a,(Fe_Hdr+FXH_SWSHAPE)
         call Fe_Shape
-        ld a,(THEME_ATTR+CLR_ED_CAP)
+        ld a,(THEME_ATTR+CLR_HEADER)
         ld c,a
         ld hl,Txt_FeStart
         call PutStr
         call Fe_Minus
-        ld a,(THEME_ATTR+CLR_ED_VAL)
+        ld a,(THEME_ATTR+CLR_TEXT)
         ld c,a
         ld a,(Fe_Hdr+FXH_SWPHASE)
         call Put_Dec3
-        ld a,(THEME_ATTR+CLR_ED_CAP)
+        ld a,(THEME_ATTR+CLR_HEADER)
         ld c,a
         call Fe_Plus
         inc e
         inc e
         ld a,(Fe_Hdr+FXH_FLAGS)     ; Kp: включено - цветом выделения
         rrca
-        ld a,(THEME_ATTR+CLR_ED_OFF)
+        ld a,(THEME_ATTR+CLR_HEAD_TEXT) ; как Kp в инструменте
         jr nc,$+5
-        ld a,(THEME_ATTR+CLR_SELECT)
+        ld a,(THEME_ATTR+CLR_CURSOR)
         ld c,a
         ld hl,Txt_FeKp
         call PutStr
@@ -301,7 +301,7 @@ Fe_Mid
 Fe_Val2
         push af
         call Fe_Minus
-        ld a,(THEME_ATTR+CLR_ED_VAL)
+        ld a,(THEME_ATTR+CLR_TEXT)
         ld b,c
         ld c,a
         pop af
@@ -311,18 +311,25 @@ Fe_Val2
         ld c,b
         jp Fe_Plus
 
-;-------- Значки кнопок [-] / [+] (2 знака, GLYPH_BTN_*), цвет C
+;-------- Значки кнопок [-] / [+] (2 знака, GLYPH_BTN_*), цвет кнопок
 Fe_Minus
         ld a,GLYPH_BTN_MINUS
         jr Fe_Glyph
 Fe_Plus
         ld a,GLYPH_BTN_PLUS
 Fe_Glyph
+        push bc                     ; цвет кнопок (как в инструменте), свой C - вернуть
+        push af
+        ld a,(THEME_ATTR+CLR_BUTTON)
+        ld c,a
+        pop af
         push af                     ; PutCh портит A
         call PutCh
         pop af
         inc a
-        jp PutCh
+        call PutCh
+        pop bc
+        ret
 
 ;-------- Форма свипа A (номер таблицы): пресет 1..5 - имя, иначе "Tnn" (hex)
 Fe_Shape
@@ -369,7 +376,7 @@ Fe_Btns
 Fe_Rows
         ld d,IV_SCR_H+FE_CAP
         call Fe_Clr_Row
-        ld a,(THEME_ATTR+CLR_ED_CAP)
+        ld a,(THEME_ATTR+CLR_HEADER)
         ld c,a
         ld de,FE_RW+256*(IV_SCR_H+FE_CAP)
         ld a,(Fx_Sub)               ; заголовки: Mix / FM / Env FM
@@ -423,7 +430,7 @@ Fe_Rows
 ;-------- Строка экрана D - пробелы (колонки 1..88)
 Fe_Clr_Row
         ld e,1
-        ld a,(THEME_ATTR+CLR_ED_VAL)
+        ld a,(THEME_ATTR+CLR_BG)
         ld c,a
 .c      ld a,' '
         call PutCh
@@ -444,11 +451,11 @@ Fe_Row_Head
         call Loop_Char
         ld e,FE_LP
         push af
-        ld a,(THEME_ATTR+CLR_ED_LOOP)
+        ld a,(THEME_ATTR+CLR_LOOP)
         ld c,a
         pop af
         call PutCh
-        ld a,(THEME_ATTR+CLR_ED_ROW)
+        ld a,(THEME_ATTR+CLR_ROW_NUM)
         ld c,a
         ld a,(Fe_Rn)
         jp PutHex2
@@ -460,7 +467,7 @@ Fe_Mix_Row
         ld a,(Fe_Row+FXR_FLAGS)
         and FXR_MIXMASK
         jr nz,.on
-        ld a,(THEME_ATTR+CLR_ED_OFF) ; выключен - "---", остальное не рисуем
+        ld a,(THEME_ATTR+CLR_EMPTY) ; выключен - "---", остальное не рисуем
         ld c,a
         ld hl,Txt_FeOff3
         jp PutStr
@@ -470,7 +477,7 @@ Fe_Mix_Row
         add a,l
         ld hl,Txt_FeMix
         call Hl_Add_A
-        ld a,(THEME_ATTR+CLR_ED_TYPE)
+        ld a,(THEME_ATTR+CLR_INSTR)
         ld c,a
         ld b,3
 .t      ld a,(hl)
@@ -482,9 +489,9 @@ Fe_Mix_Row
         inc a
         ld (Fe_Ln),a
         cp 2                        ; PWM и свип - только при 2 шагах
-        ld a,(THEME_ATTR+CLR_ED_VAL)
+        ld a,(THEME_ATTR+CLR_PARAM)
         jr z,$+5
-        ld a,(THEME_ATTR+CLR_ED_OFF)
+        ld a,(THEME_ATTR+CLR_EMPTY)
         ld c,a
         ld e,FE_MAX
         ld a,(Fe_Row+FXR_PWM)
@@ -501,7 +508,7 @@ Fe_Mix_Row
         ld e,FE_SWP
         ld a,(Fe_Row+FXR_SWP)
         call Put_Dec3
-        ld a,(THEME_ATTR+CLR_ED_VAL)
+        ld a,(THEME_ATTR+CLR_VOLUME)
         ld c,a
         ld e,FE_SEMI
         ld a,(Fe_Row+FXR_MIX)
@@ -517,7 +524,7 @@ Fe_Mix_Row
         call Fe_Get_Tab
         pop de
         ld e,FE_STEPS
-        ld a,(THEME_ATTR+CLR_ED_STEP)
+        ld a,(THEME_ATTR+CLR_PARAM)
         ld c,a
         ld hl,Fe_Tab
         ld a,(Fe_Ln)
@@ -538,15 +545,15 @@ Fe_Fm_Row
         ld hl,Fe_Row+FXR_FLAGS
         and (hl)
         jr nz,.on
-        ld a,(THEME_ATTR+CLR_ED_OFF) ; выключен - "--"
+        ld a,(THEME_ATTR+CLR_EMPTY) ; выключен - "--"
         ld c,a
         ld hl,Txt_FeOff2
         jp PutStr
-.on     ld a,(THEME_ATTR+CLR_ED_TYPE)
+.on     ld a,(THEME_ATTR+CLR_INSTR)
         ld c,a
         ld hl,Txt_FeOn
         call PutStr
-        ld a,(THEME_ATTR+CLR_ED_VAL)
+        ld a,(THEME_ATTR+CLR_VOLUME)
         ld c,a
         ld a,(Fe_Off)               ; детюн: полутоны, сырой
         ld hl,Fe_Row
@@ -593,7 +600,7 @@ Fe_Fm_Row
         call Fe_Get_Tab
         pop de
         ld e,FE_FSTEPS
-        ld a,(THEME_ATTR+CLR_ED_STEP)
+        ld a,(THEME_ATTR+CLR_PARAM)
         ld c,a
         ld hl,Fe_Tab
         ld a,(Fe_Ln)
