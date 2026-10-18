@@ -109,7 +109,9 @@ Ov_Loop
         ld a,(Ov_Dirty)
         or a
         call nz,Ov_Draw
-        call Ov_Button
+        ld ix,Ov_Fields             ; кнопки (srs/button.asm) - каждый кадр
+        ld a,OV_SCR_H
+        call Bn_DrawList
 .show   call Scr_Show               ; кадр - показать
         jr Ov_Loop
 
@@ -532,26 +534,6 @@ Ov_Bar
         jp PutCh
 Ob_V            db 0
 
-;-------- Кнопка Save: под мышью / нажата - другим цветом
-Ov_Button
-        ld hl,F_Save
-        ld de,(SV_HOVER)
-        or a
-        sbc hl,de
-        ld a,(THEME_ATTR+CLR_HEAD_TEXT)
-        jr nz,.put
-        ld hl,F_Save
-        ld de,(SV_PRESSED)
-        or a
-        sbc hl,de
-        ld a,(THEME_ATTR+CLR_HOVER)
-        jr nz,.put
-        ld a,(THEME_ATTR+CLR_CURSOR)
-.put    ld c,a
-        ld de,SAVE_X+256*(OV_SCR_H+SAVE_Y)
-        ld hl,Txt_Save
-        jp PutStr
-
 ; =========================================================================
 ; ПОЛЯ
 ; =========================================================================
@@ -567,6 +549,12 @@ Ov_Fields
         OV_FIELD patview.HD_ABOUT_X,  patview.HD_TABS_Y,5,1, FF_HAND, Win_AboutEv, 0 ; About
         OV_FIELD 0,0,90,OV_TOP, 0, Ov_TabEv, 0                          ; остальное - назад
         OV_FIELD PL_X+2,LIST_Y,8,PALETTES, FF_HAND, Ov_PalEv, 0          ; темы
+        OV_FIELD OV_X-1+46-WIN_CLOSE_DX,OV_TOP,3,1, FF_HAND, Ov_TabEv, 0 ; [x] окна - назад в паттерн
+        OV_FIELD SAVE_X,SAVE_Y,6,1, FF_BTN|FF_HAND, Bn_Ev, Bd_OvSave   ; Save (srs/button.asm)
+        OV_FIELD MS_X,MS_Y+1,6+MS_SPEED_MAX,1, FF_HAND, Ov_MouseEv, 0    ; мышь: скорость
+        OV_FIELD MS_X,MS_Y+2,6+MS_ACCEL_MAX,1, FF_HAND, Ov_MouseEv, 1    ;   ускорение
+        OV_FIELD MS_X,CB_Y,12+5,1, FF_HAND, Ov_CurEv, 0                  ; курсор паттерна: Solid / Blink
+                                    ; дальше - поля Help (вкладки), конец списка - там
 ;-------- Help: те же транспорт и вкладки, Setup - назад в настройки
 Hp_Fields
         OV_FIELD HP_TAB1,HP_TAB_Y,6,1, FF_HAND, Hp_TabEv, 0             ; закладки
@@ -583,12 +571,6 @@ Hp_Fields
         OV_FIELD 0,0,90,OV_TOP, 0, Ov_TabEv, 0                          ; остальное - назад
         db FLD_END
 
-        OV_FIELD OV_X-1+46-WIN_CLOSE_DX,OV_TOP,3,1, FF_HAND, Ov_TabEv, 0 ; [x] окна - назад в паттерн
-F_Save  OV_FIELD SAVE_X,SAVE_Y,6,1, FF_HAND, Ov_SaveEv, 0                ; Save
-        OV_FIELD MS_X,MS_Y+1,6+MS_SPEED_MAX,1, FF_HAND, Ov_MouseEv, 0    ; мышь: скорость
-        OV_FIELD MS_X,MS_Y+2,6+MS_ACCEL_MAX,1, FF_HAND, Ov_MouseEv, 1    ;   ускорение
-        OV_FIELD MS_X,CB_Y,12,1, FF_HAND, Ov_CurEv, 0                    ; курсор: Solid / Blink
-        db FLD_END
 
 ;-------- Шапка: 0 - вид паттерна, 1/2 - Instr/Orn, 3 - Disk, 4 - Setup, 5 - Help
 Ov_TabEv
@@ -663,9 +645,10 @@ Ov_MouseEv
         jp Ov_Changed
 
 ;-------- Save: настройки - в \FT2\FT2.INI
-Ov_SaveEv
-        cp EV_CLICK
-        ret nz
+Bd_OvSave       dw Ov_SaveDo, Txt_Save  ; кнопка Save (srs/button.asm): действие, надпись, флаги, тень, фон, после
+                db 0, 0, 0
+                dw 0
+Ov_SaveDo
         call Ini_Save
         ld hl,Txt_Saved
         jr nc,$+5
@@ -1005,7 +988,7 @@ Txt_DiskErr     db "Disk error",0
 Txt_ImRe        db "IM1 re-entry: ",0
 Txt_Speed       db "Speed ",0
 Txt_Accel       db "Accel ",0
-Txt_Cursor      db "Cursor ",0
+Txt_Cursor      db "Pat.cursor ",0  ; курсор паттерна: сплошной / мигающий
 Txt_Solid       db "Solid",0
 Txt_Blink       db "Blink",0
 
