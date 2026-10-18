@@ -3972,6 +3972,8 @@ Play_Step
         ld a,(SV_PLAY_STATE)
         or a
         ret z
+        cp PS_PREVIEW               ; проба ноты: роу плеера - старая (от прошлого проигрывания)
+        ret z
         cp PS_PATTERN               ; паттерн по кругу: роу пошла с начала - ещё круг (полотно)
         jr nz,.row
         ld a,(SV_PLAY_ROW)
