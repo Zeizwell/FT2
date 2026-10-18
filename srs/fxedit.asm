@@ -1060,11 +1060,7 @@ Fe_Cursor
         inc a
         or #80                      ; атрибуты
         ld e,a
-        ld a,(THEME_ATTR+CLR_CURSOR)
-.p      ld (de),a
-        inc e
-        djnz .p
-        ret
+        jp Cr_Set                   ; стандартный курсор (мигает по Cur_Blink)
 
 ;-------- Цвет шага: B - сколько шагов осталось (16..1). Шаг в длине - CLR_PARAM, за ней - CLR_EMPTY. C - цвет
 Fe_Step_Clr

@@ -17,6 +17,7 @@ Fu_Flags        db 0                ; события левой кнопки в 
 ; Наведение, фокус и нажатие сбрасываются; события мыши, что были до этого, - не нам
 Fld_Init
         ld (SV_FIELDS),hl
+        call Cr_Stop                ; курсор прошлого экрана - больше не мигает
         ld hl,0
         ld (SV_HOVER),hl
         ld (SV_FOCUS),hl
@@ -119,6 +120,9 @@ Fld_Set_Focus
         sbc hl,de
         add hl,de
         ret z                       ; то же поле
+        push hl
+        call Cr_Stop                ; курсор старого поля - больше не мигает (новое поставит свой)
+        pop hl
         push hl
         ex de,hl
         ld a,EV_FOCUS_OUT

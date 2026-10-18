@@ -170,13 +170,14 @@ Iv_Loop
         call Iv_Buttons             ; кнопки - каждый кадр (под мышью - подсветка)
         call Er_Icons_All           ; иконки строк - так же
         call Prv_Btn                ; ▶ - горит, пока звучит проба
-        jr .show
+        jr .tick
 .fx     ld ix,Fe_Fields             ; FX: кнопки и поля чисел - каждый кадр (подсветка, нажатие)
         ld a,IV_SCR_H
         call Bn_DrawList
         ld ix,Fe_Fields
         ld a,IV_SCR_H
         call Sp_DrawList
+.tick   call Cr_Tick                ; курсор - мигает (стандарт, srs/prim.asm)
 .show   call Scr_Show               ; кадр нарисован - показать (двойной буфер)
         jp Iv_Loop
 
@@ -1467,8 +1468,8 @@ Er_Cursor
         or a
         sbc hl,de
         pop de
-        ld a,(THEME_ATTR+CLR_CURSOR)
-        jr z,$+5
+        ld b,1                      ; в фокусе - стандартный курсор (мигает по Cur_Blink)
+        jp z,Cr_Set
         ld a,(THEME_ATTR+CLR_SELECT)
         ld (de),a
         ret

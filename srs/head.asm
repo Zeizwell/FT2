@@ -329,8 +329,10 @@ Head_Show
 .fixed
         ld a,(Hd_TxtNew)            ; имя файла, трека, автор - только когда сменились
         or a
-        call nz,Hd_Texts
-        call Hd_NameCur             ; курсор ввода Song / By - каждый кадр
+        jr z,.nt
+        call Hd_Texts               ; текст заново - курсор ставится на него заново
+        call Hd_NameCur
+.nt     call Cr_Tick                ; курсор ввода Song / By - мигает (стандарт, srs/prim.asm)
         call Hd_Buttons             ; кнопки [-][+]
         call Tr_State_Update        ; кнопки транспорта: нажата, активна, под мышью
         jp Hd_Hover                 ; подсветка поля под мышью

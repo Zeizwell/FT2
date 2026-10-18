@@ -112,3 +112,56 @@ Pr_HLine
         call PutCh
         djnz Pr_HLine
         ret
+
+;-------- Курсор (стандарт для всех курсоров, кроме паттерна - у него свой проход в IM1): клетки курсора
+; помнят свои цвета; Cr_Tick раз в кадр - цветом курсора, а при мигании (Cur_Blink, Setup) половину из каждых
+; 32 кадров - своими. Cr_Set - после того, как клетки нарисованы; смена фокуса (Fld_Set_Focus) - Cr_Stop
+CR_W_MAX        equ 8
+Cr_Live         db 0                ; 1 - курсор стоит
+Cr_At           dw 0                ; атрибут первой клетки (окно 3)
+Cr_W            db 0
+Cr_Save         ds CR_W_MAX         ; их цвета
+
+; DE - атрибут первой клетки, B - ширина (1..CR_W_MAX)
+Cr_Set
+        ld (Cr_At),de
+        ld a,b
+        ld (Cr_W),a
+        ex de,hl
+        ld de,Cr_Save
+        ld c,b
+        ld b,0
+        ldir
+        ld a,1
+        ld (Cr_Live),a
+; Раз в кадр: курсор - по фазе мигания
+Cr_Tick
+        ld a,(Cr_Live)
+        or a
+        ret z
+        ld hl,(Cr_At)
+        ld a,(Cr_W)
+        ld b,a
+        ld a,(Cur_Blink)            ; мигает и фаза "нет" - свои цвета
+        or a
+        jr z,.on
+        ld a,(SV_FRAMES)
+        and 16
+        jr z,.on
+        ld de,Cr_Save
+.off    ld a,(de)
+        ld (hl),a
+        inc de
+        inc l
+        djnz .off
+        ret
+.on     ld a,(THEME_ATTR+CLR_CURSOR)
+.c      ld (hl),a
+        inc l
+        djnz .c
+        ret
+
+Cr_Stop
+        xor a
+        ld (Cr_Live),a
+        ret

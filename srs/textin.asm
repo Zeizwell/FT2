@@ -234,11 +234,9 @@ Ti_Here
 ;-------- Курсор на экране: DE - начало поля (D - строка экрана, E - колонка), знак под ним -
 ; цветом курсора (атрибут)
 Ti_Cursor
-        ld a,(Ti_Pos)
+        ld a,(Ti_Pos)               ; клетка под курсором - стандартный курсор (мигает по Cur_Blink)
         add a,e
         or SCR_ATTR
-        ld l,a
-        ld h,d
-        ld a,(THEME_ATTR+CLR_CURSOR)
-        ld (hl),a
-        ret
+        ld e,a
+        ld b,1
+        jp Cr_Set

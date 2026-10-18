@@ -156,6 +156,7 @@ Dv_Loop
         ld ix,Dv_Fields             ; кнопки - каждый кадр (srs/button.asm: подсветка, нажатие)
         ld a,DV_SCR_H
         call Bn_DrawList
+        call Cr_Tick                ; курсор имени файла - мигает
         call Scr_Show               ; кадр - показать
         jr Dv_Loop
 
