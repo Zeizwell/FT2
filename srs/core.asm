@@ -143,12 +143,8 @@ Core_Start
         ld a,PAGE_TOOL_OPT
         call Call_Tool
 
-        ld a,(Auto_Go)          ; первым - вид паттерна; INI load= - сначала диск (загрузит и уйдёт в паттерн)
-        or a
-        ld a,PAGE_TOOL_PATVIEW
-        jr z,$+4
-        ld a,PAGE_TOOL_DISK
-        ld (SV_TOOL),a
+        ld a,PAGE_TOOL_PATVIEW  ; первым - вид паттерна: рисует шапку и кнопки транспорта; INI load= -
+        ld (SV_TOOL),a          ;   он сразу уходит в диск (загрузит и вернётся в паттерн)
 
 ;-------- Экраны (вкладки): тулза работает, пока не поставит в SV_TOOL другую и не выйдет
 Tools_Loop

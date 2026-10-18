@@ -192,6 +192,12 @@ PluginMain
         ld hl,Compose               ; вывод - в IM1, каждый кадр
         ld (SV_FRAME_HOOK),hl
         call Int_Line_Set
+        ld a,(Auto_Go)              ; старт с INI load=: шапка и кнопки уже нарисованы - сразу в диск
+        or a
+        jr z,Main_Loop
+        ld a,PAGE_TOOL_DISK
+        ld (SV_TOOL),a
+        jp Pv_Leave
 
 Main_Loop
         BAND_M BAND_BG
