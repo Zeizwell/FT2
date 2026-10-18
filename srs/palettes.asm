@@ -60,7 +60,7 @@ Pal_Names       db "Blue    Teal    Green   Olive   Gray    Crimson "
         ALIGN 2                     ; DMA берёт адрес словами
 Pal_Data
 ; Blue
-        db #00,#00    ; #0: 0,0,8
+        db #00,#00    ; #0: 0,0,0
         db #10,#21    ; #1: 8,8,16
         db #18,#42    ; #2: 16,16,24
         db #10,#01    ; #3: 0,8,16
