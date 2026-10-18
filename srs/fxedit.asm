@@ -232,7 +232,15 @@ Fe_Mid
         ld de,FE_MID+256*(IV_SCR_H+IV_TOP+1)
         ld hl,Txt_FeName
         call PutStr
-        ld a,(THEME_ATTR+CLR_SELECT) ; имя - как в инструменте
+        ld hl,(SV_FOCUS)            ; имя - как в инструменте: в фокусе - цветом курсора
+        push de
+        ld de,F_FeName
+        or a
+        sbc hl,de
+        pop de
+        ld a,(THEME_ATTR+CLR_SELECT)
+        jr nz,$+5
+        ld a,(THEME_ATTR+CLR_CURSOR)
         ld c,a
         ld hl,Fe_Name
         ld b,16
@@ -839,7 +847,21 @@ Fe_Keys
 .k      call Key_Get                ; A - код, C - флаги; Z - пусто
         ret z
         ld b,a
-        call Fld_Key                ; полю в фокусе (строки FX) и общим клавишам
+        push bc
+        call Fld_Key                ; полю в фокусе (строки, имя) и общим клавишам
+        pop bc
+        jr c,.k
+        ld a,b                      ; Tab - фокус: строки <-> имя
+        cp KEY_TAB
+        jr nz,.k
+        ld hl,(SV_FOCUS)
+        ld de,F_FeEdit
+        or a
+        sbc hl,de
+        ld hl,F_FeName
+        jr z,$+5
+        ld hl,F_FeEdit
+        call Fld_Set_Focus
         jr .k
 Fe_First
         xor a
@@ -1575,3 +1597,70 @@ Fe_Unloop
 
 Fe_ClipOk       db 0                ; 1 - в буфере FX
 Fe_Clip         ds FXR_BLOCK+FXH_SIZE+16
+
+;-------- Имя FX - как в инструменте (Iv_NameEv): буквы, Shift - заглавные, Backspace, Enter - к строкам
+Fe_NameEv
+        cp EV_FOCUS_IN
+        jr z,.redraw
+        cp EV_FOCUS_OUT
+        jr z,.redraw
+        cp EV_KEY
+        ret nz
+        ld a,b
+        cp KEY_BACK
+        jr z,.back
+        cp KEY_ENTER
+        jr z,.done
+        cp KEY_TAB                  ; Tab - не наш (фокус - в Fe_Keys)
+        ret z
+        or a                        ; E0-коды - не буквы
+        ret m
+        ld h,high Key_Chars         ; код -> символ (0 - не символ)
+        ld l,a
+        ld a,(hl)
+        or a
+        ret z
+        bit 0,c                     ; Shift: буквы - заглавные, минус - подчёркивание
+        jr z,.put
+        cp '-'
+        jr nz,.up
+        ld a,'_'
+        jr .put
+.up     cp 'a'
+        jr c,.put
+        cp 'z'+1
+        jr nc,.put
+        sub 'a'-'A'
+.put    ld b,a
+        call Fe_Name_Len            ; HL - на конец, A - длина
+        cp 16
+        jr nc,.eat
+        ld (hl),b
+        jr .save
+.back   call Fe_Name_Len
+        or a
+        jr z,.eat
+        dec hl
+        ld (hl),0
+.save   call Fe_Put_Name            ; в страницу трека
+        jr .redraw
+.done   ld hl,F_FeEdit
+        call Fld_Set_Focus
+.redraw call Iv_Changed
+.eat    scf                         ; клавиша - наша
+        ret
+
+; HL - первый 0 имени (или за 16-м знаком), A - длина. BC сохраняет
+Fe_Name_Len
+        ld hl,Fe_Name
+        ld e,0
+.l      ld a,(hl)
+        or a
+        jr z,.e
+        inc hl
+        inc e
+        ld a,e
+        cp 16
+        jr c,.l
+.e      ld a,e
+        ret

@@ -1671,6 +1671,7 @@ Fe_Fields                           ; FX: только шапка (как в н�
         IV_FIELD FE_MID+9,IV_TOP+4,6,1, FF_HAND, Fe_SubEv, 1          ;     [ FM ]
         IV_FIELD FE_MID+17,IV_TOP+4,10,1, FF_HAND, Fe_SubEv, 2        ;     [ Env FM ]
 F_FeEdit IV_FIELD 1,FE_ROW0,88,FE_ROWS, FF_FOCUS, Fe_EditEv, 0    ;     строки FX
+F_FeName IV_FIELD FE_MID+6,IV_TOP+1,16,1, FF_FOCUS|FF_HAND, Fe_NameEv, 0 ;     имя
         IV_FIELD FE_BTN,IV_TOP+1,7,1, FF_HAND, Fe_BtnEv, 0            ;     [Clone]
         IV_FIELD FE_BTN+8,IV_TOP+1,6,1, FF_HAND, Fe_BtnEv, 1          ;     [Copy]
         IV_FIELD FE_BTN+15,IV_TOP+1,7,1, FF_HAND, Fe_BtnEv, 2         ;     [Paste]
