@@ -158,6 +158,7 @@ BAND_ORDER      equ 7               ; ордер                         - бе�
 PluginMain
         ld hl,(Pal_Bg)              ; цвет фона темы - для полосы времени
         ld (Band_Bg),hl
+        call En_Tab_Make            ; периоды нот огибающей - для Env as Note (строй трека)
         ld a,(SV_DRAW_PAGE)
         SETPAGE3 a
         xor a                       ; X-офсет текстового режима не используем
@@ -1683,9 +1684,11 @@ Row_Fields
         add a,CHIP_ENVNOTE-CHIP_ENVPER
         ld l,a
         ld a,(hl)
+        or a                        ; ноты нет (период из модуля / ввели числом) - подобрать
+        call z,En_Conv              ;   один раз и прописать (байт ноты не 0 - уже есть)
         ld l,e
         or a
-        jr z,.hex16                 ; ноты нет (период вводили числом) - 4 hex
+        jr z,.hex16                 ; периода нет - точки
         ld e,a                      ; "E-4 ": 3 знака из Note_T и пробел
         ld d,high Note_T
         ld a,(de)
@@ -1952,6 +1955,7 @@ K_EnvNote
         ld a,(hl)
         xor 1
         ld (hl),a
+        call nz,En_Tab_Make         ; включили: периоды нот строя - для подбора ноты
         xor a
         ld (ER_Pat),a
 .p      ld a,(ER_Pat)               ; паттерн есть?
@@ -4583,6 +4587,91 @@ En_Period
         rr l
         djnz .sh
         ld (En_Per),hl
+        ret
+
+;-------- Периоды огибающей всех нот строя трека (En_Period): En_Tab, 96 слов, убывают.
+; При входе в вид и при включении Env as Note
+En_Tab          ds NOTE_COUNT*2
+En_Tab_Make
+        xor a
+.n      ld (En_Note),a
+        call En_Period
+        ld a,(En_Note)
+        add a,a
+        ld e,a
+        ld d,0
+        ld hl,En_Tab
+        add hl,de
+        ld de,(En_Per)
+        ld (hl),e
+        inc hl
+        ld (hl),d
+        ld a,(En_Note)
+        inc a
+        cp NOTE_COUNT
+        jr c,.n
+        ret
+
+;-------- BC - период огибающей, HL - байт ноты (CHIP_ENVNOTE): период есть - ближайшая нота строя
+; в (HL), A - она; нет - A = 0. DE, HL целы
+En_Conv
+        ld a,b
+        or c
+        ret z
+        push de
+        push hl
+        ld d,b
+        ld e,c
+        call En_Find
+        add a,NOTE_FIRST
+        pop hl
+        ld (hl),a
+        pop de
+        ret
+
+; DE - период -> A - нота 0..95 с ближайшим периодом En_Tab. Портит BC, HL
+En_Up           dw 0                ; на сколько период прошлой ноты выше
+En_Find
+        ld hl,En_Tab
+        ld b,0                      ; B - нота
+.f      ld c,(hl)                   ; HL = период ноты - DE
+        inc hl
+        ld a,(hl)
+        inc hl
+        push hl
+        ld h,a
+        ld l,c
+        or a
+        sbc hl,de
+        jr z,.eq                    ; ровно
+        jr c,.lo                    ; первая ниже
+        ld (En_Up),hl
+        pop hl
+        inc b
+        ld a,b
+        cp NOTE_COUNT
+        jr c,.f
+        ld a,NOTE_COUNT-1           ; ниже всех нот - последняя
+        ret
+.eq     pop hl
+        ld a,b
+        ret
+.lo     pop af                      ; (адрес таблицы не нужен)
+        ld a,b
+        or a
+        ret z                       ; выше всех нот - первая
+        xor a                       ; HL = DE - период ноты (на сколько ниже)
+        sub l
+        ld l,a
+        sbc a,a
+        sub h
+        ld h,a
+        ld de,(En_Up)               ; ближе та, что ниже? (ниже < выше)
+        or a
+        sbc hl,de
+        ld a,b
+        ret c
+        dec a                       ; прошлая (выше) ближе
         ret
 
 ; Правка: период (слово) и нота огибающей. L - заголовок чипа
