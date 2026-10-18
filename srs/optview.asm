@@ -19,15 +19,16 @@ OV_SCR_H        equ TL_SCR_H
 OV_TOP          equ TL_TOP
 
 ; --- рамки: темы, мышь (Setup); клавиши - экран Help
-PL_X            equ 0
+OV_X            equ 23              ; Setup - окно по центру (srs/window.asm): содержимое с колонки OV_X
+PL_X            equ OV_X
 PL_W            equ 22
-FN_X            equ 22
+FN_X            equ OV_X+22
 FN_W            equ 22
 KY_X            equ 0
 KY_W            equ 90
 LIST_Y          equ OV_TOP+2        ; первая строка списков
 SAVE_Y          equ OV_TOP+10       ; кнопка Save (рамка Palette)
-SAVE_X          equ 2
+SAVE_X          equ OV_X+2
 MSG_Y           equ OV_TOP+12       ; сообщение
 MEM_Y           equ OV_TOP+14       ; свободная память
 IMR_Y           equ OV_TOP+15       ; IM1: повторных входов (должно быть 00)
@@ -67,6 +68,9 @@ Ov_Start
         jr nz,$+4
         ld a,OPT_HELP
         ld (Ov_Mode),a
+        ld a,(Ov_Mode)              ; Setup - окном поверх паттерна (паттерн не стираем): стоп и окно -
+        or a                        ;   до двойного буфера, чтобы оно было в обеих страницах
+        call z,Ov_Window
         call Scr_Begin              ; двойной буфер: рисуем в невидимую страницу
         ld a,(SV_DRAW_PAGE)
         SETPAGE3 a
@@ -76,7 +80,6 @@ Ov_Start
         ld hl,OV_TAB_SETUP          ; шапка, вкладка Setup - выбрана
         ld b,5
         call Tool_Head
-        call Tool_Clear
         call Tr_Active
         call Ov_Frames
         ld hl,Ov_Fields
@@ -113,10 +116,29 @@ Ov_Loop
 Ov_Leave
         xor a
         ld (Ov_Exit),a
-        call Tool_Clear
+        ld a,(Ov_Mode)              ; Help - во весь экран: стереть
+        or a
+        call nz,Tool_Clear
         call Scr_End
         RESTPAGE3
-        ret
+        ld a,(Ov_Mode)              ; Setup: окно убрать - под ним всё как было
+        or a
+        ret nz
+        jp Win_Close
+
+;-------- Setup: играет - стоп, стандартное окно (WF_DARK - цвета тулз)
+Ov_Window
+        ld a,(SV_PLAY_STATE)
+        or a
+        ld a,PC_STOP
+        jr z,$+5
+        ld (SV_PLAY_CMD),a
+        ld hl,Ov_Win_D
+        jp Win_Open
+Ov_Win_D
+        db OV_X-1, OV_TOP, 46, IMR_Y-OV_TOP+2, WF_DARK
+        db "Setup",0
+        db WIN_END
 
 Ov_Exit         db 0
 Ov_Mode         db 0                ; 0 - Setup, OPT_HELP - Help
@@ -129,9 +151,19 @@ OV_TAB_HELP     equ OV_SCR_H*256+128+patview.HD_HELP_X
 ; =========================================================================
 ; ЭКРАН
 ; =========================================================================
-Ov_Frames
-        ld hl,Ov_Boxes
-        ld b,2
+Ov_Frames                           ; Setup: подписи разделов в окне (рамка - окна)
+        ld a,(THEME_ATTR+CLR_HEADER)
+        ld c,a
+        ld de,PL_X+256*(OV_SCR_H+OV_TOP+1)
+        ld hl,Txt_OvPal
+        call PutStr
+        ld e,FN_X
+        ld hl,Txt_OvMouse
+        jp PutStr
+Txt_OvPal       db "Palette",0
+Txt_OvMouse     db "Mouse",0
+; Рамки во всю высоту (Help): HL - колонка, ширина, подпись; B - сколько
+Ov_Boxes_Draw
 .box    push bc
         ld a,(hl)
         ld (Bx_X),a
@@ -159,7 +191,7 @@ Ov_Frames
 Hp_Frame
         ld hl,Hp_Box
         ld b,1
-        call Ov_Frames.box
+        call Ov_Boxes_Draw.box
         ld a,(Hp_Page)              ; закладки: выбранная - цветом выделения
         or a
         ld a,(THEME_ATTR+CLR_SELECT)
@@ -363,9 +395,6 @@ Hlp_Tab
         db HL_TEXT,"Click L, number   loop to this row",0
         db 0
 
-Ov_Boxes
-        db PL_X,PL_W,"Palette",0
-        db FN_X,FN_W,"Mouse",0
 Hp_Box  db KY_X,KY_W,"Help",0
 HP_TAB_Y        equ OV_TOP+1        ; закладки Help
 HP_TAB1         equ KY_X+2
@@ -397,7 +426,7 @@ Ov_Draw
         call Ov_Mouse
         ld a,(THEME_ATTR+CLR_BG)    ; сообщение
         ld c,a
-        ld de,1+256*(OV_SCR_H+MSG_Y)
+        ld de,OV_X+256*(OV_SCR_H+MSG_Y)
         ld b,PL_W-2
 .sp     ld a,' '
         call PutCh
@@ -554,6 +583,7 @@ Hp_Fields
         OV_FIELD 0,0,90,OV_TOP, 0, Ov_TabEv, 0                          ; остальное - назад
         db FLD_END
 
+        OV_FIELD OV_X-1+46-WIN_CLOSE_DX,OV_TOP,3,1, FF_HAND, Ov_TabEv, 0 ; [x] окна - назад в паттерн
 F_Save  OV_FIELD SAVE_X,SAVE_Y,6,1, FF_HAND, Ov_SaveEv, 0                ; Save
         OV_FIELD MS_X,MS_Y+1,6+MS_SPEED_MAX,1, FF_HAND, Ov_MouseEv, 0    ; мышь: скорость
         OV_FIELD MS_X,MS_Y+2,6+MS_ACCEL_MAX,1, FF_HAND, Ov_MouseEv, 1    ;   ускорение
