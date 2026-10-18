@@ -307,33 +307,31 @@ Win_Draw                            ; на примитивах (srs/prim.asm): 
         ld hl,(Wd_Fn)               ; строки: текст (About) или пункты меню
         jp (hl)
 
-; Заголовок (пусто - нет): верхняя строка между углами - шахматка, по центру " текст ", справа - крестик
-; закрытия [x] (WIN_CLOSE_DX от правого края). Всё - цветом рамки
+; Заголовок (пусто - нет): верхняя строка между углами - шахматка, по центру " текст ", справа - крестик ×
+; (WIN_CLOSE_DX от правого края). Углы - цвета окна, остальное - цветом рамки или инверсным (WF_INVERT)
 WB_CHECK        equ #B1             ; ▒ - шахматка заголовка
-WIN_CLOSE_DX    equ 4               ; [x] - с колонки x+w-4 (до угла)
+WIN_CLOSE_DX    equ 2               ; крестик - в колонке x+w-2 (перед углом)
 Wd_Title
         ld hl,(Wo_Title)
         ld a,(hl)
         or a
         ret z
-        ld a,(Win_Flags)            ; строка заголовка - от края до края (без углов): WF_INVERT - сплошная
-        and WF_INVERT               ;   тёмная полоса, иначе - шахматка цветом рамки
+        ld a,(Win_Flags)            ; между углами (они - цвета окна): шахматка и текст; WF_INVERT - инверсным
+        and WF_INVERT               ;   цветом (CLR_WIN_INV), иначе - цветом рамки
         ld a,(Wd_AF)
-        ld b,WB_CHECK
         jr z,.cl
         ld a,(THEME_ATTR+CLR_WIN_INV)
-        ld b,' '
 .cl     ld c,a
-        ld a,b
-        ld (.ch+1),a
         ld a,(Win_Y)
         add a,WIN_SCR_H
         ld d,a
         ld a,(Win_X)
+        inc a
         ld e,a
         ld a,(Win_W)
+        sub 2
         ld b,a
-.ch     ld a,WB_CHECK               ; (знак полосы - сюда)
+.ch     ld a,WB_CHECK
         call PutCh
         djnz .ch
         ld hl,(Wo_Title)            ; длина заголовка
@@ -357,14 +355,14 @@ Wd_Title
         call PutStr
         ld a,' '
         call PutCh
-        ld a,(Win_X)                ; крестик [x]
+        ld a,(Win_X)                ; крестик - знак шрифта, у правого угла
         ld hl,Win_W
         add a,(hl)
         sub WIN_CLOSE_DX
         ld e,a
-        ld hl,Txt_WClose
-        jp PutStr
-Txt_WClose      db "[x]",0
+        ld a,GLYPH_CLOSE
+        jp PutCh
+GLYPH_CLOSE     equ #17             ; × (шрифт cp866bold, код 23)
 
 ; Мышь на крестике окна с заголовком? CF - да
 Win_OnClose
@@ -385,8 +383,8 @@ Win_OnClose
         ld a,(SV_MOUSE_COL)
         sub b
         jr c,.no
-        cp 3
-        ret                         ; CF - на [x]
+        cp 1
+        ret                         ; CF - на крестике
 .no     or a
         ret
 

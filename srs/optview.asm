@@ -580,7 +580,7 @@ Ov_Fields
         OV_FIELD patview.HD_ABOUT_X,  patview.HD_TABS_Y,5,1, FF_HAND, Win_AboutEv, 0 ; About
         OV_FIELD 0,0,90,OV_TOP, 0, Ov_TabEv, 0                          ; остальное - назад
         OV_FIELD PL_X+2,LIST_Y,8,PALETTES, FF_HAND, Ov_PalEv, 0          ; темы
-        OV_FIELD OV_WX+OV_WW-WIN_CLOSE_DX,OV_WY,3,1, FF_HAND, Ov_TabEv, 0 ; [x] окна - назад в паттерн
+        OV_FIELD OV_WX+OV_WW-WIN_CLOSE_DX,OV_WY,1,1, FF_HAND, Ov_TabEv, 0 ; крестик окна - назад в паттерн
         OV_FIELD SAVE_BX,SAVE_BY,6,1, FF_BTN|FF_HAND, Bn_Ev, Bd_OvSave ; Save (srs/button.asm) - справа внизу окна
         OV_FIELD MS_X,MS_Y+1,6+MS_SPEED_MAX,1, FF_HAND, Ov_MouseEv, 0    ; мышь: скорость
         OV_FIELD MS_X,MS_Y+2,6+MS_ACCEL_MAX,1, FF_HAND, Ov_MouseEv, 1    ;   ускорение
