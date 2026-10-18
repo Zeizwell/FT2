@@ -104,38 +104,39 @@ class SNDCHIP : public SNDRENDER
    void flush(unsigned chiptick);
    void apply_regs(unsigned timestamp = 0);
 
-   // ZX Trinity: timer effects card (FT2 doc/ay-ports-map.md, 5a). Per chip: block #C0-#CF,
-   // tables #B8/#B9. Enabled by conf.sound.trinity, opened by key "TRIN" written to #C0
-   enum { TRIN_REGS = 12, TRIN_TABS = 32, TRIN_STEPS = 16 };
+   // ZX Trinity: timer effects card (FT2 doc/ay-ports-map.md 5a, doc/fx-row.md). Per chip: #C0 control
+   // (key "TRIN" opens, 0 closes, any write resyncs the stream; read 'T'), #C1 packet stream
+   // (ROW / TABLE / RESET / INFO). Enabled by conf.sound.trinity
+   enum { TRIN_ROW = 14, TRIN_TABS = 256, TRIN_STEPS = 16, TRIN_PKT = 19 };
    struct TRIN_FX {              // one timer: Mix (SID / Sync), FM, Env FM
       unsigned cnt, dur;         // chip ticks into current step, step length
       u8 step;                   // step in table
    };
    struct TRIN_CH {
-      u8 reg[TRIN_REGS];         // active: FLAGS, PWM, SWEEP, 3 x (SEMI, RAW, TAB)
-      unsigned base;             // timer base period (TAKE)
+      u8 reg[TRIN_ROW];          // FX row: FLAGS, PWM, SWEEP, 3 x (SEMI, RAW, TAB), LEN1, LEN2
       TRIN_FX fx[3];
       unsigned sweep;            // PWM sweep phase 0..65535
-      u8 shape, start;           // #BC: sweep shape (bits 2..0) + keep on RESET (bit 3); #BD: start phase
+      u8 shape, start, keep;     // sweep shape (table number), start phase, keep on RESET
       u8 lvl;                    // SID level 0..15
    };
-   u8 trin_on, trin_key, trin_ch, trin_cmd, trin_tn, trin_tp;
-   u8 trin_sh[3][TRIN_REGS];     // shadow, goes to work on GO (#C1)
-   u8 trin_sh2[3][2];            // shadow of #BC, #BD
+   u8 trin_on, trin_key;
+   u8 trin_pkt[TRIN_PKT], trin_pos, trin_need;   // stream parser
+   u8 trin_info;                 // INFO answer: next byte to read from #C1
    double trin_sweep_pos(const TRIN_CH &ch);
    TRIN_CH trin[3];
-   u8 trin_tab[TRIN_TABS + 1][1 + TRIN_STEPS];   // 1..32: header (len-1 | loop<<4), steps
+   u8 trin_tab[TRIN_TABS][TRIN_STEPS];   // tables 0..255, 16 values (length - in the row)
    bool trin_write(unsigned timestamp, u8 val);
    bool trin_read(u8 &val);
    void trin_reset();
-   void trin_go(u8 val);
+   void trin_packet();
+   void trin_row(int c, const u8 *row, u8 shape, u8 start, u8 keep);
    void trin_tick();
    void trin_frame();
    void trin_next(int c, int k);
    void trin_apply(int c, int k);
    unsigned trin_tone(int c);
    unsigned trin_period(int c, int k);
-   const u8 *trin_table(int c, int k, u8 &len, u8 &loop);
+   u8 trin_len(int c, int k);
 };
 
 struct AYOUT

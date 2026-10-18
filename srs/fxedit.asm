@@ -1316,6 +1316,8 @@ Fe_Step_Put
         ld a,(Fe_SVal)
         ld (hl),a
         RESTPAGE2
+        ld a,(Fe_T)                 ; плеер - её в карту (если играет)
+        ld (Fx_TabDirty),a
         ret
 
 ;-------- Таблица Fe_T строки (IX, байт - IY+2) - только её: пресет или ещё чья-то - копия в

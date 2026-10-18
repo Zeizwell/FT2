@@ -327,15 +327,18 @@ const SNDCHIP_PANTAB SNDR_PAN_CBA_S =
 { 10,100,  66,66,   100,10 };
 
 // =========================================================================
-// ZX Trinity: timer effects card (FT2 doc/ay-ports-map.md, 5a)
-// Per chip: #C0 key "TRIN" / read 'T', #C1 GO (shadow -> work; 0 - also lock, bit 0 - keep open),
-// #C2 channel, #C3-#CE channel regs = FX row (FLAGS, PWM, SWEEP, 3 x (SEMI, RAW, TAB)),
-// #CF CMD (TAKE A..C bits 0-2, RESET A..C bits 3-5), #B8 table number, #B9 table data.
-// Timer of an effect ticks every P chip ticks (8*P AY clocks), P = base * 2^(-semi/12) + raw,
-// base - channel tone period (FOLLOW) or taken by TAKE. Each step lasts P (SID with 2 steps
-// and PWM - 2P split by the duty).
+// ZX Trinity: timer effects card (FT2 doc/ay-ports-map.md 5a, doc/fx-row.md, doc/bitphase-fx.md)
+// Per chip: #C0 control - key "TRIN" (4 writes) opens, 0 closes, any write resyncs the stream;
+// read #C0 - 'T' while open. #C1 - packet stream [code][data], applied when the last byte comes:
+//   ROW   (1): channel 0..2, FX row 14 bytes, sweep shape (table number), start phase, keep flag
+//   TABLE (2): number 0..255, 16 values
+//   RESET (3): channel mask - new note: timers, steps and sweep (unless keep) from the start
+//   INFO  (4): then read #C1: 'T','R','I','N', version
+// Timer of an effect ticks every P chip ticks (8*P AY clocks), P = tone * 2^(-semi/12) + raw,
+// always following the channel tone. Each step lasts P (SID with 2 steps and PWM - 2P split by the duty).
 // =========================================================================
-enum { TF_MIX = 3, TF_SID = 1, TF_SYNC = 2, TF_FM = 4, TF_EFM = 8, TF_FOLLOW = 16, TF_FMPER = 32, TF_EFMPER = 64 };
+enum { TF_MIX = 3, TF_SID = 1, TF_SYNC = 2, TF_FM = 4, TF_EFM = 8, TF_FMPER = 32, TF_EFMPER = 64 };
+enum { TP_ROW = 1, TP_TABLE = 2, TP_RESET = 3, TP_INFO = 4 };
 
 static double trin_mul[256];        // 2^(-s/12) for semitones s = -128..127 (index - s as u8)
 static bool trin_mul_ok = false;
@@ -358,9 +361,7 @@ static unsigned trin_clamp(double p, unsigned max)
 
 void SNDCHIP::trin_reset()
 {
-   trin_on = trin_key = trin_ch = trin_cmd = trin_tn = trin_tp = 0;
-   memset(trin_sh, 0, sizeof trin_sh);
-   memset(trin_sh2, 0, sizeof trin_sh2);
+   trin_on = trin_key = trin_pos = trin_need = trin_info = 0;
    memset(trin, 0, sizeof trin);
    memset(trin_tab, 0, sizeof trin_tab);
    for (int c = 0; c < 3; c++) trin[c].lvl = 15;
@@ -373,29 +374,19 @@ unsigned SNDCHIP::trin_tone(int c)
    return p ? p : 1;
 }
 
-// timer period of effect k of channel c (chip ticks)
+// timer period of effect k of channel c (chip ticks): always follows the tone
 unsigned SNDCHIP::trin_period(int c, int k)
 {
    TRIN_CH &ch = trin[c];
-   unsigned base = (ch.reg[0] & TF_FOLLOW) || !ch.base ? trin_tone(c) : ch.base;
-   double p = base * trin_semi(ch.reg[3 + 3 * k]) + (signed char)ch.reg[4 + 3 * k];
+   double p = trin_tone(c) * trin_semi(ch.reg[3 + 3 * k]) + (signed char)ch.reg[4 + 3 * k];
    return trin_clamp(p, 0xFFFF);
 }
 
-// steps of effect k: table by number, 0 - default (SID 15 0, Sync - current shape, FM - no shift)
-const u8 *SNDCHIP::trin_table(int c, int k, u8 &len, u8 &loop)
+// length of effect k (1..16 steps): Mix - LEN1 3..0, FM - LEN1 7..4, Env FM - LEN2 3..0
+u8 SNDCHIP::trin_len(int c, int k)
 {
-   static const u8 def_sid[2] = { 15, 0 }, def_zero[1] = { 0 };
-   u8 n = trin[c].reg[5 + 3 * k];
-   if (n == 0 || n > TRIN_TABS) {
-      loop = 0;
-      if (k == 0 && (trin[c].reg[0] & TF_MIX) == TF_SID) { len = 2; return def_sid; }
-      len = 1; return def_zero;
-   }
-   len = (trin_tab[n][0] & 15) + 1;
-   loop = trin_tab[n][0] >> 4;
-   if (loop >= len) loop = 0;
-   return trin_tab[n] + 1;
+   const u8 *g = trin[c].reg;
+   return (k == 0 ? g[12] & 15 : k == 1 ? g[12] >> 4 : g[13] & 15) + 1;
 }
 
 // apply current step of effect k and set its length
@@ -403,10 +394,9 @@ void SNDCHIP::trin_apply(int c, int k)
 {
    TRIN_CH &ch = trin[c];
    TRIN_FX &fx = ch.fx[k];
-   u8 len, loop;
-   const u8 *st = trin_table(c, k, len, loop);
-   if (fx.step >= len) fx.step = loop;
-   u8 v = st[fx.step];
+   u8 len = trin_len(c, k);
+   if (fx.step >= len) fx.step = 0;
+   u8 v = trin_tab[ch.reg[5 + 3 * k]][fx.step];
    unsigned p = trin_period(c, k);
    fx.dur = p;
 
@@ -457,56 +447,70 @@ void SNDCHIP::trin_tick()
    }
 }
 
-// sweep position 0..1 by shape (#BC bits 2..0): triangle, sine, saw up, saw down, square
+// sweep position 0..1: shape - table of 16 curve points 0..255, linear between them (in a circle)
 double SNDCHIP::trin_sweep_pos(const TRIN_CH &ch)
 {
-   double p = ch.sweep / 65536.0;
-   switch (ch.shape & 7) {
-      case 1: return 0.5 - 0.5 * cos(2.0 * 3.14159265358979 * p);   // sine
-      case 2: return p;                                               // saw up
-      case 3: return 1.0 - p;                                         // saw down
-      case 4: return p < 0.5 ? 1.0 : 0.0;                             // square: max, then min
-      default: return p < 0.5 ? 2.0 * p : 2.0 - 2.0 * p;              // triangle
-   }
+   const u8 *t = trin_tab[ch.shape];
+   unsigned i = ch.sweep >> 12, f = ch.sweep & 0x0FFF;
+   double a = t[i], b = t[(i + 1) & 15];
+   return (a + (b - a) * f / 4096.0) / 255.0;
 }
 
-// once per frame: PWM sweep (shape - #BC)
+// once per frame: PWM sweep phase (256 steps per cycle, speed - added per frame)
 void SNDCHIP::trin_frame()
 {
    for (int c = 0; c < 3; c++)
-      if (trin[c].reg[2]) trin[c].sweep = (trin[c].sweep + trin[c].reg[2] * 64) & 0xFFFF;
+      if (trin[c].reg[2]) trin[c].sweep = (trin[c].sweep + trin[c].reg[2] * 256) & 0xFFFF;
 }
 
-// GO: shadow -> work, CMD; effects switched off give the channel back to AY registers
-void SNDCHIP::trin_go(u8 val)
+// ROW: new FX row of channel c; effects switched off give the channel back to AY registers
+void SNDCHIP::trin_row(int c, const u8 *row, u8 shape, u8 start, u8 keep)
 {
-   for (int c = 0; c < 3; c++) {
-      TRIN_CH &ch = trin[c];
-      u8 was = ch.reg[0];
-      memcpy(ch.reg, trin_sh[c], TRIN_REGS);
-      ch.shape = trin_sh2[c][0], ch.start = trin_sh2[c][1];
-      u8 now = ch.reg[0];
-      if ((was & TF_FM) && !(now & TF_FM)) {
-         if (c == 0) fa = r.fA; else if (c == 1) fb = r.fB; else fc = r.fC;
-      }
-      if ((was & TF_EFM) && !(now & TF_EFM)) fe = r.envT;
-      if (!(now & TF_MIX)) ch.lvl = 15;
-      if (trin_cmd & (1 << c)) ch.base = trin_tone(c);              // TAKE
-      for (int k = 0; k < 3; k++) {
-         static const u8 bit[3] = { TF_MIX, TF_FM, TF_EFM };
-         bool on = (now & bit[k]) != 0, start = on && !(was & bit[k]);
-         if (trin_cmd & (8 << c)) {                                   // RESET
-            ch.fx[k].step = 0, ch.fx[k].cnt = 0;
-            if (on) trin_apply(c, k);
-         } else if (start) {                                          // just switched on
-            ch.fx[k].step = 0, ch.fx[k].cnt = 0;
-            trin_apply(c, k);
-         }
-      }
-      if ((trin_cmd & (8 << c)) && !(ch.shape & 8)) ch.sweep = ch.start << 8;   // RESET: sweep from start phase
+   TRIN_CH &ch = trin[c];
+   u8 was = ch.reg[0];
+   memcpy(ch.reg, row, TRIN_ROW);
+   ch.shape = shape, ch.start = start, ch.keep = keep & 1;
+   u8 now = ch.reg[0];
+   if ((was & TF_FM) && !(now & TF_FM)) {
+      if (c == 0) fa = r.fA; else if (c == 1) fb = r.fB; else fc = r.fC;
    }
-   trin_cmd = 0;
-   if (!(val & 1)) trin_on = 0;
+   if ((was & TF_EFM) && !(now & TF_EFM)) fe = r.envT;
+   if (!(now & TF_MIX)) ch.lvl = 15;
+   static const u8 bit[3] = { TF_MIX, TF_FM, TF_EFM };
+   for (int k = 0; k < 3; k++)
+      if ((now & bit[k]) && !(was & bit[k])) {      // just switched on - from the first step
+         ch.fx[k].step = 0, ch.fx[k].cnt = 0;
+         trin_apply(c, k);
+      }
+}
+
+// a whole packet came: apply it
+void SNDCHIP::trin_packet()
+{
+   const u8 *b = trin_pkt;
+   switch (b[0]) {
+      case TP_ROW:
+         if (b[1] < 3) trin_row(b[1], b + 2, b[16], b[17], b[18]);
+         break;
+      case TP_TABLE:
+         memcpy(trin_tab[b[1]], b + 2, TRIN_STEPS);
+         break;
+      case TP_RESET:
+         for (int c = 0; c < 3; c++) {
+            if (!(b[1] & (1 << c))) continue;
+            TRIN_CH &ch = trin[c];
+            static const u8 bit[3] = { TF_MIX, TF_FM, TF_EFM };
+            for (int k = 0; k < 3; k++) {
+               ch.fx[k].step = 0, ch.fx[k].cnt = 0;
+               if (ch.reg[0] & bit[k]) trin_apply(c, k);
+            }
+            if (!ch.keep) ch.sweep = ch.start << 8;
+         }
+         break;
+      case TP_INFO:
+         trin_info = 1;
+         break;
+   }
 }
 
 bool SNDCHIP::trin_write(unsigned timestamp, u8 val)
@@ -514,33 +518,36 @@ bool SNDCHIP::trin_write(unsigned timestamp, u8 val)
    static const char key[] = "TRIN";
    u8 n = activereg;
    if (n == 0xC0) {
+      trin_pos = 0;                                  // any write - stream from the start
+      if (val == 0 && trin_key == 0) { trin_on = 0; return true; }
       if ((char)val == key[trin_key]) trin_key++;
       else trin_key = (char)val == key[0];
       if (trin_key == 4) trin_on = 1, trin_key = 0;
       return true;
    }
    if (!trin_on) return false;
-   if (n == 0xC1) {
-      if (timestamp) flush((timestamp * mult_const) >> MULT_C_1);
-      trin_go(val);
+   if (n != 0xC1) return false;
+   if (timestamp) flush((timestamp * mult_const) >> MULT_C_1);
+   if (trin_pos == 0) {                              // packet code -> its length
+      static const u8 len[5] = { 0, 19, 18, 2, 1 };
+      if (val == 0 || val > TP_INFO) return true;    // unknown code - skip the byte
+      trin_need = len[val];
    }
-   else if (n == 0xC2) { if (val < 3) trin_ch = val; }
-   else if (n >= 0xC3 && n <= 0xCE) trin_sh[trin_ch][n - 0xC3] = val;
-   else if (n == 0xBC || n == 0xBD) trin_sh2[trin_ch][n - 0xBC] = val;
-   else if (n == 0xCF) trin_cmd = val;
-   else if (n == 0xB8) trin_tn = val, trin_tp = 0;
-   else if (n == 0xB9) {
-      if (trin_tn >= 1 && trin_tn <= TRIN_TABS && trin_tp < 1 + TRIN_STEPS) trin_tab[trin_tn][trin_tp++] = val;
-   }
-   else return false;
+   trin_pkt[trin_pos++] = val;
+   if (trin_pos >= trin_need) trin_packet(), trin_pos = 0;
    return true;
 }
 
-// read: #C0 - 'T' (card is there, open), #C1 - version
+// read: #C0 - 'T' (card is there, open); #C1 after INFO - "TRIN", version 2
 bool SNDCHIP::trin_read(u8 &val)
 {
    if (!trin_on) return false;
    if (activereg == 0xC0) { val = 'T'; return true; }
-   if (activereg == 0xC1) { val = 1; return true; }
+   if (activereg == 0xC1) {
+      static const u8 info[5] = { 'T', 'R', 'I', 'N', 2 };
+      val = trin_info >= 1 && trin_info <= 5 ? info[trin_info - 1] : 0;
+      if (trin_info >= 1 && trin_info < 5) trin_info++; else trin_info = 0;
+      return true;
+   }
    return false;
 }
