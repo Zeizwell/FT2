@@ -58,6 +58,13 @@ CMP_X           equ FP_L+20         ; [ Compare ]: после загрузки P
 CMP_W           equ 11
 CHK_Y           equ BTN_Y+1         ; [ Check ]: выбранный FT2 - во второй слот и сравнить (проверка контейнера)
 CHK_W           equ 9
+NEW_X           equ FP_L+10         ; [ New ] - очистить трек; [ Exit WC ] - в Wild Commander (строка Check)
+NEW_W           equ 7
+WC_X            equ FP_L+18
+WC_W            equ 11
+ASK_SAVE        equ 1               ; Sv_Ask: что спрашиваем (ответ Y / N / Esc)
+ASK_NEW         equ 2
+ASK_WC          equ 3
 MSG_Y           equ DV_TOP+10       ; сообщение
 
 ; --- запись каталога в PAGE_DIRLIST (переменной длины, адрес - из таблицы, Dl_Ofs)
@@ -506,6 +513,14 @@ Dv_Buttons
         ld de,LOAD_X+256*(DV_SCR_H+CHK_Y)
         ld hl,Txt_Check
         call .one
+        ld ix,F_New
+        ld de,NEW_X+256*(DV_SCR_H+CHK_Y)
+        ld hl,Txt_New
+        call .one
+        ld ix,F_WC
+        ld de,WC_X+256*(DV_SCR_H+CHK_Y)
+        ld hl,Txt_ExitWC
+        call .one
         ld ix,F_Cmp                 ; Compare: вкл / выкл
         ld de,CMP_X+256*(DV_SCR_H+BTN_Y)
         ld hl,Txt_CmpOff
@@ -561,6 +576,8 @@ F_Load  DV_FIELD LOAD_X,BTN_Y,BTN_W,1, FF_HAND, Dv_BtnEv, 0              ; Load
 F_Save  DV_FIELD SAVE_X,BTN_Y,BTN_W,1, FF_HAND, Dv_BtnEv, 1              ; Save
 F_Cmp   DV_FIELD CMP_X,BTN_Y,CMP_W,1, FF_HAND, Dv_BtnEv, 2              ; Compare
 F_Chk   DV_FIELD LOAD_X,CHK_Y,CHK_W,1, FF_HAND, Dv_BtnEv, 3             ; Check
+F_New   DV_FIELD NEW_X,CHK_Y,NEW_W,1, FF_HAND, Dv_BtnEv, 4              ; New
+F_WC    DV_FIELD WC_X,CHK_Y,WC_W,1, FF_HAND, Dv_BtnEv, 5                ; Exit WC
         db FLD_END
 
 ;-------- Клик в шапку: Instr / Orn - тулза инструментов, остальное - назад в вид паттерна
@@ -605,8 +622,18 @@ Dv_BtnEv
         dec a
         jp z,Dv_Save
         dec a
-        jp nz,Dv_Check
-        ld a,(Dv_Cmp)               ; Compare - переключить
+        jr z,.cmp
+        dec a
+        jp z,Dv_Check
+        dec a
+        ld a,ASK_NEW                ; New / Exit WC - сначала вопрос
+        ld hl,Txt_AskNew
+        jr z,.ask
+        ld a,ASK_WC
+        ld hl,Txt_AskWC
+.ask    ld (Sv_Ask),a
+        jp Dv_Busy                  ; строка вопроса - открытая, ответ допишется
+.cmp    ld a,(Dv_Cmp)               ; Compare - переключить
         xor 1
         ld (Dv_Cmp),a
         ret
@@ -844,6 +871,36 @@ Dv_Keys
         call Fld_Set_Focus
         jr .k
 
+;-------- New: трек - пустой (как при старте), назад в вид паттерна
+Dv_NewSong
+        ld a,PC_STOP                ; плеер - стоп: трек сейчас перепишем
+        ld (SV_PLAY_CMD),a
+.w      halt
+        ld a,(SV_PLAY_STATE)
+        or a
+        jr nz,.w
+        call Tr_Active
+        call Song_New
+        ld a,1                      ; вид паттерна перечитает трек
+        ld (SV_SONG_NEW),a
+        ld a,PAGE_TOOL_PATVIEW
+        ld (SV_TOOL),a
+        ld a,1
+        ld (Dv_Exit),a
+        ret
+
+;-------- Exit WC: ПЗУ (ts-bios) в окно 0 и на #0000 - перезапуск, BIOS грузит WC с карты.
+; Вернуться в WC без перезапуска нельзя: FT2 занимает его страницы
+Dv_ExitWC
+        di
+        ld bc,MEMCONFIG
+        ld a,MEM_W0MAP_N            ; окно 0 - ПЗУ (W0RAM = 0), обычный режим
+        out (c),a
+        ld bc,PAGE0
+        xor a                       ; страница 0 ПЗУ
+        out (c),a
+        jp 0
+
 ;-------- Ответ на "overwrite? (Y/N)": B - клавиша. Y - писать поверх, N / Esc - нет, прочие - мимо
 Sv_Answer
         ld a,b
@@ -852,22 +909,32 @@ Sv_Answer
         cp KEY_N
         jr z,.no
         cp KEY_ESC
-        jr nz,Dv_Keys
+        jp nz,Dv_Keys
 .no     xor a
         ld (Sv_Ask),a
         ld hl,Txt_SvNo
         call Dv_Ok
-        jr Dv_Keys
-.yes    xor a
+        jp Dv_Keys
+.yes    ld a,(Sv_Ask)
+        push af
+        xor a
         ld (Sv_Ask),a
         ld hl,Txt_SvYes
         call Dv_Ok
+        pop af
+        cp ASK_WC
+        jp z,Dv_ExitWC
+        cp ASK_NEW
+        jr nz,.save
+        call Dv_NewSong
+        jp Dv_Keys
+.save
         ld a,1                      ; Save ещё раз - поверх
         ld (Sv_Force),a
         call Dv_Save
         xor a                       ; не дошёл до вопроса (ошибка) - не оставлять
         ld (Sv_Force),a
-        jr Dv_Keys
+        jp Dv_Keys
 
 ; =========================================================================
 ; КАТАЛОГ
@@ -1806,7 +1873,7 @@ Dv_Save
         ld a,(Sv_Force)             ; файл есть: без подтверждения - спросить (кнопки Yes / No)
         or a
         jr nz,.ovr
-        inc a
+        ld a,ASK_SAVE
         ld (Sv_Ask),a
         ld hl,Txt_Exists
         call Dv_Ok
@@ -2428,6 +2495,10 @@ Txt_Size        db "Size:",0
 Txt_Load        db "[ Load ]",0
 Txt_Save        db "[ Save ]",0
 Txt_Check       db "[ Check ]",0
+Txt_New         db "[ New ]",0
+Txt_ExitWC      db "[ Exit WC ]",0
+Txt_AskNew      db "New song? (Y/N)",0
+Txt_AskWC       db "Exit to WC? (Y/N)",0
 Txt_Exists      db "overwrite? (Y/N)",0
 Txt_SvYes       db "Y",0
 Txt_SvNo        db "N",0
