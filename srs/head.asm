@@ -51,14 +51,14 @@ HD_TRK_X        equ 86              ; трек "1 2" (выбранный - вы�
 ; --- строка 3: параметры ввода
 HD_ROW_EDIT     equ 3
 HD_SPEED_L      equ 1               ; "Speed:"
-HD_SPEED_X      equ 9               ; 2 знака: [-] перед числом, [+] после (как в редакторах)
+HD_SPEED_X      equ 7               ; поле числа (srs/spin.asm, как в MilkyTracker): число, за ним [+][-]
 HD_LEN_L        equ 14              ; "Size:" - длина паттерна
-HD_LEN_X        equ 21
+HD_LEN_X        equ 19
 HD_OCT_L        equ 26              ; "Octave:"
-HD_OCT_X        equ 35              ; 1 цифра: [-] перед, [+] после
+HD_OCT_X        equ 33              ; 1 цифра, за ней [+][-]
 HD_STEP_L       equ 39              ; "Step:" - клик: шаг вкл/выкл (вкл - фон темнее)
 HD_STEP_W       equ 5
-HD_STEP_X       equ 46              ; 2 знака: [-] перед, [+] после
+HD_STEP_X       equ 44              ; 2 знака, за ними [+][-]
 HD_ENVNOTE_L    equ 52              ; "Env as Note" - клик: вкл/выкл (вкл - фон темнее)
 HD_ENVNOTE_W    equ 11
 HD_AUTO_L       equ 64              ; "Auto Env" - так же
@@ -427,13 +427,6 @@ Hd_Track
         ld a,'2'
         jp PutCh
 
-; Кнопка A ([-] / [+], 2 знакоместа) цветом кнопок шапки CLR_TOP_BTN. E += 2
-PutBtn_Top
-        push bc
-        ld b,a
-        ld a,(THEME_ATTR+CLR_TOP_BTN)
-        jp Pb_Draw
-
 ; A - номер, HL - таблица названий по B знаков, DE - куда. Цвет C
 Hd_Name
         or a
@@ -476,40 +469,20 @@ Hd_Dec2
         pop af
         jp PutCh
 
-;-------- Кнопки [-][+]: вдавлена, пока её держат и мышь над ней (как в Windows)
+;-------- Кнопки полей чисел (флаг HF_BUTTON): стандартные, Sp_Draw - вдавлена, пока её держат и мышь
+; над ней (как в Windows)
 Hd_Buttons
         ld ix,Head_Fields
 .b      ld a,(ix+FLD_X)
         cp FLD_END
         ret z
-        ld a,(ix+FLD_FLAGS)         ; кнопка - флаг HF_BUTTON
+        ld a,(ix+FLD_FLAGS)
         and HF_BUTTON
         jr z,.n
-        push ix                     ; вдавлена: на ней нажали и мышь над ней
-        pop hl
-        ld de,(SV_PRESSED)
-        or a
-        sbc hl,de
-        ld b,0
-        jr nz,.show
-        add hl,de
-        ld de,(SV_HOVER)
-        sbc hl,de                   ; CF = 0 после or a / add
-        jr nz,.show
-        inc b
-.show   ld a,(ix+FLD_Y)
+        ld a,(ix+FLD_Y)
         add a,HD_SCR_H
         ld d,a
-        ld e,(ix+FLD_X)
-        ld a,(ix+FLD_PARAM)         ; чётная - [-], нечётная - [+]
-        rrca
-        ld a,GLYPH_BTN_MINUS
-        jr nc,$+4
-        ld a,GLYPH_BTN_PLUS
-        bit 0,b
-        jr z,$+4
-        add a,BTN_PRESSED
-        call PutBtn_Top
+        call Sp_Draw
 .n      ld de,FLD_SIZE
         add ix,de
         jr .b
@@ -560,6 +533,8 @@ Hd_Hover
         sbc hl,de
         ret nc
         ld ix,(SV_HOVER)            ; новое - запомнить его цвета
+        bit 7,(ix+FLD_FLAGS)        ; поле числа - без подсветки (его кнопки вдавливаются)
+        ret nz
         ld a,(ix+FLD_Y)
         add a,HD_SCR_H
         ld h,a
@@ -624,21 +599,27 @@ Time_Reset
         ret
 
 ; =========================================================================
-; ПОЛЯ ШАПКИ: клик - действие Hd_Act[параметр]. Кнопки - флаг HF_BUTTON
-; (их рисует Hd_Buttons: чётный параметр - [-], нечётный - [+]).
+; ПОЛЯ ШАПКИ: клик - действие Hd_Act[параметр]. Поля чисел - стандартные (srs/spin.asm, флаг
+; HF_BUTTON: кнопки рисует Hd_Buttons), параметр - описание Sd_*.
 ; Надпись + галочка - одно поле: кликать можно по надписи.
 ; =========================================================================
-HF_BUTTON       equ %10000000       ; флаг поля (FLD_FLAGS): кнопка [-]/[+]
+HF_BUTTON       equ %10000000       ; флаг поля (FLD_FLAGS): поле числа nn[+][-]
+
+; Описания полей чисел (srs/spin.asm): уменьшить, увеличить, знаков числа, цвет кнопок
+Sd_Speed        dw H_SpdDn, H_SpdUp
+                db 2, CLR_TOP_BTN
+Sd_Oct          dw H_OctDn, H_OctUp
+                db 1, CLR_TOP_BTN
+Sd_Step         dw H_StepDn, H_StepUp
+                db 2, CLR_TOP_BTN
+Sd_Len          dw H_LenDn, H_LenUp
+                db 2, CLR_TOP_BTN
 
 Head_Fields
-        FIELD HD_SPEED_X-2,HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 0  ; Speed -
-        FIELD HD_SPEED_X+2,HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 1  ;       +
-        FIELD HD_OCT_X-2,  HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 2  ; Octave -
-        FIELD HD_OCT_X+1,  HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 3  ;        +
-        FIELD HD_STEP_X-2, HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 4  ; Step -
-        FIELD HD_STEP_X+2, HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 5  ;      +
-        FIELD HD_LEN_X-2,  HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 6  ; Len -
-        FIELD HD_LEN_X+2,  HD_ROW_EDIT,2,1, HF_BUTTON|FF_HAND, Hd_Field, 0, 7  ;     +
+        FIELD HD_SPEED_X,  HD_ROW_EDIT,2+4,1, HF_BUTTON|FF_HAND, Sp_Ev, 0, Sd_Speed ; Speed nn[+][-]
+        FIELD HD_OCT_X,    HD_ROW_EDIT,1+4,1, HF_BUTTON|FF_HAND, Sp_Ev, 0, Sd_Oct   ; Octave n[+][-]
+        FIELD HD_STEP_X,   HD_ROW_EDIT,2+4,1, HF_BUTTON|FF_HAND, Sp_Ev, 0, Sd_Step  ; Step nn[+][-]
+        FIELD HD_LEN_X,    HD_ROW_EDIT,2+4,1, HF_BUTTON|FF_HAND, Sp_Ev, 0, Sd_Len   ; Size nn[+][-]
         FIELD HD_RATIO_X,  HD_ROW_EDIT,3,1, FF_HAND, Hd_Field, 0, 8          ; соотношение - по кругу
         FIELD HD_TUNE_X,   HD_ROW_FILE,7,1, FF_HAND, Hd_Field, 0, 9           ; таблица нот - по кругу
         FIELD HD_CHIP_X,   HD_ROW_FILE,9,1, FF_HAND, Hd_Field, 0, 10          ; тип чипа - по кругу
@@ -667,7 +648,7 @@ Tr_Fields                           ; кнопки транспорта (спр�
 Head_Fields_End
         db FLD_END
 
-Hd_Act  dw H_SpdDn, H_SpdUp, H_OctDn, H_OctUp, H_StepDn, H_StepUp
+Hd_Act  dw H_SpdDn, H_SpdUp, H_OctDn, H_OctUp, H_StepDn, H_StepUp ; 0..7 - теперь поля чисел (Sd_*), номера держим
         dw H_LenDn, H_LenUp, H_RatUp
         dw H_Tune, H_Chip, H_Stereo, K_EnvNote, H_AutoEnv, H_AutoStep
         dw H_TrLoop, H_TrStart, H_TrSong, H_TrRow, K_Stop     ; (19 - кнопки ■ больше нет)
