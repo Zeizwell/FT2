@@ -41,8 +41,8 @@ Fe_Off          db 0                ; FM / Env FM: смещение полей �
 Fe_OnBit        db 0                ;   маска "вкл" в FXR_FLAGS
 Fe_PerBit       db 0                ;   маска "в единицах периода"
 
-;-------- Весь экран FX
-Fe_Draw
+;-------- Неизменное - один раз при входе в FX: рамка, заголовок, кнопки, черты блоков
+Fe_Frame
         xor a                       ; общая рамка тулзы, внутри - пробелы
         ld (Bx_X),a
         ld a,90
@@ -53,12 +53,15 @@ Fe_Draw
         ld de,2+256*(IV_SCR_H+IV_TOP)
         ld hl,Txt_FxmTitle
         call PutStr
+        call Fe_Btns
+        jp Fxm_Lines_Hd
+
+;-------- Содержимое (по изменению, Iv_Dirty): список, средний блок, строки. Рамку не трогает
+Fe_Draw
         call Fe_Load
         call Fe_List
         call Fe_Mid
-        call Fe_Btns
-        call Fe_Rows
-        jp Fxm_Lines_Hd             ; поверх: черты блоков, линия под шапкой
+        jp Fe_Rows
 
 ;-------- A - страница, HL - откуда (окно 2), DE - куда, BC - сколько. SETPAGE портит BC
 Fe_Copy
@@ -346,6 +349,8 @@ Fe_Btns
 ; =========================================================================
 ;-------- Заголовки колонок подвкладки и строки 0..последняя
 Fe_Rows
+        ld d,IV_SCR_H+FE_CAP
+        call Fe_Clr_Row
         ld a,(THEME_ATTR+CLR_ED_CAP)
         ld c,a
         ld de,1+256*(IV_SCR_H+FE_CAP)
@@ -372,12 +377,16 @@ Fe_Rows
         ld (Fe_PerBit),a
         xor a
 .row    ld (Fe_Rn),a
-        cp FE_ROWS                  ; на экран влезает
+        cp FE_ROWS                  ; все строки экрана
         ret nc
-        ld hl,Fe_Hdr+FXH_END        ; и не дальше последней
+        add a,IV_SCR_H+FE_ROW0      ; строка - пустая (старое не остаётся)
+        ld d,a
+        call Fe_Clr_Row
+        ld a,(Fe_Rn)                ; дальше последней строки FX - пусто
+        ld hl,Fe_Hdr+FXH_END
         cp (hl)
         jr z,.go
-        ret nc
+        jr nc,.next
 .go     call Fe_Get_Row
         ld a,(Fe_Rn)
         add a,IV_SCR_H+FE_ROW0
@@ -389,9 +398,21 @@ Fe_Rows
         ld a,(Fx_Sub)
         or a
         call nz,Fe_Fm_Row
-        ld a,(Fe_Rn)
+.next   ld a,(Fe_Rn)
         inc a
         jr .row
+
+;-------- Строка экрана D - пробелы (колонки 1..88)
+Fe_Clr_Row
+        ld e,1
+        ld a,(THEME_ATTR+CLR_ED_VAL)
+        ld c,a
+.c      ld a,' '
+        call PutCh
+        ld a,e
+        cp 89
+        jr c,.c
+        ret
 
 ;-------- Номер строки (hex) и L у строки цикла. D - строка экрана
 Fe_Row_Head

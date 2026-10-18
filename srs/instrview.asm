@@ -139,13 +139,13 @@ Iv_Start
         ld a,(SV_TOOL_ARG)          ; Instr / Orn - с вкладки
         call Iv_Set_Mode
         call Tr_Active              ; кнопки транспорта - по плееру
-        ld hl,Iv_Fields
-        call Fld_Init
-        ld hl,F_Edit
-        call Fld_Set_Focus
+        call Iv_Fld_Init            ; поля - по режиму
 
 Iv_Loop
         halt
+        ld a,(Iv_FldNew)            ; режим сменился (из поля шапки) - поля заново, вне Fld_Update
+        or a
+        call nz,Iv_Fld_Init
         ld a,(Iv_Mode)              ; FX - макет: клавиши редактору не отдаём
         cp 2
         call nz,Iv_Keys
@@ -222,9 +222,30 @@ Iv_Set_Mode
         ld (Ed_Col),a
         call Iv_Head
         call Tool_Clear
-        call Iv_Frames              ; рамки и заголовки колонок - один раз,
-        call Iv_Draw_Caps           ;   дальше только содержимое
+        ld a,1                      ; поля - заново (в цикле)
+        ld (Iv_FldNew),a
+        ld a,(Iv_Mode)              ; рамки и заголовки - один раз, дальше только содержимое
+        cp 2
+        jr z,.fx
+        call Iv_Frames
+        call Iv_Draw_Caps
         jp Iv_Select
+.fx     call Fe_Frame               ; FX: рамка, черты, кнопки
+        jp Iv_Select
+
+;-------- Поля по режиму: FX - только шапка (редактора FX ещё нет), иначе - все
+Iv_FldNew       db 0                ; 1 - поля заново (Iv_Loop)
+Iv_Fld_Init
+        xor a
+        ld (Iv_FldNew),a
+        ld a,(Iv_Mode)
+        cp 2
+        ld hl,Fe_Fields
+        jp z,Fld_Init
+        ld hl,Iv_Fields
+        call Fld_Init
+        ld hl,F_Edit
+        jp Fld_Set_Focus
 
 ; =========================================================================
 ; ДАННЫЕ: адреса в странице (окно 2)
@@ -1590,6 +1611,20 @@ BN_X            equ 66              ; " > "
 ; =========================================================================
 ; ПОЛЯ
 ; =========================================================================
+Fe_Fields                           ; FX: только шапка (как в начале Iv_Fields)
+        IV_FIELD patview.HD_PLAY_X,   patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 0  ; ⇄ паттерн по кругу
+        IV_FIELD patview.HD_PLAY_X+4, patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 1  ; |◀ сонг с начала
+        IV_FIELD patview.HD_PLAY_X+8, patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 2  ; ▶ сонг
+        IV_FIELD patview.HD_PLAY_X+12,patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 3  ; ▷ паттерн с роу
+        IV_FIELD patview.HD_TAB_INSTR,patview.HD_TABS_Y,5,1, FF_HAND, Iv_TabEv, 0   ; Instr
+        IV_FIELD patview.HD_TAB_ORN,  patview.HD_TABS_Y,3,1, FF_HAND, Iv_TabEv, 1   ; Orn
+        IV_FIELD patview.HD_TAB_FX,   patview.HD_TABS_Y,2,1, FF_HAND, Iv_TabEv, 6   ; FX
+        IV_FIELD patview.HD_TAB_DISK, patview.HD_TABS_Y,4,1, FF_HAND, Iv_TabEv, 2   ; Disk
+        IV_FIELD patview.HD_TAB_SETUP,patview.HD_TABS_Y,5,1, FF_HAND, Iv_TabEv, 4   ; Setup
+        IV_FIELD patview.HD_HELP_X,   patview.HD_TABS_Y,4,1, FF_HAND, Iv_TabEv, 5   ; Help
+        IV_FIELD patview.HD_ABOUT_X,  patview.HD_TABS_Y,5,1, FF_HAND, Win_AboutEv, 0  ; About
+        IV_FIELD 0,0,90,IV_TOP, 0, Iv_TabEv, 3                          ; остальная шапка: назад
+        db FLD_END
 Iv_Fields
         IV_FIELD patview.HD_PLAY_X,   patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 0  ; ⇄ паттерн по кругу
         IV_FIELD patview.HD_PLAY_X+4, patview.HD_PLAY_Y,4,2, FF_HAND, Tool_TrEv, 1  ; |◀ сонг с начала
