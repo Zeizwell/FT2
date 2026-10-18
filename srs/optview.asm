@@ -29,6 +29,8 @@ KY_W            equ 90
 LIST_Y          equ OV_TOP+2        ; первая строка списков
 SAVE_Y          equ OV_TOP+10       ; кнопка Save (рамка Palette)
 SAVE_X          equ OV_X+2
+SAVE_BX         equ OV_X-1+46-2-6     ; кнопка Save - справа внизу окна (как в диалогах)
+SAVE_BY         equ OV_TOP+15       ;   (строка IMR_Y)
 MSG_Y           equ OV_TOP+12       ; сообщение
 MEM_Y           equ OV_TOP+14       ; свободная память
 IMR_Y           equ OV_TOP+15       ; IM1: повторных входов (должно быть 00)
@@ -128,7 +130,7 @@ Ov_Leave
         ret nz
         jp Win_Close
 
-;-------- Setup: играет - стоп, стандартное окно (WF_DARK - цвета тулз)
+;-------- Setup: играет - стоп, стандартное окно
 Ov_Window
         ld a,(SV_PLAY_STATE)
         or a
@@ -137,8 +139,11 @@ Ov_Window
         ld (SV_PLAY_CMD),a
         ld hl,Ov_Win_D
         jp Win_Open
+OV_WX           equ OV_X-1              ; окно Setup: колонка, ширина, высота
+OV_WW           equ 46
+OV_WH           equ IMR_Y-OV_TOP+2
 Ov_Win_D
-        db OV_X-1, OV_TOP, 46, IMR_Y-OV_TOP+2, WF_DARK
+        db OV_WX, OV_TOP, OV_WW, OV_WH, 0   ; окно как все (цвета шапки)
         db "Setup",0
         db WIN_END
 
@@ -154,7 +159,7 @@ OV_TAB_HELP     equ OV_SCR_H*256+128+patview.HD_HELP_X
 ; ЭКРАН
 ; =========================================================================
 Ov_Frames                           ; Setup: подписи разделов в окне (рамка - окна)
-        ld a,(THEME_ATTR+CLR_HEADER)
+        ld a,(THEME_ATTR+CLR_TOP_TEXT)
         ld c,a
         ld de,PL_X+256*(OV_SCR_H+OV_TOP+1)
         ld hl,Txt_OvPal
@@ -198,21 +203,21 @@ Hp_Frame
         or a
         ld a,(THEME_ATTR+CLR_SELECT)
         jr z,$+5
-        ld a,(THEME_ATTR+CLR_TEXT)
+        ld a,(THEME_ATTR+CLR_TOP_TEXT)
         ld c,a
         ld de,HP_TAB1+256*(OV_SCR_H+HP_TAB_Y)
         ld hl,Txt_TKeys
         call PutStr
         ld a,(Hp_Page)
         or a
-        ld a,(THEME_ATTR+CLR_TEXT)
+        ld a,(THEME_ATTR+CLR_TOP_TEXT)
         jr z,$+5
         ld a,(THEME_ATTR+CLR_SELECT)
         ld c,a
         ld e,HP_TAB2
         ld hl,Txt_TCmds
         call PutStr
-        ld a,(THEME_ATTR+CLR_TEXT)
+        ld a,(THEME_ATTR+CLR_TOP_TEXT)
         ld c,a
         ld a,KY_X+2                 ; первый столбец
         ld (Hl_Col),a
@@ -409,7 +414,7 @@ Txt_TCmds       db " Commands ",0
 Ov_Draw
         xor a
         ld (Ov_Dirty),a
-        ld a,(THEME_ATTR+CLR_TEXT)  ; "Free: NN pages"
+        ld a,(THEME_ATTR+CLR_TOP_TEXT)  ; "Free: NN pages"
         ld c,a
         ld de,SAVE_X+256*(OV_SCR_H+MEM_Y)
         ld hl,Txt_Free
@@ -427,7 +432,7 @@ Ov_Draw
         call Ov_List
         call Ov_Swatch
         call Ov_Mouse
-        ld a,(THEME_ATTR+CLR_BG)    ; сообщение
+        ld a,(THEME_ATTR+CLR_TOP_BG)    ; сообщение
         ld c,a
         ld de,OV_X+256*(OV_SCR_H+MSG_Y)
         ld b,PL_W-2
@@ -438,7 +443,7 @@ Ov_Draw
         ld a,h
         or l
         ret z
-        ld a,(THEME_ATTR+CLR_NOTE)
+        ld a,(THEME_ATTR+CLR_TOP_VALUE)
         ld c,a
         ld e,SAVE_X
         jp PutStr
@@ -482,7 +487,7 @@ Ov_Names
         ld b,a
         ld a,(Ol_Sel)
         cp b
-        ld a,(THEME_ATTR+CLR_TEXT)
+        ld a,(THEME_ATTR+CLR_TOP_TEXT)
         jr nz,$+5
         ld a,(THEME_ATTR+CLR_SELECT)
         ld c,a
@@ -516,12 +521,12 @@ Ov_Mouse
         ld a,(MOUSE_ACCEL)
         ld b,MS_ACCEL_MAX
         call Ov_Bar
-        ld a,(THEME_ATTR+CLR_TEXT)  ; курсор паттерна
+        ld a,(THEME_ATTR+CLR_TOP_TEXT)  ; курсор паттерна
         ld c,a
         ld de,MS_X+256*(OV_SCR_H+CB_Y)
         ld hl,Txt_Cursor
         call PutStr
-        ld a,(THEME_ATTR+CLR_VOLUME)
+        ld a,(THEME_ATTR+CLR_TOP_HI)
         ld c,a
         ld a,(Cur_Blink)
         or a
@@ -534,22 +539,22 @@ Ov_Mouse
 ; DE - место. За полосой - значение цифрой
 Ov_Bar
         ld (Ob_V),a
-        ld a,(THEME_ATTR+CLR_TEXT)
+        ld a,(THEME_ATTR+CLR_TOP_TEXT)
         ld c,a
         call PutStr
         ld a,(Ob_V)
         ld l,a                      ; L - сколько клеток ещё горит
-.c      ld a,(THEME_ATTR+CLR_VOLUME) ; горит - клетка цветом громкости
+.c      ld a,(THEME_ATTR+CLR_TOP_HI) ; горит - клетка цветом громкости
         ld c,a
         ld a,GLYPH_VOL
         dec l
         jp p,.put
-        ld a,(THEME_ATTR+CLR_EMPTY) ; нет - точка, как пустое поле
+        ld a,(THEME_ATTR+CLR_TOP_TEXT) ; нет - точка, как пустое поле
         ld c,a
         ld a,'.'
 .put    call PutCh
         djnz .c
-        ld a,(THEME_ATTR+CLR_TEXT)
+        ld a,(THEME_ATTR+CLR_TOP_TEXT)
         ld c,a
         ld a,' '
         call PutCh
@@ -574,10 +579,13 @@ Ov_Fields
         OV_FIELD 0,0,90,OV_TOP, 0, Ov_TabEv, 0                          ; остальное - назад
         OV_FIELD PL_X+2,LIST_Y,8,PALETTES, FF_HAND, Ov_PalEv, 0          ; темы
         OV_FIELD OV_X-1+46-WIN_CLOSE_DX,OV_TOP,3,1, FF_HAND, Ov_TabEv, 0 ; [x] окна - назад в паттерн
-        OV_FIELD SAVE_X,SAVE_Y,6,1, FF_BTN|FF_HAND, Bn_Ev, Bd_OvSave   ; Save (srs/button.asm)
+        OV_FIELD SAVE_BX,SAVE_BY,6,1, FF_BTN|FF_HAND, Bn_Ev, Bd_OvSave ; Save (srs/button.asm) - справа внизу окна
         OV_FIELD MS_X,MS_Y+1,6+MS_SPEED_MAX,1, FF_HAND, Ov_MouseEv, 0    ; мышь: скорость
         OV_FIELD MS_X,MS_Y+2,6+MS_ACCEL_MAX,1, FF_HAND, Ov_MouseEv, 1    ;   ускорение
         OV_FIELD MS_X,CB_Y,12+5,1, FF_HAND, Ov_CurEv, 0                  ; курсор паттерна: Solid / Blink
+        OV_FIELD 0,OV_TOP,OV_WX,TL_LAST+1-OV_TOP, 0, Ov_TabEv, 0          ; мимо окна (слева, справа, снизу) -
+        OV_FIELD OV_WX+OV_WW,OV_TOP,90-OV_WX-OV_WW,TL_LAST+1-OV_TOP, 0, Ov_TabEv, 0 ;   закрыть, назад
+        OV_FIELD OV_WX,OV_TOP+OV_WH,OV_WW,TL_LAST+1-OV_TOP-OV_WH, 0, Ov_TabEv, 0 ;   в паттерн
                                     ; дальше - поля Help (вкладки), конец списка - там
 ;-------- Help: те же транспорт и вкладки, Setup - назад в настройки
 Hp_Fields

@@ -21,7 +21,6 @@ WIN_SCR_H       equ #C0
 WIN_END         equ #FF             ; конец строк окна
 WIN_CENTER      equ #FF             ; x / y в описателе: по центру экрана
 WF_CONTEXT      equ %00000001       ; флаг окна: контекстное - клик мимо закрывает
-WF_DARK         equ %00000010       ;   тёмное (цвета тулз: рамка CLR_TITLE, фон CLR_BG) - для экранов вроде Setup
 WIN_SCR_W       equ 90              ; видимый экран
 WIN_SCR_ROWS    equ 36
 WB_TL           equ #DA             ; рамка: ┌ ┐ └ ┘ ─ │
@@ -79,18 +78,10 @@ Win_Open
 Win_Show
         ld a,1
         ld (Win_Busy),a
-        ld a,(Win_Flags)            ; цвета: обычное - как шапка, WF_DARK - как тулзы
-        and WF_DARK
-        ld a,(THEME_ATTR+CLR_TOP_TEXT)
-        ld b,a
-        ld a,(THEME_ATTR+CLR_TOP_BG)
-        jr z,.c
-        ld a,(THEME_ATTR+CLR_TITLE)
-        ld b,a
-        ld a,(THEME_ATTR+CLR_BG)
-.c      ld (Wd_AB),a
-        ld a,b
+        ld a,(THEME_ATTR+CLR_TOP_TEXT) ; цвета окна - одни на все окна (как шапка)
         ld (Wd_AF),a
+        ld a,(THEME_ATTR+CLR_TOP_BG)
+        ld (Wd_AB),a
         ld a,(Win_X)                ; DMA: колонка и ширина - чётные
         and #FE
         ld (Win_X),a
