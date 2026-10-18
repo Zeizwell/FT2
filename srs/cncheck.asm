@@ -11,7 +11,9 @@ CK_PAT          equ 3
 CK_INS          equ 4               ; дальше - номер с 1
 CK_ORN          equ 5
 CK_FX           equ 6
-CK_TAB          equ 7
+CK_TAB          equ 7               ; номер - с 0
+CK_FXH          equ 8
+CK_FXN          equ 9
 
 Ck_On           db 0                ; 1 - идёт Check: Dv_Loaded остаётся в диске
 Ck_Ok           db 0                ; 1 - файл загрузился
@@ -19,6 +21,7 @@ Ck_Slot         db 0                ; текущий трек
 Ck_Song2        db 0                ; страницы второго слота
 Ck_Ins2         db 0
 Ck_Fx2          db 0
+Ck_FxT2         db 0
 Ck_Reg          db 0                ; что сравниваем (CK_*)
 Ck_N            db 0                ; номер паттерна / инструмента ...
 Ck_Row          db 0                ; роу паттерна
@@ -62,6 +65,8 @@ Dv_Check
         ld (Ck_Ins2),a
         ld a,(Trk_Fx)
         ld (Ck_Fx2),a
+        ld a,(Trk_FxT)
+        ld (Ck_FxT2),a
         ld a,1
         ld (Ck_On),a
         xor a
@@ -89,6 +94,7 @@ Ck_All
         SETPAGE3 a
         call Ck_Head
         call Ck_Order
+        call Ck_FxN
         RESTPAGE3
         RESTPAGE2
         call Ck_Pats                ; каталог и роу паттернов
@@ -100,12 +106,19 @@ Ck_All
         call Ck_Orn
         RESTPAGE3
         RESTPAGE2
-        ld a,(Trk_Fx)               ; FX и таблицы
+        ld a,(Trk_FxT)              ; заголовки FX и таблицы
+        SETPAGE2 a
+        ld a,(Ck_FxT2)
+        SETPAGE3 a
+        call Ck_FxH
+        call Ck_Tab
+        RESTPAGE3
+        RESTPAGE2
+        ld a,(Trk_Fx)               ; строки FX
         SETPAGE2 a
         ld a,(Ck_Fx2)
         SETPAGE3 a
         call Ck_Fx
-        call Ck_Tab
         RESTPAGE3
         RESTPAGE2
         ret
@@ -301,21 +314,33 @@ Ck_Orn
         jr c,.n
         ret
 
+;-------- Строки FX 0..последняя (последняя - из заголовка, Ck_Ends)
 Ck_Fx
         ld a,CK_FX
         ld (Ck_Reg),a
         xor a
 .n      ld (Ck_N),a
         ld (Cn_N),a
-        call Fx_Addr
-        call Ck_Obj
+        call Fxr_Addr
+        ld hl,(Cn_Addr)
+        ld (Ck_Base),hl
+        ld a,(Ck_N)
+        ld e,a
+        ld d,0
+        ld hl,Ck_Ends
+        add hl,de
+        ld a,(hl)
+        ld (Cn_Rows),a
+        call Fx_Rows_Len
+        ld hl,(Cn_Addr)
+        call Ck_Mem
         ld a,(Ck_N)
         inc a
         cp FXS_MAX
         jr c,.n
         ret
 
-; Блок Cn_Addr: заголовок, строки (Cn_RowSz байт), у FX - свип, имя (Cn_NameOfs)
+; Блок Cn_Addr: заголовок, строки (Cn_RowSz байт), имя (Cn_NameOfs)
 Ck_Obj
         ld hl,(Cn_Addr)
         ld (Ck_Base),hl
@@ -337,42 +362,75 @@ Ck_Obj
         ld de,OH_ROWS
         add hl,de
         call Ck_Mem
-        ld a,(Cn_RowSz)             ; FX: форма и фаза свипа
-        cp FX_ROW_SIZE
-        jr nz,.nm
         ld hl,(Cn_Addr)
-        ld de,FX_SWEEP
-        add hl,de
-        ld bc,2
-        call Ck_Mem
-.nm     ld hl,(Cn_Addr)
         ld de,(Cn_NameOfs)
         add hl,de
         ld b,16
         jp Ck_Str
-    ASSERT ORN_ROW_SIZE != FX_ROW_SIZE
 
-;-------- Таблицы: заголовок, шаги (длина-1 - в младших 4 битах заголовка)
+;-------- Заголовки FX (FXH_SAVED байт); последняя строка трека в памяти - в Ck_Ends
+Ck_FxH
+        ld a,CK_FXH
+        ld (Ck_Reg),a
+        xor a
+.n      ld (Ck_N),a
+        ld (Cn_N),a
+        call Fxh_Addr
+        ld hl,(Cn_Addr)
+        ld (Ck_Base),hl
+        ld a,(hl)
+        and FX_ROWS_MAX-1
+        ld c,a
+        ld a,(Ck_N)
+        ld e,a
+        ld d,0
+        ld hl,Ck_Ends
+        add hl,de
+        ld (hl),c
+        ld hl,(Cn_Addr)
+        ld bc,FXH_SAVED
+        call Ck_Mem
+        ld a,(Ck_N)
+        inc a
+        cp FXS_MAX
+        jr c,.n
+        ret
+
+;-------- Имена FX (страница трека)
+Ck_FxN
+        ld a,CK_FXN
+        ld (Ck_Reg),a
+        xor a
+.n      ld (Ck_N),a
+        ld (Cn_N),a
+        call Fxn_Addr
+        ld hl,(Cn_Addr)
+        ld (Ck_Base),hl
+        ld b,16
+        call Ck_Str
+        ld a,(Ck_N)
+        inc a
+        cp FXS_MAX
+        jr c,.n
+        ret
+
+;-------- Таблицы FX: 256 по 16 значений
 Ck_Tab
         ld a,CK_TAB
         ld (Ck_Reg),a
         xor a
 .n      ld (Ck_N),a
         ld (Cn_N),a
-        call Tab_Addr
+        call Fxt_Addr
         ld hl,(Cn_Addr)
         ld (Ck_Base),hl
-        ld a,(hl)
-        and 15
-        add a,2
-        ld c,a
-        ld b,0
+        ld bc,FXT_SIZE
         call Ck_Mem
         ld a,(Ck_N)
         inc a
-        cp TAB_MAX
-        jr c,.n
+        jr nz,.n                    ; 0..255
         ret
+Ck_Ends         ds FXS_MAX          ; последняя строка каждого FX (трек в памяти)
 
 ;-------- HL (окно 2) - BC байт сравнить с тем же + #4000 (окно 3)
 Ck_Mem
@@ -473,9 +531,14 @@ Ck_Msg
         inc de
         ld a,(Ck_FReg)
         cp CK_INS
+        jr c,.n0
+        cp CK_TAB
+        jr z,.n0
         ld a,(Ck_FN)
-        jr c,$+3
-        inc a                       ; инструменты, орнаменты, FX, таблицы - с 1
+        inc a                       ; инструменты, орнаменты, FX - с 1; таблицы - с 0
+        jr .nh
+.n0     ld a,(Ck_FN)
+.nh
         call Ck_Hex
         ld a,(Ck_FReg)              ; паттерн - и роу
         cp CK_PAT
@@ -526,7 +589,7 @@ Ck_Hex
         inc de
         ret
 
-Ck_Names        dw Txt_CkHead,Txt_CkOrd,Txt_CkCat,Txt_CkPat,Txt_CkIns,Txt_CkOrn,Txt_CkFx,Txt_CkTab
+Ck_Names        dw Txt_CkHead,Txt_CkOrd,Txt_CkCat,Txt_CkPat,Txt_CkIns,Txt_CkOrn,Txt_CkFx,Txt_CkTab,Txt_CkFxH,Txt_CkFxN
 Txt_CkHead      db "head",0
 Txt_CkOrd       db "order",0
 Txt_CkCat       db "pat cat",0
@@ -535,6 +598,8 @@ Txt_CkIns       db "ins",0
 Txt_CkOrn       db "orn",0
 Txt_CkFx        db "fx",0
 Txt_CkTab       db "table",0
+Txt_CkFxH       db "fx head",0
+Txt_CkFxN       db "fx name",0
 Txt_CkRow       db " row ",0
 Txt_CkOff       db " +",0
 Txt_CkDiff      db "Diff ",0

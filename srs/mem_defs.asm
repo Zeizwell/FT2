@@ -80,7 +80,7 @@ PAGE_WINSAVE  EQU #22                           ; что под окном
 PAGE_SPLASH   EQU #20                           ; заставка при старте (выкл): экран #20..#28 (потом - буферы)
 PAGE_SPLASH_PAL EQU #26                         ;   её палитра (до заливки фона)
 
-PAGES_PER_SONG EQU PATTERNS_MAX+2   ; полный трек: паттерн = страница + страница инструментов/орнаментов + FX
+PAGES_PER_SONG EQU PATTERNS_MAX+3   ; полный трек: паттерн = страница + инструменты/орнаменты + строки FX + таблицы и заголовки FX
 PAGE_INS1     EQU PAGE_POOL+PATTERNS_MAX ; инструменты и орнаменты трека 1 (пока место фиксировано)
     ASSERT PAGES_COMPBUF*16384 >= COMPILED_MAX      ; откомпилированный влезает
     ASSERT PAGE_POOL_END-PAGE_POOL >= SONGS_MAX*PAGES_PER_SONG ; два полных трека влезают (143 >= 132)

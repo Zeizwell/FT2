@@ -182,8 +182,6 @@ Lg_Open         db 0                ; 1 - последняя строка ждё
 Lg_C            db 0
 Lg_HexT         ds 3
 Dv_Msg_Code     db 0                ; код ошибки драйвера (отладка)
-Dv_Msg_F        db 0                ; флаги драйвера (отладка)
-Dv_Msg_Show     db 0                ; отладка: 1 - строка "list .. find .."
 Dv_Path         ds 120              ; путь от корня, "/" в конце
 DV_PATH_MAX     equ 118
 Dv_Name         ds NAME_W+1         ; поле Name: имя файла (под него и сохраняем)
@@ -435,44 +433,7 @@ Dv_Draw_File
         ld de,FP_V+256*(DV_SCR_H+BY_Y)
         ld hl,Dv_By
         call PutStr
-        call Lg_Draw                ; лог сообщений
-        ld a,(Dv_Msg_Show)          ; отладка: A и флаги листинга, A и флаги поиска (поверх лога)
-        or a
-        ret z
-        ld de,FP_L+256*(DV_SCR_H+MSG_Y+1)
-        ld hl,Txt_DbgList
-        call PutStr
-        ld hl,(Dl_Dbg)
-        call .af
-        ld hl,Txt_DbgFind
-        call PutStr
-        ld hl,(Dl_Dbg2)
-        call .af
-        ld de,FP_L+256*(DV_SCR_H+MSG_Y+2)  ; дамп
-        ld hl,Dl_Dump
-        ld b,16
-.dmp    ld a,(hl)
-        push hl
-        push bc
-        call PutHex2
-        pop bc
-        pop hl
-        inc hl
-        ld a,b
-        cp 5                        ; CGPZ, CGFL - через пробел
-        jr nz,.nsp
-        ld a,' '
-        call PutCh
-.nsp    djnz .dmp
-        ret
-.af     ld a,h
-        push hl
-        call PutHex2
-        ld a,' '
-        call PutCh
-        pop hl
-        ld a,l
-        jp PutHex2
+        jp Lg_Draw                  ; лог сообщений
 
 ;-------- Поле Name: текст на фоне поля ввода, в фокусе - курсор "_"
 Dv_Draw_Name
@@ -968,43 +929,15 @@ Dv_List
         or a
         ld hl,Txt_Full
         call nz,Dv_Error
-        ld hl,(Dv_Count)            ; отладка: пусто - что вернул драйвер (A, флаги)
+        ld hl,(Dv_Count)            ; пусто - сказать
         ld a,h
         or l
         ret nz
-        ld ix,DK_FIND+256           ; и поиск FT2 по имени: A, флаги
-        ld hl,Spec_TmpFT
-        call Disk_Call
-        push af
-        pop hl
-        ld (Dl_Dbg2),hl
         ld hl,Txt_Empty
-        call Dv_Error
-        ld hl,(Dl_Dbg)
-        ld a,h
-        ld (Dv_Msg_Code),a
-        ld a,l
-        ld (Dv_Msg_F),a
-        ld a,1                      ; код печатаем всегда
-        ld (Dv_Msg_Show),a
-        ld a,PAGE_FAT_WORK          ; буфер каталога драйвера (#0000) и CGFL / CGPZ (#37FC)
-        SETPAGE3 a
-        ld hl,#C000
-        ld de,Dl_Dump
-        ld bc,12
-        ldir
-        ld hl,#C000+#37FC
-        ld bc,4
-        ldir
-        RESTPAGE3
-        ret
+        jp Dv_Error
 
-Dl_Dump         ds 16               ; отладка: 12 байт буфера + CGPZ, CGFL
 
-Spec_TmpFT      db FD_DIR,"FT2",0
-Dl_Dbg2         dw 0                ; отладка: AF поиска FT2
 
-Dl_Dbg          dw 0                ; отладка: AF последнего NXTETY
 
 ; Проход по каталогу с начала: записи с флагом A - в список
 Dl_Pass
@@ -1020,9 +953,6 @@ Dl_Pass
         ld ix,DK_NEXT               ; следующая запись
         ld de,DL_TMP
         call Disk_Call
-        push af                     ; отладка: что вернул драйвер
-        pop hl
-        ld (Dl_Dbg),hl
         ret z                       ; конец каталога
         cp 1                        ; не 1 - конец цепочки или ошибка
         ret nz
@@ -1792,7 +1722,7 @@ Pat_Zero
 
 ;-------- Каталог паттернов трека -> Dv_Cat; страницы в треке - Trk_Pat+n (так их
 ; ждёт вид паттерна), страница инструментов - Trk_Ins
-Dv_Cat          ds PATTERNS_MAX*PC_SIZE
+Dv_Cat          equ Disk_Cat        ; буфер - в коре (страница диска полна)
 Cat_N           db 0                ; номер паттерна
 Cat_Rows        db 0
 
@@ -2225,9 +2155,7 @@ Lg_End
 .put    call Lg_Add
         ld a,(Lg_C)                 ; цвет строки - по последнему
         ld (Lg_Clr+LG_LINES-1),a
-        xor a
-        ld (Dv_Msg_Show),a
-        inc a
+        ld a,1
         ld (Dv_Dirty),a
         ret
 
@@ -2524,8 +2452,6 @@ Txt_Loading     db "Loading...",0
 Txt_DiskErr     db "Disk error #",0
 Txt_Empty       db "Empty dir",0
 Txt_Full        db "Too many files: not all shown",0
-Txt_DbgList     db "list ",0
-Txt_DbgFind     db "  find ",0
 
 
     ENDMODULE

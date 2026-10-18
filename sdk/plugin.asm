@@ -611,6 +611,45 @@ TB_STEPS        equ 1               ; шаги по байту: SID - громк
     ASSERT TB_STEPS+TAB_STEPS <= TAB_BLOCK
     ASSERT TAB_BASE+TAB_MAX*TAB_BLOCK <= #4000
 
+; =========================================================================
+; FX - НОВЫЙ ФОРМАТ (реворк, doc/fx-row.md). Старый выше - пока его читают плеер и старый
+; редактор FX (уйдёт вместе с ними).
+;   страница Trk_Fx  - только строки: FX n, строка r - n*FXR_BLOCK + r*FXR_SIZE
+;   страница Trk_FxT - таблицы (n*FXT_SIZE, #0000..#0FFF) и заголовки FX (FXH_BASE + n*FXH_SIZE)
+;   имена FX - в странице трека (SONG_FX_NAMES + n*16)
+; =========================================================================
+FXR_SIZE        equ 16              ; строка FX
+FXR_BLOCK       equ FX_ROWS_MAX*FXR_SIZE        ; 512 - все строки одного FX
+FXR_FLAGS       equ 0               ; 1..0 Mix: 0 выкл, 1 SID, 2 Sync; биты FXRB_*
+FXR_PWM         equ 1               ; 7..4 PWM max, 3..0 PWM min (ступени 0..15 = n*50/15 %)
+FXR_SWP         equ 2               ; скорость свипа: 0 - нет, 1..255 - прибавка к фазе за кадр
+FXR_MIX         equ 3               ; Mix: +0 детюн в полутонах, +1 детюн сырой (со знаком), +2 номер таблицы
+FXR_FM          equ 6               ; FM: так же
+FXR_EFM         equ 9               ; Env FM: так же
+FXR_LEN1        equ 12              ; 3..0 Mix длина-1, 7..4 FM длина-1 (1..16 шагов таблицы)
+FXR_LEN2        equ 13              ; 3..0 Env FM длина-1; 14, 15 - запас
+FXRB_FM         equ 2               ; FM вкл
+FXRB_EFM        equ 3               ; Env FM вкл
+FXRB_FMPER      equ 5               ; шаги FM - в единицах периода (0 - полутоны)
+FXRB_EFMPER     equ 6               ; шаги Env FM - в единицах периода
+FXR_MIXMASK     equ 3
+    ASSERT FXR_BLOCK*FXS_MAX == #4000
+
+FXT_MAX         equ 256             ; таблиц на трек (номера 0..255, все равноправные)
+FXT_SIZE        equ 16              ; 16 значений, без заголовка (длина - в строке FX)
+FXT_TRI         equ 1               ; пресет нового трека: 0 меандр SID (F 0), 1 треугольник,
+FXT_PRESETS     equ 6               ;   2 синус, 3 пила вверх, 4 пила вниз, 5 меандр (формы свипа)
+
+FXH_BASE        equ FXT_MAX*FXT_SIZE            ; #1000: заголовки FX
+FXH_SIZE        equ 8
+FXH_END         equ 0               ; последняя строка (длина-1)
+FXH_LOOP        equ 1               ; строка цикла
+FXH_SWSHAPE     equ 2               ; форма свипа - номер таблицы (16 точек кривой)
+FXH_SWPHASE     equ 3               ; стартовая фаза свипа 0..255 (на новой ноте)
+FXH_FLAGS       equ 4               ; бит 0 - не перезапускать свип на новой ноте
+FXH_SAVED       equ 5               ; байт заголовка в файле (FXH_END..FXH_FLAGS)
+    ASSERT FXH_BASE+FXS_MAX*FXH_SIZE <= #4000
+
 ; --- регистры карты (номер в #FFFD; у каждого чипа свои)
 AYFX_KEY        equ #C0             ; ключ "TRIN" (4 записи); чтение - 'T'
 AYFX_GO         equ #C1             ; тень -> в работу; 0 - ещё и закрыть, бит 0 - открыто
@@ -621,11 +660,14 @@ AYFX_SWEEP      equ #BC             ; #BC, #BD - форма свипа ШИМ (2
 AYFX_TABN       equ #B8             ; номер таблицы для заливки (1..32)
 AYFX_TABD       equ #B9             ; данные таблицы подряд: TB_HEAD, шаги
 
+SONG_FX_NAMES   equ #0800           ; имена FX (по 16), реворк FX
 SONG_EDITSTATE  equ #1000           ; состояние редактора этого трека (курсор, позиция,
 SONG_EDITSTATE_SIZE equ #400        ; режим вида...) - ТОЛЬКО трекер, плагинам не трогать.
                                     ; При переключении треков всё возвращается как было.
                                     ; дальше до #3FFF резерв
     ASSERT SONG_CAT_END <= SONG_EDITSTATE
+    ASSERT SONG_CAT_END <= SONG_FX_NAMES
+    ASSERT SONG_FX_NAMES+FXS_MAX*16 <= SONG_EDITSTATE
 
     ASSERT ORD_POS+ORDER_MAX*ORD_SIZE <= PAT_CATALOG
     ASSERT SONG_CAT_END <= #4000

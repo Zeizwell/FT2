@@ -56,9 +56,10 @@ Txt_Free        db "Free: ",FREE_PAGES/10+"0",FREE_PAGES%10+"0"," pages",0
 Trk_Pat         db PAGE_POOL        ; паттерн k текущего трека - страница Trk_Pat+k
 Trk_Ins         db PAGE_INS1        ; его инструменты и орнаменты
 Trk_Fx          db PAGE_INS1+1      ; его FX и таблицы шагов (sdk: FX_*, TAB_*)
+Trk_FxT         db PAGE_INS1+2      ; его таблицы FX и заголовки FX (новый формат: FXT_*, FXH_*)
     ASSERT PAGE_SONG2 == PAGE_SONG1+1
     ASSERT PAGE_INS1 == PAGE_POOL+PATTERNS_MAX
-    ASSERT PAGES_PER_SONG == PATTERNS_MAX+2   ; паттерны, инструменты, FX
+    ASSERT PAGES_PER_SONG == PATTERNS_MAX+3   ; паттерны, инструменты, строки FX, таблицы FX
 Song_Select
         ld (SV_SONG_NUM),a
         ld b,a
@@ -74,6 +75,8 @@ Song_Select
         ld (Trk_Ins),a
         inc a
         ld (Trk_Fx),a
+        inc a
+        ld (Trk_FxT),a
         ret
 
 ;-------- A - номер паттерна -> A - его страница (текущий трек). Портит только флаги
@@ -93,6 +96,11 @@ Song_New
         ld hl,#8000+ORDER_LIST      ; ордер и каталоги - нули: позиция 0 - паттерн 0
         ld de,#8000+ORDER_LIST+1
         ld bc,SONG_CAT_END-ORDER_LIST-1
+        ld (hl),0
+        ldir
+        ld hl,#8000+SONG_FX_NAMES   ; имена FX - пустые
+        ld de,#8000+SONG_FX_NAMES+1
+        ld bc,FXS_MAX*16-1
         ld (hl),0
         ldir
         ld a,(Trk_Pat)              ; паттерн 0: страница, 64 роу
@@ -116,5 +124,42 @@ Song_New
         ld (hl),0
         ldir
         RESTPAGE2
+        call Fx_New_Tabs            ; таблицы FX - пресет, заголовки FX - по умолчанию
         ld a,(Trk_Ins)
         jp Ins_Clear
+
+;-------- Таблицы и заголовки FX нового трека (страница Trk_FxT): всё - нули, таблицы 0..5 -
+; пресет (Fx_Presets), у каждого FX форма свипа - треугольник (FXT_TRI)
+Fx_New_Tabs
+        ld a,(Trk_FxT)
+        SETPAGE2 a
+        ld hl,#8000
+        ld de,#8001
+        ld bc,#3FFF
+        ld (hl),0
+        ldir
+        ld hl,Fx_Presets
+        ld de,#8000
+        ld bc,FXT_PRESETS*FXT_SIZE
+        ldir
+        ld hl,#8000+FXH_BASE+FXH_SWSHAPE
+        ld de,FXH_SIZE
+        ld b,FXS_MAX
+.h      ld (hl),FXT_TRI
+        add hl,de
+        djnz .h
+        RESTPAGE2
+        ret
+
+;-------- Пресет таблиц FX (doc/fx-row.md): SID - громкости 0..15, формы свипа - точки 0..255
+Fx_Presets
+        db 15,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0                       ; 0 меандр SID (длина 2 - F 0)
+        db 0,32,64,96,128,160,192,224,255,224,192,160,128,96,64,32 ; 1 треугольник
+        db 128,177,218,245,255,245,218,177,128,79,38,11,1,11,38,79 ; 2 синус
+        db 0,17,34,51,68,85,102,119,136,153,170,187,204,221,238,255 ; 3 пила вверх
+        db 255,238,221,204,187,170,153,136,119,102,85,68,51,34,17,0 ; 4 пила вниз
+        db 255,255,255,255,255,255,255,255,0,0,0,0,0,0,0,0         ; 5 меандр
+    ASSERT $-Fx_Presets == FXT_PRESETS*FXT_SIZE
+
+;-------- Буфер каталога паттернов для тулзы диска (загрузка / сохранение): в коре, страница диска полна
+Disk_Cat        ds PATTERNS_MAX*PC_SIZE

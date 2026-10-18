@@ -238,8 +238,7 @@ Cn_Save
         call Blk_Out
 .tn     ld a,(Cn_N)
         inc a
-        cp TAB_MAX
-        jr c,.tb
+        jr nz,.tb                   ; 0..255
         ld de,(Cn_Crc)              ; END: CRC всего, что до него
         push de
         ld hl,Tag_End
@@ -278,8 +277,8 @@ Tag_Ordr        db "ORDR"
 Tag_Patt        db "PATT"
 Tag_Inst        db "INST"
 Tag_Ornm        db "ORNM"
-Tag_Fxfx        db "FXFX"
-Tag_Tabl        db "TABL"
+Tag_Fxfx        db "FX16"            ; FX - новый формат (старые FXFX \/ TABL не читаем)
+Tag_Tabl        db "TB16"
 Tag_End         db "END "
 
 ;-------- Каталог паттернов трека - как есть в Dv_Cat (страницы - из трека)
@@ -324,7 +323,7 @@ Cn_Count
         ld ix,Fx_Used
         call .cnt
         ld de,Cn_Cnt+4
-        ld b,TAB_MAX
+        ld b,low FXT_MAX            ; 256
         ld ix,Tab_Used
 ; B номеров, IX - проверка (NZ - непустой), DE - счётчик
 .cnt    xor a
@@ -387,24 +386,84 @@ Cn_Addr         dw 0
 Orn_Used
         call Orn_Addr
         ld a,(Trk_Ins)
-        jr Zero_Used
-; FX: нули, без имени
+        jp Zero_Used
+; FX (новый формат): заголовок не по умолчанию, имя или строки 0..последняя - не нули
 Fx_Used
-        call Fx_Addr
-        ld a,(Trk_Fx)
-        jr Zero_Used
-; Таблица: нули
-Tab_Used
-        call Tab_Addr
-        ld a,(Trk_Fx)
+        call Fxh_Addr
+        ld a,(Trk_FxT)
         SETPAGE2 a
         ld hl,(Cn_Addr)
-        ld b,TB_STEPS+TAB_STEPS
-        xor a
-.o      or (hl)
+        ld a,(hl)                   ; FXH_END - последняя строка
+        and FX_ROWS_MAX-1
+        ld (Cn_Rows),a
+        ld a,(hl)
         inc hl
-        djnz .o
-        jr Zu_End
+        or (hl)                     ; цикл
+        inc hl
+        ld b,a
+        ld a,(hl)                   ; форма свипа: по умолчанию - треугольник
+        xor FXT_TRI
+        or b
+        inc hl
+        or (hl)                     ; фаза
+        inc hl
+        or (hl)                     ; флаги
+        ld (Cn_Res),a
+        RESTPAGE2
+        ld a,(SV_SONG_PAGE)         ; имя
+        SETPAGE2 a
+        call Fxn_Addr
+        ld hl,(Cn_Addr)
+        ld a,(Cn_Res)
+        or (hl)
+        ld (Cn_Res),a
+        RESTPAGE2
+        ld a,(Trk_Fx)               ; строки 0..последняя
+        SETPAGE2 a
+        call Fxr_Addr
+        ld a,(Cn_Rows)
+        inc a
+        ld b,a
+        ld a,(Cn_Res)
+        ld hl,(Cn_Addr)
+.r      ld c,FXR_SIZE
+.b      or (hl)
+        inc hl
+        dec c
+        jr nz,.b
+        djnz .r
+        jp Zu_End
+; Таблица FX: не как у нового трека (0..5 - пресет, остальные - нули)
+Tab_Used
+        call Fxt_Addr
+        ld a,(Trk_FxT)
+        SETPAGE2 a
+        ld b,FXT_SIZE
+        ld a,(Cn_N)
+        cp FXT_PRESETS
+        jr nc,.zero
+        ld de,(Cn_Addr)             ; пресет: Fx_Presets + n*16
+        res 7,d
+        ld hl,Fx_Presets
+        add hl,de
+        ex de,hl
+        ld hl,(Cn_Addr)
+        ld c,0
+.p      ld a,(de)
+        xor (hl)
+        or c
+        ld c,a
+        inc hl
+        inc de
+        djnz .p
+        ld a,c
+        jp Zu_End
+.zero   ld hl,(Cn_Addr)
+        xor a
+.z      or (hl)
+        inc hl
+        djnz .z
+        jp Zu_End
 ; A - страница, Cn_Addr - блок: заголовок OH_*, строка 0 (Cn_RowSz байт), имя (Cn_NameOfs) - нули?
 Zero_Used
         SETPAGE2 a
@@ -467,47 +526,55 @@ Orn_Addr
         ld hl,ORN_NAME
         ld (Cn_NameOfs),hl
         ret
-; FX: #8000 + n*448 = n*512 - n*64
-Fx_Addr
+; FX: строки - #8000 + n*512 (страница Trk_Fx)
+Fxr_Addr
         ld a,(Cn_N)
-        ld l,a
-        ld h,0
-        add hl,hl
-        add hl,hl
-        add hl,hl
-        add hl,hl
-        add hl,hl
-        add hl,hl
-        ld d,h
-        ld e,l
-        add hl,hl
-        add hl,hl
-        add hl,hl
-        or a
-        sbc hl,de
-        set 7,h
+        add a,a
+        add a,#80
+        ld h,a
+        ld l,0
         ld (Cn_Addr),hl
-        ld a,FX_ROW_SIZE
-        ld (Cn_RowSz),a
-        ld hl,FX_NAME
-        ld (Cn_NameOfs),hl
         ret
-    ASSERT FX_BLOCK == 512-64
-; таблица: #8000 + TAB_BASE + n*32
-Tab_Addr
+    ASSERT FXR_BLOCK == 512
+; FX: заголовок - #8000 + FXH_BASE + n*8 (страница Trk_FxT)
+Fxh_Addr
         ld a,(Cn_N)
         ld l,a
         ld h,0
         add hl,hl
         add hl,hl
         add hl,hl
-        add hl,hl
-        add hl,hl
-        ld de,#8000+TAB_BASE
+        ld de,#8000+FXH_BASE
         add hl,de
         ld (Cn_Addr),hl
         ret
-    ASSERT TAB_BLOCK == 32
+    ASSERT FXH_SIZE == 8
+; FX: имя - #8000 + SONG_FX_NAMES + n*16 (страница трека)
+Fxn_Addr
+        ld a,(Cn_N)
+        ld l,a
+        ld h,0
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        ld de,#8000+SONG_FX_NAMES
+        add hl,de
+        ld (Cn_Addr),hl
+        ret
+; таблица: #8000 + n*16 (страница Trk_FxT)
+Fxt_Addr
+        ld a,(Cn_N)
+        ld l,a
+        ld h,0
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        set 7,h
+        ld (Cn_Addr),hl
+        ret
+    ASSERT FXT_SIZE == 16
 
 ;-------- Сериализаторы блоков (данные - через Ob_Put)
 ; HEAD: чипы, скорость, Tune, тип чипа, стерео, огибающая, шаг, флаги, счётчики, имя, автор
@@ -755,9 +822,6 @@ Ser_Orn
         call Orn_Addr
         ld a,(Trk_Ins)
         jr Ser_Rows
-Ser_Fx
-        call Fx_Addr
-        ld a,(Trk_Fx)
 Ser_Rows
         SETPAGE2 a
         ld ix,(Cn_Addr)
@@ -783,15 +847,6 @@ Ser_Rows
         ld de,OH_ROWS
         add hl,de
         call Put_Bytes
-        ld a,(Cn_RowSz)             ; FX: форма и фаза свипа
-        cp FX_ROW_SIZE
-        jr nz,.nm
-        ld hl,(Cn_Addr)
-        ld de,FX_SWEEP
-        add hl,de
-        ld bc,2
-        call Put_Bytes
-.nm
         ld hl,(Cn_Addr)
         ld de,(Cn_NameOfs)
         add hl,de
@@ -800,22 +855,59 @@ Ser_Rows
         RESTPAGE2
         ret
 
-; TABL: номер, заголовок, шаги
-Ser_Tab
-        call Tab_Addr
-        ld a,(Trk_Fx)
-        SETPAGE2 a
+; FX16: номер, заголовок (FXH_SAVED байт), строки 0..последняя (по 16), имя
+Ser_Fx
         ld a,(Cn_N)
         inc a
         call Ob_Put
+        call Fxh_Addr
+        ld a,(Trk_FxT)
+        SETPAGE2 a
         ld hl,(Cn_Addr)
         ld a,(hl)
-        call Ob_Put
-        and 15                      ; шагов: длина-1 + 1
+        and FX_ROWS_MAX-1
+        ld (Cn_Rows),a
+        ld bc,FXH_SAVED
+        call Put_Bytes
+        RESTPAGE2
+        ld a,(Trk_Fx)
+        SETPAGE2 a
+        call Fxr_Addr
+        call Fx_Rows_Len
+        ld hl,(Cn_Addr)
+        call Put_Bytes
+        RESTPAGE2
+        ld a,(SV_SONG_PAGE)
+        SETPAGE2 a
+        call Fxn_Addr
+        ld hl,(Cn_Addr)
+        ld b,16
+        call Put_Str
+        RESTPAGE2
+        ret
+; BC = (Cn_Rows + 1) * 16 - байт строк FX
+Fx_Rows_Len
+        ld a,(Cn_Rows)
         inc a
-        ld c,a
-        ld b,0
-        inc hl
+        ld l,a
+        ld h,0
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        ld b,h
+        ld c,l
+        ret
+
+; TB16: номер (0..255), 16 значений
+Ser_Tab
+        ld a,(Cn_N)
+        call Ob_Put
+        call Fxt_Addr
+        ld a,(Trk_FxT)
+        SETPAGE2 a
+        ld hl,(Cn_Addr)
+        ld bc,FXT_SIZE
         call Put_Bytes
         RESTPAGE2
         ret
@@ -978,9 +1070,9 @@ Ld_Tags db "HEAD"
         dw Ld_Inst
         db "ORNM"
         dw Ld_Orn
-        db "FXFX"
+        db "FX16"
         dw Ld_Fx
-        db "TABL"
+        db "TB16"
         dw Ld_Tab
         db 0
 
@@ -1185,16 +1277,41 @@ Ld_Orn
         call Orn_Addr
         ld a,(Trk_Ins)
         ld b,ORN_ROWS_MAX
-        jr Ld_Rows
+        jp Ld_Rows
+; FX16
 Ld_Fx
         call In_Get
         dec a
         cp FXS_MAX
         ret nc
         ld (Cn_N),a
-        call Fx_Addr
+        call Fxh_Addr
+        ld a,(Trk_FxT)
+        SETPAGE2 a
+        ld hl,(Cn_Addr)
+        ld bc,FXH_SAVED
+        call Get_Bytes
+        ld hl,(Cn_Addr)
+        ld a,(hl)
+        and FX_ROWS_MAX-1
+        ld (hl),a
+        ld (Cn_Rows),a
+        RESTPAGE2
         ld a,(Trk_Fx)
-        ld b,FX_ROWS_MAX
+        SETPAGE2 a
+        call Fxr_Addr
+        call Fx_Rows_Len
+        ld hl,(Cn_Addr)
+        call Get_Bytes
+        RESTPAGE2
+        ld a,(SV_SONG_PAGE)
+        SETPAGE2 a
+        call Fxn_Addr
+        ld hl,(Cn_Addr)
+        ld b,16
+        call Get_Str
+        RESTPAGE2
+        ret
 ; A - страница, B - строк максимум, Cn_Addr / Cn_RowSz / Cn_NameOfs
 Ld_Rows
         ld c,b
@@ -1225,15 +1342,6 @@ Ld_Rows
         ld de,OH_ROWS
         add hl,de
         call Get_Bytes
-        ld a,(Cn_RowSz)             ; FX: форма и фаза свипа
-        cp FX_ROW_SIZE
-        jr nz,.nm
-        ld hl,(Cn_Addr)
-        ld de,FX_SWEEP
-        add hl,de
-        ld bc,2
-        call Get_Bytes
-.nm
         ld hl,(Cn_Addr)
         ld de,(Cn_NameOfs)
         add hl,de
@@ -1243,24 +1351,15 @@ Ld_Rows
         ret
 Lr_Max          dw 0
 
-; TABL
+; TB16
 Ld_Tab
         call In_Get
-        dec a
-        cp TAB_MAX
-        ret nc
         ld (Cn_N),a
-        call Tab_Addr
-        ld a,(Trk_Fx)
+        call Fxt_Addr
+        ld a,(Trk_FxT)
         SETPAGE2 a
         ld hl,(Cn_Addr)
-        call In_Get
-        ld (hl),a
-        inc hl
-        and 15
-        inc a
-        ld c,a
-        ld b,0
+        ld bc,FXT_SIZE
         call Get_Bytes
         RESTPAGE2
         ret
