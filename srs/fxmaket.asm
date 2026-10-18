@@ -7,9 +7,9 @@
 ; Ничего не делает - только посмотреть раскладку.
 ; =========================================================================
 Fxm_Lines
-        db "01 Bass SID      ^  Name: Bass SID          Len -08+  Loop -00+",0
-        db "02 Lead FM       ",#DB,"  Sweep: Tri   Start -128+   Kp",0
-        db "03 Buzz             [Clone] [Copy] [Paste] [Clear] [Unloop]      [Save] [Load]",0
+        db "01 Bass SID      ^  Name: Bass SID                           [Clone] [Copy] [Paste]",0
+        db "02 Lead FM       ",#DB,"  Len -08+   Loop -00+                     [Clear] [Unloop]",0
+        db "03 Buzz             Sweep: Tri  Start -128+  Kp              [Save]  [Load]",0
         db "04               v  [ Mix ]  [ FM ]  [ Env FM ]",0
         db 0                    ; FXM_SEP: линия под шапкой (рисует Fxm_Draw)
         db "!Rw  Mix  Max  Min  Swp  Semi  Det  Ln  Steps (hex)",0
