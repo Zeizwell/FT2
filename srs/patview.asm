@@ -570,9 +570,14 @@ Tpl_Run
 ;-------- 4. Курсор: поле Cur_Field открытого элемента на строке редактирования - цветом
 ; курсора. Мигающий (Cur_Blink, Setup) - половину из каждых 32 кадров не рисуем
 Draw_Cursor
-        ld a,(Cur_Blink)
+        ld a,(Cur_Blink)            ; мигает только активный (в фокусе - паттерн)
         or a
         jr z,.on
+        ld hl,(SV_FOCUS)
+        ld de,F_Pat
+        or a
+        sbc hl,de
+        jr nz,.on
         ld a,(SV_FRAMES)
         and 16
         ret nz
@@ -597,7 +602,15 @@ Draw_Cursor
         add a,SCR_ATTR
         ld l,a
         ld h,SCR_BASE_H+EDIT_LINE
+        push hl                     ; паттерн не в фокусе (ввод в другом поле) - курсор неактивный,
+        ld hl,(SV_FOCUS)            ;   цветом выделения (как в редакторе Instr)
+        ld de,F_Pat
+        or a
+        sbc hl,de
+        pop hl
         ld a,(THEME_ATTR+CLR_CURSOR)
+        jr z,.c
+        ld a,(THEME_ATTR+CLR_SELECT)
 .c      ld (hl),a
         inc l
         djnz .c
