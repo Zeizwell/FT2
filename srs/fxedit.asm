@@ -803,3 +803,32 @@ Fe_SubEv
         ld a,(ix+FLD_PARAM)
         ld (Fx_Sub),a
         jp Fe_Dirty
+
+;-------- Клавиши FX: вверх / вниз - FX, PgUp / PgDn - первый / последний; прочие - как везде (Fld_Key)
+Fe_Keys
+.k      call Key_Get                ; A - код, C - флаги; Z - пусто
+        ret z
+        ld b,a
+        push bc
+        ld hl,Fe_Key_Tab
+        call Keys_Table
+        pop bc
+        jr c,.k
+        call Fld_Key
+        jr .k
+Fe_Key_Tab
+        db ACT_UP
+        dw Fe_Prev
+        db ACT_DOWN
+        dw Fe_Next
+        db ACT_PGUP
+        dw Fe_First
+        db ACT_PGDN
+        dw Fe_Last
+        db 0
+Fe_First
+        xor a
+        jp Fe_SetNum
+Fe_Last
+        ld a,FXS_MAX-1
+        jp Fe_SetNum

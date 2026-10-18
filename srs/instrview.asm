@@ -146,7 +146,10 @@ Iv_Loop
         ld a,(Iv_FldNew)            ; режим сменился (из поля шапки) - поля заново, вне Fld_Update
         or a
         call nz,Iv_Fld_Init
-        ld a,(Iv_Mode)              ; FX - макет: клавиши редактору не отдаём
+        ld a,(Iv_Mode)              ; клавиши: FX - свои (srs/fxedit.asm), иначе - редактору
+        cp 2
+        call z,Fe_Keys
+        ld a,(Iv_Mode)
         cp 2
         call nz,Iv_Keys
         call Fld_Update
