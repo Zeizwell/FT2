@@ -35,11 +35,8 @@ HD_ABOUT_X      equ 85              ; "About"
 HD_ROW_FILE     equ 1
 HD_FILE_L       equ 1               ; "File:"
 HD_FILE_X       equ 7               ; имя файла (28)
-HD_CHIP_L       equ 56              ; "AY FX:" - найдена ли карта AY FX (Trinity), "TS:" - TurboSound
-HD_FX_X         equ 62              ; yes / no
-HD_TS_L         equ 66
-HD_TS_X         equ 69
-    ASSERT HD_TS_X+3 < HD_TUNE_L
+HD_CHIP_L       equ 56              ; "Chip:" - что найдено: AY / AY+TS / AYFX / AYFX+TS (карта AY FX, TurboSound)
+HD_CHIP_X       equ 62              ; 9 знаков
 HD_TUNE_L       equ 73              ; "Tune:"
 HD_TUNE_X       equ 79              ; 7 знаков
 ; --- строка 2
@@ -92,7 +89,7 @@ RATIOS          equ 8
 ; Названия - по фиксированной ширине
 Hd_Tunings      db "1.75MHz"
                 db "1.77MHz"
-Hd_YesNo        db " no","yes"
+Hd_Chips        db "AY       ","AY+TS    ","AYFX     ","AYFX+TS  " ; Hw_Fx * 2 + Hw_Ts
 Hd_Devices      db "AY       "
                 db "YM       "
                 db "AYX-32   "
@@ -232,8 +229,7 @@ Hd_Static
         db HD_ROW_SONG,HD_TRK_L,CLR_TOP_TEXT,"Track:",0
         db HD_TABS_Y,HD_HELP_X,CLR_BAR,"Help",0
         db HD_TABS_Y,HD_ABOUT_X,CLR_BAR,"About",0
-        db HD_ROW_FILE,HD_CHIP_L,CLR_TOP_TEXT,"AY FX:",0
-        db HD_ROW_FILE,HD_TS_L,CLR_TOP_TEXT,"TS:",0
+        db HD_ROW_FILE,HD_CHIP_L,CLR_TOP_TEXT,"Chip:",0
         db HD_ROW_FILE,HD_TUNE_L,CLR_TOP_TEXT,"Tune:",0
         db HD_ROW_SONG,HD_SONG_L,CLR_TOP_TEXT,"Song:",0
         db HD_ROW_SONG,HD_BY_L,CLR_TOP_TEXT,"By:",0
@@ -296,15 +292,13 @@ Head_Show
         ld b,3
         ld de,HD_RATIO_X+256*(HD_SCR_H+HD_ROW_EDIT)
         call Hd_Name
-        ld a,(Hw_Fx)                ; железо: карта AY FX, TurboSound - yes / no
-        ld hl,Hd_YesNo
-        ld b,3
-        ld de,HD_FX_X+256*(HD_SCR_H+HD_ROW_FILE)
-        call Hd_Name
-        ld a,(Hw_Ts)
-        ld hl,Hd_YesNo
-        ld b,3
-        ld de,HD_TS_X+256*(HD_SCR_H+HD_ROW_FILE)
+        ld a,(Hw_Fx)                ; железо: AY / AY+TS / AYFX / AYFX+TS - карта AY FX * 2 + TurboSound
+        add a,a
+        ld hl,Hw_Ts
+        add a,(hl)
+        ld hl,Hd_Chips
+        ld b,9
+        ld de,HD_CHIP_X+256*(HD_SCR_H+HD_ROW_FILE)
         call Hd_Name
         ld a,(THEME_ATTR+CLR_BAR)   ; каналы и стерео - на полосе строки 0
         ld c,a
