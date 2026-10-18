@@ -14,20 +14,20 @@ Fxm_Lines
         db #C0,#C4,#C4,#C4,#C4,#C4,#C4,#C4,#C4,#C4,#C4,#C4,#C4,#C4,#C4,#C4,#C4,#C4,#C4,#D9,0
         db 0
         db "!Rw  Mix  Max  Min  Swp  Semi  Det  Ln  Steps",0
-        db "00  SID  50%   0%   24   +12   +1   2  15 00",0
-        db "01  SID  50%   0%    0    +0   +1   4  15 00 15 12",0
-        db "02  Buz   --   --   --    +0   +0   1  08",0
-        db "03  SID  50%   0%   --    +0   +1  16  15 14 13 12 11 10 09 08 07 06 05 04 03 02 01 00",0
+        db "00  SID  50%   0%   24   +12   +1   2  F 0",0
+        db "01  SID  50%   0%    0    +0   +1   4  F 0 F C",0
+        db "02  Buz   --   --   --    +0   +0   1  8",0
+        db "03  SID  50%   0%   --    +0   +1  16  F E D C B A 9 8 7 6 5 4 3 2 1 0",0
         db "04  ---",0
         db "05  ---",0
         db "06  ---",0
         db "07  ---",0
         db 0
         db "!FM:      Rw  FM   Semi  Det  Unit  Ln  Steps",0
-        db "          00  on    +0   +1   semi   4  +0 +12  +7  +0",0
+        db "          00  on    +0   +1   semi   4  +00 +0C +07 +00",0
         db 0
         db "!Env FM:  Rw  EFM  Semi  Det  Unit  Ln  Steps",0
-        db "          00  on    +0   +1   per    2  +0 -16",0
+        db "          00  on    +0   +1   per    2  +00 -10",0
         db 0
         db "Max / Min / Swp - only when Ln = 2 (as Bitphase), otherwise dimmed",0
         db #FF
