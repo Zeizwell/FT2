@@ -13,7 +13,7 @@ Fxm_Lines
         db #B3,"04               ","v",#B3,"  [ Mix ]  [ FM ]  [ Env FM ]",0
         db #C0,#C4,#C4,#C4,#C4,#C4,#C4,#C4,#C4,#C4,#C4,#C4,#C4,#C4,#C4,#C4,#C4,#C4,#C4,#D9,0
         db 0
-        db "!Rw  Mix  Max  Min  Swp  Semi  Det  Ln  Steps",0
+        db "!Rw  Mix  Max  Min  Swp  Semi  Det  Ln  Steps (hex)",0
         db "00  SID  50%   0%   24   +12   +1   2  F 0",0
         db "01  SID  50%   0%    0    +0   +1   4  F 0 F C",0
         db "02  Buz   --   --   --    +0   +0   1  8",0
@@ -23,10 +23,10 @@ Fxm_Lines
         db "06  ---",0
         db "07  ---",0
         db 0
-        db "!FM:      Rw  FM   Semi  Det  Unit  Ln  Steps",0
+        db "!FM:      Rw  FM   Semi  Det  Unit  Ln  Steps (semi - dec, per - hex)",0
         db "          00  on    +0   +1   semi   4  +0 +12 +7 +0",0
         db 0
-        db "!Env FM:  Rw  EFM  Semi  Det  Unit  Ln  Steps",0
+        db "!Env FM:  Rw  EFM  Semi  Det  Unit  Ln  Steps (semi - dec, per - hex)",0
         db "          00  on    +0   +1   per    2  +00 -10",0
         db 0
         db "Steps: Mix - hex 0..F; semi - decimal (as ornaments); per - hex (as sample tone)",0
