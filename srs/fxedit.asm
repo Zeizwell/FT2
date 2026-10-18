@@ -203,11 +203,11 @@ Fe_List
         ld c,a
         ld a,b
         or a
-        ld a,'^'
+        ld a,GLYPH_SCR_UP
         jr z,.sc
         ld a,b
         cp FE_LIST_ROWS-1
-        ld a,'v'
+        ld a,GLYPH_SCR_DOWN
         jr z,.sc
         ld a,(Iv_Num)               ; ползунок: строка 1 - первая половина, 2 - вторая
         cp FXS_MAX/2               ;   (C - первая половина)
