@@ -60,6 +60,7 @@ Pl_Looped       db 0                ; 1 - сонг дошёл до конца о
 Pl_Init
         call Pl_VolTab
         call Fx_Detect              ; карта AY FX
+        call Ts_Detect              ; TurboSound
         xor a
         ld (SV_PLAY_STATE),a
         ld (SV_PLAY_CMD),a
@@ -1755,10 +1756,14 @@ Fx_Detect
         ld a,#FE
         call .chip
         ld (Fx_Card+1),a
+        ld hl,Fx_Card               ; для шапки (коре): есть хоть на одном
+        or (hl)
+        ld (Hw_Fx),a
         ld bc,#FFFD                 ; выбран чип 1 (как после сброса)
         ld a,#FF
         out (c),a
         ret
+
 ; A - чип -> A: 1 - карта есть
 .chip   ld bc,#FFFD
         out (c),a
@@ -1770,6 +1775,53 @@ Fx_Detect
         ret nz
         call Fx_Close
         ld a,1
+        ret
+
+;-------- TurboSound есть? R0 чипа 1 = #AA, чипа 2 = #55; прочитать оба: #AA и #55 - чипов два (без TS выбор
+; #FE ничего не выбирает, обе записи - в один чип). Итог - Hw_Ts (коре)
+Ts_Detect
+        ld bc,#FFFD
+        ld a,#FF                    ; чип 1, R0 = #AA
+        out (c),a
+        xor a
+        out (c),a
+        ld b,#BF
+        ld a,#AA
+        out (c),a
+        ld b,#FF                    ; чип 2, R0 = #55
+        ld a,#FE
+        out (c),a
+        xor a
+        out (c),a
+        ld b,#BF
+        ld a,#55
+        out (c),a
+        ld b,#FF                    ; чип 1, R0 - прочитать
+        ld a,#FF
+        out (c),a
+        xor a
+        out (c),a
+        in a,(c)
+        cp #AA
+        ld a,0
+        jr nz,.set                  ; чип 1 потерял своё - TS нет
+        ld a,#FE                    ; чип 2, R0 - прочитать
+        out (c),a
+        xor a
+        out (c),a
+        in a,(c)
+        cp #55
+        ld a,0
+        jr nz,.set
+        inc a
+.set    ld (Hw_Ts),a
+        ld a,#FF                    ; снова чип 1 (как после сброса), R0
+        out (c),a
+        xor a
+        out (c),a
+        xor a                       ; R0 чипа 1 - 0 (дальше всё равно пишет плеер)
+        ld b,#BF
+        out (c),a
         ret
 
 ;-------- Ключ "TRIN" выбранному чипу (регистр #C0; разбор потока - с начала). C = #FD; портит A, B

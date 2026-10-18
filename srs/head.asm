@@ -35,8 +35,11 @@ HD_ABOUT_X      equ 85              ; "About"
 HD_ROW_FILE     equ 1
 HD_FILE_L       equ 1               ; "File:"
 HD_FILE_X       equ 7               ; имя файла (28)
-HD_CHIP_L       equ 56              ; "Chip:"
-HD_CHIP_X       equ 62              ; тип чипа (9 знаков)
+HD_CHIP_L       equ 56              ; "AY FX:" - найдена ли карта AY FX (Trinity), "TS:" - TurboSound
+HD_FX_X         equ 62              ; yes / no
+HD_TS_L         equ 66
+HD_TS_X         equ 69
+    ASSERT HD_TS_X+3 < HD_TUNE_L
 HD_TUNE_L       equ 73              ; "Tune:"
 HD_TUNE_X       equ 79              ; 7 знаков
 ; --- строка 2
@@ -89,6 +92,7 @@ RATIOS          equ 8
 ; Названия - по фиксированной ширине
 Hd_Tunings      db "1.75MHz"
                 db "1.77MHz"
+Hd_YesNo        db " no","yes"
 Hd_Devices      db "AY       "
                 db "YM       "
                 db "AYX-32   "
@@ -228,7 +232,8 @@ Hd_Static
         db HD_ROW_SONG,HD_TRK_L,CLR_TOP_TEXT,"Track:",0
         db HD_TABS_Y,HD_HELP_X,CLR_BAR,"Help",0
         db HD_TABS_Y,HD_ABOUT_X,CLR_BAR,"About",0
-        db HD_ROW_FILE,HD_CHIP_L,CLR_TOP_TEXT,"Chip:",0
+        db HD_ROW_FILE,HD_CHIP_L,CLR_TOP_TEXT,"AY FX:",0
+        db HD_ROW_FILE,HD_TS_L,CLR_TOP_TEXT,"TS:",0
         db HD_ROW_FILE,HD_TUNE_L,CLR_TOP_TEXT,"Tune:",0
         db HD_ROW_SONG,HD_SONG_L,CLR_TOP_TEXT,"Song:",0
         db HD_ROW_SONG,HD_BY_L,CLR_TOP_TEXT,"By:",0
@@ -291,10 +296,15 @@ Head_Show
         ld b,3
         ld de,HD_RATIO_X+256*(HD_SCR_H+HD_ROW_EDIT)
         call Hd_Name
-        ld a,(Song_Device)          ; тип чипа, каналов
-        ld hl,Hd_Devices
-        ld b,9
-        ld de,HD_CHIP_X+256*(HD_SCR_H+HD_ROW_FILE)
+        ld a,(Hw_Fx)                ; железо: карта AY FX, TurboSound - yes / no
+        ld hl,Hd_YesNo
+        ld b,3
+        ld de,HD_FX_X+256*(HD_SCR_H+HD_ROW_FILE)
+        call Hd_Name
+        ld a,(Hw_Ts)
+        ld hl,Hd_YesNo
+        ld b,3
+        ld de,HD_TS_X+256*(HD_SCR_H+HD_ROW_FILE)
         call Hd_Name
         ld a,(THEME_ATTR+CLR_BAR)   ; каналы и стерео - на полосе строки 0
         ld c,a
@@ -344,7 +354,7 @@ Hd_ValNew       db 1
 HD_SIG_N        equ 12
 Hd_Sig          ds HD_SIG_N
 Hd_SigVars      dw Cur_Octave, Cur_Step, Auto_Step, Env_As_Note, Auto_Env, Auto_Ratio
-                dw Song_Device, Song_Chips, Song_Stereo, Song_EnvMode, Song_Tuning, SV_SONG_NUM
+                dw Hw_Fx, Song_Chips, Song_Stereo, Song_EnvMode, Song_Tuning, SV_SONG_NUM
     ASSERT $-Hd_SigVars == HD_SIG_N*2
 Hd_Changed
         ld ix,Hd_Sig
@@ -616,7 +626,6 @@ Head_Fields
         FIELD HD_LEN_X,    HD_ROW_EDIT,2+4,1, HF_BUTTON|FF_HAND, Sp_Ev, 0, Sd_Len   ; Size nn[+][-]
         FIELD HD_RATIO_X,  HD_ROW_EDIT,3,1, FF_HAND, Hd_Field, 0, 8          ; соотношение - по кругу
         FIELD HD_TUNE_X,   HD_ROW_FILE,7,1, FF_HAND, Hd_Field, 0, 9           ; таблица нот - по кругу
-        FIELD HD_CHIP_X,   HD_ROW_FILE,9,1, FF_HAND, Hd_Field, 0, 10          ; тип чипа - по кругу
         FIELD HD_CHAN_X,   HD_TABS_Y,3,1, FF_HAND, Hd_Field, 0, 20            ; 3 / 6 каналов
         FIELD HD_STEREO_X, HD_TABS_Y, 3,1, FF_HAND, Hd_Field, 0, 11            ; стерео - по кругу
         FIELD HD_ENVM_X,   HD_ROW_EDIT,2,1, FF_HAND, Hd_Field, 0, 29          ; огибающая FT / PT
