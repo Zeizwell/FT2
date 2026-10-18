@@ -65,7 +65,7 @@ WC_W            equ 11
 ASK_SAVE        equ 1               ; Sv_Ask: что спрашиваем (ответ Y / N / Esc)
 ASK_NEW         equ 2
 ASK_WC          equ 3
-MSG_Y           equ DV_TOP+10       ; сообщение
+MSG_Y           equ DV_TOP+11       ; лог сообщений (3 строки), под кнопками через строку
 
 ; --- запись каталога в PAGE_DIRLIST (переменной длины, адрес - из таблицы, Dl_Ofs)
 DR_FLAG         equ 0               ; 0 - папка, #10 - файл (как отдаёт драйвер)
