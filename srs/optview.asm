@@ -724,17 +724,41 @@ Ini_Parse
         jr .next
 .cblk   ld de,Key_CBlink            ; cursor_blink=
         call Ini_Key
-        jr nz,.next
+        jr nz,.load
         call Ini_Num
         and 1
         ld (Cur_Blink),a
+        jr .next
+.load   ld de,Key_Load              ; load=путь: трек при старте
+        call Ini_Key
+        jr nz,.next
+        ld de,Auto_Path
+        ld b,119
+.lc     ld a,(hl)                   ; до конца строки
+        cp 13
+        jr z,.le
+        cp 10
+        jr z,.le
+        or a
+        jr z,.le
+        ld (de),a
+        inc hl
+        inc de
+        djnz .lc
+.le     xor a
+        ld (de),a
+        ld a,(Auto_Path)
+        or a
+        jr z,.next
+        ld a,1
+        ld (Auto_Go),a
 .next   ld a,(hl)                   ; до конца строки
         or a
         ret z
         inc hl
         cp 10
         jr nz,.next
-        jr .line
+        jp .line
 
 ; Ключ DE (с '=' на конце, 0) с позиции HL? Z - да, HL - за '='; NZ - HL как был
 Ini_Key
@@ -833,6 +857,20 @@ Ini_Text
         call Str_Put
         ld a,(Cur_Blink)
         call Dec_Put
+        ld a,(Auto_Path)            ; load= - если был в INI
+        or a
+        jr z,.nol
+        ld hl,Key_Load
+        call Str_Put
+        ld hl,Auto_Path
+        call Str_Put
+        ld a,13
+        ld (de),a
+        inc de
+        ld a,10
+        ld (de),a
+        inc de
+.nol
         ex de,hl                    ; длина = конец - начало
         ld bc,INI_BUF
         or a
@@ -926,6 +964,7 @@ Key_Palette     db "palette=",0
 Key_MSpeed      db "mouse_speed=",0
 Key_MAccel      db "mouse_accel=",0
 Key_CBlink      db "cursor_blink=",0
+Key_Load        db "load=",0
 Txt_IniHead     db "; Fast Tracker 2.01b settings",13,10,0
 Txt_Save        db " Save ",0
 Txt_Saved       db "Saved \\FT2\\FT2.INI",0

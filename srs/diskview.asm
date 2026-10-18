@@ -128,6 +128,9 @@ Dv_Start
         call Fld_Init
         ld hl,F_List
         call Fld_Set_Focus
+        ld a,(Auto_Go)              ; старт с INI load= - загрузить трек
+        or a
+        call nz,Dv_Auto
         ld a,1
         ld (Dv_Dirty),a
 
@@ -1098,6 +1101,70 @@ Dv_Open
         jp Dv_List
 .add    call Path_Add
         jp Dv_List
+
+;-------- Автозагрузка (INI load=): путь от корня - папки по очереди, потом файл. Не нашли - остаёмся
+; в диске (сообщение в логе, видна папка, где остановились)
+Au_Name         dw 0
+Dv_Auto
+        xor a                       ; один раз
+        ld (Auto_Go),a
+        ld a,(Dv_Mounted)
+        or a
+        ret z
+        ld ix,DK_SET_ROOT           ; от корня
+        call Disk_Call
+        ret c
+        ld hl,Dv_Path
+        ld (hl),'/'
+        inc hl
+        ld (hl),0
+        ld hl,Auto_Path
+        ld a,(hl)
+        cp '/'
+        jr nz,.part
+        inc hl
+.part   ld (Au_Name),hl             ; имя - до "/" или конца
+        ld de,Dv_Spec+1
+.c      ld a,(hl)
+        or a
+        jr z,.file
+        cp '/'
+        jr z,.dir
+        ld (de),a
+        inc hl
+        inc de
+        jr .c
+.dir    xor a                       ; папка - войти
+        ld (de),a
+        inc hl
+        push hl
+        ld a,FD_DIR
+        ld (Dv_Spec),a
+        ld hl,Dv_Spec
+        call Dv_Find
+        jr c,.err
+        ld ix,DK_ENTER
+        call Disk_Call
+        jr nc,.in
+        call Dv_Disk_Err
+        jr .err
+.in     call Path_Add
+        pop hl
+        jr .part
+.err    pop hl
+        jp Dv_List
+.file   call Dv_List                ; каталог - тот, где файл (Dv_Spec портит)
+        ld hl,(Au_Name)             ; имя файла - заново
+        ld de,Dv_Spec+1
+.f      ld a,(hl)
+        ld (de),a
+        inc hl
+        inc de
+        or a
+        jr nz,.f
+        ld a,FD_FILE
+        ld (Dv_Spec),a
+        jp Dv_Load
 
 ;-------- Backspace в каталоге: в папку выше (в корне - ничего)
 Dv_Parent

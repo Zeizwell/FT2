@@ -141,7 +141,11 @@ Core_Start
         ld a,PAGE_TOOL_OPT
         call Call_Tool
 
-        ld a,PAGE_TOOL_PATVIEW  ; первым - вид паттерна
+        ld a,(Auto_Go)          ; первым - вид паттерна; INI load= - сначала диск (загрузит и уйдёт в паттерн)
+        or a
+        ld a,PAGE_TOOL_PATVIEW
+        jr z,$+4
+        ld a,PAGE_TOOL_DISK
         ld (SV_TOOL),a
 
 ;-------- Экраны (вкладки): тулза работает, пока не поставит в SV_TOOL другую и не выйдет
