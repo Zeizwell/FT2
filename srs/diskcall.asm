@@ -55,8 +55,33 @@ Disk_Mount
         xor a                       ; устройство 0
         call Disk_Call
         ld ix,DK_DEVICE_INIT
-        xor a
+        ld a,(Dk_Dev)               ; устройство порта: 0 - SD, 1 - SD2 (Z-Controller)
         call Disk_Call
         ret nz
         ld ix,DK_MOUNT
         jp Disk_Call
+
+;-------- Устройство (выбор - кнопка Device в Disk, окно-список как "Select Device" в WC).
+; Порт драйвера пока один - SD-ZC (drivers/fat32/ports/sdzc.asm): его init берёт номер карты
+; (0 - SD, 1 - SD2). IDE Nemo / SMUC, SD NeoGS - переносить из WC (DIDENEMO, DIDESMUC, DSDNGS)
+DK_DEVS_OK      equ 2               ; устройств с драйвером: 0..1
+Dk_Dev          db 0                ; выбранное (номер пункта Dk_Menu)
+
+; Окно-список устройств у мыши. Выход: A - устройство (#FF - ничего)
+Dk_Choose
+        ld hl,Dk_Menu
+        call Win_Menu
+        cp #FF
+        ret z
+        ld hl,Dk_Menu
+        jp Wm_Item_Act              ; A - номер устройства (первый байт пункта)
+
+Dk_Menu db 24, 7, WF_CONTEXT        ; ширина, пунктов, флаги; пункт: номер, имя
+        db 1,"SD: Z-Controller",0
+        db 2,"SD2: Z-Controller",0
+        db 3,"IDE NEMO: Master",0
+        db 4,"IDE NEMO: Slave",0
+        db 5,"IDE SMUC: Master",0
+        db 6,"IDE SMUC: Slave",0
+        db 7,"SD: NeoGS",0
+        db WIN_END

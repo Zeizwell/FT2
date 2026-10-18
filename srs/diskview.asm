@@ -62,6 +62,9 @@ NEW_X           equ FP_L+10         ; [ New ] - очистить трек; [ Exi
 NEW_W           equ 7
 WC_X            equ FP_L+18
 WC_W            equ 11
+DEV_X           equ FP_L+30         ; [ Device ] - выбор устройства (окно-список)
+DEV_W           equ 8
+    ASSERT DEV_X+DEV_W <= FP_X+FP_W-1
 ASK_SAVE        equ 1               ; Sv_Ask: что спрашиваем (ответ Y / N / Esc)
 ASK_NEW         equ 2
 ASK_WC          equ 3
@@ -128,20 +131,9 @@ Dv_Start
         call Tr_Active              ; кнопки транспорта - по плееру (без подсветки шапки)
         ld a,(Dv_Mounted)           ; карта: первый раз - подключить
         or a
-        jr nz,.list
-        call Disk_Mount
-        jr nz,.nocard
-        ld a,1
-        ld (Dv_Mounted),a
-        ld hl,Dv_Path               ; путь - корень
-        ld (hl),'/'
-        inc hl
-        ld (hl),0
-.list   call Dv_List
-        jr .fields
-.nocard ld hl,Txt_NoCard
-        call Dv_Error
-.fields ld hl,Dv_Fields
+        call z,Dv_Mount
+        call nz,Dv_List
+        ld hl,Dv_Fields
         call Fld_Init
         ld hl,F_List
         call Fld_Set_Focus
@@ -161,7 +153,9 @@ Dv_Loop
         ld a,(Dv_Dirty)
         or a
         call nz,Dv_Draw
-        call Dv_Buttons             ; кнопки - каждый кадр (под мышью - подсветка)
+        ld ix,Dv_Fields             ; кнопки - каждый кадр (srs/button.asm: подсветка, нажатие)
+        ld a,DV_SCR_H
+        call Bn_DrawList
         call Scr_Show               ; кадр - показать
         jr Dv_Loop
 
@@ -468,63 +462,6 @@ Dv_Draw_Name
         ld de,FP_V+256*(DV_SCR_H+NAME_Y)
         jp Ti_Cursor
 
-;-------- Кнопки Load / Save: под мышью - подсветка, держат - "нажата" (цвет курсора)
-Dv_Buttons
-        ld ix,F_Load
-        ld de,LOAD_X+256*(DV_SCR_H+BTN_Y)
-        ld hl,Txt_Load
-        call .one
-        ld ix,F_Save
-        ld de,SAVE_X+256*(DV_SCR_H+BTN_Y)
-        ld hl,Txt_Save
-        call .one
-        ld ix,F_Chk
-        ld de,LOAD_X+256*(DV_SCR_H+CHK_Y)
-        ld hl,Txt_Check
-        call .one
-        ld ix,F_New
-        ld de,NEW_X+256*(DV_SCR_H+CHK_Y)
-        ld hl,Txt_New
-        call .one
-        ld ix,F_WC
-        ld de,WC_X+256*(DV_SCR_H+CHK_Y)
-        ld hl,Txt_ExitWC
-        call .one
-        ld ix,F_Cmp                 ; Compare: вкл / выкл
-        ld de,CMP_X+256*(DV_SCR_H+BTN_Y)
-        ld hl,Txt_CmpOff
-        ld a,(Dv_Cmp)
-        or a
-        jr z,.one
-        ld hl,Txt_CmpOn
-        call .one                   ; включено - поверх цветом выделения
-        ld a,(THEME_ATTR+CLR_SELECT)
-        ld hl,CMP_X+128+256*(DV_SCR_H+BTN_Y)
-        ld b,CMP_W
-.sel    ld (hl),a
-        inc l
-        djnz .sel
-        ret
-.one    push hl
-        push ix                     ; цвет: нажата / под мышью / обычная
-        pop hl
-        ld bc,(SV_HOVER)
-        or a
-        sbc hl,bc
-        ld a,(THEME_ATTR+CLR_HEAD_TEXT)
-        jr nz,.put
-        push ix
-        pop hl
-        ld bc,(SV_PRESSED)
-        or a
-        sbc hl,bc
-        ld a,(THEME_ATTR+CLR_HOVER)
-        jr nz,.put
-        ld a,(THEME_ATTR+CLR_CURSOR)
-.put    ld c,a
-        pop hl
-        jp PutStr
-
 ; =========================================================================
 ; ПОЛЯ
 ; =========================================================================
@@ -541,12 +478,13 @@ Dv_Fields
         DV_FIELD 0,0,90,DV_TOP, 0, Dv_TabPat, 0                         ; остальная шапка: клик - назад
 F_List  DV_FIELD LS_X+1,LS_ROW0,LS_W-2,LS_ROWS, FF_FOCUS, Dv_ListEv, 0  ; каталог
 F_Name  DV_FIELD FP_V,NAME_Y,NAME_W,1, FF_FOCUS|FF_HAND, Dv_NameEv, 0   ; имя файла
-F_Load  DV_FIELD LOAD_X,BTN_Y,BTN_W,1, FF_HAND, Dv_BtnEv, 0              ; Load
-F_Save  DV_FIELD SAVE_X,BTN_Y,BTN_W,1, FF_HAND, Dv_BtnEv, 1              ; Save
-F_Cmp   DV_FIELD CMP_X,BTN_Y,CMP_W,1, FF_HAND, Dv_BtnEv, 2              ; Compare
-F_Chk   DV_FIELD LOAD_X,CHK_Y,CHK_W,1, FF_HAND, Dv_BtnEv, 3             ; Check
-F_New   DV_FIELD NEW_X,CHK_Y,NEW_W,1, FF_HAND, Dv_BtnEv, 4              ; New
-F_WC    DV_FIELD WC_X,CHK_Y,WC_W,1, FF_HAND, Dv_BtnEv, 5                ; Exit WC
+        DV_FIELD LOAD_X,BTN_Y,BTN_W,1, FF_BTN|FF_HAND, Bn_Ev, Bd_Load   ; кнопки (srs/button.asm)
+        DV_FIELD SAVE_X,BTN_Y,BTN_W,1, FF_BTN|FF_HAND, Bn_Ev, Bd_Save
+        DV_FIELD CMP_X,BTN_Y,CMP_W,1, FF_BTN|FF_HAND, Bn_Ev, Bd_Cmp     ; Compare - вкл / выкл
+        DV_FIELD LOAD_X,CHK_Y,CHK_W,1, FF_BTN|FF_HAND, Bn_Ev, Bd_Chk
+        DV_FIELD NEW_X,CHK_Y,NEW_W,1, FF_BTN|FF_HAND, Bn_Ev, Bd_New
+        DV_FIELD WC_X,CHK_Y,WC_W,1, FF_BTN|FF_HAND, Bn_Ev, Bd_WC
+        DV_FIELD DEV_X,CHK_Y,DEV_W,1, FF_BTN|FF_HAND, Bn_Ev, Bd_Dev    ; Device - окно выбора
         db FLD_END
 
 ;-------- Клик в шапку: Instr / Orn - тулза инструментов, остальное - назад в вид паттерна
@@ -575,9 +513,23 @@ Dv_TabPat
 
 
 ;-------- Кнопки: Load - открыть выбранную запись, Save - сохранить под Name, Check - сравнить файл с треком
-Dv_BtnEv
-        cp EV_CLICK
-        ret nz
+; Кнопки (srs/button.asm): действие - номер в Dv_BtnDo
+Dv_BLoad xor a
+        jr Dv_BtnDo
+Dv_BSave ld a,1
+        jr Dv_BtnDo
+Dv_BCmp ld a,2
+        jr Dv_BtnDo
+Dv_BChk ld a,3
+        jr Dv_BtnDo
+Dv_BNew ld a,4
+        jr Dv_BtnDo
+Dv_BWC  ld a,5
+        jr Dv_BtnDo
+Dv_BDev ld a,6
+; A - кнопка: 0 Load, 1 Save, 2 Compare, 3 Check, 4 New, 5 Exit WC, 6 Device
+Dv_BtnDo
+        ld (Dv_BA),a
         ld a,(Sv_Ask)               ; спрашивали перезапись - кнопка = "нет"
         or a
         jr z,.go
@@ -585,7 +537,9 @@ Dv_BtnEv
         ld (Sv_Ask),a
         ld hl,Txt_SvNo
         call Dv_Ok
-.go     ld a,(ix+FLD_PARAM)
+.go     ld a,(Dv_BA)
+        cp 6
+        jr z,Dv_Device
         or a
         jp z,Dv_Open
         dec a
@@ -602,10 +556,73 @@ Dv_BtnEv
         ld hl,Txt_AskWC
 .ask    ld (Sv_Ask),a
         jp Dv_Busy                  ; строка вопроса - открытая, ответ допишется
-.cmp    ld a,(Dv_Cmp)               ; Compare - переключить
+.cmp    ld a,(Dv_Cmp)               ; Compare - переключить (надпись кнопки - по нему)
         xor 1
         ld (Dv_Cmp),a
+        ld hl,Txt_CmpOff
+        jr z,$+5
+        ld hl,Txt_CmpOn
+        ld (Bd_Cmp+BD_TEXT),hl
         ret
+Dv_BA           db 0
+
+;-------- Device: окно-список; выбрали устройство с драйвером - подключить его, каталог - с корня
+Dv_Device
+        call Dk_Choose              ; A - пункт 1.. (#FF - ничего)
+        cp #FF
+        ret z
+        dec a
+        cp DK_DEVS_OK
+        ld hl,Txt_NoDrv
+        jp nc,Dv_Error              ; драйвера пока нет
+        ld (Dk_Dev),a
+        call Dv_Mount
+        call nz,Dv_List
+        ld a,1
+        ld (Dv_Dirty),a
+        ret
+
+;-------- Подключить устройство: путь - корень. NZ - готово; Z - нет (в логе - ошибка)
+Dv_Mount
+        call Disk_Mount
+        jr nz,.no
+        ld a,1
+        ld (Dv_Mounted),a
+        ld hl,Dv_Path               ; путь - корень
+        ld (hl),'/'
+        inc hl
+        ld (hl),0
+        or a                        ; NZ
+        ret
+.no     xor a
+        ld (Dv_Mounted),a
+        ld hl,Txt_NoCard
+        call Dv_Error
+        xor a                       ; Z
+        ret
+
+; Описания кнопок (srs/button.asm): действие, надпись, флаги, тень, фон, после
+Bd_Load dw Dv_BLoad, Txt_Load
+        db 0, 0, 0
+        dw 0
+Bd_Save dw Dv_BSave, Txt_Save
+        db 0, 0, 0
+        dw 0
+Bd_Cmp  dw Dv_BCmp, Txt_CmpOff
+        db 0, 0, 0
+        dw 0
+Bd_Chk  dw Dv_BChk, Txt_Check
+        db 0, 0, 0
+        dw 0
+Bd_New  dw Dv_BNew, Txt_New
+        db 0, 0, 0
+        dw 0
+Bd_WC   dw Dv_BWC, Txt_ExitWC
+        db 0, 0, 0
+        dw 0
+Bd_Dev  dw Dv_BDev, Txt_Device
+        db 0, 0, 0
+        dw 0
 
 ;-------- Каталог: клик - выбрать, двойной - открыть, колесо, клавиши
 Dv_ListEv
@@ -2414,11 +2431,12 @@ Txt_Type        db "Type:",0
 Txt_Song        db "Song:",0
 Txt_By          db "By:",0
 Txt_Size        db "Size:",0
-Txt_Load        db "[ Load ]",0
-Txt_Save        db "[ Save ]",0
-Txt_Check       db "[ Check ]",0
-Txt_New         db "[ New ]",0
-Txt_ExitWC      db "[ Exit WC ]",0
+Txt_Load        db "  Load",0
+Txt_Save        db "  Save",0
+Txt_Check       db "  Check",0
+Txt_New         db "  New",0
+Txt_ExitWC      db "  Exit WC",0
+Txt_Device      db " Device",0
 Txt_AskNew      db "New song? (Y/N)",0
 Txt_AskWC       db "Exit to WC? (Y/N)",0
 Txt_Exists      db "overwrite? (Y/N)",0
@@ -2432,7 +2450,8 @@ Txt_PT3         db "PT3",0
 Txt_PT2         db "PT2",0
 Txt_FTCn        db "FTC",0
 Txt_Other       db "-",0
-Txt_NoCard      db "No SD card / no FAT32",0
+Txt_NoCard      db "No card / no FAT32",0
+Txt_NoDrv       db "No driver for it yet",0
 Txt_NotFound    db "Not found",0
 Txt_NotFT2      db "Not an FT2 file",0
 Txt_TooBig      db "File too big",0
