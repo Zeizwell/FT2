@@ -128,6 +128,19 @@ Fld_Set_Focus
         ld a,EV_FOCUS_IN
         jp Fld_Call
 
+;-------- Нажали на поле HL: поле в фокусе - другое - ему EV_OUTSIDE (клик мимо). Портит всё
+Fld_Outside
+        ld de,(SV_FOCUS)
+        ld a,d
+        or e
+        ret z                       ; фокуса нет
+        or a
+        sbc hl,de
+        ret z                       ; нажали на него же
+        ex de,hl
+        ld a,EV_OUTSIDE
+        jp Fld_Call
+
 ;-------- Клавиша полю в фокусе. B - код, C - флаги. Выход: CF - съело
 Fld_Key
         ld hl,(SV_FOCUS)
@@ -176,6 +189,8 @@ Fld_Update
         jr z,.dbl
         ld hl,(SV_HOVER)            ; нажали: запомнить где, фокус - если поле берёт
         ld (SV_PRESSED),hl
+        call Fld_Outside            ; мимо поля в фокусе - ему EV_OUTSIDE (строка ввода закончится)
+        ld hl,(SV_PRESSED)
         ld a,h
         or l
         jr z,.dbl

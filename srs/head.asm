@@ -675,6 +675,8 @@ Hd_NameEv
         jr z,.redraw
         cp EV_PRESS
         jr z,.click
+        cp EV_OUTSIDE               ; клик мимо - ввод закончен
+        jr z,.done
         cp EV_KEY
         ret nz
         call Ti_Key

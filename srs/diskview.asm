@@ -768,6 +768,8 @@ Dv_NameEv
         jr z,.focus
         cp EV_PRESS
         jr z,.click
+        cp EV_OUTSIDE               ; клик мимо - фокус в каталог
+        jr z,.out
         cp EV_KEY
         ret nz
         ld a,b
@@ -789,6 +791,9 @@ Dv_NameEv
 .click  ld a,(SV_MOUSE_COL)         ; курсор - на знак под мышью
         sub (ix+FLD_X)
         call Ti_Click
+        jr .focus
+.out    ld hl,F_List
+        call Fld_Set_Focus
 .focus  ld a,1
         ld (Dv_Dirty),a
         scf                         ; событие - наше

@@ -1952,13 +1952,15 @@ Iv_NameEv
         jr z,.redraw
         cp EV_PRESS
         jr z,.click
+        cp EV_OUTSIDE               ; клик мимо - ввод закончен
+        jr z,.done
         cp EV_KEY
         ret nz
         call Ti_Key
         ret nc                      ; не наша
         cp TI_DONE
         jr nz,.redraw               ; курсор / правка - имя уже в блоке
-        ld hl,F_Edit
+.done   ld hl,F_Edit
         call Fld_Set_Focus
         jr .redraw
 .in     ld hl,(Ti_Buf)
