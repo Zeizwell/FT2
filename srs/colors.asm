@@ -59,5 +59,12 @@ Theme_Default
             db #2F      ; CLR_BAR         строка 0 шапки: тёмная полоса #1, вкладки и Help / About - светлые #E
             db #2F      ; CLR_BAR_TITLE   название "Fast Tracker 2.01b" (и версия): светло-голубой #2
             db #0B      ; CLR_OK          "готово": зелёный #B
+            db #07      ; CLR_ED_CAP      редакторы: заголовки колонок (как CLR_HEADER)
+            db #06      ; CLR_ED_ROW      номера строк (как номера роу)
+            db #0E      ; CLR_ED_VAL      значения (как текст)
+            db #04      ; CLR_ED_OFF      выключено / не действует (как соседние паттерны)
+            db #0A      ; CLR_ED_LOOP     маркер цикла (как луп)
+            db #0F      ; CLR_ED_STEP     FX: шаги таймера - белый
+            db #09      ; CLR_ED_TYPE     FX: тип эффекта - оттенок темы #9
 Theme_Default_end
     ASSERT Theme_Default_end-Theme_Default <= THEME_ROLES_MAX
