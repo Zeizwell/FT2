@@ -49,7 +49,7 @@ LOOP_P          equ 66
 BT_Y            equ IV_TOP+3        ; кнопки
 CAP_Y           equ IV_TOP+5        ; заголовки колонок
 ER_ROW0         equ IV_TOP+6        ; первая строка данных
-ER_ROWS         equ 22              ; строк на экране (ниже - проба)
+ER_ROWS         equ 23              ; строк на экране (ниже - проба)
 ER_LOOP_X       equ 22              ; L
 ER_NUM_X        equ 23              ; номер строки
 ER_DATA_X       equ 26              ; данные
@@ -64,7 +64,7 @@ OB_HALF         equ 16
 ; --- проба ноты (низ редактора): ▶ нота  Oct  Orn/Ins  Vol  Env
 SEP_Y           equ ER_ROW0+ER_ROWS ; разделитель ├──┤
 PV_Y            equ SEP_Y+1         ; строка пробы
-    ASSERT PV_Y == TL_LAST-2
+    ASSERT PV_Y == TL_LAST-1
 PV_PLAY         equ 22              ; ▶ (2 знака)
 PV_NOTE         equ 25              ; нота (3 знака)
 PV_OCT          equ 29              ; подписи; [-] - +3, значение - +5, [+] - +6

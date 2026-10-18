@@ -60,7 +60,7 @@ Tool_Clear
         jr c,.r
         ret
 
-;-------- Рамка: колонка Bx_X, ширина Bx_W, строки TL_TOP..TL_LAST-1. Внутри - пробелы
+;-------- Рамка: колонка Bx_X, ширина Bx_W, строки TL_TOP..TL_LAST (до низа экрана). Внутри - пробелы
 Bx_X            db 0
 Bx_W            db 0
 Tool_Box
@@ -70,7 +70,7 @@ Tool_Box
         ld a,BOX_TL
         ld b,BOX_TR
         call .line
-        ld d,TL_SCR_H+TL_LAST-1     ; низ └──┘
+        ld d,TL_SCR_H+TL_LAST       ; низ └──┘ - последняя строка экрана
         ld a,BOX_BL
         ld b,BOX_BR
         call .line
@@ -95,7 +95,7 @@ Tool_Box
         call PutCh
         inc d
         ld a,d
-        cp TL_SCR_H+TL_LAST-1
+        cp TL_SCR_H+TL_LAST
         jr c,.side
         ret
 ; Линия рамки: A - левый угол, B - правый, D - строка

@@ -34,7 +34,7 @@ DV_LAST         equ TL_LAST         ; последняя видимая стро
 LS_X            equ 0               ; рамка: колонки 0..49, строки 4..34
 LS_W            equ 50
 LS_ROW0         equ DV_TOP+1        ; первая строка списка
-LS_ROWS         equ 29              ; строк списка
+LS_ROWS         equ 30              ; строк списка
 LS_NAME_X       equ 2               ; имя (30 знаков)
 LS_NAME_W       equ 30
 LS_SIZE_X       equ 33              ; размер (7 знаков) или <DIR>
@@ -111,6 +111,7 @@ DK_RENAME       equ 74              ; HL -> [флаг, имя, 0], DE -> [нов
 ; ВХОД (коре: Tools_Loop -> Call_Tool)
 ; =========================================================================
 Dv_Start
+        call Scr_Begin              ; двойной буфер: рисуем в невидимую страницу
         ld a,(SV_DRAW_PAGE)         ; экран - в окно 3 на всё время работы
         SETPAGE3 a
         call Dv_Head
@@ -152,6 +153,7 @@ Dv_Loop
         or a
         call nz,Dv_Draw
         call Dv_Buttons             ; кнопки - каждый кадр (под мышью - подсветка)
+        call Scr_Show               ; кадр - показать
         jr Dv_Loop
 
 ;-------- Выход в коре (страница следующей тулзы - уже в SV_TOOL)
@@ -159,6 +161,7 @@ Dv_Leave
         xor a
         ld (Dv_Exit),a
         call Tool_Clear               ; экран - под вид паттерна
+        call Scr_End
         RESTPAGE3
         ret
 
@@ -2170,7 +2173,8 @@ Dv_Busy
         call Dv_Ok
         ld a,1
         ld (Lg_Open),a
-        jp Dv_Draw
+        call Dv_Draw
+        jp Scr_Show                 ; сразу на экран (двойной буфер)
 
 ; Строки вверх, последняя - пустая. HL цел
 Lg_Push

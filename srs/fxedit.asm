@@ -9,7 +9,7 @@ FE_MID          equ 21              ; средний блок: имя, Len / Loo
 FE_BTN          equ 62              ; кнопки
 FE_CAP          equ IV_TOP+6        ; заголовки колонок (под линией шапки)
 FE_ROW0         equ IV_TOP+7        ; первая строка FX
-FE_ROWS         equ TL_LAST-1-FE_ROW0   ; строк FX на экране (до нижней рамки)
+FE_ROWS         equ TL_LAST-FE_ROW0     ; строк FX на экране (до нижней рамки - последняя строка)
 ; колонки строки: Mix
 FE_RW           equ 2               ; номер строки (hex)
 FE_LP           equ 1               ; скобка цикла (как в инструменте: Loop_Char)
@@ -61,9 +61,9 @@ Fe_Draw
         call Fe_Load
         call Fe_List
         call Fe_Mid
-        jp Fe_Rows
         call Fe_RowSb               ; скроллбар строк - на правой рамке
         call Vsb_Draw
+        jp Fe_Rows
 
 ;-------- A - страница, HL - откуда (окно 2), DE - куда, BC - сколько. SETPAGE портит BC
 Fe_Copy

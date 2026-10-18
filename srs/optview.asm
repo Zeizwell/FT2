@@ -67,6 +67,7 @@ Ov_Start
         jr nz,$+4
         ld a,OPT_HELP
         ld (Ov_Mode),a
+        call Scr_Begin              ; двойной буфер: рисуем в невидимую страницу
         ld a,(SV_DRAW_PAGE)
         SETPAGE3 a
         ld a,(Ov_Mode)
@@ -101,17 +102,19 @@ Ov_Loop
         jr nz,Ov_Leave
         ld a,(Ov_Mode)              ; Help - рисовать больше нечего
         or a
-        jr nz,Ov_Loop
+        jr nz,.show
         ld a,(Ov_Dirty)
         or a
         call nz,Ov_Draw
         call Ov_Button
+.show   call Scr_Show               ; кадр - показать
         jr Ov_Loop
 
 Ov_Leave
         xor a
         ld (Ov_Exit),a
         call Tool_Clear
+        call Scr_End
         RESTPAGE3
         ret
 
