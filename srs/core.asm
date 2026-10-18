@@ -110,6 +110,7 @@ Core_Start
         ldir
         xor a                   ; тема 0 из набора тем - в CRAM (выбранную в INI ставит
         call Set_Palette_Di     ;   Setup, OPT_LOAD). Прерывания ещё выкл - без EI
+        call Spr_Pal_Set        ; палитра спрайтов интерфейса (своя, не от темы)
 
         im 1
         ld hl,100
@@ -218,6 +219,7 @@ dma_wait	ld bc,DMASTATUS
 
 
     include "srs/screen.asm"       ; двойной буфер экрана тулз
+    include "srs/sprites.asm"      ; спрайты интерфейса: палитра и карта
     include "srs/textin.asm"       ; строка ввода текста (Song / By, имена, файл)
     include "srs/mouse.asm"
     include "srs/input.asm"

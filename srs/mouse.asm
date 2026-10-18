@@ -23,11 +23,11 @@ Init_Mouse_Sprite
         xor a
         ld (MOUSE_WHEEL),a
 
-        ld hl,MOUSE_SPRITE_DATA     ; стрелка - тайл 0 (байты 0..7 строк 0..15)
-        ld de,#C000
-        call Mouse_Gfx_Copy
-        ld hl,MOUSE_HAND_DATA       ; лапка - тайл 2 (байты 8..15)
-        ld de,#C000+MOUSE_TILE_HAND*4
+        ld hl,MOUSE_SPRITE_DATA     ; стрелка и лапка - в конце страницы спрайтов (строки 48..63,
+        ld de,#C000+MOUSE_GFX_ROW*8*256+MOUSE_GFX_COL*4 ;   байты 240..255): начало - графике
+        call Mouse_Gfx_Copy         ;   кнопок
+        ld hl,MOUSE_HAND_DATA
+        ld de,#C000+MOUSE_GFX_ROW*8*256+MOUSE_GFX_COL*4+8
         call Mouse_Gfx_Copy
         call Mouse_Scale
 
@@ -55,9 +55,14 @@ Mouse_Gfx_Copy
         djnz .r
         ret
 
-; Форма курсора (тайл в описателе стрелки): поле под мышью с флагом FF_HAND - лапка
-MOUSE_TILE_ARROW equ 0
-MOUSE_TILE_HAND  equ 2
+; Форма курсора (тайл в описателе стрелки): поле под мышью с флагом FF_HAND - лапка. Картинки - в
+; последних тайлах страницы спрайтов: ряд тайлов 6 (строки 48..63), колонки 60..63
+MOUSE_GFX_ROW    equ 6
+MOUSE_GFX_COL    equ 60
+MOUSE_TILE_ARROW equ (MOUSE_GFX_ROW*64+MOUSE_GFX_COL) & 255     ; младший байт номера тайла
+MOUSE_TILE_HAND  equ (MOUSE_GFX_ROW*64+MOUSE_GFX_COL+2) & 255
+MOUSE_TILE_HI    equ (MOUSE_GFX_ROW*64+MOUSE_GFX_COL) >> 8       ; старший - в байте палитры
+    ASSERT MOUSE_TILE_HI == (MOUSE_GFX_ROW*64+MOUSE_GFX_COL+3) >> 8
 Print_D push af
         RRCA
         RRCA
@@ -88,8 +93,10 @@ Sprite_init_table
                 db #FF                                                ;конец таблы
 ;------mouse sprite settings 
 
-MOUSE_SFILE_SLOT equ    5         ; стрелка - запись 5 SFILE: позже в списке - поверх (проверено)
+MOUSE_SFILE_SLOT equ    84        ; стрелка - последняя запись SFILE (0..84): позже в списке - поверх (проверено);
+                                  ; записи с 0 - кнопки и прочая графика интерфейса
                                   ; (кнопки транспорта - записи 0..4, srs/head.asm)
+    ASSERT MOUSE_SFILE_SLOT == 84   ; 85 записей SFILE
 MOUSE_Y_MASK    equ     %00100010 ; Флаги Y: ACT=1, размер 16 пикселей (#32)
 MOUSE_X_MASK    equ     %00000010 ; Флаги X: размер 16 пикселей (#02)
 
@@ -100,7 +107,7 @@ MOUSE_Y_POS     db #20          ; Позиция по Y (базовый стар
 MOUSE_X_POS     db #20          ; Позиция по X (базовый старт по центру)
                 db MOUSE_X_MASK    ; Флаги X: размер 16 пикселей (#02)          0 бит - 8бит координаты X
 MOUSE_TILE      db MOUSE_TILE_ARROW ; Номер тайла на карте графики (стрелка / лапка)
-                db #D0           ; Старшая тетрада — палитра 0, младшая — старший бит тайла D0- 13 палитра текст режима
+                db #D0 | MOUSE_TILE_HI ; палитра 13 (как у текста) | старшие биты номера тайла
               
               
 MOUSE_SAT_END  
@@ -109,8 +116,8 @@ Cursor_dma_table
                 defb    #1a, low MOUSE_SAT_BUFFER  ; Адрес источника в ОЗУ (младший байт)
                 defb    #1b, high MOUSE_SAT_BUFFER ; Адрес источника в ОЗУ (старший байт)
                 defb    #1c, PAGE_CORE0            ; Источник сидит в нашей базовой RAM (обычно 0)
-                defb    #1d, MOUSE_SFILE_SLOT*6    ; запись стрелки в SFILE (последняя - поверх кнопок)
-                defb    #1e, 2                     ; НАПРАВЛЯЕМ ТРАНЗАКЦИЮ СТРОГО В SFILE (SAT память)
+                defb    #1d, low (MOUSE_SFILE_SLOT*6)  ; запись стрелки в SFILE (последняя - поверх всех)
+                defb    #1e, high (MOUSE_SFILE_SLOT*6) ;   (адрес в SFILE - 9 бит)
                 defb    #1f, 0
                 defb    #26, (MOUSE_SAT_END - MOUSE_SAT_BUFFER) / 2-1 ; Длина транзакции (3 слова)
                 defb    #28, 0
