@@ -162,9 +162,16 @@ Dv_Top          dw 0                ; первая видимая запись
 Dv_Sel          dw 0                ; выбранная запись
 Dv_Full         db 0                ; 1 - каталог не влез (показаны не все)
 Dl_Free         dw 0                ; куда писать следующую запись (смещение в странице)
-Dv_Msg          dw 0                ; сообщение (0 - нет)
-Dv_Msg_Clr      db 0                ; его цвет: роль CLR_*
-Dv_Msg_Code     db 0                ; код ошибки драйвера (печатается за сообщением)
+LG_LINES        equ 3               ; лог сообщений (как в консоли): строк, знаков в строке
+LG_W            equ 38
+LG_LAST         equ Lg_Txt+(LG_LINES-1)*(LG_W+1)
+Lg_Txt          ds LG_LINES*(LG_W+1) ; строки, старая - первая
+Lg_Clr          db CLR_CMD,CLR_CMD,CLR_CMD ; цвет строки: роль CLR_* (пустые - фоном сообщений)
+Lg_Len          db 0                ; знаков в последней строке
+Lg_Open         db 0                ; 1 - последняя строка ждёт итога (её начал Dv_Busy)
+Lg_C            db 0
+Lg_HexT         ds 3
+Dv_Msg_Code     db 0                ; код ошибки драйвера (отладка)
 Dv_Msg_F        db 0                ; флаги драйвера (отладка)
 Dv_Msg_Show     db 0                ; отладка: 1 - строка "list .. find .."
 Dv_Path         ds 120              ; путь от корня, "/" в конце
@@ -418,21 +425,10 @@ Dv_Draw_File
         ld de,FP_V+256*(DV_SCR_H+BY_Y)
         ld hl,Dv_By
         call PutStr
-        ld hl,(Dv_Msg)              ; сообщение
-        ld a,h
-        or l
-        ret z
-        ld a,(Dv_Msg_Clr)
-        add a,low THEME_ATTR
-        ld e,a
-        ld d,high THEME_ATTR
-        ld a,(de)
-        ld c,a
-        ld de,FP_L+256*(DV_SCR_H+MSG_Y)
-        call PutStr
-        ld a,(Dv_Msg_Show)          ; отладка: A и флаги листинга, A и флаги поиска
+        call Lg_Draw                ; лог сообщений
+        ld a,(Dv_Msg_Show)          ; отладка: A и флаги листинга, A и флаги поиска (поверх лога)
         or a
-        jr z,.code
+        ret z
         ld de,FP_L+256*(DV_SCR_H+MSG_Y+1)
         ld hl,Txt_DbgList
         call PutStr
@@ -466,10 +462,6 @@ Dv_Draw_File
         call PutCh
         pop hl
         ld a,l
-        jp PutHex2
-.code   ld a,(Dv_Msg_Code)          ; код ошибки драйвера
-        or a
-        ret z
         jp PutHex2
 
 ;-------- Поле Name: текст на фоне поля ввода, в фокусе - курсор "_"
@@ -1606,6 +1598,8 @@ Dv_Loaded
         ld (Ck_Ok),a
         ret
 .exit
+        ld hl,Txt_LgOk              ; "Loading... OK"
+        call Dv_Ok
         ld a,PAGE_TOOL_PATVIEW
         ld (SV_TOOL),a
         ld a,1
@@ -2019,28 +2013,134 @@ Fs_Fill
 ; =========================================================================
 ; СООБЩЕНИЯ
 ; =========================================================================
+; Лог сообщений (как в консоли): Dv_Busy начинает строку "Saving...", Dv_Ok / Dv_Error дописывают
+; к ней итог ("Saving... OK"); без начатой строки - новая строка. Старые уезжают вверх
+
 ; HL - текст ошибки
 Dv_Error
         ld a,CLR_ERROR
-        jr Dv_Msg_Set
-; HL - текст "идёт работа": сразу на экран (дальше долгая операция, кадры не крутятся)
-Dv_Busy
-        call Dv_Ok
-        jp Dv_Draw
-
+        jr Lg_End
 ; HL - текст "готово"
 Dv_Ok
         ld a,CLR_CMD
-Dv_Msg_Set
-        ld (Dv_Msg),hl
-        ld (Dv_Msg_Clr),a
+; HL - текст, A - цвет (роль CLR_*): начатая строка - дописать, иначе - новая
+Lg_End
+        ld (Lg_C),a
+        ld a,(Lg_Open)
+        or a
+        jr nz,.app
+        call Lg_Push
+        jr .put
+.app    xor a                       ; строка закрыта
+        ld (Lg_Open),a
+        push hl
+        ld hl,Txt_LgSp
+        call Lg_Add
+        pop hl
+.put    call Lg_Add
+        ld a,(Lg_C)                 ; цвет строки - по последнему
+        ld (Lg_Clr+LG_LINES-1),a
         xor a
-        ld (Dv_Msg_Code),a
-        ld (Dv_Msg_F),a
         ld (Dv_Msg_Show),a
         inc a
         ld (Dv_Dirty),a
         ret
+
+; HL - текст "идёт работа": новая строка и сразу на экран (дальше долгая операция, кадры не крутятся)
+Dv_Busy
+        push hl
+        ld a,(Lg_Open)              ; прошлая не закрыта - значит, прошла: "OK"
+        or a
+        ld hl,Txt_LgOk
+        call nz,Dv_Ok
+        pop hl
+        call Dv_Ok
+        ld a,1
+        ld (Lg_Open),a
+        jp Dv_Draw
+
+; Строки вверх, последняя - пустая. HL цел
+Lg_Push
+        push hl
+        ld hl,Lg_Txt+LG_W+1
+        ld de,Lg_Txt
+        ld bc,(LG_LINES-1)*(LG_W+1)
+        ldir
+        ld hl,Lg_Clr+1
+        ld de,Lg_Clr
+        ld bc,LG_LINES-1
+        ldir
+        xor a
+        ld (LG_LAST),a
+        ld (Lg_Len),a
+        pop hl
+        ret
+
+; Текст HL - в конец последней строки (не длиннее LG_W)
+Lg_Add
+        ld a,(Lg_Len)
+        ld e,a
+        ld d,0
+        push hl
+        ld hl,LG_LAST
+        add hl,de
+        ex de,hl
+        pop hl
+.c      ld a,(Lg_Len)
+        cp LG_W
+        jr nc,.end
+        ld a,(hl)
+        or a
+        jr z,.end
+        ld (de),a
+        inc hl
+        inc de
+        ld a,(Lg_Len)
+        inc a
+        ld (Lg_Len),a
+        jr .c
+.end    xor a
+        ld (de),a
+        ret
+
+; A - 2 hex в конец последней строки
+Lg_Hex
+        ld de,Lg_HexT
+        call Ck_Hex
+        xor a
+        ld (de),a
+        ld hl,Lg_HexT
+        jp Lg_Add
+
+; Лог на экран: строки с MSG_Y, хвост строки - пробелами (старое не остаётся)
+Lg_Draw
+        ld hl,Lg_Txt
+        ld de,FP_L+256*(DV_SCR_H+MSG_Y)
+        ld a,(Lg_Clr)
+        call .one
+        ld hl,Lg_Txt+LG_W+1
+        ld de,FP_L+256*(DV_SCR_H+MSG_Y+1)
+        ld a,(Lg_Clr+1)
+        call .one
+        ld hl,Lg_Txt+2*(LG_W+1)
+        ld de,FP_L+256*(DV_SCR_H+MSG_Y+2)
+        ld a,(Lg_Clr+2)
+.one    push de
+        add a,low THEME_ATTR
+        ld e,a
+        ld d,high THEME_ATTR
+        ld a,(de)
+        ld c,a
+        pop de
+        call PutStr
+.sp     ld a,e
+        cp FP_L+LG_W
+        ret nc
+        ld a,' '
+        call PutCh
+        jr .sp
+    ASSERT LG_LINES == 3
+    ASSERT FP_L+LG_W < FP_X+FP_W
 
 ; Ошибка драйвера: код - в A (после Disk_Call). CF на выходе
 Dv_Disk_Err
@@ -2049,7 +2149,10 @@ Dv_Disk_Code
         ld hl,Txt_DiskErr
         call Dv_Error
         pop af
+        push af
         ld (Dv_Msg_Code),a
+        call Lg_Hex                 ; код - в строку
+        pop af
         scf
         ret
 
@@ -2221,7 +2324,9 @@ Txt_NotFT2      db "Not an FT2 file",0
 Txt_TooBig      db "File too big",0
 Txt_CantLoad    db "Load: FT2 PT3 PT2 FTC only",0
 Txt_NoName      db "Type a name",0
-Txt_Saved       db "Saving... OK",0
+Txt_Saved       db "OK",0
+Txt_LgOk        db "OK",0
+Txt_LgSp        db " ",0
 Txt_Saving      db "Saving...",0
 Txt_Loading     db "Loading...",0
 Txt_DiskErr     db "Disk error #",0

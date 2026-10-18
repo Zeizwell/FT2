@@ -493,6 +493,8 @@ Ck_Msg
         call Ck_Hex
         xor a
         ld (de),a
+        ld hl,Txt_CkBad             ; "Checking... differ", отличия - строкой ниже
+        call Dv_Error
         ld hl,Ck_Txt
         jp Dv_Error
 
@@ -538,5 +540,6 @@ Txt_CkOff       db " +",0
 Txt_CkDiff      db "Diff ",0
 Txt_CkFirst     db ", first: ",0
 Txt_CkRun       db "Checking...",0
-Txt_CkSame      db "Check OK: file = memory",0
+Txt_CkSame      db "OK: file = memory",0
+Txt_CkBad       db "differ",0
 Txt_CkFt2       db "Check: select an FT2 file",0
