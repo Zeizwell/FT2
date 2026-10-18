@@ -216,6 +216,8 @@ Win_Wait
         call Mouse_Btn
         and 1<<ME_PRESS
         jr z,.l
+        call Win_OnClose            ; крестик - закрыть
+        jr c,Win_End
         call Win_In                 ; в окне - ничего
         jr c,.l
         ld a,(Win_Flags)            ; мимо: обычное окно - ничего
@@ -259,8 +261,8 @@ Wd_N            db 0                ; строк окна ещё можно
 Wd_Fn           dw Wd_Text          ; как рисовать строки: Wd_Text / Wd_Menu
 
 ;-------- Рамка, фон и строки окна (экран - в окне 3)
-Win_Draw                            ; рамка - цветом фона окна (не мелькает поверх паттерна)
-        ld a,(THEME_ATTR+CLR_TOP_BG)
+Win_Draw                            ; рамка - тёмными линиями (как подписи) на фоне окна
+        ld a,(THEME_ATTR+CLR_TOP_TEXT)
         ld c,a
         ld a,(Win_Y)
         add a,WIN_SCR_H
@@ -275,7 +277,7 @@ Win_Draw                            ; рамка - цветом фона окн�
         inc d
         ld a,(Win_X)
         ld e,a
-        ld a,(THEME_ATTR+CLR_TOP_BG)
+        ld a,(THEME_ATTR+CLR_TOP_TEXT)
         ld c,a
         ld a,WB_V
         call PutCh
@@ -287,7 +289,7 @@ Win_Draw                            ; рамка - цветом фона окн�
 .sp     ld a,' '
         call PutCh
         djnz .sp
-        ld a,(THEME_ATTR+CLR_TOP_BG)
+        ld a,(THEME_ATTR+CLR_TOP_TEXT)
         ld c,a
         ld a,WB_V
         call PutCh
@@ -302,25 +304,82 @@ Win_Draw                            ; рамка - цветом фона окн�
         ld hl,(Wd_Fn)               ; строки: текст (About) или пункты меню
         jp (hl)
 
-; Заголовок на верхней рамке с x+2: " текст " (пусто - нет)
+; Заголовок (пусто - нет): верхняя строка между углами - шахматка, по центру " текст ", справа - крестик
+; закрытия [x] (WIN_CLOSE_DX от правого края). Всё - цветом рамки
+WB_CHECK        equ #B1             ; ▒ - шахматка заголовка
+WIN_CLOSE_DX    equ 4               ; [x] - с колонки x+w-4 (до угла)
 Wd_Title
         ld hl,(Wo_Title)
         ld a,(hl)
         or a
         ret z
-        ld a,(Win_Y)
+        ld a,(THEME_ATTR+CLR_TOP_TEXT)
+        ld c,a
+        ld a,(Win_Y)                ; шахматка от x+1 до x+w-2
         add a,WIN_SCR_H
         ld d,a
         ld a,(Win_X)
-        add a,2
+        inc a
         ld e,a
-        ld a,(THEME_ATTR+CLR_TOP_HI)
-        ld c,a
+        ld a,(Win_W)
+        sub 2
+        ld b,a
+.ch     ld a,WB_CHECK
+        call PutCh
+        djnz .ch
+        ld hl,(Wo_Title)            ; длина заголовка
+        ld b,0
+.n      ld a,(hl)
+        or a
+        jr z,.c
+        inc hl
+        inc b
+        jr .n
+.c      ld a,(Win_W)                ; " текст " по центру: x + (w - (длина + 2)) / 2
+        sub b
+        sub 2
+        srl a
+        ld hl,Win_X
+        add a,(hl)
+        ld e,a
         ld a,' '
         call PutCh
+        ld hl,(Wo_Title)
         call PutStr
         ld a,' '
-        jp PutCh
+        call PutCh
+        ld a,(Win_X)                ; крестик [x]
+        ld hl,Win_W
+        add a,(hl)
+        sub WIN_CLOSE_DX
+        ld e,a
+        ld hl,Txt_WClose
+        jp PutStr
+Txt_WClose      db "[x]",0
+
+; Мышь на крестике окна с заголовком? CF - да
+Win_OnClose
+        ld hl,(Wo_Title)
+        ld a,(hl)
+        or a
+        ret z                       ; без заголовка - крестика нет (CF = 0)
+        ld a,(Win_Y)
+        ld b,a
+        ld a,(SV_MOUSE_ROW)
+        cp b
+        jr nz,.no
+        ld a,(Win_X)
+        ld hl,Win_W
+        add a,(hl)
+        sub WIN_CLOSE_DX
+        ld b,a
+        ld a,(SV_MOUSE_COL)
+        sub b
+        jr c,.no
+        cp 3
+        ret                         ; CF - на [x]
+.no     or a
+        ret
 
 ; Тень: атрибуты справа (2 колонки, строки y+1..y+h) и снизу (строка y+h, колонки x+2..x+w+1) -
 ; цвет тени, знаки под ней остаются
@@ -689,8 +748,8 @@ Win_AboutEv
 Win_About_D
         db WIN_CENTER, WIN_CENTER, 34, 9, WF_CONTEXT
         db "About",0
-        db CLR_TOP_HI,  "     FAST TRACKER 2.01b",0
-        db CLR_TOP_TEXT,"         by Orion/DR",0
+        db CLR_TOP_TEXT,"FAST TRACKER 2.01b",0
+        db CLR_TOP_TEXT,"by Orion/DR",0
         db CLR_TOP_TEXT," ",0
         db CLR_TOP_TEXT,"FAT32 driver   Andrew Lazarev",0
         db CLR_TOP_TEXT,"PT3 reference  S.V. Bulba",0
