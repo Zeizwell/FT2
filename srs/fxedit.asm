@@ -540,15 +540,15 @@ Fe_Mix_Row
         call Put_Pct
         ld e,FE_SWP
         ld a,(Fe_Row+FXR_SWP)
-        call Put_Dec3
+        call Put_D3Z
         ld a,(THEME_ATTR+CLR_VOLUME)
         ld c,a
         ld e,FE_SEMI
         ld a,(Fe_Row+FXR_MIX)
-        call Put_SDec
+        call Put_S3
         ld e,FE_DET
         ld a,(Fe_Row+FXR_MIX+1)
-        call Put_SDec
+        call Put_S3
         ld e,FE_LN
         ld a,(Fe_Ln)
         call Dec2
@@ -594,13 +594,13 @@ Fe_Fm_Row
         ld e,FE_FSEMI
         ld a,(hl)
         push hl
-        call Put_SDec
+        call Put_S3
         pop hl
         inc hl
         ld e,FE_FDET
         ld a,(hl)
         push hl
-        call Put_SDec
+        call Put_S3
         pop hl
         inc hl
         ld a,(hl)                   ; номер таблицы
@@ -640,14 +640,9 @@ Fe_Fm_Row
 .s      call Fe_Step_Clr
         push hl
         push bc
-        ld a,(Fe_Per)
-        or a
         ld a,(hl)
-        jr nz,.per
-        call Put_SDec               ; полутоны - десятичные: "  +7", " +12"
-        jr .nx
-.per    call Fe_SHex                ; период - hex: " +0C"
-.nx     pop bc
+        call Fe_Step2               ; " +12" (полутоны) / " +0C" (период)
+        pop bc
         pop hl
         inc hl
         djnz .s
@@ -933,33 +928,47 @@ Fe_Cols_Mix
         db FE_MIX+2,  KD_MIX,  FXR_FLAGS, 0
         db FE_MAX+3,  KD_PCT,  FXR_PWM, #10             ; max
         db FE_MIN+3,  KD_PCT,  FXR_PWM, #01             ; min
-        db FE_SWP+2,  KD_UDEC, FXR_SWP, 255
-        db FE_SEMI+3, KD_SDEC, FXR_MIX, 0               ; детюн: полутоны
-        db FE_DET+3,  KD_SDEC, FXR_MIX+1, 0             ;   сырой
-        db FE_LN+1,   KD_LEN,  FXR_LEN1, #01            ; длина Mix
-        DUP 16, I                                       ; шаги: по знаку через пробел
+        db FE_SWP,    KD_UDIG, FXR_SWP, 100             ; свип: разряды
+        db FE_SWP+1,  KD_UDIG, FXR_SWP, 10
+        db FE_SWP+2,  KD_UDIG, FXR_SWP, 1
+        db FE_SEMI,   KD_SSGN, FXR_MIX, 0               ; детюн, полутоны: знак, разряды
+        db FE_SEMI+1, KD_SDIG, FXR_MIX, 100
+        db FE_SEMI+2, KD_SDIG, FXR_MIX, 10
+        db FE_SEMI+3, KD_SDIG, FXR_MIX, 1
+        db FE_DET,    KD_SSGN, FXR_MIX+1, 0             ; детюн сырой
+        db FE_DET+1,  KD_SDIG, FXR_MIX+1, 100
+        db FE_DET+2,  KD_SDIG, FXR_MIX+1, 10
+        db FE_DET+3,  KD_SDIG, FXR_MIX+1, 1
+        db FE_LN,     KD_LTEN, FXR_LEN1, #01            ; длина: десятки, единицы
+        db FE_LN+1,   KD_LONE, FXR_LEN1, #01
+        DUP 16, I                                       ; шаги: hex-цифра
         db FE_STEPS+2*I, KD_STEP, FXR_MIX+2, I
         EDUP
 FE_MIX_COLS     equ ($-Fe_Cols_Mix)/CL_SIZE
-Fe_Cols_Fm
-        db FE_ON+1,    KD_BIT,  FXR_FLAGS, 1<<FXRB_FM
-        db FE_FSEMI+3, KD_SDEC, FXR_FM, 0
-        db FE_FDET+3,  KD_SDEC, FXR_FM+1, 0
-        db FE_UNIT+3,  KD_BIT,  FXR_FLAGS, 1<<FXRB_FMPER
-        db FE_FLN+1,   KD_LEN,  FXR_LEN1, #10           ; длина FM - старший полубайт
-        DUP 16, I                                       ; шаги: по 4 знака
-        db FE_FSTEPS+4*I+3, KD_STEP, FXR_FM+2, I
+    MACRO FE_FMCOLS fld,onb,perb,lenb,lenm
+        db FE_ON+1,    KD_BIT,  FXR_FLAGS, 1<<onb
+        db FE_FSEMI,   KD_SSGN, fld, 0
+        db FE_FSEMI+1, KD_SDIG, fld, 100
+        db FE_FSEMI+2, KD_SDIG, fld, 10
+        db FE_FSEMI+3, KD_SDIG, fld, 1
+        db FE_FDET,    KD_SSGN, fld+1, 0
+        db FE_FDET+1,  KD_SDIG, fld+1, 100
+        db FE_FDET+2,  KD_SDIG, fld+1, 10
+        db FE_FDET+3,  KD_SDIG, fld+1, 1
+        db FE_UNIT+3,  KD_BIT,  FXR_FLAGS, 1<<perb
+        db FE_FLN,     KD_LTEN, lenb, lenm
+        db FE_FLN+1,   KD_LONE, lenb, lenm
+        DUP 16, I                                       ; шаги: знак, 2 разряда (" +12" / " +0C")
+        db FE_FSTEPS+4*I+1, KD_STEP, fld+2, I*4+1
+        db FE_FSTEPS+4*I+2, KD_STEP, fld+2, I*4+2
+        db FE_FSTEPS+4*I+3, KD_STEP, fld+2, I*4+3
         EDUP
+    ENDM
+Fe_Cols_Fm
+        FE_FMCOLS FXR_FM, FXRB_FM, FXRB_FMPER, FXR_LEN1, #10
 FE_FM_COLS      equ ($-Fe_Cols_Fm)/CL_SIZE
 Fe_Cols_Efm
-        db FE_ON+1,    KD_BIT,  FXR_FLAGS, 1<<FXRB_EFM
-        db FE_FSEMI+3, KD_SDEC, FXR_EFM, 0
-        db FE_FDET+3,  KD_SDEC, FXR_EFM+1, 0
-        db FE_UNIT+3,  KD_BIT,  FXR_FLAGS, 1<<FXRB_EFMPER
-        db FE_FLN+1,   KD_LEN,  FXR_LEN2, #01
-        DUP 16, I
-        db FE_FSTEPS+4*I+3, KD_STEP, FXR_EFM+2, I
-        EDUP
+        FE_FMCOLS FXR_EFM, FXRB_EFM, FXRB_EFMPER, FXR_LEN2, #01
     ASSERT ($-Fe_Cols_Efm)/CL_SIZE == FE_FM_COLS
     ASSERT FXR_FLAGS == FR_FLAGS        ; Mix (KD_MIX) пишет FR_FLAGS: биты те же
 
@@ -1018,28 +1027,18 @@ Fe_Cursor
         push de
         call Iv_Cur_Col             ; IY - колонка
         pop de
-        ld a,(iy+1)                 ; ширина поля
-        cp KD_STEP                  ; шаг: Mix - 1 знак, FM / Env FM - 4
-        jr nz,.nst
-        ld b,1
-        ld a,(iy+2)
-        cp FXR_MIX+2
-        jr z,.w
-        ld b,4
-        jr .w
-.nst
+        ld a,(iy+1)                 ; ширина поля: Mix - 3, % - 4, on - 2, semi / per - 4, разряды и шаги - 1
         ld b,3
         cp KD_MIX
         jr z,.w
-        cp KD_UDEC
-        jr z,.w
-        ld b,2
-        cp KD_LEN
-        jr z,.w
         ld b,4
+        cp KD_PCT
+        jr z,.w
         cp KD_BIT
+        ld b,1
         jr nz,.w
-        ld a,(iy+3)                 ; флаг: semi / per - 4 знака, on - 2
+        ld b,4
+        ld a,(iy+3)
         and (1<<FXRB_FMPER)|(1<<FXRB_EFMPER)
         jr nz,.w
         ld b,2
@@ -1092,110 +1091,128 @@ Fe_StepKey
         or a
         ret
 .go     call Iv_Cur_Row             ; IX - строка
-        call Fe_Step_Get            ; Fe_SVal, Fe_SMode
-        ld a,(Fe_K)
+        call Fe_Step_Get            ; Fe_SVal, Fe_SMode, Fe_SPos
+        ld a,(Fe_SMode)
+        or a
+        jr nz,Fe_StepFm
+        ld a,(Fe_K)                 ; Mix: hex-цифра - значение, +/- - на 1, Delete / Backspace - 0
         cp KEY_DEL
         jr z,.zero
         cp KEY_BACK
-        jr z,.back
+        jr z,.zero
         cp KEY_MINUS
         jr z,.minus
         cp KEY_KP_MINUS
         jr z,.minus
         cp KEY_PLUS
-        jp z,.plus
+        jr z,.plus
         cp KEY_KP_PLUS
-        jp z,.plus
-        call Hex_Key                ; цифра 0..15; не цифра - не наша (стрелки и т.п.)
+        jr z,.plus
+        call Hex_Key                ; не цифра - не наша (стрелки и т.п.)
         ccf
         ret nc
-        ld c,a
-        ld a,(Fe_SMode)
-        or a
-        ld a,c                      ; Mix: цифра - значение
-        jp z,.put
-        call Fe_Abs                 ; FM: дописать справа (полутоны - *10, период - *16)
-        ld b,a
-        ld a,(Fe_SMode)
-        dec a
-        jr nz,.hex
-        ld a,c
-        cp 10
-        ccf
-        ret c                       ; полутоны - только 0..9 (съели)
-        ld a,b
-        add a,a                     ; *10
-        add a,a
-        add a,b
-        add a,a
-        jr c,.only
-        add a,c
-        jr c,.only
-        jr .lim
-.hex    ld a,b
-        cp 8                        ; *16 больше 127 - с нуля
-        jr nc,.only
-        add a,a
-        add a,a
-        add a,a
-        add a,a
-        add a,c
-.lim    cp 128
-        jr c,.sg
-.only   ld a,c
-.sg     ld b,a                      ; знак - как был
-        ld a,(Fe_SVal)
-        or a
-        ld a,b
-        jp p,.put
-        neg
         jr .put
 .zero   xor a
         jr .put
-.back   ld a,(Fe_SMode)             ; Mix - 0; FM - модуль / 10 (/16), знак тот же
-        or a
-        jr z,.zero
-        call Fe_Abs
-        ld b,a
-        ld a,(Fe_SMode)
-        dec a
-        ld a,b
-        jr nz,.b16
-        ld b,-1
-.d10    inc b
-        sub 10
-        jr nc,.d10
-        ld a,b
-        jr .sg
-.b16    rrca
-        rrca
-        rrca
-        rrca
-        and 15
-        jr .sg
-.minus  ld a,(Fe_SMode)             ; Mix - на 1 меньше; FM - знак минус
-        or a
-        jr nz,.neg
-        ld a,(Fe_SVal)
+.minus  ld a,(Fe_SVal)
         or a
         jr z,.put
         dec a
         jr .put
-.neg    call Fe_Abs
-        neg
-        jr .put
-.plus   ld a,(Fe_SMode)             ; Mix - на 1 больше; FM - знак плюс
-        or a
-        jr nz,.pos
-        ld a,(Fe_SVal)
+.plus   ld a,(Fe_SVal)
         cp 15
         jr nc,.put
         inc a
-        jr .put
-.pos    call Fe_Abs
 .put    call Fe_Step_Put
         scf
         ret
+
+;-------- Шаг FM / Env FM - как числа в инструменте: колонка знака (+ / - / пробел - наоборот) и 2 разряда
+; (полутоны - десятичные, до 99; период - hex, до 7F); Delete / Backspace - разряд 0
+Fe_StepFm
+        ld a,(Fe_K)
+        cp KEY_MINUS
+        jr z,.neg
+        cp KEY_KP_MINUS
+        jr z,.neg
+        cp KEY_PLUS
+        jr z,.pos
+        cp KEY_KP_PLUS
+        jr z,.pos
+        cp KEY_SPACE
+        jr z,.flip
+        ld b,0                      ; Delete / Backspace - как цифра 0
+        cp KEY_DEL
+        jr z,.dig
+        cp KEY_BACK
+        jr z,.dig
+        call Hex_Key
+        ccf
+        ret nc                      ; не цифра - не наша
+        ld b,a
+.dig    ld a,(Fe_SPos)              ; в колонке знака цифры не пишутся
+        cp 1
+        scf
+        ret z
+        ld a,(Fe_SMode)             ; основание: полутоны - 10, период - 16
+        dec a
+        ld c,10
+        jr z,$+4
+        ld c,16
+        ld a,b
+        cp c
+        ccf
+        ret c                       ; цифра не этого основания - съели
+        call Fe_Abs                 ; модуль -> старший (D), младший (E) разряды
+        ld d,-1
+.d      inc d
+        sub c
+        jr nc,.d
+        add a,c
+        ld e,a
+        ld a,(Fe_SPos)
+        cp 2
+        jr nz,.lo
+        ld d,b
+        jr .sum
+.lo     ld e,b
+.sum    ld a,d                      ; модуль = D * основание + E
+        ld h,0
+.m      or a
+        jr z,.add
+        ld l,a
+        ld a,h
+        add a,c
+        ld h,a
+        ld a,l
+        dec a
+        jr .m
+.add    ld a,h
+        add a,e
+        ld b,a
+        ld a,(Fe_SMode)             ; не больше 99 (полутоны) / 127 (период)
+        dec a
+        ld a,99
+        jr z,$+4
+        ld a,127
+        cp b
+        jr nc,$+3
+        ld b,a
+        ld a,(Fe_SVal)              ; знак - как был
+        or a
+        ld a,b
+        jp p,Fe_StepKey.put
+        neg
+        jp Fe_StepKey.put
+.neg    call Fe_Abs
+        neg
+        jp Fe_StepKey.put
+.pos    call Fe_Abs
+        jp Fe_StepKey.put
+.flip   ld a,(Fe_SVal)
+        neg
+        jp Fe_StepKey.put
+Fe_SPos         db 0                ; FM: колонка в шаге (1 - знак, 2 - старший, 3 - младший разряд)
 
 ;-------- A = |Fe_SVal|
 Fe_Abs
@@ -1207,8 +1224,10 @@ Fe_Abs
 
 ;-------- Шаг под курсором (IX - строка, IY - колонка) -> Fe_T, Fe_SIdx, Fe_SVal, Fe_SMode
 Fe_Step_Get
-        ld a,(iy+3)
+        ld a,(iy+3)                 ; Mix - номер шага; FM - шаг*4 + колонка
         ld (Fe_SIdx),a
+        and 3
+        ld (Fe_SPos),a
         ld a,(iy+2)                 ; байт строки - номер таблицы
         push ix
         pop hl
@@ -1229,6 +1248,14 @@ Fe_Step_Get
         ld c,2
 .m      ld a,c
         ld (Fe_SMode),a
+        or a                        ; FM: шаг = параметр / 4
+        jr z,.ix
+        ld a,(Fe_SIdx)
+        rrca
+        rrca
+        and 15
+        ld (Fe_SIdx),a
+.ix
         call Fe_Tab_Addr            ; HL - шаг в странице таблиц
         ld a,(Trk_FxT)
         SETPAGE2 a
@@ -1874,3 +1901,176 @@ Vsb_Hit
         ret c                       ; на ползунке
         ld a,3
         ret
+
+;-------- Разряды чисел FX - как в инструменте / орнаменте: у каждого разряда своя колонка курсора,
+; цифра заменяет разряд под курсором (не "вдвигается")
+; A - число 0..255, B - цифра, C - вес разряда (100 / 10 / 1) -> HL - число с замененным разрядом
+Dig_Rep
+        ld d,-1                     ; сотни
+.h      inc d
+        sub 100
+        jr nc,.h
+        add a,100
+        ld e,-1                     ; десятки, A - единицы
+.t      inc e
+        sub 10
+        jr nc,.t
+        add a,10
+        ld l,a
+        ld a,c                      ; заменить разряд
+        cp 100
+        jr nz,.nt
+        ld d,b
+        jr .sum
+.nt     cp 10
+        jr nz,.nu
+        ld e,b
+        jr .sum
+.nu     ld l,b
+.sum    ld a,e                      ; HL = сотни*100 + десятки*10 + единицы
+        add a,a
+        ld h,a
+        add a,a
+        add a,a
+        add a,h
+        add a,l
+        ld l,a
+        ld h,0
+        ld a,d
+        or a
+        ret z
+        ld de,100
+.m      add hl,de
+        dec a
+        jr nz,.m
+        ret
+
+;-------- Цифра B в разряд (iy+3: 100 / 10 / 1) байта со знаком (iy+2): модуль до 127, знак тот же
+Ty_SDig ld a,b
+        cp 10
+        ret nc                      ; A..F - не наши (CF = 0)
+        call Fx_Fld
+        ld a,(hl)
+        ld (Td_Sgn),a
+        or a
+        jp p,.p
+        neg
+.p      push hl
+        ld c,(iy+3)
+        call Dig_Rep
+        ld a,h                      ; больше 127 - 127
+        or a
+        jr nz,.max
+        ld a,l
+        cp 128
+        jr c,.ok
+.max    ld a,127
+.ok     ld b,a
+        pop hl
+        ld a,(Td_Sgn)
+        or a
+        ld a,b
+        jp p,.s
+        neg
+.s      ld (hl),a
+        scf
+        ret
+Td_Sgn  db 0
+
+;-------- Цифра B в разряд (iy+3) байта без знака (iy+2): до 255
+Ty_UDig ld a,b
+        cp 10
+        ret nc
+        call Fx_Fld
+        ld a,(hl)
+        push hl
+        ld c,(iy+3)
+        call Dig_Rep
+        ld a,h
+        or a
+        ld a,l
+        jr z,$+4
+        ld a,255
+        pop hl
+        ld (hl),a
+        scf
+        ret
+
+;-------- Цифра B в длину 1..16 (полубайт - длина-1, iy+3: #10 / #01): KD_LTEN - десятки, KD_LONE - единицы
+Ty_LDig ld a,b
+        cp 10
+        ret nc
+        ld a,(iy+1)
+        cp KD_LTEN
+        ld c,10
+        jr z,$+4
+        ld c,1
+        call Pct_Get                ; полубайт (HL - байт)
+        inc a                       ; длина
+        push hl
+        call Dig_Rep
+        ld a,l                      ; 1..16
+        cp 17
+        jr c,$+4
+        ld a,16
+        or a
+        jr nz,$+3
+        inc a
+        dec a                       ; -> полубайт
+        pop hl
+        jp Ty_Pct.put
+
+;-------- A - 0..255 -> 3 цифры с нулями ("024"), как тон в инструменте
+Put_D3Z
+        ld b,'0'-1
+.h      inc b
+        sub 100
+        jr nc,.h
+        add a,100
+        ld l,a
+        ld a,b
+        call PutCh
+        ld a,l
+        ld b,'0'-1
+.t      inc b
+        sub 10
+        jr nc,.t
+        add a,10+'0'
+        ld l,a
+        ld a,b
+        call PutCh
+        ld a,l
+        jp PutCh
+
+;-------- A - байт со знаком -> знак и 3 цифры ("+012", "-128")
+Put_S3
+        ld l,'+'
+        or a
+        jp p,.p
+        ld l,'-'
+        neg
+.p      push af
+        ld a,l
+        call PutCh
+        pop af
+        jp Put_D3Z
+
+;-------- Шаг FM / Env FM: A - со знаком -> " +12" (полутоны, 2 цифры) / " +0C" (период, hex)
+Fe_Step2
+        ld l,a
+        ld a,' '
+        call PutCh
+        ld a,l
+        ld h,'+'
+        or a
+        jp p,.p
+        ld h,'-'
+        neg
+.p      ld l,a
+        ld a,h
+        call PutCh
+        ld a,(Fe_Per)
+        or a
+        ld a,l
+        jp nz,PutHex2
+        jp Dec2

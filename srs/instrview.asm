@@ -94,6 +94,11 @@ KD_UDEC         equ 13              ; FX: байт 0..параметр, деся
 KD_SDEC         equ 14              ; FX: байт со знаком, десятичный: цифры, +/- - знак
 KD_LEN          equ 15              ; FX: длина 1..16 - полубайт (iy+3: #10 - старший, #01 - младший), десятичный
 KD_STEP         equ 16              ; FX: шаг таблицы (байт - номер таблицы в строке, параметр - шаг 0..15) - srs/fxedit.asm
+KD_SSGN         equ 17              ; FX: знак байта со знаком (iy+2) - как знак тона / ноты
+KD_SDIG         equ 18              ; FX: разряд байта со знаком (iy+3: 100 / 10 / 1), десятичный
+KD_UDIG         equ 19              ; FX: разряд байта без знака (свип)
+KD_LTEN         equ 20              ; FX: длина 1..16 - десятки (iy+3 - полубайт #10 / #01)
+KD_LONE         equ 21              ;   единицы
 CL_SIZE         equ 4               ; колонка: экран, вид, байт, параметр
 
 ; --- FX: подвкладки Mix / FM / Env FM (строка между кнопками и заголовками колонок)
@@ -2182,9 +2187,9 @@ Ed_Type
         cp KEY_KP_MINUS
         jr z,.minus
         cp KEY_PLUS
-        jr z,.plus
+        jp z,.plus
         cp KEY_KP_PLUS
-        jr z,.plus
+        jp z,.plus
         call Hex_Key                ; цифра 0..15, CF - не цифра
         ccf
         ret nc
@@ -2210,6 +2215,14 @@ Ed_Type
         jp z,Ty_SDec
         cp KD_LEN
         jp z,Ty_Len
+        cp KD_SDIG
+        jp z,Ty_SDig
+        cp KD_UDIG
+        jp z,Ty_UDig
+        cp KD_LTEN
+        jp z,Ty_LDig
+        cp KD_LONE
+        jp z,Ty_LDig
         or a                        ; остальным цифры не нужны
         ret
 .space  ld a,(iy+1)
@@ -2261,6 +2274,8 @@ Ed_Type
         cp KD_NSIGN
         jp z,Sg_Note
         cp KD_SDEC
+        jp z,Sg_SDec
+        cp KD_SSGN
         jp z,Sg_SDec
         or a
         ret
@@ -2437,6 +2452,21 @@ Fx_Erase
         call Iv_Cur_Row
         call Iv_Cur_Col
         ld a,(iy+1)
+        cp KD_SDIG                  ; разряды - 0 (как цифра 0)
+        jr z,.sd0
+        cp KD_UDIG
+        jr z,.ud0
+        cp KD_LTEN
+        jr z,.ld0
+        cp KD_LONE
+        jr nz,.go
+.ld0    ld b,0
+        jp Ty_LDig
+.sd0    ld b,0
+        jp Ty_SDig
+.ud0    ld b,0
+        jp Ty_UDig
+.go
         cp KD_PCT
         jr z,.pct
         cp KD_LEN                   ; длина - 1 шаг
