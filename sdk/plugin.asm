@@ -191,6 +191,7 @@ KEY_DEL         equ #71+#80         ; Delete
 KEY_INS         equ #70+#80         ; Insert
 KEY_I           equ #43
 KEY_Y           equ #35
+KEY_N           equ #31
 KEY_Z           equ #1A
 KEY_C           equ #21
 KEY_X           equ #22
