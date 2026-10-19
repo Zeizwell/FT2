@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1580" height="1120" viewBox="0 0 1580 1120" font-family="Segoe UI, Arial, sans-serif">
 <title>Макет Тринити со стороны пайки</title><rect width="1580" height="1120" fill="#ffffff"/>
-<text x="30" y="34" font-size="17" text-anchor="start" fill="#2C2C2A" font-weight="600">Макет: ВИД СО СТОРОНЫ ПАЙКИ (где провода). Панельки ключом ВВЕРХ, RP — USB ВНИЗ. Ножки нарисованы там, где они стоят.</text>
+<text x="30" y="34" font-size="17" text-anchor="start" fill="#2C2C2A" font-weight="600">Макет: ВИД СО СТОРОНЫ ПАЙКИ (где провода). Панельки ключом ВВЕРХ, RP — USB ВВЕРХУ (торец 20 / 26 / 27 внизу). Ножки нарисованы там, где они стоят.</text>
 <text x="30" y="58" font-size="13" text-anchor="start" fill="#5F5E5A">Цветом — куда идёт провод. Серым — не паять. На DIP-40 со стороны пайки ножка 1 — СПРАВА вверху, 40 — СЛЕВА вверху.</text>
 <text x="210" y="92" font-size="16" text-anchor="middle" fill="#2C2C2A" font-weight="600">Панелька YM2203</text>
 <text x="210" y="112" font-size="12" text-anchor="middle" fill="#5F5E5A">слева на плате</text>
@@ -219,150 +219,150 @@
 <text x="1326" y="958" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">A 20</text>
 <text x="1358" y="958" font-size="12" text-anchor="start" fill="#993C1D">пан.20</text>
 <text x="740" y="92" font-size="16" text-anchor="middle" fill="#2C2C2A" font-weight="600">Spotpear RP2350B</text>
-<text x="740" y="112" font-size="12" text-anchor="middle" fill="#5F5E5A">в центре, USB ВНИЗ</text>
+<text x="740" y="112" font-size="12" text-anchor="middle" fill="#5F5E5A">в центре, USB ВВЕРХУ</text>
 <rect x="590" y="140" width="300" height="880" rx="6" fill="#EEEDFE" stroke="#534AB7"/>
-<circle cx="630" cy="150" r="6" fill="#B4B2A9"/>
-<text x="630" y="134" font-size="10" text-anchor="middle" fill="#5F5E5A">GP20</text>
-<circle cx="674" cy="150" r="6" fill="#B4B2A9"/>
-<text x="674" y="134" font-size="10" text-anchor="middle" fill="#5F5E5A">GP26</text>
-<circle cx="718" cy="150" r="6" fill="#B4B2A9"/>
-<text x="718" y="134" font-size="10" text-anchor="middle" fill="#5F5E5A">GP27</text>
-<circle cx="762" cy="150" r="6" fill="#B4B2A9"/>
-<text x="762" y="134" font-size="10" text-anchor="middle" fill="#5F5E5A">G</text>
-<circle cx="806" cy="150" r="6" fill="#B4B2A9"/>
-<text x="806" y="134" font-size="10" text-anchor="middle" fill="#5F5E5A">RST</text>
-<circle cx="850" cy="150" r="6" fill="#B4B2A9"/>
-<text x="850" y="134" font-size="10" text-anchor="middle" fill="#5F5E5A">G</text>
-<rect x="705" y="1008" width="70" height="26" rx="4" fill="#C9C7BE"/>
-<text x="740" y="1026" font-size="12" text-anchor="middle" fill="#2C2C2A">USB</text>
-<circle cx="604" cy="181" r="7" fill="#B4B2A9"/>
-<text x="618" y="185" font-size="13" text-anchor="start" fill="#2C2C2A">GP25</text>
+<rect x="705" y="128" width="70" height="26" rx="4" fill="#C9C7BE"/>
+<text x="740" y="146" font-size="12" text-anchor="middle" fill="#2C2C2A">USB</text>
+<circle cx="630" cy="1012" r="6" fill="#B4B2A9"/>
+<text x="630" y="1036" font-size="10" text-anchor="middle" fill="#5F5E5A">G</text>
+<circle cx="674" cy="1012" r="6" fill="#B4B2A9"/>
+<text x="674" y="1036" font-size="10" text-anchor="middle" fill="#5F5E5A">RST</text>
+<circle cx="718" cy="1012" r="6" fill="#B4B2A9"/>
+<text x="718" y="1036" font-size="10" text-anchor="middle" fill="#5F5E5A">G</text>
+<circle cx="762" cy="1012" r="6" fill="#B4B2A9"/>
+<text x="762" y="1036" font-size="10" text-anchor="middle" fill="#5F5E5A">GP27</text>
+<circle cx="806" cy="1012" r="6" fill="#B4B2A9"/>
+<text x="806" y="1036" font-size="10" text-anchor="middle" fill="#5F5E5A">GP26</text>
+<circle cx="850" cy="1012" r="6" fill="#B4B2A9"/>
+<text x="850" y="1036" font-size="10" text-anchor="middle" fill="#5F5E5A">GP20</text>
+<circle cx="604" cy="181" r="7" fill="#534AB7"/>
+<text x="618" y="185" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">5V</text>
+<text x="582" y="185" font-size="11" text-anchor="end" fill="#534AB7">разъём 21 +5VA</text>
 <circle cx="876" cy="181" r="7" fill="#534AB7"/>
-<text x="862" y="185" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP28</text>
-<text x="898" y="185" font-size="11" text-anchor="start" fill="#534AB7">панель 40 D0</text>
-<path d="M604 208 a7 7 0 0 0 0 14" fill="#B4B2A9"/>
-<text x="618" y="219" font-size="13" text-anchor="start" fill="#2C2C2A">GP24</text>
+<text x="862" y="185" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP0</text>
+<text x="898" y="185" font-size="11" text-anchor="start" fill="#534AB7">разъём 40 D0</text>
+<path d="M604 208 a7 7 0 0 0 0 14" fill="#534AB7"/>
+<text x="618" y="219" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">G</text>
+<text x="582" y="219" font-size="11" text-anchor="end" fill="#534AB7">разъём 1 GND</text>
 <path d="M876 208 a7 7 0 0 1 0 14" fill="#534AB7"/>
-<text x="862" y="219" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP29</text>
-<text x="898" y="219" font-size="11" text-anchor="start" fill="#534AB7">панель 2 D1</text>
+<text x="862" y="219" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP1</text>
+<text x="898" y="219" font-size="11" text-anchor="start" fill="#534AB7">разъём 2 D1</text>
 <circle cx="604" cy="249" r="7" fill="#B4B2A9"/>
-<text x="618" y="253" font-size="13" text-anchor="start" fill="#2C2C2A">GP23</text>
+<text x="618" y="253" font-size="13" text-anchor="start" fill="#2C2C2A">3V3</text>
 <circle cx="876" cy="249" r="7" fill="#534AB7"/>
-<text x="862" y="253" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP30</text>
-<text x="898" y="253" font-size="11" text-anchor="start" fill="#534AB7">панель 3 D2</text>
+<text x="862" y="253" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP2</text>
+<text x="898" y="253" font-size="11" text-anchor="start" fill="#534AB7">разъём 3 D2</text>
 <path d="M604 276 a7 7 0 0 0 0 14" fill="#B4B2A9"/>
-<text x="618" y="287" font-size="13" text-anchor="start" fill="#2C2C2A">GP22</text>
+<text x="618" y="287" font-size="13" text-anchor="start" fill="#2C2C2A">EN</text>
 <path d="M876 276 a7 7 0 0 1 0 14" fill="#534AB7"/>
-<text x="862" y="287" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP31</text>
-<text x="898" y="287" font-size="11" text-anchor="start" fill="#534AB7">панель 4 D3</text>
+<text x="862" y="287" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP3</text>
+<text x="898" y="287" font-size="11" text-anchor="start" fill="#534AB7">разъём 4 D3</text>
 <circle cx="604" cy="317" r="7" fill="#B4B2A9"/>
-<text x="618" y="321" font-size="13" text-anchor="start" fill="#2C2C2A">GP21</text>
+<text x="618" y="321" font-size="13" text-anchor="start" fill="#2C2C2A">GND</text>
 <circle cx="876" cy="317" r="7" fill="#534AB7"/>
-<text x="862" y="321" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP32</text>
-<text x="898" y="321" font-size="11" text-anchor="start" fill="#534AB7">панель 5 D4</text>
+<text x="862" y="321" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP4</text>
+<text x="898" y="321" font-size="11" text-anchor="start" fill="#534AB7">разъём 5 D4</text>
 <path d="M604 344 a7 7 0 0 0 0 14" fill="#B4B2A9"/>
-<text x="618" y="355" font-size="13" text-anchor="start" fill="#2C2C2A">GP19</text>
+<text x="618" y="355" font-size="13" text-anchor="start" fill="#2C2C2A">GP47</text>
 <path d="M876 344 a7 7 0 0 1 0 14" fill="#534AB7"/>
-<text x="862" y="355" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP33</text>
-<text x="898" y="355" font-size="11" text-anchor="start" fill="#534AB7">панель 6 D5</text>
+<text x="862" y="355" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP5</text>
+<text x="898" y="355" font-size="11" text-anchor="start" fill="#534AB7">разъём 6 D5</text>
 <circle cx="604" cy="385" r="7" fill="#B4B2A9"/>
-<text x="618" y="389" font-size="13" text-anchor="start" fill="#2C2C2A">GP18</text>
+<text x="618" y="389" font-size="13" text-anchor="start" fill="#2C2C2A">GP46</text>
 <circle cx="876" cy="385" r="7" fill="#534AB7"/>
-<text x="862" y="389" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP34</text>
-<text x="898" y="389" font-size="11" text-anchor="start" fill="#534AB7">панель 7 D6</text>
+<text x="862" y="389" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP6</text>
+<text x="898" y="389" font-size="11" text-anchor="start" fill="#534AB7">разъём 7 D6</text>
 <path d="M604 412 a7 7 0 0 0 0 14" fill="#B4B2A9"/>
-<text x="618" y="423" font-size="13" text-anchor="start" fill="#2C2C2A">GP17</text>
+<text x="618" y="423" font-size="13" text-anchor="start" fill="#2C2C2A">GP45</text>
 <path d="M876 412 a7 7 0 0 1 0 14" fill="#534AB7"/>
-<text x="862" y="423" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP35</text>
-<text x="898" y="423" font-size="11" text-anchor="start" fill="#534AB7">панель 8 D7</text>
+<text x="862" y="423" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP7</text>
+<text x="898" y="423" font-size="11" text-anchor="start" fill="#534AB7">разъём 8 D7</text>
 <circle cx="604" cy="453" r="7" fill="#B4B2A9"/>
-<text x="618" y="457" font-size="13" text-anchor="start" fill="#2C2C2A">GP16</text>
+<text x="618" y="457" font-size="13" text-anchor="start" fill="#2C2C2A">GP44</text>
 <circle cx="876" cy="453" r="7" fill="#534AB7"/>
-<text x="862" y="457" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP36</text>
-<text x="898" y="457" font-size="11" text-anchor="start" fill="#534AB7">панель 34 /CS</text>
+<text x="862" y="457" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP8</text>
+<text x="898" y="457" font-size="11" text-anchor="start" fill="#534AB7">разъём 34 /CS</text>
 <path d="M604 480 a7 7 0 0 0 0 14" fill="#B4B2A9"/>
-<text x="618" y="491" font-size="13" text-anchor="start" fill="#2C2C2A">GP15</text>
+<text x="618" y="491" font-size="13" text-anchor="start" fill="#2C2C2A">GP43</text>
 <path d="M876 480 a7 7 0 0 1 0 14" fill="#534AB7"/>
-<text x="862" y="491" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP37</text>
-<text x="898" y="491" font-size="11" text-anchor="start" fill="#534AB7">панель 35 /WR</text>
+<text x="862" y="491" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP9</text>
+<text x="898" y="491" font-size="11" text-anchor="start" fill="#534AB7">разъём 35 /WR</text>
 <circle cx="604" cy="521" r="7" fill="#B4B2A9"/>
-<text x="618" y="525" font-size="13" text-anchor="start" fill="#2C2C2A">GP14</text>
+<text x="618" y="525" font-size="13" text-anchor="start" fill="#2C2C2A">GP42</text>
 <circle cx="876" cy="521" r="7" fill="#534AB7"/>
-<text x="862" y="525" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP38</text>
-<text x="898" y="525" font-size="11" text-anchor="start" fill="#534AB7">панель 37 A0</text>
-<path d="M604 548 a7 7 0 0 0 0 14" fill="#534AB7"/>
-<text x="618" y="559" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP13</text>
-<text x="582" y="559" font-size="11" text-anchor="end" fill="#534AB7">разъём 24 /IC</text>
+<text x="862" y="525" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP10</text>
+<text x="898" y="525" font-size="11" text-anchor="start" fill="#534AB7">разъём 36 /RD</text>
+<path d="M604 548 a7 7 0 0 0 0 14" fill="#B4B2A9"/>
+<text x="618" y="559" font-size="13" text-anchor="start" fill="#2C2C2A">GP41</text>
 <path d="M876 548 a7 7 0 0 1 0 14" fill="#534AB7"/>
-<text x="862" y="559" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP39</text>
-<text x="898" y="559" font-size="11" text-anchor="start" fill="#534AB7">панель 36 /RD</text>
-<circle cx="604" cy="589" r="7" fill="#534AB7"/>
-<text x="618" y="593" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP12</text>
-<text x="582" y="593" font-size="11" text-anchor="end" fill="#534AB7">разъём 38 φM</text>
-<circle cx="876" cy="589" r="7" fill="#B4B2A9"/>
-<text x="862" y="593" font-size="13" text-anchor="end" fill="#2C2C2A">GP40</text>
+<text x="862" y="559" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP11</text>
+<text x="898" y="559" font-size="11" text-anchor="start" fill="#534AB7">разъём 37 A0</text>
+<circle cx="604" cy="589" r="7" fill="#B4B2A9"/>
+<text x="618" y="593" font-size="13" text-anchor="start" fill="#2C2C2A">GP40</text>
+<circle cx="876" cy="589" r="7" fill="#534AB7"/>
+<text x="862" y="593" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP12</text>
+<text x="898" y="593" font-size="11" text-anchor="start" fill="#534AB7">разъём 38 φM</text>
 <path d="M604 616 a7 7 0 0 0 0 14" fill="#534AB7"/>
-<text x="618" y="627" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP11</text>
-<text x="582" y="627" font-size="11" text-anchor="end" fill="#534AB7">разъём 37 A0</text>
-<path d="M876 616 a7 7 0 0 1 0 14" fill="#B4B2A9"/>
-<text x="862" y="627" font-size="13" text-anchor="end" fill="#2C2C2A">GP41</text>
+<text x="618" y="627" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP39</text>
+<text x="582" y="627" font-size="11" text-anchor="end" fill="#534AB7">панель 36 /RD</text>
+<path d="M876 616 a7 7 0 0 1 0 14" fill="#534AB7"/>
+<text x="862" y="627" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">GP13</text>
+<text x="898" y="627" font-size="11" text-anchor="start" fill="#534AB7">разъём 24 /IC</text>
 <circle cx="604" cy="657" r="7" fill="#534AB7"/>
-<text x="618" y="661" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP10</text>
-<text x="582" y="661" font-size="11" text-anchor="end" fill="#534AB7">разъём 36 /RD</text>
+<text x="618" y="661" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP38</text>
+<text x="582" y="661" font-size="11" text-anchor="end" fill="#534AB7">панель 37 A0</text>
 <circle cx="876" cy="657" r="7" fill="#B4B2A9"/>
-<text x="862" y="661" font-size="13" text-anchor="end" fill="#2C2C2A">GP42</text>
+<text x="862" y="661" font-size="13" text-anchor="end" fill="#2C2C2A">GP14</text>
 <path d="M604 684 a7 7 0 0 0 0 14" fill="#534AB7"/>
-<text x="618" y="695" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP9</text>
-<text x="582" y="695" font-size="11" text-anchor="end" fill="#534AB7">разъём 35 /WR</text>
+<text x="618" y="695" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP37</text>
+<text x="582" y="695" font-size="11" text-anchor="end" fill="#534AB7">панель 35 /WR</text>
 <path d="M876 684 a7 7 0 0 1 0 14" fill="#B4B2A9"/>
-<text x="862" y="695" font-size="13" text-anchor="end" fill="#2C2C2A">GP43</text>
+<text x="862" y="695" font-size="13" text-anchor="end" fill="#2C2C2A">GP15</text>
 <circle cx="604" cy="725" r="7" fill="#534AB7"/>
-<text x="618" y="729" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP8</text>
-<text x="582" y="729" font-size="11" text-anchor="end" fill="#534AB7">разъём 34 /CS</text>
+<text x="618" y="729" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP36</text>
+<text x="582" y="729" font-size="11" text-anchor="end" fill="#534AB7">панель 34 /CS</text>
 <circle cx="876" cy="725" r="7" fill="#B4B2A9"/>
-<text x="862" y="729" font-size="13" text-anchor="end" fill="#2C2C2A">GP44</text>
+<text x="862" y="729" font-size="13" text-anchor="end" fill="#2C2C2A">GP16</text>
 <path d="M604 752 a7 7 0 0 0 0 14" fill="#534AB7"/>
-<text x="618" y="763" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP7</text>
-<text x="582" y="763" font-size="11" text-anchor="end" fill="#534AB7">разъём 8 D7</text>
+<text x="618" y="763" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP35</text>
+<text x="582" y="763" font-size="11" text-anchor="end" fill="#534AB7">панель 8 D7</text>
 <path d="M876 752 a7 7 0 0 1 0 14" fill="#B4B2A9"/>
-<text x="862" y="763" font-size="13" text-anchor="end" fill="#2C2C2A">GP45</text>
+<text x="862" y="763" font-size="13" text-anchor="end" fill="#2C2C2A">GP17</text>
 <circle cx="604" cy="793" r="7" fill="#534AB7"/>
-<text x="618" y="797" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP6</text>
-<text x="582" y="797" font-size="11" text-anchor="end" fill="#534AB7">разъём 7 D6</text>
+<text x="618" y="797" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP34</text>
+<text x="582" y="797" font-size="11" text-anchor="end" fill="#534AB7">панель 7 D6</text>
 <circle cx="876" cy="793" r="7" fill="#B4B2A9"/>
-<text x="862" y="797" font-size="13" text-anchor="end" fill="#2C2C2A">GP46</text>
+<text x="862" y="797" font-size="13" text-anchor="end" fill="#2C2C2A">GP18</text>
 <path d="M604 820 a7 7 0 0 0 0 14" fill="#534AB7"/>
-<text x="618" y="831" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP5</text>
-<text x="582" y="831" font-size="11" text-anchor="end" fill="#534AB7">разъём 6 D5</text>
+<text x="618" y="831" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP33</text>
+<text x="582" y="831" font-size="11" text-anchor="end" fill="#534AB7">панель 6 D5</text>
 <path d="M876 820 a7 7 0 0 1 0 14" fill="#B4B2A9"/>
-<text x="862" y="831" font-size="13" text-anchor="end" fill="#2C2C2A">GP47</text>
+<text x="862" y="831" font-size="13" text-anchor="end" fill="#2C2C2A">GP19</text>
 <circle cx="604" cy="861" r="7" fill="#534AB7"/>
-<text x="618" y="865" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP4</text>
-<text x="582" y="865" font-size="11" text-anchor="end" fill="#534AB7">разъём 5 D4</text>
+<text x="618" y="865" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP32</text>
+<text x="582" y="865" font-size="11" text-anchor="end" fill="#534AB7">панель 5 D4</text>
 <circle cx="876" cy="861" r="7" fill="#B4B2A9"/>
-<text x="862" y="865" font-size="13" text-anchor="end" fill="#2C2C2A">GND</text>
+<text x="862" y="865" font-size="13" text-anchor="end" fill="#2C2C2A">GP21</text>
 <path d="M604 888 a7 7 0 0 0 0 14" fill="#534AB7"/>
-<text x="618" y="899" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP3</text>
-<text x="582" y="899" font-size="11" text-anchor="end" fill="#534AB7">разъём 4 D3</text>
+<text x="618" y="899" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP31</text>
+<text x="582" y="899" font-size="11" text-anchor="end" fill="#534AB7">панель 4 D3</text>
 <path d="M876 888 a7 7 0 0 1 0 14" fill="#B4B2A9"/>
-<text x="862" y="899" font-size="13" text-anchor="end" fill="#2C2C2A">EN</text>
+<text x="862" y="899" font-size="13" text-anchor="end" fill="#2C2C2A">GP22</text>
 <circle cx="604" cy="929" r="7" fill="#534AB7"/>
-<text x="618" y="933" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP2</text>
-<text x="582" y="933" font-size="11" text-anchor="end" fill="#534AB7">разъём 3 D2</text>
+<text x="618" y="933" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP30</text>
+<text x="582" y="933" font-size="11" text-anchor="end" fill="#534AB7">панель 3 D2</text>
 <circle cx="876" cy="929" r="7" fill="#B4B2A9"/>
-<text x="862" y="933" font-size="13" text-anchor="end" fill="#2C2C2A">3V3</text>
+<text x="862" y="933" font-size="13" text-anchor="end" fill="#2C2C2A">GP23</text>
 <path d="M604 956 a7 7 0 0 0 0 14" fill="#534AB7"/>
-<text x="618" y="967" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP1</text>
-<text x="582" y="967" font-size="11" text-anchor="end" fill="#534AB7">разъём 2 D1</text>
-<path d="M876 956 a7 7 0 0 1 0 14" fill="#534AB7"/>
-<text x="862" y="967" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">G</text>
-<text x="898" y="967" font-size="11" text-anchor="start" fill="#534AB7">разъём 1 GND</text>
+<text x="618" y="967" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP29</text>
+<text x="582" y="967" font-size="11" text-anchor="end" fill="#534AB7">панель 2 D1</text>
+<path d="M876 956 a7 7 0 0 1 0 14" fill="#B4B2A9"/>
+<text x="862" y="967" font-size="13" text-anchor="end" fill="#2C2C2A">GP24</text>
 <circle cx="604" cy="997" r="7" fill="#534AB7"/>
-<text x="618" y="1001" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP0</text>
-<text x="582" y="1001" font-size="11" text-anchor="end" fill="#534AB7">разъём 40 D0</text>
-<circle cx="876" cy="997" r="7" fill="#534AB7"/>
-<text x="862" y="1001" font-size="13" text-anchor="end" fill="#2C2C2A" font-weight="600">5V</text>
-<text x="898" y="1001" font-size="11" text-anchor="start" fill="#534AB7">разъём 21 +5VA</text>
+<text x="618" y="1001" font-size="13" text-anchor="start" fill="#2C2C2A" font-weight="600">GP28</text>
+<text x="582" y="1001" font-size="11" text-anchor="end" fill="#534AB7">панель 40 D0</text>
+<circle cx="876" cy="997" r="7" fill="#B4B2A9"/>
+<text x="862" y="1001" font-size="13" text-anchor="end" fill="#2C2C2A">GP25</text>
 <text x="30" y="1080" font-size="13" text-anchor="start" fill="#5F5E5A">RP: кружок — дырка, полукруг у края — площадка без дырки (нечётные ряды). /RD панельки (36) — ещё 10 кОм на +5VA (21), когда будет резистор.</text>
 <text x="30" y="1102" font-size="13" text-anchor="start" fill="#A32D2D">Не паять: GP19 (PSRAM), GP20 (светодиод), GP24 (VBUS), GP40–47 (АЦП, 5 В не терпят). Расположение RP — по фото распиновки, сверь с подписями на модуле.</text>
 </svg>
