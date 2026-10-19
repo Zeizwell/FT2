@@ -730,7 +730,8 @@ SID / Sync / FM / Env FM, свип — файлы без железа; их со
 
 ## 15. Макет: RP в разрыве слота YM2203 на MultiSound (2026-10-17)
 
-Картинка: `doc/trinity-proto-wiring.svg`.
+Картинка: `doc/trinity-proto-wiring.svg` (кто с кем); **как паять — `doc/trinity-proto-solder-side.svg`** (вид со стороны
+пайки, где ножка физически стоит: панельки ключом вверх, RP — USB вниз; у DIP-40 со стороны пайки ножка 1 справа).
 
 Плата пользователя: разъём DIP-40 (встаёт в слот **первого YM2203 (U4)** на MultiSound), панелька под RP
 (**Spotpear RP2350B-MINI-A**, `schemes/spotpear/`), панелька DIP-40 под чип YM2203. RP в разрыве: ловит
