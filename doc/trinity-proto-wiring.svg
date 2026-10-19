@@ -27,6 +27,7 @@
 <text x="290" y="164">GP8</text><text x="390" y="164" text-anchor="end">GP36</text>
 <text x="290" y="194">GP9</text><text x="390" y="194" text-anchor="end">GP37</text>
 <text x="290" y="224">GP11</text><text x="390" y="224" text-anchor="end">GP38</text>
+<text x="390" y="254" text-anchor="end">GP39</text>
 <text x="290" y="254">GP10</text>
 <text x="290" y="284">GP12</text>
 <text x="290" y="314">GP13</text>
@@ -35,13 +36,13 @@
 </g>
 <rect x="460" y="60" width="180" height="320" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.8"/>
 <text x="550" y="86" text-anchor="middle" font-size="14" font-weight="600" fill="#085041">Панелька YM2203</text>
-<text x="550" y="104" text-anchor="middle" fill="#0F6E56">чип только пишется</text>
+<text x="550" y="104" text-anchor="middle" fill="#0F6E56">RP пишет и читает (тест)</text>
 <g fill="#085041">
 <text x="472" y="134">D0–D7 (40, 2–8)</text>
 <text x="472" y="164">/CS (34)</text>
 <text x="472" y="194">/WR (35)</text>
 <text x="472" y="224">A0 (37)</text>
-<text x="472" y="254">/RD (36) → 10к → +5 (п.2)</text>
+<text x="472" y="254">/RD (36) + 10к на +5 (п.2)</text>
 <text x="472" y="284">φM (38) проводом</text>
 <text x="472" y="314">/IC (24) проводом</text>
 <text x="472" y="344">+5VA, GND проводом</text>
@@ -57,10 +58,11 @@
 <line x1="222" y1="310" x2="276" y2="310" marker-end="url(#a)"/>
 <line x1="222" y1="340" x2="276" y2="340" marker-end="url(#a)"/>
 <line x1="222" y1="358" x2="276" y2="358" marker-end="url(#a)"/>
-<line x1="402" y1="130" x2="456" y2="130" marker-end="url(#a)"/>
+<line x1="404" y1="130" x2="456" y2="130" marker-start="url(#a)" marker-end="url(#a)"/>
 <line x1="402" y1="160" x2="456" y2="160" marker-end="url(#a)"/>
 <line x1="402" y1="190" x2="456" y2="190" marker-end="url(#a)"/>
 <line x1="402" y1="220" x2="456" y2="220" marker-end="url(#a)"/>
+<line x1="402" y1="250" x2="456" y2="250" marker-end="url(#a)"/>
 <path d="M130 382 L130 410 L550 410 L550 384" marker-end="url(#a)"/>
 </g>
 <g font-size="12" fill="#2C2C2A" text-anchor="middle">
@@ -95,9 +97,9 @@
 <text x="52" y="720">• на крайний случай обычный 1N4001…1N4007: теряет ~0.8 В, Spotpear всё равно работает</text>
 <text x="40" y="746" fill="#5F5E5A">Зачем: без диода USB от ПК и питание слота спорят. С диодом USB можно втыкать, не вынимая из слота.</text>
 <text x="40" y="780" font-weight="600">10 кОм (обязательно):</text>
-<text x="186" y="780">между ножками 36 (/RD) и 21 (+5) панельки чипа. Любой, полярности нет.</text>
+<text x="186" y="780">между ножками 36 (/RD) и 21 (+5) панельки чипа. Оставить и с проводом GP39.</text>
 <text x="40" y="804" font-weight="600">100–220 Ом × 8 (можно не ставить):</text>
-<text x="262" y="804">в разрыв D0–D7 между разъёмом и GP0–7 — страховка.</text>
+<text x="262" y="804">в разрыв D0–D7: разъём ↔ GP0–7 и GP28–35 ↔ панелька.</text>
 </g>
 <line x1="40" y1="826" x2="640" y2="826" stroke="#D3D1C7" stroke-width="1"/>
 
