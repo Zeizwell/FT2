@@ -1817,15 +1817,7 @@ Fx_Detect
 ; A - чип -> A: 1 - карта есть
 .chip   ld bc,#FFFD
         out (c),a
-        call Fx_Key
-        ld b,#FF                    ; #C0 уже выбран - читать
-        in a,(c)
-        cp 'T'
-        ld a,0
-        ret nz
-        call Fx_Close
-        ld a,1
-        ret
+        jp Ayfx_Detect
 
 ;-------- TurboSound есть? R0 чипа 1 = #AA, чипа 2 = #55; прочитать оба: #AA и #55 - чипов два (без TS выбор
 ; #FE ничего не выбирает, обе записи - в один чип). Итог - Hw_Ts (коре)
@@ -1874,37 +1866,8 @@ Ts_Detect
         out (c),a
         ret
 
-;-------- Ключ "TRIN" выбранному чипу (регистр #C0; разбор потока - с начала). C = #FD; портит A, B
-Fx_Key  ld b,#FF
-        ld a,AYFX_CTL
-        out (c),a
-        ld b,#BF
-        ld a,'T'
-        out (c),a
-        ld a,'R'
-        out (c),a
-        ld a,'I'
-        out (c),a
-        ld a,'N'
-        out (c),a
-        ret
-
-;-------- Закрыть: #C0, 0. C = #FD; портит A, B
-Fx_Close
-        ld b,#FF
-        ld a,AYFX_CTL
-        out (c),a
-        ld b,#BF
-        xor a
-        out (c),a
-        ret
-
-;-------- Выбрать поток #C1. C = #FD; портит A, B (дальше - байты в #BFFD)
-Fx_Stream
-        ld b,#FF
-        ld a,AYFX_STREAM
-        out (c),a
-        ret
+;-------- Обмен с картой (ключ, закрыть, поток, опознание, отправка) и коды пакетов - общий SDK
+    include "sdk/trinity_ay.asm"
 
 ;-------- Канал A (0..5) -> IX - его состояние. DE сохраняет
 Fx_IX   push de
@@ -2309,9 +2272,9 @@ Fx_Tables
         ret
 .chip   ld b,#FF
         out (c),a
-        call Fx_Key
-        call Fx_Stream
-        ld hl,#C000                 ; таблица n - #C000 + n*16
+        call Ayfx_Key
+        call Ayfx_Stream
+        ld hl,#C000                ; таблица n - #C000 + n*16
 .t      push hl
         ld e,FXT_SIZE               ; пустая (нули) - не шлём
         xor a
@@ -2353,7 +2316,7 @@ Fx_Tables
         ld a,h
         cp #C0+high (FXT_MAX*FXT_SIZE)
         jr c,.t
-        jp Fx_Close
+        jp Ayfx_Close
     ASSERT FXT_MAX*FXT_SIZE == #1000
 
 ;-------- В начале тика (Pl_Out, после регистров чипа): очередь чипа A (0 / 1) - в карту: ключ, поток,
@@ -2373,15 +2336,7 @@ Fx_Out
         dec e
         jr nz,$+5
         ld hl,Fx_Q2
-        call Fx_Key
-        call Fx_Stream
-        ld b,#BF
-.b      ld a,(hl)                   ; OUT (C),A с постоянным BC = #BFFD
-        out (c),a
-        inc hl
-        dec d
-        jr nz,.b
-        call Fx_Close
+        call Ayfx_Send
 .e      pop de
         ret
 

@@ -658,13 +658,7 @@ FXH_FLAGS       equ 4               ; бит 0 - не перезапускать
 FXH_SAVED       equ 5               ; байт заголовка в файле (FXH_END..FXH_FLAGS)
     ASSERT FXH_BASE+FXS_MAX*FXH_SIZE <= #4000
 
-; --- карта AY FX: 2 регистра (номер в #FFFD; у каждого чипа свои), doc/ay-ports-map.md п.5а
-AYFX_CTL        equ #C0             ; управление: ключ "TRIN" (4 записи) - открыть, 0 - закрыть; чтение - 'T'
-AYFX_STREAM     equ #C1             ; поток пакетов [код][данные]
-AYFX_P_ROW      equ 1               ; ROW: канал 0..2, строка FX 14 байт, форма, фаза, флаги свипа (19 байт)
-AYFX_P_TABLE    equ 2               ; TABLE: номер 0..255, 16 значений (18)
-AYFX_P_RESET    equ 3               ; RESET: маска каналов - новая нота (2)
-AYFX_P_INFO     equ 4               ; INFO: дальше читать #C1 - "TRIN", версия (1)
+; --- карта AY FX: константы и обмен - sdk/trinity_ay.asm (подключает плеер)
 
 SONG_FX_NAMES   equ #0800           ; имена FX (по 16), реворк FX
 SONG_EDITSTATE  equ #1000           ; состояние редактора этого трека (курсор, позиция,
