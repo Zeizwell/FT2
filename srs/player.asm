@@ -1965,6 +1965,7 @@ Fx_Tick
         SETPAGE3 a
         call Fx_Heads               ; новые ноты: заголовки FX каналов
         call Fx_TabEdit             ; таблица, правленная в редакторе - в карту
+        call Fx_RowEdit             ; строка, правленная в редакторе - каналам заново
         ld a,(Pl_InsPage)           ; строки FX - за инструментами
         inc a
         SWAPPAGE 3,a
@@ -2162,6 +2163,32 @@ Fx_Heads
         djnz .ch
         ret
     ASSERT FXH_END == 0 && FXH_LOOP == 1 && FXH_SWSHAPE == 2 && FXH_SWPHASE == 3 && FXH_FLAGS == 4
+
+;-------- FX Fx_RowDirty (правка в редакторе, коре): каналам с этим FX - строку заново (как будто не отправлена)
+Fx_RowEdit
+        ld a,(Fx_RowDirty)
+        cp #FF
+        ret z
+        ld c,a
+        ld a,#FF
+        ld (Fx_RowDirty),a
+        ld hl,Fx_Ch                 ; HL - FC_NUM канала
+        ld de,FC_SIZE
+        ld b,CHANNELS
+.c      ld a,(hl)
+        cp c
+        jr nz,.n
+        inc hl                      ; FC_SENT = #FF: строку - заново
+        inc hl
+        inc hl
+        ld (hl),#FF
+        dec hl
+        dec hl
+        dec hl
+.n      add hl,de
+        djnz .c
+        ret
+    ASSERT FC_NUM == 0 && FC_SENT == 3
 
 ;-------- Таблица Fx_TabDirty (правка в редакторе, коре) - TABLE в очереди обоих чипов. Окно 3 - таблицы
 Fx_TabEdit

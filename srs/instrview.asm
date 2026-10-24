@@ -2728,6 +2728,12 @@ Byte_Signed
 Iv_Changed
         ld a,1
         ld (Iv_Dirty),a
+        ld a,(Iv_Mode)              ; FX: строку - в карту заново (плеер, Fx_RowEdit)
+        cp 2
+        ret nz
+        ld a,(Iv_Num)
+        inc a
+        ld (Fx_RowDirty),a
         ret
 
 ;-------- Выбран другой номер: курсор в его пределах, список - чтобы был виден
