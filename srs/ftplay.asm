@@ -15,6 +15,7 @@ Module_Addr	equ @cmpview.CM_MOD
 NoFx		db 0			; 1 - команды паттерна выкл (кроме темпа и шума)
 Looped		db 0			; 1 - трек дошёл до конца (ставит плеер)
 R13W		db #FF			; R13 в этот кадр (#FF - не писали)
+RTW		db 0			; FT2: ретриггер в этот кадр - бит q: тон выхода q через 0 перед R13
 Relocated	db 0			; 1 - адреса модуля уже абсолютные (сброс - новый модуль)
 
 InitModule 
@@ -1546,6 +1547,13 @@ RetriggerOut
 		RET 
 
 RetriggNow
+		LD A,L				; FT2: компаратору - какой выход (L = 0, 2, 4 -> бит 1, 2, 4)
+		RRCA
+		INC A
+		CP 3
+		JR NZ,$+4
+		LD A,4
+		LD (RTW),A
 		CALL RetriggerOut
 		INC L
 		CALL RetriggerOut

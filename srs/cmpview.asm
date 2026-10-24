@@ -170,6 +170,9 @@ Cm_Init
         SETPAGE1 a
         ld a,PAGE_FILEBUF+1
         SETPAGE2 a
+        xor a                       ; ретриггер эталона: в этом кадре нет (PT3 его не делает; FTC - ниже)
+        ld (Cm_RRt),a
+        ld (Cm_RRt+1),a
         ld a,(Cmp_Kind)
         cp CK_FTC
         jr z,.ft
@@ -214,6 +217,7 @@ Cm_VolT         ds 256-16           ; таблица громкости без �
 ; Регистры эталона после кадра - в Cm_RRegs (R13 #FF - не писали), конец трека - Cm_RLoop
 Cm_RRegs        ds PR_SIZE*2        ; регистры эталона: чип 1, чип 2
 Cm_RLoop        db 0                ; не 0 - эталон прошёл точку цикла
+Cm_RRt          db 0,0              ; ретриггер эталона в кадре (бит q - тон выхода q через 0), чип 1 / 2
 Cm_Tick_Our
         jp PLAYER_TICK
 Cm_Tick_Ref
@@ -237,6 +241,8 @@ Cm_Tick_Ref
         jr .end
 .ft     ld a,#FF                    ; FTC: R13 - что запишет в этот кадр
         ld (ftp.R13W),a
+        xor a                       ;   ретриггер - какой выход
+        ld (ftp.RTW),a
         call ftp.PlayModule
         ld hl,ftp.AyR0_ChannelAfinePitch
         ld de,Cm_RRegs
@@ -244,6 +250,8 @@ Cm_Tick_Ref
         ldir
         ld a,(ftp.R13W)
         ld (Cm_RRegs+13),a
+        ld a,(ftp.RTW)
+        ld (Cm_RRt),a
         ld a,(ftp.Looped)
 .end    ld (Cm_RLoop),a
         RESTPAGE2
@@ -482,7 +490,8 @@ Cm_Chip_Cmp
         call Cm_Reg
         ld a,12
         call Cm_Reg
-.nenv   ld a,13                     ; R13: у эталона #FF - не писать; у нас - флаг PR_R13W в буфере
+.nenv   call Cm_Rt                  ; ретриггер (тон через 0): эталон - Cm_RRt, наш - маска PR_RTN
+        ld a,13                     ; R13: у эталона #FF - не писать; у нас - флаг PR_R13W в буфере
         call Cm_RefR
         ld b,a
         ld a,(Cm_Chip)
@@ -564,6 +573,23 @@ Cm_R    add a,l
         inc h
         ld a,(hl)
         ret
+
+;-------- Ретриггер чипа Cm_Chip: маска выходов «тон через 0» у эталона и у нас. Разные - расхождение
+; «регистра» 14 (RT, считается огибающей)
+Cm_Rt   ld a,(Cm_Chip)
+        or a
+        ld a,(Cm_RRt)
+        ld hl,Pl_Regs+PR_RTN
+        jr z,.c
+        ld a,(Cm_RRt+1)
+        ld hl,Pl_Regs2+PR_RTN
+.c      ld b,a                      ; эталон
+        ld a,(hl)                   ; наш
+        cp b
+        ret z
+        ld c,a
+        ld a,14
+        jp Cm_Diff
 
 ;-------- Расхождение огибающей: E - регистр, B - эталон, C - наш. Первое - запомнить. Регистры целы
 Cm_EDiff
