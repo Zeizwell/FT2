@@ -36,6 +36,7 @@ AYFX_P_RESET    equ 3               ; EN: RESET: channel mask - new note     RU:
 AYFX_RESET_LEN  equ 2
 AYFX_P_INFO     equ 4               ; EN: INFO: then read #C1 - "TRIN", version   RU: INFO: дальше читать #C1 - "TRIN", версия
 AYFX_INFO_LEN   equ 1
+AYFX_INFO_N     equ 5               ; EN: INFO answer bytes: "TRIN", protocol version   RU: байт ответа INFO: "TRIN", версия
 
 ;-------- EN: Open the card: key "TRIN" into #C0 (stream parser restarts)
 ;         RU: Открыть карту: ключ "TRIN" в #C0 (разбор потока - с начала)
@@ -86,6 +87,24 @@ Ayfx_Detect
         ld a,1
         or a
         ret
+
+;-------- EN: Read INFO into HL (AYFX_INFO_N bytes: "TRIN", protocol version): key, stream, INFO, reads #C1, close.
+;             HL - after the last byte. Spoils A, B, D
+;         RU: Прочитать INFO в HL (AYFX_INFO_N байт: "TRIN", версия протокола): ключ, поток, INFO, чтения #C1, закрыть.
+;             HL - за последним байтом. Портит A, B, D
+Ayfx_Info
+        call Ayfx_Key
+        call Ayfx_Stream
+        ld a,AYFX_P_INFO
+        out (c),a
+        ld b,high AYFX_PORT_REG     ; EN: read #FFFD = selected #C1   RU: чтение #FFFD - выбранный #C1
+        ld d,AYFX_INFO_N
+.r      in a,(c)
+        ld (hl),a
+        inc hl
+        dec d
+        jr nz,.r
+        jp Ayfx_Close
 
 ;-------- EN: Send D bytes of packets from HL (D = 1..255): key, stream, bytes, close. HL - after the last byte
 ;         RU: Отправить D байт пакетов с HL (D = 1..255): ключ, поток, байты, закрыть. HL - за последним байтом
