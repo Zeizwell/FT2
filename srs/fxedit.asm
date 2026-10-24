@@ -1028,6 +1028,13 @@ Fe_EditEv
         jp Iv_Changed
 .hit    ld a,e
         ld (Ed_Col),a
+        inc hl                      ; флаг и Mix - переключить сразу (как в инструменте)
+        ld a,(hl)
+        cp KD_BIT
+        jr z,.tog
+        cp KD_MIX
+        jp nz,Iv_Changed
+.tog    call Ed_Toggle
         jp Iv_Changed
 .wh     bit 7,c                     ; вниз - строка ниже
         call nz,Ed_Down
