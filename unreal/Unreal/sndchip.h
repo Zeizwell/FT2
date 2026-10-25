@@ -78,6 +78,10 @@ class SNDCHIP : public SNDRENDER
    u8 get_r13_reloaded() { return r13_reloaded; }
    u8 get_reg(unsigned nreg) { return reg[nreg]; }
    unsigned get_env() { return env; }
+   // FT2 frame log (savesnd type 3, *.f2l): ZX Trinity timer state per channel - FX row 14, sweep phase 2,
+   // timer periods 3 x 2 (Mix, FM, Env FM) - for comparing with Bitphase exports (FT2 doc/formats/btp.md)
+   enum { TRIN_LOG = 3 * (14 + 2 + 6) };
+   void trin_log(u8 *p);
 
  private:
 

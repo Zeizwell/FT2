@@ -47,6 +47,7 @@ void savesnddialog()
          *(unsigned*)(wavhdr+0x28) = fsize;
          fwrite(wavhdr, 1, sizeof wavhdr, savesnd);
          MessageBox(wnd, "WAV save done", "Save sound", MB_ICONINFORMATION);
+      } else if (savesndtype == 3) { // FT2 frame log - frames are written as they go
       } else { // vtx
          savesndtype = 0;
          u8 *newb = (u8*)malloc(vtxbuffilled);

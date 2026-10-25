@@ -457,6 +457,18 @@ double SNDCHIP::trin_sweep_pos(const TRIN_CH &ch)
 }
 
 // once per frame: PWM sweep phase (256 steps per cycle, speed - added per frame)
+void SNDCHIP::trin_log(u8 *p)
+{
+   for (int c = 0; c < 3; c++) {
+      memcpy(p, trin[c].reg, TRIN_ROW), p += TRIN_ROW;
+      *p++ = (u8)trin[c].sweep, *p++ = (u8)(trin[c].sweep >> 8);
+      for (int k = 0; k < 3; k++) {
+         unsigned per = trin_period(c, k);
+         *p++ = (u8)per, *p++ = (u8)(per >> 8);
+      }
+   }
+}
+
 void SNDCHIP::trin_frame()
 {
    for (int c = 0; c < 3; c++)

@@ -84,6 +84,15 @@ void flush_snd_frame()
          }
       }
 
+      if (savesndtype == 3)   // FT2 frame log: AY regs 14 (R13 = FF - not written) + ZX Trinity timers
+      {
+         u8 f[14 + SNDCHIP::TRIN_LOG];
+         for (u8 r = 0; r < 14; r++) f[r] = ay[0].get_reg(r);
+         if (!ay[0].get_r13_reloaded()) f[13] = 0xFF;
+         ay[0].trin_log(f + 14);
+         fwrite(f, 1, sizeof f, savesnd);
+      }
+
       if (savesndtype == 2)
       {
          if (!vtxbuf)
