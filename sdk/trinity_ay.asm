@@ -21,10 +21,9 @@ AYFX_PORT_REG   equ #FFFD           ; EN: register number    RU: номер ре
 AYFX_PORT_DAT   equ #BFFD           ; EN: register data      RU: данные регистра
 
 ; --- Card registers (number written to #FFFD) / Регистры карты (номер в #FFFD), у каждого чипа свои
-AYFX_CTL        equ #C0             ; EN: control: key "TRIN" opens, 0 closes; read -> 'T' while open
-                                    ; RU: управление: ключ "TRIN" - открыть, 0 - закрыть; чтение - 'T', пока открыто
+AYFX_CTL        equ #C0             ; EN: control: key "TRIN" opens, 0 closes; read -> status byte (trinity-api.md 3)
+                                    ; RU: управление: ключ "TRIN" - открыть, 0 - закрыть; чтение - байт статуса
 AYFX_STREAM     equ #C1             ; EN: packet stream [code][data...]   RU: поток пакетов [код][данные...]
-AYFX_ANSWER     equ 'T'             ; EN: answer to the #C0 read           RU: ответ на чтение #C0
 
 ; --- Packets in #C1 / Пакеты в #C1 (EN: length includes the code; RU: длина - вместе с кодом)
 AYFX_P_ROW      equ 1               ; EN: ROW: channel 0..2, FX row 14 bytes, sweep shape, phase, flags
@@ -74,19 +73,33 @@ Ayfx_Stream
         ld b,high AYFX_PORT_DAT
         ret
 
-;-------- EN: Is the card on the selected chip? Key, read #C0, close. -> A = 1, NZ - yes; A = 0, Z - no
-;         RU: Есть ли карта на выбранном чипе? Ключ, чтение #C0, закрыть. -> A = 1, NZ - есть; A = 0, Z - нет
+;-------- EN: Is the card on the selected chip? Key, INFO, read #C1: "TRIN"? close. -> A = 1, NZ - yes; A = 0, Z - no
+;         RU: Есть ли карта на выбранном чипе? Ключ, INFO, чтение #C1: "TRIN"? закрыть. -> A = 1, NZ - есть; A = 0, Z - нет
 Ayfx_Detect
+        push hl
+        push de
         call Ayfx_Key
-        ld b,high AYFX_PORT_REG     ; EN: #C0 is selected - read   RU: #C0 уже выбран - читать
-        in a,(c)
-        cp AYFX_ANSWER
-        ld a,0
-        ret nz
+        call Ayfx_Stream
+        ld a,AYFX_P_INFO
+        out (c),a
+        ld b,high AYFX_PORT_REG     ; EN: read #FFFD = selected #C1   RU: чтение #FFFD - выбранный #C1
+        ld hl,Ayfx_Sign
+        ld de,4*256+1               ; EN: D - letters, E - result   RU: D - букв, E - итог
+.r      in a,(c)
+        cp (hl)
+        jr z,$+4
+        ld e,0                      ; EN: not the letter - no card   RU: не та буква - карты нет
+        inc hl
+        dec d
+        jr nz,.r
+        in a,(c)                    ; EN: 5th byte - version (read the answer out)   RU: 5-й байт - версия (дочитать)
         call Ayfx_Close
-        ld a,1
+        ld a,e
         or a
+        pop de
+        pop hl
         ret
+Ayfx_Sign       db "TRIN"
 
 ;-------- EN: Read INFO into HL (AYFX_INFO_N bytes: "TRIN", protocol version): key, stream, INFO, reads #C1, close.
 ;             HL - after the last byte. Spoils A, B, D
