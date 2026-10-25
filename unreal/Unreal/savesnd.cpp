@@ -124,7 +124,7 @@ void savesnddialog()
          savesnd = fopen(ofn.lpstrFile, "wb");
          if (!savesnd) MessageBox(wnd, "Can't create file", 0, MB_ICONERROR);
          else if (ofn.nFilterIndex == 3) { // FT2 frame log: "F2LG", version, record size, then records (sound.cpp)
-            u8 h[8] = { 'F', '2', 'L', 'G', 1, 0, (u8)(14 + SNDCHIP::TRIN_LOG), 0 };
+            u8 h[8] = { 'F', '2', 'L', 'G', 2, 0, (u8)(2 * (14 + SNDCHIP::TRIN_LOG)), 0 };   // v2: record = 2 chips
             fwrite(h, 1, sizeof h, savesnd);
             savesndtype = 3;
          } else if (ofn.nFilterIndex == 2) { // vtx
