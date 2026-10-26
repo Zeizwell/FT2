@@ -1303,6 +1303,8 @@ Pr_Spec cp #01
         ld c,CMD_PORTA
         jr .slide
 .env    call Pt_Get
+        or a                        ; задержка 0: у PT слайд огибающей стоит (у нас 0 - один шаг) -
+        call z,Pr_SetZero           ;   параметр 0: стоп
         ld b,CMD_ENV_DOWN
         ld c,CMD_ENV_UP
 ; A - задержка, B / C - код для шага >= 0 / < 0. Шаг - из трека

@@ -1542,10 +1542,14 @@ EsS     ld de,0
         add hl,de
         ld (Es_Ofs+m_chip*2),hl
 EsD     ld a,0
+        or a                        ;   задержка 0 - один шаг и стоп (VT2, Bitphase initSlide)
+        jr nz,EsSt
+        GATE_OFF EsG,EsEnd
+        ret
 EsSt    ld (EsC+1),a
 EsEnd   ret
 ;-------- 9 / A: C - байт 0 (код, задержка), E - шаг. Вниз - период растёт (как глисс).
-; Задержка 0 - как 1, шаг 0 - стоп
+; Задержка 0 - один шаг (VT2, Bitphase), шаг 0 - стоп
 Set     ld d,0
         ld a,c
         and #F0
@@ -1554,9 +1558,9 @@ Set     ld d,0
         ld (EsS+1),de
         ld a,c
         and #0F
+        ld (EsD+1),a                ;   0 - после шага стоп
         jr nz,$+3
-        inc a
-        ld (EsD+1),a
+        inc a                       ;   первый шаг - на первом тике
         ld (EsC+1),a
         GATE_ON EsG
         ret
