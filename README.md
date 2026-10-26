@@ -9,6 +9,10 @@ English first, Russian below. / Сначала английский, ниже р
 An AY tracker for ZX Evolution with TS-Config, in Z80 assembler (sjasmplus). The successor of Fast Tracker for the
 ZX Spectrum; the screen says "Fast Tracker 2.01b". Author: Orion/DR.
 
+Big thanks to **Pator**, the author of **Bitphase**: a great deal of FT2 is taken from it - the interface, the pattern
+commands, the envelope column, the timer effects (FX), the instrument model. Bitphase is the reference our player is
+checked against (PSG exports, `doc/bitphase.md`).
+
 Target hardware: the **ZX Trinity** sound card (AY with timer effects in the style of the Atari ST - SID, sync-buzzer,
 FM, PWM - written by an RP2350 straight into the AY, plus GS); see `doc/zx-trinity.md`. Without the card FT2 plays a
 normal AY / TurboSound.
@@ -155,6 +159,10 @@ The notes below are what is decided and how it works. Updated on request.
 
 AY-трекер для ZX Evolution с TS-Config, на ассемблере Z80 (sjasmplus). Наследник Fast Tracker для ZX Spectrum. На
 экране — «Fast Tracker 2.01b». Автор — Orion/DR.
+
+Огромное спасибо **Pator**, автору **Bitphase**: очень многое в FT2 взято из него — интерфейс, команды паттерна,
+колонка огибающей, таймерные эффекты (FX), модель инструментов. По Bitphase сверяется наш плеер (экспорт PSG,
+`doc/bitphase.md`).
 
 Целевое железо — звуковая карта **ZX Trinity** (AY с таймерными эффектами в духе Atari ST — SID, sync-buzzer, FM, ШИМ:
 RP2350 пишет их прямо в AY, плюс GS); описание — `doc/zx-trinity.md`. Без карты FT2 играет на обычном AY / TurboSound.

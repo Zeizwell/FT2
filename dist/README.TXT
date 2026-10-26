@@ -113,6 +113,9 @@ NOT YET
 AUTHORS AND LICENSES
 --------------------
 Fast Tracker 2 - Orion/DR.
+Big thanks to Pator - the author of Bitphase. A great deal of FT2 is taken from it:
+the interface, the pattern commands, the envelope column, the timer effects (FX),
+the instrument model. Bitphase is the reference we check our player against.
 FAT32 driver - github.com/andrewinsidelazarev/FAT32-Driver-ZX-Evolution (MIT).
 Fonts Toshiba TxL1 / TxL2, Compaq Thin - The Ultimate Oldschool PC Font Pack,
 int10h.org (CC BY-SA 4.0).
@@ -236,6 +239,9 @@ PT3-модули грузятся с PT).
 АВТОРЫ И ЛИЦЕНЗИИ
 -----------------
 Fast Tracker 2 - Orion/DR.
+Огромное спасибо Pator, автору Bitphase. Очень многое в FT2 взято из него:
+интерфейс, команды паттерна, колонка огибающей, таймерные эффекты (FX), модель
+инструментов. По Bitphase мы сверяем свой плеер.
 FAT32-драйвер - github.com/andrewinsidelazarev/FAT32-Driver-ZX-Evolution (MIT).
 Шрифты Toshiba TxL1 / TxL2, Compaq Thin - The Ultimate Oldschool PC Font Pack,
 int10h.org (CC BY-SA 4.0).

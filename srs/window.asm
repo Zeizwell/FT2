@@ -701,11 +701,12 @@ Win_AboutEv
         jp Win_About
 
 Win_About_D
-        db WIN_CENTER, WIN_CENTER, 34, 9, WF_CONTEXT|WF_INVERT
+        db WIN_CENTER, WIN_CENTER, 34, 10, WF_CONTEXT|WF_INVERT
         db "About",0
         db CLR_WIN_TEXT,"FAST TRACKER 2.01b",0
         db CLR_WIN_TEXT,"by Orion/DR",0
         db CLR_WIN_TEXT," ",0
+        db CLR_WIN_TEXT,"Big thanks to Pator (Bitphase)",0
         db CLR_WIN_TEXT,"FAT32 driver   Andrew Lazarev",0
         db CLR_WIN_TEXT,"PT3 reference  S.V. Bulba",0
         db CLR_WIN_TEXT,"github.com/Zeizwell/FT2",0
