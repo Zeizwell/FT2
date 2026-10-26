@@ -470,6 +470,7 @@ Pr_NewIns       db 0                ; в строке сменили сэмпл
 Pr_NewOrn       db 0                ;   орнамент
 Pr_Oo           db 0                ;   команда 6 (нота её иначе снимает, как PT3)
 Pr_Arp          db 0                ;   команда C (нота её иначе снимает, как Bitphase)
+Pr_Vib          db 0                ;   команда 8 (нота её иначе снимает, как Bitphase)
 Pr_SlSet        db 0                ;   портаменто с нотой: цель задана (Slide)
 
 ; B скорость: сразу (0 - не трогаем), тик этой роу Pl_Tick возьмёт уже с новой
@@ -977,6 +978,7 @@ Rw      ld a,(hl)                   ; пустая клетка - ничего
         ld (Pr_NewOrn),a
         ld (Pr_Oo),a
         ld (Pr_Arp),a
+        ld (Pr_Vib),a
         ld (Pr_SlSet),a
         push hl                     ; новая форма огибающей - слайд огибающей чипа стоп и с нуля:
         inc l                       ;   до команд (9 / A этой же строки - после, как PT3)
@@ -1038,6 +1040,14 @@ RKeepOo
         ld (ARS+1),a
         GATE_OFF ArG,ArEnd
 RKeepAr
+        ld a,(Pr_Vib)               ; и 8, если её нет в строке (Bitphase: _resetChannelEffectsOnNewNote)
+        or a
+        jr nz,RKeepVb
+        ld h,a
+        ld l,a
+        ld (VO+1),hl
+        GATE_OFF VbG,VbEnd
+RKeepVb
         ld a,(Pr_SOfs)              ; инструмент и орнамент - со строки (4, 5) или 0
         call Pr_Ofs
         ld (RiR+1),a
@@ -1354,6 +1364,8 @@ C8D     inc e
         xor a                       ;   с начала: позиция 0
         ld (VbK+1),a
         ld (VbQ+1),a
+        inc a                       ;   в строке - нота её не снимет
+        ld (Pr_Vib),a
         GATE_ON VbG
         ret
 VbTab   ds 15                       ; вибрато: шаг * глубина / скорость
