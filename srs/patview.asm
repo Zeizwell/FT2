@@ -1578,7 +1578,7 @@ F_ENVP          equ 7               ; период огибающей: 4 hex, а
     MACRO TXT_ENV src,cx,ex             ; Env: "0134 1F" + расширение " 0000 "
         db F_ENVP,  (src)+CHIP_ENVPER, TX_BLOCK+(cx)-CONT_X
         db F_NOISE, (src)+CHIP_NOISE,  TX_BLOCK+(cx)-CONT_X+5
-        db F_HEX16, (src)+CHIP_ENV2,   (ex)+1
+        db F_CMD,   (src)+CHIP_ECMD,   (ex)+1
     ENDM
     MACRO TXT_CH src,cx,ex              ; канал: "C-4 A1FE" + расширение " 1234 5678"
         db F_NOTE, (src)+CH_NOTE,      TX_BLOCK+(cx)-CONT_X
@@ -2386,7 +2386,7 @@ Pt_Chan
         ret nc
         ld (Cp_Val),a
         ld a,CH_SAMPLE
-        jr Pt_Byte
+        jp Pt_Byte
 .env    call Key_Hex                ; 2 - форма огибающей: 1..E, F - выкл (0 - пусто)
         ret nc
         ld (Cp_Val),a
@@ -2433,10 +2433,11 @@ Pt_Env
         jr c,.per
         cp 6
         jr c,.noise
-        sub 6                       ; огибающая-2: как период
+        sub 6                       ; команда огибающей: 4 hex, как команда канала (байты как лежат)
         ld c,a
-        ld a,CHIP_ENV2
-        jr .word
+        srl a
+        add a,CHIP_ECMD
+        jp Pt_Nib
 .per    ld c,a                      ; период: числом - нота огибающей больше не нужна
         xor a
         ld (Cp_EnvNote),a
@@ -2512,7 +2513,7 @@ Clr_Chan        db CH_NOTE, CH_SAMPLE, CH_ENVSHAPE, CH_ORNAMENT, CH_VOLUME
                 db CH_CMD+CMD_SIZE, CH_CMD+CMD_SIZE, CH_CMD+CMD_SIZE, CH_CMD+CMD_SIZE
     ASSERT $-Clr_Chan == CF_CHAN_N
 Clr_Env         db CHIP_ENVPER, CHIP_ENVPER, CHIP_ENVPER, CHIP_ENVPER, CHIP_NOISE, CHIP_NOISE
-                db CHIP_ENV2, CHIP_ENV2, CHIP_ENV2, CHIP_ENV2
+                db CHIP_ECMD, CHIP_ECMD, CHIP_ECMD, CHIP_ECMD
     ASSERT $-Clr_Env == CF_ENV_N
 
 ;-------- Клавиша B -> цифра. CF - цифра, A - значение. Key_Hex: 0..F; Key_Sym: 0..9, A..W

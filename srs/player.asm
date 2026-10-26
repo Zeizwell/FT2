@@ -363,6 +363,9 @@ Pl_Row_Chips
         ld l,a
         call c2.Rw
         pop hl
+        push hl
+        call Pr_ECmd0               ; команда огибающей чипа - после каналов (новая форма в канале её не сбросит)
+        pop hl
         ld a,(Pl_Chips)             ; только чипы трека
         dec a
         ret z
@@ -384,10 +387,48 @@ Pl_Row_Chips
         ld l,a
         call c4.Rw
         pop hl
+        push hl
         ld a,l
         add a,CHIP_CH_C
         ld l,a
-        jp c5.Rw
+        call c5.Rw
+        pop hl
+        jp Pr_ECmd1
+
+;-------- Команда огибающей чипа (CHIP_ECMD; doc/commands.md, «Колонка огибающей»): HL - заголовок чипа в роу.
+; Пока - слайды 1 / 2 (как Bitphase: 1 - период растёт = наш 9, 2 - A), через слайд огибающей чипа es0 / es1
+Pr_ECmd0
+        call Ec_Get
+        ret z
+        jp es0.Set
+Pr_ECmd1
+        call Ec_Get
+        ret z
+        jp es1.Set
+
+; HL - заголовок -> C - байт 0 для es.Set (9 / A, задержка), E - шаг; Z - слайда нет
+Ec_Get  ld a,l
+        add a,CHIP_ECMD
+        ld l,a
+        ld c,(hl)                   ; код, задержка
+        inc l
+        ld e,(hl)                   ; параметр
+        ld a,c
+        and #F0
+        cp CMD_GLIS_DOWN<<4         ; 1 - период растёт
+        ld b,CMD_ENV_DOWN<<4
+        jr z,.s
+        cp CMD_GLIS_UP<<4           ; 2 - период падает
+        jr nz,.no                   ; пусто и остальное (пока нет) - Z
+        ld b,CMD_ENV_UP<<4
+.s      ld a,c
+        and #0F
+        or b
+        ld c,a
+        or 1                        ; NZ - есть
+        ret
+.no     xor a
+        ret
 
 ; HL - заголовок чипа в роу: период огибающей (не 0) -> (DE), шум (не 0) -> (BC). HL цел
 Pr_ChipHdr
