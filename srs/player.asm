@@ -717,6 +717,10 @@ GStop   call PtEnd                  ;   доехали: нота - цель
         jr GEnd
 GDl
 GD      ld a,0
+        or a                        ;   задержка 0 - один шаг и стоп (VT2, Bitphase)
+        jr nz,GSt
+        GATE_OFF GG,GEnd
+        jr GEnd
 GSt     ld (GC+1),a
 GEnd
 VbG     jr VbEnd                    ; 8 вибрато (как Bitphase): раз в D тиков шаг по треугольнику
@@ -1170,7 +1174,7 @@ SlZ     ld hl,0
         ld a,b
         ret
 
-;-------- После ноты: глисс и портаменто строки. Задержка 0 у глисса - один сдвиг (VT 3.7),
+;-------- После ноты: глисс и портаменто строки. Задержка 0 у глисса - один сдвиг на первом тике (VT2, Bitphase),
 ; у портаменто - как 1; параметр 0 - стоп (набежавшее смещение остаётся)
 Post    ld a,(Pr_GCmd)
         or a
@@ -1195,14 +1199,11 @@ PoGo    ld e,a
         ld (GS+1),de
         ld a,(GD+1)
         or a
-        jr z,PoOnce
-        GATE_OFF GM,GDl             ; глисс - без проверки "доехали"
+        jr nz,PoGl
+        inc a                       ; задержка 0: один шаг на первом тике (после вывода), потом стоп
+        ld (GC+1),a
+PoGl    GATE_OFF GM,GDl             ; глисс - без проверки "доехали"
         GATE_ON GG
-        ret
-PoOnce  GATE_OFF GG,GEnd
-        ld hl,(GOF+1)
-        add hl,de
-        ld (GOF+1),hl
         ret
 PoPt    ld a,(Pr_SlSet)             ; портаменто без ноты в строке - к базе (цель 0), как PT3
         or a
