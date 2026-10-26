@@ -70,6 +70,7 @@ DEV_W           equ 8
 ASK_SAVE        equ 1               ; Sv_Ask: что спрашиваем (ответ Y / N / Esc)
 ASK_NEW         equ 2
 ASK_WC          equ 3
+ASK_PSG         equ 4               ; файл PSG есть - писать поверх?
 MSG_Y           equ DV_TOP+11       ; лог сообщений (3 строки), под кнопками через строку
 
 ; --- запись каталога в PAGE_DIRLIST (переменной длины, адрес - из таблицы, Dl_Ofs)
@@ -907,8 +908,16 @@ Sv_Answer
         cp ASK_WC
         jp z,Dv_ExitWC
         cp ASK_NEW
-        jr nz,.save
+        jr nz,.psg
         call Dv_NewSong
+        jp Dv_Keys
+.psg    cp ASK_PSG
+        jr nz,.save
+        ld a,1                      ; PSG ещё раз - поверх
+        ld (Sv_Force),a
+        call Dv_Psg
+        xor a
+        ld (Sv_Force),a
         jp Dv_Keys
 .save
         ld a,1                      ; Save ещё раз - поверх

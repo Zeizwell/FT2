@@ -36,9 +36,28 @@ Dv_Psg
 .name   ld hl,Txt_PsgBusy           ; статус - сразу: прогон долгий
         call Dv_Busy
         call Ps_Name
-        ld ix,DK_DELETE+256         ; такой файл был - заменить (ошибку «нет файла» не смотрим)
+        ld ix,DK_FIND+256           ; такой файл есть?
         ld hl,Ps_Del
         call Disk_Call
+        jp c,Dv_Disk_Err
+        jr z,.new
+        ld a,(Sv_Force)             ; есть: без подтверждения - спросить, как Save
+        or a
+        jr nz,.ovr
+        ld a,ASK_PSG
+        ld (Sv_Ask),a
+        ld hl,Txt_Exists
+        call Dv_Ok
+        ld a,1                      ; строка ждёт ответа: "(Y/N) Y"
+        ld (Lg_Open),a
+        ret
+.ovr    xor a
+        ld (Sv_Force),a
+        ld ix,DK_DELETE+256         ; Yes - старый удалить
+        ld hl,Ps_Del
+        call Disk_Call
+        jp nz,Dv_Disk_Err
+.new
         ld hl,Ps_Nm
         ld de,Ps_Cre+5
         ld bc,NAME_W+1
