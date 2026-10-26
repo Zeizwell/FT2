@@ -401,11 +401,13 @@ Pl_Row_Chips
 Pr_ECmd0
         call Ec_Get
         ret z
-        jp es0.Set
+        call es0.Set
+        jp es0.Now
 Pr_ECmd1
         call Ec_Get
         ret z
-        jp es1.Set
+        call es1.Set
+        jp es1.Now
 
 ; HL - заголовок -> C - байт 0 для es.Set (9 / A, задержка), E - шаг; Z - слайда нет
 Ec_Get  ld a,l
@@ -1509,6 +1511,12 @@ Set     ld d,0
         ret
 Rst     GATE_OFF EsG,EsEnd
         ld hl,0
+        ld (Es_Ofs+m_chip*2),hl
+        ret
+;-------- Первый шаг сразу (команда огибающей колонки Env - как Bitphase: шаг в кадре команды, не со следующего)
+Now     ld hl,(Es_Ofs+m_chip*2)
+        ld de,(EsS+1)
+        add hl,de
         ld (Es_Ofs+m_chip*2),hl
         ret
     ENDMODULE
