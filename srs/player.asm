@@ -469,6 +469,7 @@ Pr_NDly         db 0                ; задержка ноты, тиков (0 -
 Pr_NewIns       db 0                ; в строке сменили сэмпл
 Pr_NewOrn       db 0                ;   орнамент
 Pr_Oo           db 0                ;   команда 6 (нота её иначе снимает, как PT3)
+Pr_Arp          db 0                ;   команда C (нота её иначе снимает, как Bitphase)
 Pr_SlSet        db 0                ;   портаменто с нотой: цель задана (Slide)
 
 ; B скорость: сразу (0 - не трогаем), тик этой роу Pl_Tick возьмёт уже с новой
@@ -963,6 +964,7 @@ Rw      ld a,(hl)                   ; пустая клетка - ничего
         ld (Pr_NewIns),a
         ld (Pr_NewOrn),a
         ld (Pr_Oo),a
+        ld (Pr_Arp),a
         ld (Pr_SlSet),a
         push hl                     ; новая форма огибающей - слайд огибающей чипа стоп и с нуля:
         inc l                       ;   до команд (9 / A этой же строки - после, как PT3)
@@ -1018,6 +1020,12 @@ RNoV    ld a,l
         jr nz,RKeepOo
         GATE_OFF OoG,OoEnd
 RKeepOo
+        ld a,(Pr_Arp)               ; нота снимает C, если её нет в строке (Bitphase, PSG atarized)
+        or a
+        jr nz,RKeepAr
+        ld (ARS+1),a
+        GATE_OFF ArG,ArEnd
+RKeepAr
         ld a,(Pr_SOfs)              ; инструмент и орнамент - со строки (4, 5) или 0
         call Pr_Ofs
         ld (RiR+1),a
@@ -1344,6 +1352,8 @@ CC      GATE_OFF ArG,ArEnd          ; C арпеджио: +X, +Y; 0 - стоп
         ld (ArC+1),a
         xor a
         ld (ArF+1),a
+        inc a                       ;   в строке - нота её не снимет
+        ld (Pr_Arp),a
         GATE_ON ArG
         ret
 CF      ld a,c                      ; F: подкод
