@@ -1168,12 +1168,17 @@ PoGo    ld e,a
         jr z,PoOnce
         GATE_OFF GM,GDl             ; глисс - без проверки "доехали"
         GATE_ON GG
-        ld a,(Song_EnvMode)         ; PT: первый шаг - со следующего тика
+        ld a,(Song_EnvMode)         ; PT: счёт задержки - после вывода, со следующего тика
         or a
         ret nz
-        ld hl,(GOF+1)               ; FT (FT 1.15, Bitphase): первый шаг - сразу, в кадре строки
+        ld a,(GC+1)                 ; FT (Bitphase): первый тик - в кадре строки, до вывода
+        dec a                       ;   (задержка 1 - шаг сразу, 3 - через два кадра)
+        jr nz,PoTk
+        ld hl,(GOF+1)
         add hl,de
         ld (GOF+1),hl
+        ld a,(GD+1)
+PoTk    ld (GC+1),a
         ret
 PoOnce  GATE_OFF GG,GEnd
         ld hl,(GOF+1)
@@ -1519,12 +1524,9 @@ Rst     GATE_OFF EsG,EsEnd
         ld hl,0
         ld (Es_Ofs+m_chip*2),hl
         ret
-;-------- Первый шаг сразу (команда огибающей колонки Env - как Bitphase: шаг в кадре команды, не со следующего)
-Now     ld hl,(Es_Ofs+m_chip*2)
-        ld de,(EsS+1)
-        add hl,de
-        ld (Es_Ofs+m_chip*2),hl
-        ret
+;-------- Команда колонки Env (как Bitphase): первый тик - в кадре команды, до вывода (задержка 1 - шаг сразу,
+; 3 - через два кадра), дальше - тик чипа после вывода
+Now     jr Tk
     ENDMODULE
     ENDM
 
