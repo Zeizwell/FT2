@@ -5,6 +5,13 @@
 
 Формат проекта `.btp` и экспорт (PSG, TAYM, SNDH, VGM, NSF, WAV) — `doc/formats/btp.md`.
 
+**Исходник — локально `D:/_Work/Speccy/ref-bitphase`** (клон github.com/paator/bitphase, `5931018` от 2026-10-24; в интернете
+не искать). Плеер — `public/ay/ay-audio-driver.js`, эффекты — `src/lib/chips/ay/`, экспорт PSG —
+`src/lib/services/file/ay/psg-export.ts`.
+- **Экспорт PSG Bitphase пишет регистр только при смене значения** (`encodePSG`), R13 тоже: повторная форма в строке
+  в PSG пропадает, хотя плеер её перезаписывает (`forceEnvelopeShapeWrite` — перезапуск огибающей). Сверка `f2lcmp`
+  поэтому снимает у нашей записи R13 с тем же значением.
+
 ## Общая раскладка
 
 Слева направо:
