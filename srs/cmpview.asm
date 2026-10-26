@@ -1069,7 +1069,7 @@ Cm_Show
         ld a,(SV_PLAY_POS)          ; паттерн позиции - из ордера трека
         call Cm_PatOf
         ld (Cm_Pat),a
-        ld a,(SV_DRAW_PAGE)
+        ld a,(Scr_Show_Pg)          ; видимая (у Disk двойной буфер, показать здесь некому)
         SETPAGE2 a
         ld a,(THEME_ATTR+CLR_TEXT)
         ld c,a
@@ -1205,7 +1205,7 @@ Cb_Pct          db 0
 ;-------- Итог: сдвиг старта, первое расхождение или "совпало"
 Cm_Result
         call Cm_Show
-        ld a,(SV_DRAW_PAGE)
+        ld a,(Scr_Show_Pg)          ; видимая (у Disk двойной буфер, показать здесь некому)
         SETPAGE2 a
         ld a,100                    ; сравнение кончилось - полоса полная
         call Cm_Bar_Draw
@@ -1332,7 +1332,7 @@ Cm_Result
 
 ;-------- Чистый экран: строки 0..35 - пробелы цветом фона
 Cm_Clear_Screen
-        ld a,(SV_DRAW_PAGE)
+        ld a,(Scr_Show_Pg)          ; видимая (у Disk двойной буфер, показать здесь некому)
         SETPAGE2 a
         ld a,(THEME_ATTR+CLR_BG)
         ld c,a
@@ -1355,7 +1355,7 @@ Ct_HL           dw 0
 Ct_DE           dw 0
 Cm_Text ld (Ct_HL),hl
         ld (Ct_DE),de
-        ld a,(SV_DRAW_PAGE)
+        ld a,(Scr_Show_Pg)          ; видимая (у Disk двойной буфер, показать здесь некому)
         SETPAGE2 a
         ld a,(THEME_ATTR+CLR_HEADER)
         ld c,a
