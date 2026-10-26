@@ -1276,7 +1276,7 @@ Pr_Spec cp #01
         cp #04
         jr z,.oofs
         cp #05
-        jr z,.vib
+        jp z,.vib
         cp #08
         jr z,.env
         cp #09
