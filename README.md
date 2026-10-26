@@ -75,27 +75,24 @@ The notes below are what is decided and how it works. Updated on request.
 | Pages | What |
 |---|---|
 | #00 | core |
+| #01, #03 | window image / what is under the window |
+| #02 | start code |
 | #04 | pattern view |
-| #05 | free (SPG loader resident at start) |
+| #05 | undo / clipboard (SPG loader resident at load) |
 | #06 | converters (import PT3 / PT2 / FTC) |
 | #07 | player: tables (window 2 during the tick) |
-| #08-#0F | sprite graphics |
+| #08-#0F | sprite graphics block; sprites use #08 and #0C-#0D, the rest: #09-#0B pattern view templates, #0E row numbers, #0F Disk catalog |
 | #10/#11, #12/#13 | text screen / font, second screen / font |
 | #14/#15 | FAT32 driver: code / work memory |
 | #16/#17 | track pages 1 and 2 |
 | #18 | FAT32 adapter |
 | #19 | player: code (window 1 during the IM1 tick) |
-| #1A, #1B | Disk tool, its catalog |
-| #1C, #1D, #1E | Instr/Orn/FX, Setup/Help, comparator |
-| #1F | free |
-| #20-#27 | clipboard / undo |
-| #28-#2B | file buffer (64K) |
-| #2C-#BA | pool: per track 64 patterns + instruments/ornaments + FX rows + FX tables (67 pages) |
-| #BB-#BE | pattern view templates and row numbers |
-| #BF | free |
+| #1A, #1B, #1C, #1D | Disk, Instr/Orn/FX, Setup/Help, comparator |
+| #1E-#21 | file buffer (64K) |
+| #22-#BF | pool: per track 64 patterns + instruments + ornaments + FX rows + FX tables (68 pages); free - its tail #AA-#BF |
 | #C0-#FF | system - untouched |
 
-- Free pages: 12 (shown in the pattern view and Setup).
+- Free pages: 22, one piece (shown in Setup).
 
 ### Frame
 
@@ -225,27 +222,24 @@ RP2350 пишет их прямо в AY, плюс GS); описание — `doc
 | Страницы | Что |
 |---|---|
 | #00 | коре |
+| #01, #03 | вид окна / что под окном |
+| #02 | стартовый код |
 | #04 | вид паттерна |
-| #05 | свободна (при запуске — резидент загрузчика SPG) |
+| #05 | отмена / буфер обмена (при загрузке — резидент загрузчика SPG) |
 | #06 | конвертеры (импорт PT3 / PT2 / FTC) |
 | #07 | плеер: таблицы (окно 2 на время тика) |
-| #08-#0F | графика спрайтов |
+| #08-#0F | блок графики спрайтов; спрайты берут #08 и #0C-#0D, остальное: #09-#0B шаблоны вида паттерна, #0E номера роу, #0F каталог Disk |
 | #10/#11, #12/#13 | текстовый экран / шрифт, второй экран / шрифт |
 | #14/#15 | FAT32-драйвер: код / рабочая память |
 | #16/#17 | страницы треков 1 и 2 |
 | #18 | переходник к FAT32 |
 | #19 | плеер: код (окно 1 на время тика в IM1) |
-| #1A, #1B | тулза диска, её каталог |
-| #1C, #1D, #1E | Instr/Orn/FX, Setup/Help, компаратор |
-| #1F | свободна |
-| #20-#27 | буфер обмена / отмена |
-| #28-#2B | буфер файла (64К) |
-| #2C-#BA | пул: на трек 64 паттерна + инструменты/орнаменты + строки FX + таблицы FX (67 страниц) |
-| #BB-#BE | шаблоны вида паттерна и номера роу |
-| #BF | свободна |
+| #1A, #1B, #1C, #1D | Disk, Instr/Orn/FX, Setup/Help, компаратор |
+| #1E-#21 | буфер файла (64К) |
+| #22-#BF | пул: на трек 64 паттерна + инструменты + орнаменты + строки FX + таблицы FX (68 страниц); свободно — его хвост #AA-#BF |
 | #C0-#FF | система — не трогаем |
 
-- Свободно 12 страниц (видно внизу вида паттерна и в Setup).
+- Свободно 22 страницы одним куском (видно в Setup).
 
 ### Кадр
 

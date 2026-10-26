@@ -65,14 +65,15 @@ Txt_Free        db "Free: ",FREE_PAGES/10+"0",FREE_PAGES%10+"0"," pages",0
 
 ;-------- Текущий трек A (0 / 1) - его страницы. Распределение жёсткое (mem_defs.asm):
 ; трек n - страница PAGE_SONG1+n, паттерны - с PAGE_POOL+n*PAGES_PER_SONG,
-; за ними страница инструментов и орнаментов (и FX). Портит AF, B
+; за ними страницы инструментов, орнаментов и FX. Портит AF, B
 Trk_Pat         db PAGE_POOL        ; паттерн k текущего трека - страница Trk_Pat+k
 Trk_Ins         db PAGE_INS1        ; его инструменты и орнаменты
-Trk_Fx          db PAGE_INS1+1      ; его FX и таблицы шагов (sdk: FX_*, TAB_*)
-Trk_FxT         db PAGE_INS1+2      ; его таблицы FX и заголовки FX (новый формат: FXT_*, FXH_*)
+Trk_Orn         db PAGE_INS1+1      ; страница орнаментов (п.40: пока не используется - орнаменты в Trk_Ins)
+Trk_Fx          db PAGE_INS1+2      ; его FX и таблицы шагов (sdk: FX_*, TAB_*)
+Trk_FxT         db PAGE_INS1+3      ; его таблицы FX и заголовки FX (новый формат: FXT_*, FXH_*)
     ASSERT PAGE_SONG2 == PAGE_SONG1+1
     ASSERT PAGE_INS1 == PAGE_POOL+PATTERNS_MAX
-    ASSERT PAGES_PER_SONG == PATTERNS_MAX+3   ; паттерны, инструменты, строки FX, таблицы FX
+    ASSERT PAGES_PER_SONG == PATTERNS_MAX+4   ; паттерны, инструменты, орнаменты, строки FX, таблицы FX
 Song_Select
         ld (SV_SONG_NUM),a
         ld b,a
@@ -86,6 +87,8 @@ Song_Select
         ld (Trk_Pat),a
         add a,PATTERNS_MAX
         ld (Trk_Ins),a
+        inc a
+        ld (Trk_Orn),a
         inc a
         ld (Trk_Fx),a
         inc a

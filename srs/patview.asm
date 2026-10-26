@@ -209,7 +209,6 @@ Main_Loop
         BAND_M BAND_HEAD
         call Head_Show              ; шапка: значения (srs/head.asm)
         BAND_M BAND_INPUT
-        call Mem_Show               ; свободная память - в нижней строке
         call Time_Tick              ; время игры
         call Fld_Update             ; мышь и колесо - полям (коре, srs/fields.asm)
         ld a,(Pv_Exit)              ; выбрали другую вкладку - выходим в коре
@@ -1798,15 +1797,6 @@ Hotkeys db ACT_PLAY_SONG           ; общие действия вида (F5..F
         db ACT_TIMING
         dw K_Timing                 ; полоса времени
         db 0
-
-;-------- Нижняя строка справа: "Free: NN pages" - свободные страницы (постоянное число)
-MEM_X           equ 90-15
-Mem_Show
-        ld a,(THEME_ATTR+CLR_HEADER)
-        ld c,a
-        ld de,MEM_X+256*(SCR_BASE_H+BOTTOM_LINE)
-        ld hl,Txt_Free
-        jp PutStr
 
 ;-------- Все события клавиатуры за кадр: сначала полю в фокусе (навигация
 ; паттерна или ордера), не съело - общей таблице Hotkeys

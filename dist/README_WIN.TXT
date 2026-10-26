@@ -38,7 +38,7 @@ envelope leads it, PT - sample offsets of all channels add up (as PT3; PT3 modul
 load with PT).
 The main window is the pattern: order on the left, channels A B C (and D E F on the
 second chip), the chip's Env column (envelope period, noise, envelope command).
-Free memory - bottom right.
+Free memory (pages) - in Setup.
 
 Tabs:
   Instr / Orn / FX - instruments, ornaments (Fast Tracker format) and timer effects:
@@ -164,7 +164,7 @@ FastTracker 2 на ПК: текстовый режим 90x36, мышь, клав
 PT3-модули грузятся с PT).
 Основное окно - паттерн: ордер слева, каналы A B C (и D E F на втором чипе),
 колонка Env чипа (период огибающей, шум, команда огибающей).
-Внизу справа - свободная память.
+Свободная память (страницы) - в Setup.
 
 Вкладки:
   Instr / Orn / FX - инструменты, орнаменты (формат Fast Tracker) и таймерные
