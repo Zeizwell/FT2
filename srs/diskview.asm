@@ -56,6 +56,8 @@ SAVE_X          equ FP_L+10
 BTN_W           equ 8
 CMP_X           equ FP_L+20         ; [ Compare ]: после загрузки PT3 / PT2 - сравнить плееры
 CMP_W           equ 11
+PSG_X           equ FP_L+32         ; [ PSG ]: экспорт регистров AY по кадрам в <имя>.psg
+PSG_W           equ 6
 CHK_Y           equ BTN_Y+1         ; [ Check ]: выбранный FT2 - во второй слот и сравнить (проверка контейнера)
 CHK_W           equ 9
 NEW_X           equ FP_L+10         ; [ New ] - очистить трек; [ Exit WC ] - в Wild Commander (строка Check)
@@ -482,6 +484,7 @@ F_Name  DV_FIELD FP_V,NAME_Y,NAME_W,1, FF_FOCUS|FF_HAND, Dv_NameEv, 0   ; имя
         DV_FIELD LOAD_X,BTN_Y,BTN_W,1, FF_BTN|FF_HAND, Bn_Ev, Bd_Load   ; кнопки (srs/button.asm)
         DV_FIELD SAVE_X,BTN_Y,BTN_W,1, FF_BTN|FF_HAND, Bn_Ev, Bd_Save
         DV_FIELD CMP_X,BTN_Y,CMP_W,1, FF_BTN|FF_HAND, Bn_Ev, Bd_Cmp     ; Compare - вкл / выкл
+        DV_FIELD PSG_X,BTN_Y,PSG_W,1, FF_BTN|FF_HAND, Bn_Ev, Bd_Psg     ; PSG - экспорт (srs/psgexp.asm)
         DV_FIELD LOAD_X,CHK_Y,CHK_W,1, FF_BTN|FF_HAND, Bn_Ev, Bd_Chk
         DV_FIELD NEW_X,CHK_Y,NEW_W,1, FF_BTN|FF_HAND, Bn_Ev, Bd_New
         DV_FIELD WC_X,CHK_Y,WC_W,1, FF_BTN|FF_HAND, Bn_Ev, Bd_WC
@@ -528,7 +531,9 @@ Dv_BNew ld a,4
 Dv_BWC  ld a,5
         jr Dv_BtnDo
 Dv_BDev ld a,6
-; A - кнопка: 0 Load, 1 Save, 2 Compare, 3 Check, 4 New, 5 Exit WC, 6 Device
+        jr Dv_BtnDo
+Dv_BPsg ld a,7
+; A - кнопка: 0 Load, 1 Save, 2 Compare, 3 Check, 4 New, 5 Exit WC, 6 Device, 7 PSG
 Dv_BtnDo
         ld (Dv_BA),a
         ld a,(Sv_Ask)               ; спрашивали перезапись - кнопка = "нет"
@@ -539,6 +544,8 @@ Dv_BtnDo
         ld hl,Txt_SvNo
         call Dv_Ok
 .go     ld a,(Dv_BA)
+        cp 7
+        jp z,Dv_Psg
         cp 6
         jr z,Dv_Device
         or a
@@ -622,6 +629,9 @@ Bd_WC   dw Dv_BWC, Txt_ExitWC
         db 0, 0, 0
         dw 0
 Bd_Dev  dw Dv_BDev, Txt_Device
+        db 0, 0, 0
+        dw 0
+Bd_Psg  dw Dv_BPsg, Txt_Psg
         db 0, 0, 0
         dw 0
 
@@ -2112,7 +2122,8 @@ Fs_Fill
 
     include "srs/ft2c.asm"         ; контейнер FT2 (doc/formats/ft2.md)
     include "srs/cncheck.asm"
-    include "srs/impdone.asm"      ; импорт: вызов страницы конвертеров, сообщение, Compare      ; Check: файл FT2 против трека в памяти
+    include "srs/impdone.asm"      ; импорт: вызов страницы конвертеров, сообщение, Compare
+    include "srs/psgexp.asm"       ; экспорт PSG      ; Check: файл FT2 против трека в памяти
 
 ; =========================================================================
 ; СООБЩЕНИЯ

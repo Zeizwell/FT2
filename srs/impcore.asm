@@ -14,6 +14,38 @@ Pt_Chips        db 1
 Pt_TS37         db 0                ; PT 3.7 TS: N (паттерн чипа 2 = N-1-p), 0 - нет
 Cv_Res          db 0
 
+;-------- Экспорт PSG (тулза диска, srs/psgexp.asm): тик плеера без вывода (Pl_Quiet), регистры чипа 1 ->
+; Ps_Regs (R0..R13; R13 = #FF - в этом кадре не писали), конец трека - Ps_End (Pl_Looped). Плеер - в окна 1
+; и 2 на время тика (как IM1; музыку IM1 тулза на это время выключает). Портит всё
+Ps_Regs         ds 14
+Ps_End          db 0
+Psg_Tick
+        SETPAGE1 PAGE_PLAYER
+        SETPAGE2 PAGE_PLAYER2
+        ld a,1
+        ld (Pl_Quiet),a
+        call PLAYER_TICK
+        xor a
+        ld (Pl_Quiet),a
+        ld hl,Pl_Regs
+        ld de,Ps_Regs
+        ld bc,13
+        ldir
+        ld a,(Pl_Regs+PR_R13W)      ; R13 - если записан
+        or a
+        ld a,(Pl_Regs+13)
+        jr nz,.w
+        ld a,#FF
+.w      ld (de),a
+        xor a                       ; флаги - как будто вывели (их снимает вывод, Po_Chip)
+        ld (Pl_Regs+PR_R13W),a
+        ld (Pl_Regs+PR_RTN),a
+        ld a,(Pl_Looped)
+        ld (Ps_End),a
+        RESTPAGE2
+        RESTPAGE1
+        ret
+
 ;-------- Вызов страницы конвертеров: HL - вход (CONV_*). -> A: 0 - готово, иначе - не тот файл; Z - готово.
 ; Страница - в окно 1 на время вызова (как Call_Tool). Портит всё
 Call_Conv
