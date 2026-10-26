@@ -38,11 +38,6 @@ PL_CMDS         equ 2               ; больше двух команд в кл
 PL_LEN          equ 3               ; сэмпл / орнамент длиннее 64
 PL_INS          equ 4               ; TurboSound: сэмплам / орнаментам модуля 2 не хватило номеров
 
-Pt_Lost         db 0
-Pt_Base         dw 0                ; начало модуля в файле
-Pt_Base2        dw 0                ; второй модуль (TurboSound)
-Pt_Chips        db 1
-Pt_TS37         db 0                ; PT 3.7 TS: N (паттерн чипа 2 = N-1-p), 0 - нет
 PT_TS37_N       equ 98
 
 ;-------- Импорт. Выход - сообщение (Dv_Ok / Dv_Error)
@@ -54,8 +49,8 @@ Pt_Import
         ld hl,PT_ORDER              ; ордер пустой - не PT3 (трек не трогаем)
         call Pt_Get
         cp #FF
-        ld hl,Txt_BadPt3
-        jp z,Dv_Error
+        ld a,1                      ; не PT3 - трек не трогаем
+        ret z
         call Pt_TS                  ; второй модуль?
         call Song_Clear             ; новый трек
         call Pt_Header
@@ -65,41 +60,13 @@ Pt_Import
         call Pt_Ornaments
         call Pt_Order               ; ордер -> наши паттерны
         call Pt_Patterns
-        ld hl,Txt_Pt3Cut
 
-;-------- Общий конец импорта (PT3, PT2...): ордер и каталог - в трек, имя файла, сообщение.
-; HL - начало сообщения о потерях ("PT3 cut:")
-Pt_Done
-        ld (Pt_Cut_Txt),hl
-        call Pt_Song_Order          ; ордер и каталог - в страницу трека
-        ld hl,Dv_Spec+1             ; имя файла - в трек (шапка)
-        call Dv_Song_File
-        ld a,1                      ; вид паттерна перечитает трек при входе
-        ld (SV_SONG_NEW),a
-        ld a,(Dv_Cmp)               ; Compare - сравнить плееры (PT3 / PT2 / FTC до 32К)
-        or a
-        call nz,Dv_Compare
-        ld a,(Pt_Lost)              ; без потерь - экран диска закрываем
-        or a
-        jp z,Dv_Loaded
-        ld hl,(Pt_Cut_Txt)          ; что обрезали - словами за сообщением
-        ld de,Pt_Msg
-        call Str_Copy
-        ld hl,Pt_Lost_Words
-        ld a,(Pt_Lost)
-        ld b,5
-.w      rrca
-        push af
-        call c,Str_Copy
-        pop af
-        call nc,Str_Skip
-        djnz .w
-        ld hl,Pt_Msg
-        jp Dv_Ok
-
-Pt_Msg          ds 40
-Pt_Cut_Txt      dw 0
-Pt_Lost_Words   db " rows",0," pats",0," cmds",0," len",0," ins",0   ; по битам PL_*
+;-------- Общий конец импорта (PT3, PT2, FTC): ордер и каталог - в трек. -> A = 0 (готово); сообщение,
+; имя файла, Compare - в тулзе диска (srs/impdone.asm, Pt_Done)
+Pt_End
+        call Pt_Song_Order
+        xor a
+        ret
 
 ;-------- TurboSound: в конце файла "02TS" - два модуля, второй - с размер1;
 ; иначе - может быть PT 3.7 (Pt_TS37_Check)
@@ -215,47 +182,6 @@ Pt_Header
 Ph_Tempo        db 0
 Ph_Tune         db 0                ; SH_TUNING из модуля
 Ph_Ver          db 6                ; версия PT 3.x: x
-
-; =========================================================================
-; ЧТЕНИЕ МОДУЛЯ: смещение от начала модуля (Pt_Base) -> байт из буфера файла
-; =========================================================================
-;-------- HL - смещение -> A - байт, HL+1. BC, DE целы
-Pt_Get
-        push bc
-        push de
-        push hl
-        ld de,(Pt_Base)
-        add hl,de                   ; адрес в файле, 17 бит
-        sbc a,a                     ; перенос -> бит 2 номера страницы
-        and 4
-        ld b,a
-        ld a,h                      ; страница буфера = адрес / 16К
-        rlca
-        rlca
-        and 3
-        or b
-        add a,PAGE_FILEBUF
-        ld e,a                      ; (SETPAGE портит A, BC)
-        ld a,h                      ; адрес в окне 3
-        or #C0
-        ld h,a
-        SETPAGE3 e
-        ld e,(hl)
-        RESTPAGE3
-        ld a,e
-        pop hl
-        inc hl
-        pop de
-        pop bc
-        ret
-
-;-------- HL - смещение -> DE - слово (младший первым), HL+2
-Pt_Get16
-        call Pt_Get
-        ld e,a
-        call Pt_Get
-        ld d,a
-        ret
 
 ; =========================================================================
 ; СЭМПЛЫ И ОРНАМЕНТЫ -> страница инструментов текущего трека Trk_Ins (окно 2)
@@ -1494,111 +1420,6 @@ Pr_Delay
         ld a,15
         ret
 
-Txt_Pt3Cut      db "PT3 cut:",0
-Txt_BadPt3      db "Bad PT3",0
-
-; Строку HL (до 0) -> DE, DE - на её 0 (следующая допишется). HL - за 0
-Str_Copy
-        ld a,(hl)
-        ld (de),a
-        inc hl
-        or a
-        ret z
-        inc de
-        jr Str_Copy
-
-; HL - за 0 строки
-Str_Skip
-        ld a,(hl)
-        inc hl
-        or a
-        jr nz,Str_Skip
-        ret
-
-;-------- Compare: наш плеер против эталона (srs/cmpview.asm, страница PAGE_CMP в окне 3).
-; PT3, PT2 (эталон Бульбы) и FTC (плеер FT 1.15), модуль до 32К (две первые страницы буфера файла)
-Dv_Compare
-        ld a,(Ld_Kind)              ; 2 - PT3, 3 - PT2, 4 - FTC
-        cp 2
-        ret c
-        cp 5
-        ret nc
-        ld a,(Ld_Size+2)            ; не больше 32К (окна 1 и 2 у компаратора)
-        or a
-        ret nz
-        ld hl,(Ld_Size)
-        ld de,cmpview.CM_MOD_MAX+1
-        or a
-        sbc hl,de
-        ret nc
-        ld a,PAGE_CMP
-        SETPAGE3 a
-        ld a,(Ld_Kind)
-        sub 2
-        ld (cmpview.Cmp_Kind),a
-        ld hl,Dv_Spec+1             ; имя файла - для экрана сравнения
-        ld de,cmpview.Cmp_Name
-        ld bc,32
-        ldir
-        xor a
-        ld (de),a
-        ld a,(Pt_Chips)
-        ld (cmpview.Cmp_Chips),a
-        ld a,(Ld_Kind)              ; PT2, FTC - без TS
-        cp 3
-        ld a,0
-        jr nc,.ts
-        ld a,(Pt_Chips)             ; PT3: два модуля - режим 16 и адрес второго
-        cp 2
-        ld a,32                     ;   иначе - автопоиск PT 3.7 TS
-        jr c,.ts
-        ld a,(Pt_TS37)
-        or a
-        ld a,32
-        jr nz,.ts
-        ld hl,(Pt_Base2)
-        ld de,cmpview.CM_MOD
-        add hl,de
-        ld (cmpview.Cmp_Mod2),hl
-        ld a,16
-.ts     ld (cmpview.Cmp_TS),a
-        call cmpview.Cmp_Run
-        RESTPAGE3
-        call Cmp_Save               ; журнал сравнения -> FT2CMP.BIN (для разбора на PC)
-        ld a,1                      ; экран диска - заново
-        ld (Dv_Dirty),a
-        jp Dv_Head
-
-;-------- Журнал компаратора (буфер файла, страницы 2..3 = 32К) -> FT2CMP.BIN в текущую
-; папку (старый - удаляется). Ошибка диска - молча (это только для разбора на PC)
-Cs_Page         db 0
-Cmp_Save
-        ld ix,DK_DELETE+256
-        ld hl,Spec_Cmp
-        call Disk_Call
-        ld ix,DK_CREATE+256
-        ld hl,Spec_CmpNew
-        call Disk_Call
-        ret c
-        ret nz
-        ld a,cmpview.CM_LOG_PAGE
-        ld (Cs_Page),a
-.p      ld a,(Cs_Page)
-        SETPAGE3 a
-        ld ix,DK_APPEND
-        ld hl,#C000
-        ld bc,#4000
-        call Disk_Call
-        RESTPAGE3
-        ld hl,Cs_Page
-        inc (hl)
-        ld a,(hl)
-        cp cmpview.CM_LOG_PAGE+2
-        jr c,.p
-        ld ix,DK_CLOSE
-        jp Disk_Call
-Spec_Cmp        db FD_FILE,"FT2CMP.BIN",0
-Spec_CmpNew     db #20,0,0,0,0,"FT2CMP.BIN",0
 
 ;-------- Роу 0 паттерна (окно 2, чип Pp_Chip): шум не задан - шум 0. PT3, PT2 и FTC
 ; начинают каждый паттерн с базы шума 0, наш плеер базу держит, пока её не сменят.

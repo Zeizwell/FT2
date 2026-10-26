@@ -35,8 +35,8 @@ Pt2_Import
         ld hl,P2_ORDER              ; ордер пустой - не PT2 (трек не трогаем)
         call Pt_Get
         cp 128
-        ld hl,Txt_BadPt2
-        jp nc,Dv_Error
+        ld a,1                      ; не PT2 - трек не трогаем
+        ret nc
         call Song_Clear             ; новый трек
         call P2_Header
         ld a,(Trk_Ins)              ; инструменты и орнаменты - пустые, потом PT2
@@ -47,8 +47,7 @@ Pt2_Import
         call P2_Ornaments
         call P2_Order
         call P2_Patterns
-        ld hl,Txt_Pt2Cut
-        jp Pt_Done
+        jp Pt_End
 
 ;-------- Заголовок трека: темп, имя; ордер и каталоги - нули
 P2_Header
@@ -540,5 +539,3 @@ P2_Cmd  push hl
         pop hl
         ret
 
-Txt_Pt2Cut      db "PT2 cut:",0
-Txt_BadPt2      db "Bad PT2",0

@@ -19,7 +19,6 @@
 ; =========================================================================
 
 ; --- заголовок модуля
-FC_NAME         equ #08             ; 42 имя (32) + автор
 FC_TONES        equ #32             ; таблица нот: 2 - 1.75 МГц, иначе классика
 FC_TEMPO        equ #45
 FC_LOOP         equ #46
@@ -41,8 +40,8 @@ Ftc_Import
         ld hl,FC_ORDER              ; ордер пустой - не FTC (трек не трогаем)
         call Pt_Get
         bit 7,a
-        ld hl,Txt_BadFtc
-        jp nz,Dv_Error
+        ld a,1                      ; не FTC - трек не трогаем
+        ret nz
         call Song_Clear
         call Fc_Header
         ld a,(Trk_Ins)
@@ -53,8 +52,7 @@ Ftc_Import
         call Fc_Ornaments
         call Fc_Order
         call Fc_Patterns
-        ld hl,Txt_FtcCut
-        jp Pt_Done
+        jp Pt_End
 
 ;-------- Заголовок трека: темп, имя, автор; ордер и каталоги - нули
 Fc_Header
@@ -124,91 +122,6 @@ Fc_Put32
 .p      ld (de),a
         inc de
         djnz .c
-        ret
-
-;-------- Описание FTC (42 знака) -> Fc_Txt и границы: имя - [0, Fc_Cut), автор -
-; [Fc_By, Fc_Len). Есть " BY " - режем по нему; иначе длиннее 32 - по последнему
-; пробелу в первых 32 знаках; иначе всё - имя
-FC_TXT_LEN      equ 42
-Fc_Txt          ds FC_TXT_LEN
-Fc_Len          db 0
-Fc_Cut          db 0
-Fc_By           db 0
-
-Fc_Split
-        ld hl,FC_NAME
-        ld de,Fc_Txt
-        ld b,FC_TXT_LEN
-.r      call Pt_Get
-        ld (de),a
-        inc de
-        djnz .r
-        ld b,FC_TXT_LEN             ; длина без хвостовых пробелов и нулей
-.t      ld hl,Fc_Txt-1
-        ld a,b
-        call Hl_Add_A
-        ld a,(hl)
-        cp ' '+1
-        jr nc,.len
-        djnz .t
-.len    ld a,b
-        ld (Fc_Len),a
-        ld (Fc_Cut),a               ; пока - всё имя
-        ld (Fc_By),a
-        ld c,0                      ; " BY " с позиции C
-.f      ld a,c
-        add a,4
-        ld hl,Fc_Len
-        cp (hl)
-        jr z,$+4
-        jr nc,.nby
-        ld hl,Fc_Txt
-        ld a,c
-        call Hl_Add_A
-        ld a,(hl)
-        cp ' '
-        jr nz,.fn
-        inc hl
-        ld a,(hl)
-        or #20
-        cp 'b'
-        jr nz,.fn
-        inc hl
-        ld a,(hl)
-        or #20
-        cp 'y'
-        jr nz,.fn
-        inc hl
-        ld a,(hl)
-        cp ' '
-        jr nz,.fn
-        ld a,c                      ; нашли
-        ld (Fc_Cut),a
-        add a,4
-        ld (Fc_By),a
-        ret
-.fn     inc c
-        jr .f
-.nby    ld a,(Fc_Len)               ; не длиннее 32 - всё имя
-        cp 33
-        ret c
-        ld c,32                     ; последний пробел в первых 32
-.s      ld hl,Fc_Txt
-        ld a,c
-        call Hl_Add_A
-        ld a,(hl)
-        cp ' '
-        jr z,.sp
-        dec c
-        jr nz,.s
-        ld a,32                     ; пробела нет - 32 и остальное
-        ld (Fc_Cut),a
-        ld (Fc_By),a
-        ret
-.sp     ld a,c
-        ld (Fc_Cut),a
-        inc a
-        ld (Fc_By),a
         ret
 
 ; =========================================================================
@@ -615,5 +528,3 @@ Fc_Row_Ch
 Fc_Next         db 1                ; через сколько строк читать канал снова
 Fc_Porta        db 0                ; портаменто к ноте этой строки (0 - нет)
 
-Txt_FtcCut      db "FTC cut:",0
-Txt_BadFtc      db "Bad FTC",0

@@ -232,6 +232,7 @@ dma_wait	ld bc,DMASTATUS
     include "srs/toolscr.asm"
     include "srs/palettes.asm"
     include "srs/diskcall.asm"
+    include "srs/impcore.asm"      ; импорт: общее для диска и конвертеров, Call_Conv
     include "srs/instr.asm"
     include "srs/colors.asm"
 ;-------- PS/2 код -> символ (имена файлов, инструментов; 0 - не символ), раскладка US. Сразу за ней

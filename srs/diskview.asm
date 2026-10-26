@@ -1460,7 +1460,7 @@ Dv_Load
         or h
         jr nz,.pages
         ld a,l
-        cp PT_ORDER+1
+        cp conv.PT_ORDER+1
         jr nc,.pages
         ld hl,Txt_BadPt3
         jp Dv_Error
@@ -1523,17 +1523,11 @@ Dv_Load
         ld a,(Ld_Pages)
         cp (hl)
         jr nz,.read
-.check  ld a,(Ld_Kind)              ; импорт по типу
-        cp 2
-        jp z,Pt_Import
-        cp 3
-        jp z,Pt2_Import
-        jp Ftc_Import
+.check  jp Dv_Import                ; импорт по типу (srs/impdone.asm)
 .err    ld a,(Ld_Res)
         jp Dv_Disk_Code
 
 Ld_Kind         db 0                ; 1 FT2, 2 PT3 (Dv_Ext)
-Ld_Size         ds 4                ; размер файла
 Ld_Pages        db 0                ; страниц в файле
 Ld_Page         db 0                ; прочитано страниц
 Ld_Res          db 0
@@ -1717,20 +1711,6 @@ Dv_Loaded
         ret
 
 ; Данные роу 0..63 паттерна в окне 2 - нули
-Pat_Zero
-        ld h,#80
-.r      ld l,0
-.z      ld (hl),0
-        inc l
-        ld a,l
-        cp FT2_PAT_ROW
-        jr c,.z
-        inc h
-        ld a,h
-        cp #80+PAT_ROWS_MAX
-        jr c,.r
-        ret
-
 ;-------- Каталог паттернов трека -> Dv_Cat; страницы в треке - Trk_Pat+n (так их
 ; ждёт вид паттерна), страница инструментов - Trk_Ins
 Dv_Cat          equ Disk_Cat        ; буфер - в коре (страница диска полна)
@@ -2130,11 +2110,9 @@ Fs_Fill
         rra                         ; CF - ошибка
         ret
 
-    include "srs/pt3imp.asm"
-    include "srs/pt2imp.asm"
-    include "srs/ftcimp.asm"
     include "srs/ft2c.asm"         ; контейнер FT2 (doc/formats/ft2.md)
-    include "srs/cncheck.asm"      ; Check: файл FT2 против трека в памяти
+    include "srs/cncheck.asm"
+    include "srs/impdone.asm"      ; импорт: вызов страницы конвертеров, сообщение, Compare      ; Check: файл FT2 против трека в памяти
 
 ; =========================================================================
 ; СООБЩЕНИЯ

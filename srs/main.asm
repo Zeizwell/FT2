@@ -126,6 +126,15 @@ tool_cmp_end
     SAVEBIN     "srs/player2.bin",player2_start,player_end-player2_start
     display     "player size",/d,player1_end-player_start," + ",/d,player_end-player2_start," bytes"
 
+    ; --- конвертеры: импорт PT3 / PT2 / FTC (страница PAGE_CONV, окно 1)
+    org #4000
+tool_conv
+    include     "srs/convview.asm"
+tool_conv_end
+    ASSERT tool_conv_end <= #8000
+    SAVEBIN     "srs/conv.bin",tool_conv,tool_conv_end-tool_conv
+    display     "conv size",/d,tool_conv_end-tool_conv," bytes"
+
     ; --- диск: переходник к FAT32 (страница PAGE_DISK_APP, работает в окне 2)
     include     "srs/disk.asm"
     SAVEBIN     "srs/disk.bin",disk_start,disk_end-disk_start
