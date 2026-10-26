@@ -1168,6 +1168,12 @@ PoGo    ld e,a
         jr z,PoOnce
         GATE_OFF GM,GDl             ; глисс - без проверки "доехали"
         GATE_ON GG
+        ld a,(Song_EnvMode)         ; PT: первый шаг - со следующего тика
+        or a
+        ret nz
+        ld hl,(GOF+1)               ; FT (FT 1.15, Bitphase): первый шаг - сразу, в кадре строки
+        add hl,de
+        ld (GOF+1),hl
         ret
 PoOnce  GATE_OFF GG,GEnd
         ld hl,(GOF+1)
