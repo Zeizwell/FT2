@@ -22,6 +22,8 @@ spgbld.exe -b %WorkDir%\spg.ini FT2\ft2b.spg
 copy /Y %WorkDir%\ft2.ini FT2\ft2.ini >nul
 copy /Y dist\README.TXT FT2\README.TXT >nul
 copy /Y dist\FT2FMT.TXT FT2\FT2FMT.TXT >nul
+copy /Y dist\README_WIN.TXT FT2\README_WIN.TXT >nul
+copy /Y dist\FT2FMT_WIN.TXT FT2\FT2FMT_WIN.TXT >nul
 
 :: 4. Запись СТРОГО в тот образ, который РЕАЛЬНО открывает твой эмулятор
 set IName="d:\_Work\Speccy\FT2\tools\unreal\wc.img"

@@ -1,12 +1,91 @@
-# FT2 — формат файла трека (контейнер), версия 1
+# FT2 track file format (container), version 1 / Формат файла трека FT2 (контейнер), версия 1
+
+English first, Russian below. Release copy: `dist/FT2FMT.TXT` (CP866, CRLF).
+Сначала английский, ниже русский. Копия для архива релиза — `dist/FT2FMT.TXT` (CP866, CRLF).
+
+---
+
+## English
+
+`.ft2` is an editable FT2 track. The compiled format for players (`.f2c`) is separate (later).
+The old format (before the container) is a memory dump starting with `FT2S`; the tracker still reads it.
+
+### General
+
+- The file is a header followed by blocks. Numbers are little-endian.
+- Block: **tag** (4 ASCII chars), **data length** (2 bytes), **data**. Odd length - one `0` byte after the data
+  (not counted), so every block starts at an even address (DMA on the Evo moves words).
+- Unknown tag - skip the block. Fields a loader does not know are at the end of a block's data: it reads its own
+  and skips the rest by the length. New versions do not break old files.
+- Only what exists is written: empty patterns, instruments, ornaments, FX and tables are not; rows - only their real
+  length; names - up to the zero. The loader clears everything first, then places the blocks.
+
+### File header (6 bytes)
+
+| Offset | Size | What |
+|---|---|---|
+| 0 | 4 | `FT2C` |
+| 4 | 1 | format version (1) |
+| 5 | 1 | 0 |
+
+### Blocks (in this order; `HEAD` first, `END ` last)
+
+**`HEAD`** - track header
+
+| Offset | Size | What |
+|---|---|---|
+| 0 | 1 | chips (1, 2) |
+| 1 | 1 | speed |
+| 2 | 1 | note table (Tune: 0 - 1.75 MHz, 1 - 1.7734 MHz) |
+| 3 | 1 | chip type (0 AY, 1 YM, 2 AYX-32, 3 our board) |
+| 4 | 1 | stereo (0..4: ABC ACB BAC BCA CAB) |
+| 5 | 1 | envelope (0 FT, 1 PT) |
+| 6 | 1 | flags: bit 0 - has FX (needs the AY FX card) |
+| 7 | 5 | block counts: patterns, instruments, ornaments, FX, tables |
+| 12 | ≤32 | track name, `0`-terminated |
+| … | ≤32 | author, `0`-terminated |
+
+No editor settings (cursor step, position...) in the file - only the track. Name and author are in the file's first
+sector: Disk shows them in the catalog.
+
+**`ORDR`** - order: last position (length − 1), loop position, pattern numbers by position.
+
+**`PATT`** - pattern (one block per non-empty): number (0..63), rows (1..64), row records.
+A row is 112 bytes in 8 pieces: chip 1 header (8 bytes), channels A, B, C (16 each), chip 2 header, channels D, E, F.
+A non-empty row record: empty rows before it (skip, 1 byte), piece mask (bit n - piece n is not empty: 0 chip 1,
+1..3 A..C, 4 chip 2, 5..7 D..F), then for every mask bit in order: byte mask of the piece (header - 1 byte, channel -
+2 bytes; bit n - byte n is not zero) and those bytes. Trailing empty rows are not written.
+
+Chip header (8 bytes): `+0` envelope period (2), `+2` envelope command (2 bytes, like a channel command: code<<4 |
+delay, parameter; acts on the chip's envelope period - like Bitphase's envelope effect column), `+4` noise (0 - empty,
+noise 0 = `#20`), `+5` envelope period as a note (editor), `+6..+7` reserved.
+Channel (16 bytes): `+0` note (0 empty, 1..96 C-1..B-8, 97 off), `+1` sample, `+2` envelope shape (1..14, 15 off),
+`+3` ornament + 1 (0 empty, 1 - none), `+4` volume, `+6` and `+8` two commands (2 bytes each), the rest reserved.
+Command codes - `sdk/plugin.asm` (`CMD_*`), `doc/commands.md`.
+
+**`INST`** - instrument: number (1..32), loop row, last row, rows × 5 bytes (`IR_*` in the SDK), FX number (0 - none),
+name (≤16, `0`).
+
+**`ORNM`** - ornament: number (1..16), loop, last row, rows × 2 bytes, name.
+
+**`FX16`** - FX (`doc/fx-row.md`): number (1..32), header 5 bytes (last row, loop, sweep shape - table number, start
+phase, flags), rows 0..last × 16 bytes, name (≤16, `0`). Written if it differs from a new track's. The old `FXFX`
+block is not read.
+
+**`TB16`** - FX table: number (0..255), 16 values. Written if it differs from a new track's (0..5 - presets, the rest -
+zeros). The old `TABL` is not read.
+
+**`END `** - end: CRC-16 CCITT (polynomial `#1021`, initial `#FFFF`) of all file bytes from the start up to the `END `
+tag. Mismatch - the file is damaged, the track is not touched.
+
+---
+
+## Русский
 
 `.ft2` — редактируемый трек FT2. Скомпилированный для плееров — `.f2c` (отдельно, потом).
-Копия для архива релиза — `dist/FT2FMT.TXT` (CP866, CRLF).
+Старый формат (до контейнера) — дамп памяти, начинается с `FT2S`; трекер его по-прежнему читает.
 
-Старый формат (до контейнера) — дамп памяти: 16К страница трека + 16К инструменты + роу
-паттернов по 112 байт; начинается с `FT2S` (подпись страницы трека). Трекер его по-прежнему читает.
-
-## Общее
+### Общее
 
 - Файл — заголовок и блоки подряд. Числа — младший байт первым.
 - Блок: **тег** (4 знака ASCII), **длина данных** (2 байта), **данные**. Длина нечётная — за данными
@@ -16,7 +95,7 @@
 - В файл пишется только то, что есть: пустые паттерны, инструменты, орнаменты, FX, таблицы не пишутся,
   у строк — только реальная длина, имена — до нуля. Загрузчик сначала всё очищает, потом раскладывает.
 
-## Заголовок файла (6 байт)
+### Заголовок файла (6 байт)
 
 | Смещ | Размер | Что |
 |---|---|---|
@@ -24,9 +103,9 @@
 | 4 | 1 | версия формата (1) |
 | 5 | 1 | 0 |
 
-## Блоки (в таком порядке; первым — `HEAD`, последним — `END `)
+### Блоки (в таком порядке; первым — `HEAD`, последним — `END `)
 
-### `HEAD` — заголовок трека
+**`HEAD`** — заголовок трека
 
 | Смещ | Размер | Что |
 |---|---|---|
@@ -41,58 +120,35 @@
 | 12 | ≤32 | имя трека, `0` на конце |
 | … | ≤32 | автор, `0` на конце |
 
-Настроек редактора (шаг курсора, позиция курсора и т.п.) в файле нет — только трек.
+Настроек редактора (шаг курсора, позиция курсора и т.п.) в файле нет — только трек. Имя и автор — в первом секторе
+файла: Disk показывает их в каталоге.
 
-Имя и автор — в первом секторе файла: Disk показывает их в каталоге.
+**`ORDR`** — ордер: последняя позиция (длина − 1), позиция цикла, номера паттернов по позициям.
 
-### `ORDR` — ордер
+**`PATT`** — паттерн (по блоку на непустой): номер (0..63), роу (1..64), записи роу.
+Роу — 112 байт, 8 кусков: заголовок чипа 1 (8 байт), каналы A, B, C (по 16), заголовок чипа 2, каналы D, E, F.
+Запись непустой роу: сколько пустых роу перед ней (1 байт), маска кусков (бит n — кусок n непустой: 0 — чип 1,
+1..3 — A..C, 4 — чип 2, 5..7 — D..F), дальше по каждому биту маски: маска байт куска (заголовок — 1 байт, канал —
+2 байта; бит n — байт n не ноль) и сами эти байты. Пустые роу в конце паттерна не пишутся.
 
-| Смещ | Размер | Что |
-|---|---|---|
-| 0 | 1 | последняя позиция (длина − 1) |
-| 1 | 1 | позиция цикла |
-| 2 | длина | номера паттернов по позициям |
+Заголовок чипа (8 байт): `+0` период огибающей (2), `+2` команда огибающей (2 байта, как команда канала: код<<4 |
+задержка, параметр; действует на период огибающей чипа — как колонка эффекта огибающей Bitphase), `+4` шум (0 — пусто,
+шум 0 = `#20`), `+5` период огибающей нотой (редактор), `+6..+7` резерв.
+Канал (16 байт): `+0` нота (0 пусто, 1..96 C-1..B-8, 97 off), `+1` сэмпл, `+2` форма огибающей (1..14, 15 — выкл),
+`+3` орнамент + 1 (0 — пусто, 1 — без орнамента), `+4` громкость, `+6` и `+8` две команды (по 2 байта), остальное —
+резерв. Коды команд — `sdk/plugin.asm` (`CMD_*`), `doc/commands.md`.
 
-### `PATT` — паттерн (по блоку на непустой)
+**`INST`** — инструмент: номер (1..32), строка цикла, последняя строка, строки × 5 байт (`IR_*` в SDK), номер FX
+(0 — нет), имя (≤16, `0`).
 
-| Смещ | Размер | Что |
-|---|---|---|
-| 0 | 1 | номер паттерна (0..63) |
-| 1 | 1 | роу в паттерне (1..64) |
-| 2 | … | записи роу |
+**`ORNM`** — орнамент: номер (1..16), цикл, последняя строка, строки × 2 байта, имя.
 
-Роу (112 байт) — 8 кусков подряд: заголовок чипа 1 (8 байт), каналы A, B, C (по 16), заголовок чипа 2,
-каналы D, E, F. Запись непустой роу:
+**`FX16`** — FX (`doc/fx-row.md`): номер (1..32), заголовок 5 байт (последняя строка, цикл, форма свипа — номер
+таблицы, стартовая фаза, флаги), строки 0..последняя по 16 байт, имя (до 16 знаков, `0`). Пишется, если FX не как у
+нового трека. Старый блок `FXFX` не читается.
 
-| Размер | Что |
-|---|---|
-| 1 | сколько пустых роу перед ней (пропустить) |
-| 1 | маска кусков: бит n — кусок n непустой (0 — чип 1, 1..3 — A..C, 4 — чип 2, 5..7 — D..F) |
-| … | для каждого бита маски по порядку: маска байт куска (заголовок — 1 байт, канал — 2 байта; бит n — байт n не ноль), потом сами эти байты |
+**`TB16`** — таблица FX: номер (0..255), 16 значений. Пишется, если таблица не как у нового трека (0..5 — пресет,
+остальные — нули). Старый `TABL` не читается.
 
-Пустые роу в конце паттерна не пишутся.
-
-### `INST` — инструмент (по блоку на непустой)
-
-| Смещ | Размер | Что |
-|---|---|---|
-| 0 | 1 | номер (1..32) |
-| 1 | 1 | строка цикла |
-| 2 | 1 | последняя строка (строк − 1) |
-| 3 | строк × 5 | строки (формат строки — `doc/instruments.md`, `IR_*` в SDK) |
-| … | 1 | номер FX (0 — нет) |
-| … | ≤16 | имя, `0` на конце |
-
-### `ORNM` — орнамент: номер (1..16), цикл, последняя строка, строки × 2, имя.
-
-### `FX16` — FX (новый формат, `doc/fx-row.md`): номер (1..32), заголовок 5 байт (последняя строка, цикл, форма свипа — номер таблицы, стартовая фаза, флаги), строки 0..последняя по 16 байт, имя (до 16 знаков, 0). Пишется, если FX не как у нового трека. Старый блок `FXFX` (строки по 12 байт) не читается.
-
-### `TB16` — таблица FX: номер (0..255), 16 значений. Пишется, если таблица не как у нового трека (0..5 — пресет, остальные — нули). Старый `TABL` не читается.
-
-### `END ` — конец
-
-| Смещ | Размер | Что |
-|---|---|---|
-| 0 | 2 | CRC-16 CCITT (полином `#1021`, начальное `#FFFF`) всех байт файла от начала до тега `END ` |
-
+**`END `** — конец: CRC-16 CCITT (полином `#1021`, начальное `#FFFF`) всех байт файла от начала до тега `END `.
 Не сошлась — файл повреждён, трек не трогаем.

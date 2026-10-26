@@ -87,7 +87,7 @@ PAGE_INS1     EQU PAGE_POOL+PATTERNS_MAX ; инструменты и орнам�
     ASSERT PAGE_POOL_END-PAGE_POOL >= SONGS_MAX*PAGES_PER_SONG ; два полных трека влезают (143 >= 132)
 ; Свободно (никому не отдано): остаток пула за двумя треками + #05, #1F, #BF.
 ; Распределение жёсткое: у каждого трека свои PAGES_PER_SONG страниц, без динамики
-FREE_PAGES      EQU PAGE_POOL_END-PAGE_POOL-SONGS_MAX*PAGES_PER_SONG+4
+FREE_PAGES      EQU PAGE_POOL_END-PAGE_POOL-SONGS_MAX*PAGES_PER_SONG+3   ; +#05, #1F, #BF
 
 ;------------------------------------------------------------------
 ; Стек живёт в коре (пейдж 0, окно #0000), чтобы не пропадал при

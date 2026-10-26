@@ -1,304 +1,296 @@
 # FT2 — Fast Tracker 2
 
-AY-трекер для ZX Evolution с TS-Config, на ассемблере Z80 (sjasmplus).
-Наследник Fast Tracker для ZX Spectrum. На экране — «Fast Tracker 2.01b». Автор — Orion/DR.
-
-Целевое железо — своя плата на RP2350B: AY плюс блок, который формирует громкость
-выхода чипа (ЦАП) и даёт FX в духе Atari ST (PWM, SID, sync-buzzer) без дёргания
-регистров AY из прерывания. Промежуточная цель — AYX-32. Плата — `doc/zx-trinity.md`.
-
-Шпаргалка ниже — что уже решено и как устроено. Обновляется по команде.
+English first, Russian below. / Сначала английский, ниже русский.
 
 ---
 
-## Сборка и запуск
+## English
 
-- **F5 в VS Code** (или `build.bat` из корня):
-  1. FAT32-драйвер (`drivers/fat32`), потом sjasmplus `srs/main.asm`;
-  2. spgbld `srs/spg.ini` → **каталог `FT2/`**: `ft2b.spg` (программа) и `ft2.ini`
-     (настройки по умолчанию, из `srs/ft2.ini`);
-  3. robimg кладёт каталог в образ `tools/unreal/wc.img` как `\FT2`, тестовые модули
-     (`Modules for test`) — в `\MUSIC`;
-  4. запускается Unreal.
-- `tools/` (эмуляторы, образ диска) и `pentevo/` (исходники Evo, Unreal, доки
-  TS-Config) лежат только локально, в git не входят.
-- **Эмуляторы:**
-  - **Unreal:** `tools/unreal/Unreal.exe` — наша сборка (см. ниже), оригинал
-    tslabs 2024-07-08 лежит как `Unreal_orig.exe`.
-  - **Xpeccy:** мышь работает нормально, есть свои баги.
-- Эталон — настоящий ZX Evolution.
+An AY tracker for ZX Evolution with TS-Config, in Z80 assembler (sjasmplus). The successor of Fast Tracker for the
+ZX Spectrum; the screen says "Fast Tracker 2.01b". Author: Orion/DR.
 
-## Свой Unreal
+Target hardware: the **ZX Trinity** sound card (AY with timer effects in the style of the Atari ST - SID, sync-buzzer,
+FM, PWM - written by an RP2350 straight into the AY, plus GS); see `doc/zx-trinity.md`. Without the card FT2 plays a
+normal AY / TurboSound.
 
-- Исходник в `unreal/` — tslabs/zx-evo, коммит `02d4daf` (ровно та версия, из
-  которой собран оригинальный exe). Собирается набором VS 2019 **v142**:
+The notes below are what is decided and how it works. Updated on request.
+
+### Build and run
+
+- **F5 in VS Code** (or `build.bat` from the root): the FAT32 driver (`drivers/fat32`), sjasmplus `srs/main.asm`,
+  spgbld `srs/spg.ini` → the **`FT2/` folder** (`ft2b.spg` and `ft2.ini` from `srs/ft2.ini`); robimg puts it into the
+  image `tools/unreal/wc.img` as `\FT2`, test modules (`Modules for test`) as `\MUSIC`; Unreal starts.
+- `ft2.ini`: `load=` - a track to load at start (path from the card root).
+- `tools/` (emulators, disk image) and `pentevo/` (Evo sources, Unreal, TS-Config docs) are local only, not in git.
+- Emulators: **Unreal** - our build `tools/unreal/Unreal.exe` (below), the original tslabs 2024-07-08 is
+  `Unreal_orig.exe`; **Xpeccy** - the mouse works fine. The reference is a real ZX Evolution.
+
+### Our Unreal
+
+- Source in `unreal/` - tslabs/zx-evo commit `02d4daf`. Built with VS 2019 **v142**:
   `MSBuild unreal\Unreal_2017.sln -p:Configuration="Release Unreal" -p:Platform=x64`.
-- Наши правки:
-  - X-офсет (GXOFFS) в текстовом режиме, как в ПЛИС;
-  - мышь по курсору Windows (у нас DirectInput отдаёт абсолютную позицию, оригинал
-    из-за этого «носился»), скорость — `MouseDiv` в `Unreal.ini` (больше — медленнее);
-  - лог PS/2: мышь в лог не попадает; при возврате фокуса окну отпускаются
-    клавиши, которые держали (раньше залипали Alt/Ctrl/Shift).
-- `Unreal.ini`:
-  - `MouseDiv=2`, `video=triple` (картинка ×3), `CONTROL=SYM` (Ctrl = Symbol Shift);
-  - звук: `[AY] Chip=YM`, `Scheme=CHRV` — TurboSound (два чипа, выбор `#FE`/`#FF`);
-  - сняты привязки Unreal к F5/F6/F7 — они нужны трекеру. Отладчик — клавиша `` ` ``,
-    Esc доходит до трекера.
-- Тестовую сборку класть рядом с ini того же имени: Unreal читает `<имя exe>.ini`.
-- Мышь в Unreal не идеальна (ускорение Windows). Точная — в Xpeccy и на железе.
+- Our changes: GXOFFS in text mode (as in the FPGA); the mouse follows the Windows cursor (`MouseDiv` in `Unreal.ini`);
+  PS/2 log without the mouse, held keys released on focus return; SD write fixed; the **AY FX** device (the Trinity
+  timer effects card: `[AY] AYFX=1`); **FT2 frame log** in Save Sound (`*.f2l`: AY registers of both chips + card timer
+  state per frame, for comparing with Bitphase exports).
+- `Unreal.ini`: `MouseDiv=2`, `video=triple`, `CONTROL=SYM` (Ctrl = Symbol Shift); sound `[AY] Chip=YM`,
+  `Scheme=CHRV` - TurboSound (`#FF` selects the first chip); Unreal's F5/F6/F7 bindings are removed (the tracker needs
+  them). Debugger - the `` ` `` key, Esc reaches the tracker.
 
-## Структура
+### Structure
+
+| Where | What |
+|---|---|
+| `srs/main.asm` | entry: includes everything, lays out the pages |
+| `srs/core.asm` | core: IM1, start, tool calls; `impcore.asm` - shared import code, converter and PSG calls |
+| `srs/mem_defs.asm` | **page map** and core page macros |
+| `sdk/plugin.asm` | **SDK**: pattern format, system variables, API, colour roles, command codes |
+| `sdk/trinity_ay.asm` | the only way to talk to the Trinity card (protocol - `doc/trinity-api.md`) |
+| `srs/song.asm` | tracks: current one (`Song_Select`), empty track (`Song_New`) |
+| `srs/patview.asm` + `head.asm` | pattern view (6 channels) and the header |
+| `srs/instrview.asm`, `fxedit.asm` | Instr / Orn / FX tabs: instrument, ornament and FX editors, note preview |
+| `srs/diskview.asm` | Disk tab: catalog, load, save, PSG export (`psgexp.asm`), Check (`cncheck.asm`), import messages (`impdone.asm`) |
+| `srs/convview.asm` | converters page: PT3 / PT2 / FTC import (`pt3imp.asm`, `pt2imp.asm`, `ftcimp.asm`) |
+| `srs/ft2c.asm` | the `.ft2` container (`doc/formats/ft2.md`) |
+| `srs/cmpview.asm` | player comparator against reference players (`ptsplay.asm`, `ftplay.asm`) |
+| `srs/optview.asm` | Setup and Help tabs, `\FT2\FT2.INI` |
+| `srs/player.asm` | player (own pages, tick from IM1) |
+| `srs/window.asm`, `prim.asm`, `button.asm`, `spin.asm`, `scroll.asm`, `textin.asm`, `fields.asm` | windows and standard UI elements (`doc/ui.md`) |
+| `srs/input.asm`, `mouse.asm` | PS/2 keyboard (AVR log), Kempston mouse with wheel |
+| `srs/diskcall.asm`, `disk.asm` | FAT32 driver calls |
+| `drivers/fat32/` | FAT32 driver (copy of github.com/andrewinsidelazarev/FAT32-Driver-ZX-Evolution, MIT) |
+| `srs/fonts/` | the font `cp866bold.SpecCHR` (UI glyphs at codes #00-#1F) |
+| `doc/` | design, trackers, formats (`doc/formats/`), Bitphase, AY, instruments, player, Trinity card |
+
+### Memory
+
+- Windows: 0 - core (page #00, IM1 at #38, stack #3E00-#3FFF), 1 - tool or converter (org #4000), 2/3 - tool data
+  and screen. Pages are switched **only by macros** (they keep shadows in `SV_PAGES`).
+- Fixed layout, no memory manager: each track has its own pages. Map - header of `srs/mem_defs.asm`:
+
+| Pages | What |
+|---|---|
+| #00 | core |
+| #04 | pattern view |
+| #05 | free (SPG loader resident at start) |
+| #06 | converters (import PT3 / PT2 / FTC) |
+| #07 | player: tables (window 2 during the tick) |
+| #08-#0F | sprite graphics |
+| #10/#11, #12/#13 | text screen / font, second screen / font |
+| #14/#15 | FAT32 driver: code / work memory |
+| #16/#17 | track pages 1 and 2 |
+| #18 | FAT32 adapter |
+| #19 | player: code (window 1 during the IM1 tick) |
+| #1A, #1B | Disk tool, its catalog |
+| #1C, #1D, #1E | Instr/Orn/FX, Setup/Help, comparator |
+| #1F | free |
+| #20-#27 | clipboard / undo |
+| #28-#2B | file buffer (64K) |
+| #2C-#BA | pool: per track 64 patterns + instruments/ornaments + FX rows + FX tables (67 pages) |
+| #BB-#BE | pattern view templates and row numbers |
+| #BF | free |
+| #C0-#FF | system - untouched |
+
+- Free pages: 12 (shown in the pattern view and Setup).
+
+### Frame
+
+- **IM1 every frame in order:** music → mouse → input → output of the active editor. IM1 only executes; all logic is
+  in the main loop. Re-entry is blocked (`Im_Busy`, counter `Im_Reenter` in Setup).
+- **The whole UI is redrawn every frame and must fit in a frame.** No skipping, no cached lines.
+- The main code never holds DI longer than ~32 T (the frame INT pulse is 32 T).
+- **Timing:** Ctrl+T - the time band: the border colour per step.
+
+### Track and pattern
+
+- **Two tracks in memory** (Track 1 / 2 in the header). Load, save, instruments and preview act on the current one.
+- **Limits:** patterns 64, instruments 32, ornaments 16, FX 32, positions 256, rows 64. Compiled track ≤ 32K.
+- **Pattern** = one 16K page; a row - 256 bytes: data 0..111 (2 chips × 56), then the row's ready text.
+- **Chip:** header 8 bytes (envelope period 2, **envelope command** 2, noise 1, envelope note 1, reserved 2) + 3
+  channels × 16 (note, sample, envelope shape, ornament, volume, reserved, 2 commands × 2 bytes, reserved 6).
+- **Command** - 2 bytes (code<<4 | delay, parameter), 4 hex on screen; codes - `doc/commands.md`. The **envelope
+  command** (Env column) acts on the chip's envelope period, like Bitphase's envelope effect column.
+- **Instruments and ornaments** - FTC format (`doc/instruments.md`); **FX** - `doc/fx-row.md`.
+
+### Header
+
+- Row 0: "Fast Tracker 2.01b", tabs, transport buttons, 3ch/6ch and stereo, Disk Setup Help About.
+- Rows 1-3: File, Chip, Tune; Song, By, Track 1/2; Speed, Size, Octave, Step, Env as Note, Auto Env, Env FT/PT.
+- **Tune** - note table: 1.75 MHz (default, YM on the Evo) or 1.7734 MHz; both equal-tempered, A-4 = 440 Hz.
+- **Stereo** - 5 layouts as in VT (ABC ACB BAC BCA CAB), applied only on output.
+- **Env FT/PT** - FT: the channel with the envelope leads its period; PT: sample offsets of all channels add up (PT3).
+
+### Pattern view, editor, instruments
+
+- The screen is rebuilt every frame: fields by DMA tiling, attributes by DMA from templates, separators on top. One
+  element is open (the channel under the cursor or the chip's Env), the rest closed.
+- Keys via the action table (`ACT_*`, `Bind_Tab`; defaults - VT). Input as in VT; selection, clipboard, transpose,
+  undo (5 steps per channel). Playback: F5 song from position, F6 from the start, F7 pattern from row, F8 pattern,
+  Esc stop. Ctrl+E - chip Env, Alt+E - envelope as note, Ctrl+T - time band.
+- Instr / Orn / FX: list, Name, Len, Loop, Clone Copy Paste Clear Unloop, rows; note preview at the bottom.
+
+### Disk
+
+- Catalog up to 640 files. Load: FT2, PT3 (incl. TurboSound), PT2, FTC; save: FT2. Losses - in words in the log.
+- Buttons: Load, Save, **Compare** (after loading PT3 / PT2 / FTC - compare our player with the reference),
+  **PSG** (export: the song from position 0 to its end, chip 1 registers per frame → `<name>.psg`), Check (an FT2 file
+  against the track in memory), New, Exit WC, Device.
+- Import code lives on its own page (#06); Disk calls it through the core (`Call_Conv`).
+
+### Player
+
+- Notes, instruments and ornaments (FTC), volume, envelope, noise, 2 chips (TurboSound), accumulations as PT3/FTC,
+  note preview, all pattern commands (checked against PT3 with the comparator), envelope command (slides so far).
+- FX: rows are sent to the Trinity card as packets (`doc/trinity-api.md`); the card plays the timers.
+
+### Decided but not done yet
+
+- instrument library; PT3 compiler and other formats (STC, ASC, SQT, PSC, PT1, GTR), VT import;
+- the rest of the envelope commands (portamento, vibrato, arpeggio, on/off, detune, auto-envelope);
+- per-track cursor; pattern view rework; windows rework (`doc/todo.md`).
+
+---
+
+## Русский
+
+AY-трекер для ZX Evolution с TS-Config, на ассемблере Z80 (sjasmplus). Наследник Fast Tracker для ZX Spectrum. На
+экране — «Fast Tracker 2.01b». Автор — Orion/DR.
+
+Целевое железо — звуковая карта **ZX Trinity** (AY с таймерными эффектами в духе Atari ST — SID, sync-buzzer, FM, ШИМ:
+RP2350 пишет их прямо в AY, плюс GS); описание — `doc/zx-trinity.md`. Без карты FT2 играет на обычном AY / TurboSound.
+
+Шпаргалка ниже — что уже решено и как устроено. Обновляется по команде.
+
+### Сборка и запуск
+
+- **F5 в VS Code** (или `build.bat` из корня): FAT32-драйвер (`drivers/fat32`), sjasmplus `srs/main.asm`, spgbld
+  `srs/spg.ini` → **каталог `FT2/`** (`ft2b.spg` и `ft2.ini` из `srs/ft2.ini`); robimg кладёт его в образ
+  `tools/unreal/wc.img` как `\FT2`, тестовые модули (`Modules for test`) — в `\MUSIC`; запускается Unreal.
+- `ft2.ini`: `load=` — трек, который грузится при старте (путь от корня карты).
+- `tools/` (эмуляторы, образ диска) и `pentevo/` (исходники Evo, Unreal, доки TS-Config) — только локально, в git нет.
+- Эмуляторы: **Unreal** — наша сборка `tools/unreal/Unreal.exe` (ниже), оригинал tslabs 2024-07-08 — `Unreal_orig.exe`;
+  **Xpeccy** — мышь нормальная. Эталон — настоящий ZX Evolution.
+
+### Свой Unreal
+
+- Исходник в `unreal/` — tslabs/zx-evo, коммит `02d4daf`. Сборка VS 2019 **v142**:
+  `MSBuild unreal\Unreal_2017.sln -p:Configuration="Release Unreal" -p:Platform=x64`.
+- Наши правки: GXOFFS в текстовом режиме (как в ПЛИС); мышь по курсору Windows (`MouseDiv` в `Unreal.ini`); лог PS/2
+  без мыши, отпускание клавиш при возврате фокуса; починена запись на SD; устройство **AY FX** (карта таймерных
+  эффектов Trinity: `[AY] AYFX=1`); **кадровый журнал FT2** в Save Sound (`*.f2l`: регистры AY обоих чипов и
+  состояние таймеров карты по кадрам — для сверки с экспортом Bitphase).
+- `Unreal.ini`: `MouseDiv=2`, `video=triple`, `CONTROL=SYM` (Ctrl = Symbol Shift); звук `[AY] Chip=YM`, `Scheme=CHRV` —
+  TurboSound (`#FF` выбирает первый чип); привязки Unreal к F5/F6/F7 сняты (нужны трекеру). Отладчик — `` ` ``,
+  Esc доходит до трекера.
+
+### Структура
 
 | Где | Что |
 |---|---|
 | `srs/main.asm` | точка входа: подключает всё, раскладывает по страницам |
-| `srs/core.asm` | коре: IM1, старт, шрифты, вызов тулз |
+| `srs/core.asm` | коре: IM1, старт, вызов тулз; `impcore.asm` — общее для импорта, вызов конвертеров и PSG |
 | `srs/mem_defs.asm` | **карта страниц** и макросы страниц коре |
-| `sdk/plugin.asm` | **SDK**: формат паттерна, системные переменные, API, роли цветов, значки — один include для тулз и плагинов |
-| `srs/song.asm` | треки: выбор текущего (`Song_Select`), пустой трек (`Song_New`) |
-| `srs/toolscr.asm` | общее для тулз: шапка, рамки, кнопки транспорта |
-| `srs/palettes.asm` | палитры тем, `Set_Palette` (CRAM через DMA) |
-| `srs/patview.asm` + `srs/head.asm` | вид паттерна (6 каналов) и шапка |
-| `srs/instrview.asm` | вкладки Instr / Orn: редактор инструментов и орнаментов, проба ноты |
-| `srs/diskview.asm` | вкладка Disk: каталог, загрузка FT2 / PT3 / PT2 / FTC, сохранение FT2 |
-| `srs/pt3imp.asm`, `pt2imp.asm`, `ftcimp.asm` | импорт модулей (часть тулзы диска) |
-| `srs/optview.asm` | вкладка Setup: тема, шрифт, клавиши, `\FT2\FT2.INI` |
-| `srs/player.asm` | плеер (своя страница, тик из IM1) |
-| `srs/colors.asm` | тема по умолчанию (роль → атрибут) |
-| `srs/video.asm` | текстовый режим 90×36, стартовая палитра |
-| `srs/mouse.asm` | мышь Kempston + колесо, спрайт-курсор |
-| `srs/input.asm` | клавиатура PS/2 (лог AVR) с автоповтором, события кнопок мыши |
-| `srs/fields.asm` | поля: наведение, фокус, события мыши и клавиш полям |
-| `srs/instr.asm` | страница инструментов и орнаментов: пустая, запись блока |
-| `srs/diskcall.asm`, `srs/disk.asm` | вызов FAT32-драйвера (переходник в окне 2) |
+| `sdk/plugin.asm` | **SDK**: формат паттерна, системные переменные, API, роли цветов, коды команд |
+| `sdk/trinity_ay.asm` | единственный путь к карте Trinity (протокол — `doc/trinity-api.md`) |
+| `srs/song.asm` | треки: текущий (`Song_Select`), пустой трек (`Song_New`) |
+| `srs/patview.asm` + `head.asm` | вид паттерна (6 каналов) и шапка |
+| `srs/instrview.asm`, `fxedit.asm` | вкладки Instr / Orn / FX: редакторы инструментов, орнаментов и FX, проба ноты |
+| `srs/diskview.asm` | вкладка Disk: каталог, загрузка, сохранение, экспорт PSG (`psgexp.asm`), Check (`cncheck.asm`), сообщения импорта (`impdone.asm`) |
+| `srs/convview.asm` | страница конвертеров: импорт PT3 / PT2 / FTC (`pt3imp.asm`, `pt2imp.asm`, `ftcimp.asm`) |
+| `srs/ft2c.asm` | контейнер `.ft2` (`doc/formats/ft2.md`) |
+| `srs/cmpview.asm` | компаратор плеера против эталонных плееров (`ptsplay.asm`, `ftplay.asm`) |
+| `srs/optview.asm` | вкладки Setup и Help, `\FT2\FT2.INI` |
+| `srs/player.asm` | плеер (свои страницы, тик из IM1) |
+| `srs/window.asm`, `prim.asm`, `button.asm`, `spin.asm`, `scroll.asm`, `textin.asm`, `fields.asm` | окна и стандартные элементы интерфейса (`doc/ui.md`) |
+| `srs/input.asm`, `mouse.asm` | клавиатура PS/2 (лог AVR), мышь Kempston с колесом |
+| `srs/diskcall.asm`, `disk.asm` | вызов FAT32-драйвера |
 | `drivers/fat32/` | FAT32-драйвер (копия github.com/andrewinsidelazarev/FAT32-Driver-ZX-Evolution, MIT) |
-| `srs/fonts/` | шрифт `cp866bold.SpecCHR` (значки интерфейса — в нём же, коды #00-#1F) |
-| `includes/tsconfig.asm` | порты TS-Config |
-| `doc/` | архитектура, трекеры, форматы (`doc/formats/`), Bitphase, AY, инструменты, диск, плеер, плата Trinity, порты AY |
+| `srs/fonts/` | шрифт `cp866bold.SpecCHR` (значки интерфейса — коды #00-#1F) |
+| `doc/` | архитектура, трекеры, форматы (`doc/formats/`), Bitphase, AY, инструменты, плеер, карта Trinity |
 
-## Память
+### Память
 
-- Окна: 0 — коре (страница #00, IM1 на #38, стек #3E00-#3FFF), 1 — тулза или
-  плагин (org #4000), 2/3 — данные тулзы и экран.
-- Страницы переключаются **только макросами** (SETPAGEn/RESTPAGEn, MAPPAGE): они
-  ведут тени в `SV_PAGES`.
-- Распределение **жёсткое**, без менеджмента памяти: у каждого трека свои страницы.
-- Карта страниц — в шапке `srs/mem_defs.asm`. Основное:
+- Окна: 0 — коре (страница #00, IM1 на #38, стек #3E00-#3FFF), 1 — тулза или конвертеры (org #4000), 2/3 — данные
+  тулзы и экран. Страницы переключаются **только макросами** (они ведут тени в `SV_PAGES`).
+- Распределение жёсткое, без менеджмента памяти: у каждого трека свои страницы. Карта — шапка `srs/mem_defs.asm`:
 
 | Страницы | Что |
 |---|---|
 | #00 | коре |
 | #04 | вид паттерна |
-| #05 | наша, свободна (при запуске - резидент загрузчика SPG) |
-| #07 | плеер: таблицы и запас под FX (окно 2 на время тика) |
-| #06 | банк шрифтов + значки |
-| #08-#0F | графика спрайтов (не занимать — под эффекты) |
-| #10/#11 | текстовый экран / шрифт (шрифт = экран XOR 1) |
-| #12/#13 | второй экран / шрифт |
-| #14/#15 | FAT32-драйвер: код / рабочая память (+ порт SD-ZC на #3900) |
+| #05 | свободна (при запуске — резидент загрузчика SPG) |
+| #06 | конвертеры (импорт PT3 / PT2 / FTC) |
+| #07 | плеер: таблицы (окно 2 на время тика) |
+| #08-#0F | графика спрайтов |
+| #10/#11, #12/#13 | текстовый экран / шрифт, второй экран / шрифт |
+| #14/#15 | FAT32-драйвер: код / рабочая память |
 | #16/#17 | страницы треков 1 и 2 |
-| #18 | переходник к FAT32 (окно 2 на время вызова) |
+| #18 | переходник к FAT32 |
 | #19 | плеер: код (окно 1 на время тика в IM1) |
-| #1A-#1D | тулзы: диск, каталог диска, инструменты, Setup; #1E-#1F свободны |
-| #20-#27 | буферы обмена / отмены |
-| #28-#2B | буфер файла (4 страницы = 64К): модуль целиком, FT2 — потоком через одну страницу; он же буфер компиляции |
-| #2C-#BA | пул (143): трек 1 — паттерны #2C-#6B, инструменты #6C; трек 2 — паттерны #6E-#AD, инструменты #AE |
-| #BB-#BD | шаблоны строк вида паттерна (тусклый / активный / строка редактирования) |
-| #BE | номера роу 00..3F (общие для всех паттернов) |
+| #1A, #1B | тулза диска, её каталог |
+| #1C, #1D, #1E | Instr/Orn/FX, Setup/Help, компаратор |
+| #1F | свободна |
+| #20-#27 | буфер обмена / отмена |
+| #28-#2B | буфер файла (64К) |
+| #2C-#BA | пул: на трек 64 паттерна + инструменты/орнаменты + строки FX + таблицы FX (67 страниц) |
+| #BB-#BE | шаблоны вида паттерна и номера роу |
 | #BF | свободна |
 | #C0-#FF | система — не трогаем |
 
-- Свободно (`FREE_PAGES`) — 16 страниц, видно внизу вида паттерна и в Setup.
-- Системные адреса в коре: API #3C00, переменные `SV_*` #3D00, тема
-  `THEME_ATTR` #3D80.
+- Свободно 12 страниц (видно внизу вида паттерна и в Setup).
 
-## Кадр
+### Кадр
 
-- **IM1 каждый кадр по порядку:** музыка → мышь → ввод → вывод активного редактора
-  (`SV_FRAME_HOOK`). IM1 ничего не решает, только выполняет по переменным.
-- **Защита от повторного входа:** `Im_Busy` стоит весь обработчик; если IM1 пришёл,
-  пока идёт прошлый, он не выполняется, а считается в `Im_Reenter` (видно в Setup,
-  должно быть 00).
-- **Основной цикл:** вся логика, ввод, состояние.
-- **Весь интерфейс рисуется каждый кадр и обязан влезать в кадр** в худшем
-  случае. Пропуск перерисовки и кеш готовых строк — нельзя.
-- Основной код не держит DI дольше ~32 тактов: импульс кадрового INT длится
-  32 такта, его можно потерять, и музыка дёрнется.
-- **Замер времени:** Ctrl+T включает полосу времени — фон красится своим
-  цветом на каждый шаг, высота полосы = время шага. INT при этом переносится
-  на строку растра 32. Уходя из вида паттерна, фон возвращается обычный.
+- **IM1 каждый кадр по порядку:** музыка → мышь → ввод → вывод активного редактора. IM1 только исполняет, вся логика —
+  в основном цикле. Повторный вход закрыт (`Im_Busy`, счётчик `Im_Reenter` — в Setup).
+- **Весь интерфейс рисуется каждый кадр и влезает в кадр.** Пропуск перерисовки и кеш строк — нельзя.
+- Основной код не держит DI дольше ~32 тактов (импульс кадрового INT — 32 такта).
+- **Замер времени:** Ctrl+T — полоса времени: цвет бордюра на каждый шаг.
 
-## Трек и паттерн
+### Трек и паттерн
 
-- **Два трека в памяти.** Track 1 / 2 в шапке переключает редактируемый (плеер
-  стоп, вид перечитывает трек). Загрузка, сохранение, инструменты и проба — в
-  текущий трек; плеер играет тот, что правится. При старте оба пустые.
-- **Лимиты:** паттернов 64, инструментов 32, орнаментов 16, FX 32, позиций 255,
-  роу 64. Откомпилированный трек ≤ 32К.
-- **Паттерн:** роу = старший байт адреса (#80+роу, до 64 роу = страница 16К),
-  младший — смещение в полосе 256 байт. 0 в любом поле = пусто.
-- **Чип** (8 байт заголовка + 3 канала по 16 = 56), 1 или 2 чипа, данные роу —
-  112 байт (`PAT_DATA_SIZE`):
-  - заголовок: период огибающей 2, огибающая-2 2, шум 1, нота огибающей 1
-    (ставится при вводе), резерв 2;
-  - канал: нота 1 (1..96, 97+ — команды нот), сэмпл 1, огибающая 1, орнамент 1,
-    громкость 1, резерв 1, команда 1 — 2 байта, команда 2 — 2 байта, резерв 6.
-- **Команда** — 2 байта (код<<4 | задержка, параметр). На экране 4 hex.
-- **Инструменты и орнаменты** — формат FTC (`doc/instruments.md`).
+- **Два трека в памяти** (Track 1 / 2 в шапке). Загрузка, сохранение, инструменты и проба — в текущий.
+- **Лимиты:** паттернов 64, инструментов 32, орнаментов 16, FX 32, позиций 256, роу 64. Откомпилированный трек ≤ 32К.
+- **Паттерн** — одна страница 16К; роу — 256 байт: данные 0..111 (2 чипа × 56), дальше готовый текст роу.
+- **Чип:** заголовок 8 байт (период огибающей 2, **команда огибающей** 2, шум 1, нота огибающей 1, резерв 2) + 3 канала
+  по 16 (нота, сэмпл, форма огибающей, орнамент, громкость, резерв, 2 команды по 2 байта, резерв 6).
+- **Команда** — 2 байта (код<<4 | задержка, параметр), на экране 4 hex; коды — `doc/commands.md`. **Команда
+  огибающей** (колонка Env) действует на период огибающей чипа — как колонка эффекта огибающей Bitphase.
+- **Инструменты и орнаменты** — формат FTC (`doc/instruments.md`); **FX** — `doc/fx-row.md`.
 
-## Шапка
+### Шапка
 
-- Строка 0 — тёмная полоса: «Fast Tracker 2.01b», вкладки Instr Orn FX, кнопки
-  транспорта (спрайты), за Stop — 3ch/6ch и стерео, справа Disk Setup и Help About.
-- Строки 1–3: File, Chip, Tune; Song, By, Track 1/2; Speed, Size, Octave, Step
-  (кнопки `[-] число [+]`), Env as Note, Auto Env, Env FT/PT.
-- **Tune** — таблица нот: 1.75 МГц (по умолчанию, YM на Evo) или 1.7734 МГц (для
-  старых модулей). Обе ровные, A-4 = 440 Гц; кривые таблицы PT3 не берём.
-- **Стерео** — 5 раскладок как в VT: ABC ACB BAC BCA CAB. Плеер переставляет каналы
-  (тон, громкость, биты микшера) только при выводе в AY, паттерн не меняется.
-- **Env FT/PT** — как считать период огибающей (`SH_ENVMODE`): FT — его ведёт канал с
-  огибающей; PT — смещения сэмплов всех каналов чипа складываются (как PT3, импорт PT3
-  ставит PT). Стерео и Env — глобальные `Song_Stereo` / `Song_EnvMode` в коре: шапка
-  переключает и пишет в трек, плеер берёт сразу.
-- Chip пока только хранится в треке.
+- Строка 0: «Fast Tracker 2.01b», вкладки, кнопки транспорта, 3ch/6ch и стерео, Disk Setup Help About.
+- Строки 1–3: File, Chip, Tune; Song, By, Track 1/2; Speed, Size, Octave, Step, Env as Note, Auto Env, Env FT/PT.
+- **Tune** — таблица нот: 1.75 МГц (по умолчанию, YM на Evo) или 1.7734 МГц; обе ровные, A-4 = 440 Гц.
+- **Стерео** — 5 раскладок как в VT (ABC ACB BAC BCA CAB), только при выводе.
+- **Env FT/PT** — FT: период огибающей ведёт канал с огибающей; PT: смещения сэмплов всех каналов складываются (PT3).
 
-## Просмотр паттерна (`srs/patview.asm`)
+### Вид паттерна, редактор, инструменты
 
-- **Паттерн = одна страница 16К.** Строка 256 байт на роу:
-  - L 0..111 — данные (2 чипа × 56);
-  - L 112..253 — готовый текст этой роу: «блок» закрытых частей всех элементов
-    (ровно экранный вид при «всё закрыто»), за ним «расширения» открытого вида.
-  Текст делает основной цикл (`Row_To_Text`) при загрузке и правке клетки.
-  Пустые значения — точки.
-- **Текст элемента:** закрытое — начало открытого.
-  - канал: `C-4 A1FE 1234 5678`, закрыт 8, открыт 18;
-  - Env: `0134 1F 0000 `, закрыт 7, открыт 13.
+- Экран пересобирается каждый кадр: поля — DMA-черепицей, атрибуты — DMA из шаблонов, разделители поверх. Открыт один
+  элемент (канал под курсором или Env чипа), остальные закрыты.
+- Клавиши — через таблицу действий (`ACT_*`, `Bind_Tab`; умолчания — VT). Ввод как VT; выделение, буфер обмена,
+  транспонирование, отмена (5 шагов в канале). Проигрывание: F5 — сонг с позиции, F6 — с начала, F7 — паттерн с роу,
+  F8 — паттерн, Esc — стоп. Ctrl+E — Env чипа, Alt+E — огибающая нотой, Ctrl+T — полоса времени.
+- Instr / Orn / FX: список, Name, Len, Loop, Clone Copy Paste Clear Unloop, строки; внизу — проба ноты.
 
-  Добавки 10 и 6 чётные, поэтому чётность колонок для DMA не зависит от раскладки.
-- **Экран пересобирается целиком каждый кадр в IM1** (никакого отслеживания
-  изменений), по проходам:
-  1. поля — DMA-«черепица»: на кусок роу одного паттерна по транзакции на
-     элемент сразу на все строки куска; пустые строки — из шаблона;
-  2. атрибуты — одна DMA на кусок одинакового состояния из страниц-шаблонов
-     (тусклый / активный паттерн / строка редактирования);
-  3. разделители `│`/`║` и цвет номеров роу — процессором поверх.
+### Диск
 
-  Номера роу — черепицей из общей страницы #BE.
-- **Раскладка:** открыт один элемент — канал под курсором или Env чипа, остальные
-  закрыты. Экран: `│r05кн│00│Env│A│B│C║Env│D│E│F│`. X-скролл не нужен.
-- **Таблица роу:** основной цикл каждый кадр решает, что в какой экранной строке
-  — из ордера и режима: стоп, плей паттерна, плей сонга. Полотно склеено по
-  ордеру, как в Bitphase: активный паттерн ярко, соседние тускло.
-- **Ордер:** `│r05`, текущая позиция — `►r05`, r — позиция повтора. У текущей
-  позиции кнопки, как в Bitphase: U (Unique), `−`, `+`, Clone.
+- Каталог до 640 файлов. Загрузка: FT2, PT3 (в т.ч. TurboSound), PT2, FTC; сохранение: FT2. Потери — словами в логе.
+- Кнопки: Load, Save, **Compare** (после загрузки PT3 / PT2 / FTC — сравнить наш плеер с эталоном), **PSG** (экспорт:
+  трек с позиции 0 до конца, регистры чипа 1 по кадрам → `<имя>.psg`), Check (файл FT2 против трека в памяти), New,
+  Exit WC, Device.
+- Код импорта — в своей странице (#06), Disk зовёт его через коре (`Call_Conv`).
 
-## Команды паттерна
+### Плеер
 
-`NDPp` в клетке, раскладка — `doc/commands.md`: коды 1..E (задержка + параметр, номера VT),
-F + подкод (ретриггер, детюн, задержка ноты). Портаменто — как VT. Плеер играет все (правила — `doc/commands.md`, «Как плеер играет команды»).
+- Ноты, инструменты и орнаменты (FTC), громкость, огибающая, шум, 2 чипа (TurboSound), накопления как в PT3/FTC, проба
+  ноты, все команды паттерна (сверено с PT3 компаратором), команда огибающей (пока слайды).
+- FX: строки уходят в карту Trinity пакетами (`doc/trinity-api.md`), таймеры играет карта.
 
-## Редактор паттерна
+### Решено, но ещё не сделано
 
-- Клавиши — через таблицу действий: `ACT_*` и `KEY_*` в `sdk/plugin.asm`, бинды `Bind_Tab` в коре
-  (`srs/text.asm`, умолчания — VT). Тулзы перечисляют действия; переназначение — потом из INI.
-- Курсор — поле в строке редактирования (сплошной / мигающий — Setup). ← → по полям, Tab — каналы.
-  Клик — курсор в поле и роу (как Bitphase), выделение — Shift (стрелки или клик).
-- Ввод как VT: ноты пианино (Shift — октава выше), A — off, K — стереть, цифры в поля, Delete;
-  строка звучит, пока держишь; шаг Step (Space — вкл/выкл, Ctrl+0..9), октава Numpad 1..8,
-  Enter — паттерн с курсора, пока держишь.
-- Строки: Insert / Backspace — строка трека, Ctrl+I / Ctrl+Y — строка паттерна.
-- Выделение по клеткам (канал / Env): Ctrl+C X V, Delete, Numpad +/− (Ctrl — октава).
-- Отмена: 5 шагов, только в пределах канала (Ctrl+Z / Ctrl+Shift+Z), кольцо в `PAGE_EDBUF` (#20);
-  там же буфер обмена. Операции на всю роу сбрасывают отмену.
-
-## Инструменты и орнаменты (`srs/instrview.asm`)
-
-- Слева список (номер как в паттерне и имя), в середине Name, Len, Loop, кнопки
-  Clone Copy Paste Clear Unloop `<` `>` и строки; справа — библиотека (позже).
-- Строка инструмента: `TNE`, тон, шум, огибающая (`^` — накопление), громкость,
-  слайд, ретриггер, полоса громкости. Цикл — скобка `┌ │ └` слева.
-- Внизу — **проба ноты**: в фокусе (Tab) пианино, нота звучит, пока держишь;
-  ▶ мышью; Oct, Orn/Ins, Vol, Env.
-- Справа в каждой строке `+` (вставить копию строки под ней) и `×` (удалить строку), под
-  мышью подсвечены; цикл сдвигается вместе со строками. Цикл сюда — клик по скобке или
-  номеру строки. Enter в строках играет ноту пробы, пока держишь.
-
-## Диск (`srs/diskview.asm`)
-
-- Каталог: записи переменной длины + таблица адресов, до 640 файлов, имена до 119 знаков;
-  длинное имя в списке — начало, `~` и последние 4 знака. Не влезло — «Too many files».
-- Каталог, Load / Save. Загрузка: FT2, PT3 (в т.ч. TurboSound — два модуля или
-  3.7), PT2, FTC. Сохранение: FT2. Что не влезло — словами в сообщении.
-- Справочник по форматам — `doc/formats/`, сверено с конвертерами Vortex Tracker.
-- Галочка **Compare** — после загрузки PT3 / PT2 / FTC (до 32К) сравнить наш плеер с
-  эталоном (см. ниже).
-
-## Компаратор плеера (`srs/cmpview.asm`)
-
-- Эталон: PT3 / PT2 — плеер С.В. Бульбы (`srs/ptsplay.asm`), FTC — плеер Fast Tracker
-  1.15 (`srs/ftplay.asm`, копия `players/FT1-15player_src.asm`, правки помечены `FT2:`).
-- Эталону подставляются наши таблицы нот и громкостей; команды паттерна он играет
-  (`CM_NOFX` = 0; 1 - выкл, кроме темпа). Стерео на время сравнения выключено (`St_Mask`). Старт выравнивается по первому звуку.
-- Каждый кадр без прерываний сравниваются только звучащие регистры. В конце —
-  кадр, позиция, роу первого расхождения и снимок регистров и каналов обоих плееров.
-- Модуль до 32К: на кадр эталона он встаёт в окна 1 и 2. Полоса прогресса по позициям, проценты.
-- Импорт PT3: смещение тона сэмпла — младшие 12 бит (период AY 12-битный, по модулю 4096 звук
-  тот же), а не обрезка до ±2047 (Melomagic 3 совпал полностью).
-- FTC (Nostalgy.ftc) первым расходится по R13 — у FT своя логика огибающей; открыт вопрос флага
-  ретриггера (`CLAUDE.md`).
-- Найден баг FT 1.15: на роу без событий C оставался с входа, при C=0 портаменто
-  считалось заново по старым нотам (в копии исправлено).
-
-## Setup и Help (`srs/optview.asm`)
-
-- Setup: тема (6 палитр: синяя, бирюзовая, зелёная, оливковая, серая, красная — схема
-  одна, базовый оттенок разный), шрифт, мышь (скорость, ускорение), вид курсора паттерна
-  (сплошной / мигающий), свободная память, IM1.
-- Настройка применяется сразу, в `\FT2\FT2.INI` пишется только по Save (`palette=`, `font=`,
-  `mouse_speed=`, `mouse_accel=`, `cursor_blink=`); при старте файл читается.
-- Help — та же тулза в режиме `OPT_HELP`, закладки Keys | Commands. Клавиши — из биндов
-  (`Bind_Tab`), коды команд — из `CMD_*` / `CMDX_*`: поменяли бинд или код — справка верна сама.
-
-## Ввод
-
-- **Клавиатура PC (PS/2):** лог сканкодов AVR — расширение часов Gluk #02.
-  Порты часов (`#DFF7`/`#BFF7`) открывает бит 7 порта `#EFF7` — без него читается
-  #FF. После переполнения лог отдаёт #FF, пока его не сбросят (регистр #0C, бит 0).
-- `srs/input.asm` в IM1: карта нажатых, очередь событий, автоповтор (задержка и
-  частота — системные переменные), модификаторы. Основной цикл берёт `Key_Get`.
-  Код клавиши = сканкод набора 2, у E0-клавиш +128, F7 → #7F.
-- **Кнопки мыши:** счётчики нажатий, отпусканий, повторов и двойных кликов;
-  основной цикл читает `Mouse_Btn`. Кнопки на экране — как в Windows.
-- **Бинды** — таблица `Hotkeys` в тулзе. Проигрывание как в VT: F5 — сонг с
-  позиции, F6 — с начала, F7 — паттерн с роу, F8 — паттерн с начала, Esc — стоп.
-  Ctrl+E — Env чипа, Alt+E — огибающая нотой, Ctrl+T — полоса времени.
-- Колесо — роу, Ctrl/Shift + колесо — канал.
-
-## Цвета и шрифт
-
-- Цвет берётся **готовым из темы** — роль `CLR_*` → полный атрибут
-  (paper<<4 | ink). Никаких расчётов и масок.
-- Палитра в CRAM пишется только через DMA (запись процессором через FM-окно
-  портит память под ним).
-- **Стиль Bitphase:** рамки еле видны, ярко только данные, пустое — точки,
-  активный паттерн ярко, соседние тусклее.
-- **Шрифт:** один, `srs/fonts/cp866bold.SpecCHR` — spg грузит его прямо в PAGE_FONT (#11); значки
-  интерфейса (коды #00-#1F) нарисованы в нём же. Выбора шрифта нет, страница #06 свободна.
-- **Кнопки:** два знакоместа, без рамок, нажатая — код+#10 со сдвигом на точку:
-  [+], [−], U (#08), Clone (#0E); клетка полосы громкости — #16.
-
-## Плеер (`srs/player.asm`, `doc/player.md`)
-
-- Ноты, инструменты и орнаменты (FTC), громкость, огибающая, шум, 2 чипа
-  (TurboSound), накопления как в PT3/FTC, проба ноты. Команды паттерна — все
-  (`doc/commands.md`), не проверены на Спектруме.
-- Огибающая FT / PT, стерео при выводе (см. «Шапка»).
-
-## Решено, но ещё не сделано
-
-- номер паттерна в ордере цифрами;
-- библиотека инструментов (каталог справа), Delete;
-- компилятор в PT3, остальные форматы (STC, ASC, SQT, PSC, PT1, GTR), импорт из VT;
-- курсор каждого трека — свой при переключении;
-- полосы прокрутки, окна, контекстное меню — по `doc/architecture.md`;
-- выделение блока; основной цикл без `halt`.
+- библиотека инструментов; компилятор в PT3 и остальные форматы (STC, ASC, SQT, PSC, PT1, GTR), импорт из VT;
+- остальные команды огибающей (портаменто, вибрато, арпеджио, вкл / выкл, детюн, автоогибающая);
+- свой курсор у каждого трека; реворк вида паттерна; реворк окон (`doc/todo.md`).
