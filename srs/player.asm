@@ -1168,17 +1168,6 @@ PoGo    ld e,a
         jr z,PoOnce
         GATE_OFF GM,GDl             ; глисс - без проверки "доехали"
         GATE_ON GG
-        ld a,(Song_EnvMode)         ; PT: счёт задержки - после вывода, со следующего тика
-        or a
-        ret nz
-        ld a,(GC+1)                 ; FT (Bitphase): первый тик - в кадре строки, до вывода
-        dec a                       ;   (задержка 1 - шаг сразу, 3 - через два кадра)
-        jr nz,PoTk
-        ld hl,(GOF+1)
-        add hl,de
-        ld (GOF+1),hl
-        ld a,(GD+1)
-PoTk    ld (GC+1),a
         ret
 PoOnce  GATE_OFF GG,GEnd
         ld hl,(GOF+1)
