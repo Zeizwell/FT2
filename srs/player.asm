@@ -2079,14 +2079,14 @@ Fx_Tick
         ld hl,Fx_Card+1
         or (hl)
         ret z
-        ld a,(Pl_InsPage)           ; страница таблиц и заголовков FX - за строками FX
-        add a,2
+        ld a,(Pl_InsPage)           ; страница таблиц и заголовков FX - инструменты, орнаменты, строки FX, она (PAGES_PER_SONG)
+        add a,3
         SETPAGE3 a
         call Fx_Heads               ; новые ноты: заголовки FX каналов
         call Fx_TabEdit             ; таблица, правленная в редакторе - в карту
         call Fx_RowEdit             ; строка, правленная в редакторе - каналам заново
-        ld a,(Pl_InsPage)           ; строки FX - за инструментами
-        inc a
+        ld a,(Pl_InsPage)           ; строки FX - за инструментами и орнаментами
+        add a,2
         SWAPPAGE 3,a
         xor a                       ; чип 1: каналы 0..2
         call .chip
@@ -2360,7 +2360,7 @@ Fx_Tables
         or (hl)
         ret z
         ld a,(Pl_InsPage)
-        add a,2
+        add a,3
         SETPAGE3 a
         ld c,#FD
         ld a,(Fx_Card)
