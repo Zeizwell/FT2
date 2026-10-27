@@ -51,6 +51,8 @@ Pc_ESum         db 0                ; PT: сумма смещений огиба
 Pl_PatPage      db 0                ; страница паттерна текущей позиции
 Pl_PatLen       db 64
 Pl_InsPage      db 0
+Pl_FxPage       db 0                ; строки FX (SH_FX_PAGE)
+Pl_FxTPage      db 0                ; таблицы и заголовки FX (SH_FXT_PAGE)
 Pl_NoteTab      dw NoteT            ; таблица нот трека (NoteT - копия по SH_TUNING)
 Pl_OrdLast      db 0
 Pl_OrdLoop      db 0
@@ -248,6 +250,10 @@ Pl_Song_Info
         ld (SV_PLAY_SPEED),a
         ld a,(#C000+SH_INS_PAGE)
         ld (Pl_InsPage),a
+        ld a,(#C000+SH_FX_PAGE)     ; страницы FX - из шапки трека
+        ld (Pl_FxPage),a
+        ld a,(#C000+SH_FXT_PAGE)
+        ld (Pl_FxTPage),a
         ld a,(#C000+SH_TUNING)      ; таблица нот: 0 - 1.75 МГц, иначе 1.7734
         or a
         ld hl,Note_175
@@ -2079,14 +2085,12 @@ Fx_Tick
         ld hl,Fx_Card+1
         or (hl)
         ret z
-        ld a,(Pl_InsPage)           ; страница таблиц и заголовков FX - инструменты, орнаменты, строки FX, она (PAGES_PER_SONG)
-        add a,3
+        ld a,(Pl_FxTPage)           ; таблицы и заголовки FX
         SETPAGE3 a
         call Fx_Heads               ; новые ноты: заголовки FX каналов
         call Fx_TabEdit             ; таблица, правленная в редакторе - в карту
         call Fx_RowEdit             ; строка, правленная в редакторе - каналам заново
-        ld a,(Pl_InsPage)           ; строки FX - за инструментами и орнаментами
-        add a,2
+        ld a,(Pl_FxPage)            ; строки FX
         SWAPPAGE 3,a
         xor a                       ; чип 1: каналы 0..2
         call .chip
@@ -2359,8 +2363,7 @@ Fx_Tables
         ld hl,Fx_Card+1
         or (hl)
         ret z
-        ld a,(Pl_InsPage)
-        add a,3
+        ld a,(Pl_FxTPage)
         SETPAGE3 a
         ld c,#FD
         ld a,(Fx_Card)

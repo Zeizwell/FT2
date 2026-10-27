@@ -1759,6 +1759,10 @@ Cat_Get
         jr c,.p
         ld a,(Trk_Ins)
         ld (#8000+SH_INS_PAGE),a
+        ld a,(Trk_Fx)               ; страницы FX - явно
+        ld (#8000+SH_FX_PAGE),a
+        ld a,(Trk_FxT)
+        ld (#8000+SH_FXT_PAGE),a
         RESTPAGE2
         ret
 

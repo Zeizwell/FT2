@@ -33,6 +33,10 @@ Song_Clear
         ld (#8000+SH_STEP),a
         ld a,(Trk_Ins)
         ld (#8000+SH_INS_PAGE),a
+        ld a,(Trk_Fx)               ; страницы FX - явно
+        ld (#8000+SH_FX_PAGE),a
+        ld a,(Trk_FxT)
+        ld (#8000+SH_FXT_PAGE),a
         ld hl,#8000+SONG_FX_NAMES   ; имена FX - пустые
         ld de,#8000+SONG_FX_NAMES+1
         ld bc,FXS_MAX*16-1

@@ -135,6 +135,8 @@ Iv_Start
         SETPAGE2 a
         ld a,(#8000+SH_INS_PAGE)
         ld (Iv_Page),a
+        ld a,(#8000+SH_FX_PAGE)     ; FX - своя страница
+        ld (Iv_FxPage),a
         RESTPAGE2
         ld a,(Iv_Page)              ; инструменты - в окно 2 на всё время работы
         SETPAGE2 a
@@ -195,7 +197,8 @@ Iv_Leave
         ret
 
 ; --- состояние
-Iv_Page         db 0                ; страница инструментов и орнаментов трека (FX - следующая)
+Iv_Page         db 0                ; страница инструментов и орнаментов трека
+Iv_FxPage       db 0                ; страница строк FX (SH_FX_PAGE)
 Iv_Mode         db 0                ; 0 - инструменты, 1 - орнаменты, 2 - FX
 Iv_Exit         db 0                ; 1 - выйти в коре
 Iv_Dirty        db 0                ; 1 - перерисовать экран
@@ -224,13 +227,11 @@ Iv_Set_Mode
         call Hl_Add_A
         ld a,(hl)
         ld (Iv_Num),a
-        ld a,(Iv_Page)              ; окно 2: FX - страница за инструментами
-        ld b,a
-        ld a,(Iv_Mode)
+        ld a,(Iv_Mode)              ; окно 2: FX - своя страница, иначе инструменты
         cp 2
-        ld a,b
-        jr nz,$+3
-        inc a
+        ld a,(Iv_FxPage)
+        jr z,$+5
+        ld a,(Iv_Page)
         SWAPPAGE2 a
         xor a
         ld (Iv_LTop),a
