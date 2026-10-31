@@ -14,7 +14,7 @@ commands, the envelope column, the timer effects (FX), the instrument model. Bit
 checked against (PSG exports, `doc/bitphase.md`).
 
 Target hardware: the **ZX Trinity** sound card (AY with timer effects in the style of the Atari ST - SID, sync-buzzer,
-FM, PWM - written by an RP2350 straight into the AY, plus GS); see `doc/zx-trinity.md`. Without the card FT2 plays a
+FM, PWM - written by an RP2350 straight into the AY, plus GS); see `Trinity/doc/zx-trinity.md`. Without the card FT2 plays a
 normal AY / TurboSound.
 
 The notes below are what is decided and how it works. Updated on request.
@@ -49,7 +49,7 @@ The notes below are what is decided and how it works. Updated on request.
 | `srs/core.asm` | core: IM1, start, tool calls; `impcore.asm` - shared import code, converter and PSG calls |
 | `srs/mem_defs.asm` | **page map** and core page macros |
 | `sdk/plugin.asm` | **SDK**: pattern format, system variables, API, colour roles, command codes |
-| `sdk/trinity_ay.asm` | the only way to talk to the Trinity card (protocol - `doc/trinity-api.md`) |
+| `sdk/trinity_ay.asm` | the only way to talk to the Trinity card (protocol - `Trinity/doc/trinity-api.md`) |
 | `srs/song.asm` | tracks: current one (`Song_Select`), empty track (`Song_New`) |
 | `srs/patview.asm` + `head.asm` | pattern view (6 channels) and the header |
 | `srs/instrview.asm`, `fxedit.asm` | Instr / Orn / FX tabs: instrument, ornament and FX editors, note preview |
@@ -142,7 +142,7 @@ The notes below are what is decided and how it works. Updated on request.
 
 - Notes, instruments and ornaments (FTC), volume, envelope, noise, 2 chips (TurboSound), accumulations as PT3/FTC,
   note preview, all pattern commands (checked against PT3 with the comparator), envelope command (slides so far).
-- FX: rows are sent to the Trinity card as packets (`doc/trinity-api.md`); the card plays the timers.
+- FX: rows are sent to the Trinity card as packets (`Trinity/doc/trinity-api.md`); the card plays the timers.
 
 ### Decided but not done yet
 
@@ -162,7 +162,7 @@ AY-трекер для ZX Evolution с TS-Config, на ассемблере Z80 
 `doc/bitphase.md`).
 
 Целевое железо — звуковая карта **ZX Trinity** (AY с таймерными эффектами в духе Atari ST — SID, sync-buzzer, FM, ШИМ:
-RP2350 пишет их прямо в AY, плюс GS); описание — `doc/zx-trinity.md`. Без карты FT2 играет на обычном AY / TurboSound.
+RP2350 пишет их прямо в AY, плюс GS); описание — `Trinity/doc/zx-trinity.md`. Без карты FT2 играет на обычном AY / TurboSound.
 
 Шпаргалка ниже — что уже решено и как устроено. Обновляется по команде.
 
@@ -196,7 +196,7 @@ RP2350 пишет их прямо в AY, плюс GS); описание — `doc
 | `srs/core.asm` | коре: IM1, старт, вызов тулз; `impcore.asm` — общее для импорта, вызов конвертеров и PSG |
 | `srs/mem_defs.asm` | **карта страниц** и макросы страниц коре |
 | `sdk/plugin.asm` | **SDK**: формат паттерна, системные переменные, API, роли цветов, коды команд |
-| `sdk/trinity_ay.asm` | единственный путь к карте Trinity (протокол — `doc/trinity-api.md`) |
+| `sdk/trinity_ay.asm` | единственный путь к карте Trinity (протокол — `Trinity/doc/trinity-api.md`) |
 | `srs/song.asm` | треки: текущий (`Song_Select`), пустой трек (`Song_New`) |
 | `srs/patview.asm` + `head.asm` | вид паттерна (6 каналов) и шапка |
 | `srs/instrview.asm`, `fxedit.asm` | вкладки Instr / Orn / FX: редакторы инструментов, орнаментов и FX, проба ноты |
@@ -289,7 +289,7 @@ RP2350 пишет их прямо в AY, плюс GS); описание — `doc
 
 - Ноты, инструменты и орнаменты (FTC), громкость, огибающая, шум, 2 чипа (TurboSound), накопления как в PT3/FTC, проба
   ноты, все команды паттерна (сверено с PT3 компаратором), команда огибающей (пока слайды).
-- FX: строки уходят в карту Trinity пакетами (`doc/trinity-api.md`), таймеры играет карта.
+- FX: строки уходят в карту Trinity пакетами (`Trinity/doc/trinity-api.md`), таймеры играет карта.
 
 ### Решено, но ещё не сделано
 

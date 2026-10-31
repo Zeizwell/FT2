@@ -1,14 +1,15 @@
+; EN: Copy for building FT2 alone, the original is Trinity/sdk/trinity_ay.asm. RU: Копия для сборки FT2 без карты, оригинал - Trinity/sdk/trinity_ay.asm.
 ; =========================================================================
 ; ZX Trinity AY FX - SDK for Z80 programs / SDK для программ Z80
 ; -------------------------------------------------------------------------
 ; EN: Timer effects card on the AY ports (SID, Sync, FM, Env FM). The card sits in the AY bus and is talked to
 ;     through two free AY register numbers. Include this file where the code should go: constants take no
 ;     memory, routines are a few bytes each. Packet codes live here only - change them here, everyone follows.
-;     Protocol: FT2 doc/ay-ports-map.md 5a, FX row: doc/fx-row.md.
+;     Protocol: FT2 Trinity/doc/ay-ports-map.md 5a, FX row: doc/fx-row.md.
 ; RU: Карта таймерных эффектов на портах AY (SID, Sync, FM, Env FM). Стоит в шине AY, говорим с ней через два
 ;     свободных номера регистра AY. Подключать файл там, где должен лечь код: константы памяти не занимают,
 ;     процедуры - по несколько байт. Коды пакетов - только здесь: правим здесь, все берут отсюда.
-;     Протокол: FT2 doc/ay-ports-map.md п.5а, строка FX - doc/fx-row.md.
+;     Протокол: FT2 Trinity/doc/ay-ports-map.md п.5а, строка FX - doc/fx-row.md.
 ;
 ; EN: Usage: select the chip (#FF / #FE to #FFFD for TurboSound), C = #FD, then call the routines.
 ;     Every routine keeps C = #FD and the selected chip; B and A are spoiled.

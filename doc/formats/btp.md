@@ -3,7 +3,7 @@
 Разобрано 2026-10-20 по исходникам `paator/bitphase` (GitHub): `docs/import-export.md`, `cli/btp-loader.ts`,
 `src/lib/models/project.ts`, `song.ts`, `services/file/project/file-import.ts` / `file-export.ts`,
 `services/file/taym/taym-spec.ts`; ключи JSON проверены на демо-проектах `src/demo/*.btp`. Интерфейс Bitphase —
-`doc/bitphase.md`, таймерные эффекты физически — `doc/bitphase-fx.md`.
+`doc/bitphase.md`, таймерные эффекты физически — `Trinity/doc/bitphase-fx.md`.
 
 ## 1. `.btp` = JSON, сжатый gzip
 
@@ -62,7 +62,7 @@
   `envelopeAccumulation` (как PT3 / VT);
 - **новое**: `macros{}` — `{values[], loop, release?}` по полям (и `timerMacros`); старое при загрузке переводится.
 
-Таймерные эффекты (`doc/bitphase-fx.md`): `timerRows[]` — `sid`, `syncbuzzer`, `fm`, `envFm`, `sidPeriodMode`,
+Таймерные эффекты (`Trinity/doc/bitphase-fx.md`): `timerRows[]` — `sid`, `syncbuzzer`, `fm`, `envFm`, `sidPeriodMode`,
 `fmOffsetMode` (`semitone` ...), `semitone`, `detune`, `timerWaveform[]` + `timerWaveformLoop`, `fmWaveform[]` +
 `fmWaveformLoop`, `envFmWaveform[]` + `envFmWaveformLoop`; на инструмент: `timerLoop`, `timerPwmDuty`,
 `timerPwmSweep`, `timerPwmSweepMin`, `timerPwmSweepShape` (`triangle` ...), `timerPwmSweepStartPhase`,
@@ -75,7 +75,7 @@
 | **WAV** | звук; 22–96 кГц, 16 / 24 / float, повторы, каналы отдельно (ZIP) | всегда | слушать эталон |
 | **PSG** | дамп регистров AY по кадрам | одна песня AY (несколько — ZIP по чипу) | плеер PSG на RP-AY / Спектруме — просто |
 | **TAYM** | дамп регистров + **описание таймеров**, что переписывают регистры между кадрами (SID, sync-buzzer, digi) — формат `ruguevara/taym` | одна песня AY (несколько — ZIP) | **ближе всего к Trinity AY FX**: таймеры -> наши пакеты FX |
-| **SNDH** | плеер для Atari ST: PSG-дамп + заголовок (таймер 50 Гц) | одна песня AY | режим ATARI на RP-AY (`doc/trinity-sndh.md`) |
+| **SNDH** | плеер для Atari ST: PSG-дамп + заголовок (таймер 50 Гц) | одна песня AY | режим ATARI на RP-AY (`Trinity/doc/trinity-sndh.md`) |
 | **VGM** | дамп для VGM-плееров, AY и NES (до 2 каждого), таймерные эффекты AY записаны | AY / NES | справочно |
 | **NSF** | для NES-плееров (AY -> Sunsoft 5B) | AY / NES | нет |
 
@@ -101,7 +101,7 @@ Start / Modulate / Stop; числа с фиксированной точкой 1
   на несуществующую таблицу — пусто; экспорт PSG Bitphase теряет повторную запись R13 (`doc/bitphase.md`).
 - **Импорт `.btp` в FT2** — на Спектруме gzip + JSON тяжело; проще конвертер на ПК `.btp` -> `.ft2` (как `btp-to-psg`
   у них в `cli/`).
-- **Конвертер внутри карты** (решено 2026-10-25, `doc/zx-trinity.md` п.14в): Ева отдаёт `.btp` в карту, **RP-AY**
+- **Конвертер внутри карты** (решено 2026-10-25, `Trinity/doc/zx-trinity.md` п.14в): Ева отдаёт `.btp` в карту, **RP-AY**
   (сервис на ядре 0 — AY-фичи в RP-AY, GS-фичи в RP-GS, не смешивать) распаковывает gzip + JSON **потоком** (окно 32К,
   целиком не разворачивать) и отдаёт готовый `.ft2` потоком — без ПК. Код конвертера — C, один и тот же для ПК (тест на
   хосте) и RP.

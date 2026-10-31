@@ -108,7 +108,7 @@ class SNDCHIP : public SNDRENDER
    void flush(unsigned chiptick);
    void apply_regs(unsigned timestamp = 0);
 
-   // ZX Trinity: timer effects card (FT2 doc/ay-ports-map.md 5a, doc/fx-row.md). Per chip: #C0 control
+   // ZX Trinity: timer effects card (FT2 Trinity/doc/ay-ports-map.md 5a, doc/fx-row.md). Per chip: #C0 control
    // (key "TRIN" opens, 0 closes, any write resyncs the stream; read 'T'), #C1 packet stream
    // (ROW / TABLE / RESET / INFO). Enabled by conf.sound.trinity
    enum { TRIN_ROW = 14, TRIN_TABS = 256, TRIN_STEPS = 16, TRIN_PKT = 19 };
