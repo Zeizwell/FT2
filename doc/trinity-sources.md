@@ -15,6 +15,7 @@
 | Заметка «как правильно ресемплить Amiga» (метод BLEP, A. Lankila) | `FT2/Paula/milkytracker.txt` | теория | — |
 | **PicoGUS** — GUS / SB / OPL на RP2040: шина ISA через PIO, I2S (`pico_audio_i2s`), PSRAM, 32 голоса | `FT2/Paula/picogus-main/sw/` | образец: звук + шина + PSRAM на RP | GPL (справочник) |
 | Заметка о ЦАП (PCM5102A / PCM5122 / ES9023) | `FT2/Paula/ДАКИ.txt`, `adafruit-pcm5122-i2s-dac.pdf` | выбор ЦАП (решено: PCM5102A) | — |
+| **SOAMC: записи с настоящей A1200 (Paula 8364R7PL), MP3 + сами модули** | `cdimage.debian.org/mirror/media/Oakvalley/soamc/000/{MP3,AMIGA}/Trackers_Modland/<автор>/` | эталон для сверки звука, результат — `doc/paula.md` | только для сверки |
 
 ## General Sound / NeoGS
 
