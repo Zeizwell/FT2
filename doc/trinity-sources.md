@@ -8,8 +8,9 @@
 | Что | Где | Зачем нам | Лицензия |
 |---|---|---|---|
 | Paula на Verilog (весь чип: DMA, период, ШИМ-громкость, attach) | `FT2/Paula/paula.v`, `FT2/Paula/amiga_replacement_project-master/paula/Paula.v`, `Better_Audio.v` | как устроен звук в железе | CC BY-NC (только справочник) |
+| **Реплеер ProTracker pt2-clone** — эталон, логика перенесена в `engine/gs/gs_pt.c` | `FT2/Paula/pt2-clone-master/src/pt2_replayer.c` | эталон, сверка по тикам в `doc/paula.md` | BSD-3 |
 | **Эмуляция Paula pt2-clone** (BLEP + фильтры A500 / A1200 / LED, номиналы RC) | `FT2/Paula/pt2-clone-master/src/pt2_paula.c`, `pt2_blep.c`, `pt2_rcfilters.c` | **берём в прошивку** (~660 строк) | BSD-3 |
-| **pocketmod** — MOD-плеер одним файлом, без зависимостей | `FT2/Paula/pocketmod-master/pocketmod.h` | **берём**: разбор MOD, команды ProTracker; его микшер заменить на Paula из pt2 | MIT |
+| **pocketmod** — MOD-плеер одним файлом, без зависимостей | `FT2/Paula/pocketmod-master/pocketmod.h` | только MOD не на 4 канала; 4 канала играет наш `gs_pt` (`doc/paula.md`) | MIT |
 | WinUAE `audio.cpp` (sinc-очередь, модели фильтров) | `FT2/Paula/WinUAE-master/audio.cpp` | справочник | GPL |
 | MilkyTracker `ResamplerAmiga.h` (BLEP) | `FT2/Paula/MilkyTracker-master/src/milkyplay/` | справочник | GPL |
 | Заметка «как правильно ресемплить Amiga» (метод BLEP, A. Lankila) | `FT2/Paula/milkytracker.txt` | теория | — |
