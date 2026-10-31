@@ -31,6 +31,7 @@
 | NeoGS rev C-VS — схема и плата (sch, pcb, гербера, BOM, PDF) | `FT2/schemes/Neogs/revC-VS.r191/` | разбор в `doc/zx-trinity.md` |
 | **Исходники NeoGS целиком** (git-зеркало SVN nedopc: github.com/alfishe/neogs, скачано 2026-10-18) | `ref-neogs/neogs/` | `z80/main_rom/main_ngs.a80` — ПЗУ NeoGS (GS-совместимое, v1.11 от 07.02.2026), `z80/gs105a_fix` — исходник ПЗУ GS 1.05a, `fpga/current/sound` (ЦАП, `sound_mulacc.v`), `fpga/current/zxbus/zxbus.v` — шина, `cpld/`, `docs/NGS_prm/ngspgm_01a.pdf` — **руководство программиста NeoGS** (порты GSCTR / GSCOM / GSDAT, 8 каналов, MP3, SD, память 2 МБ), `docs/_old_gs/GS104SRC` — исходник ПЗУ GS 1.04 |
 | Опознание NeoGS (из `main_ngs.a80`) | — | **то же, что у GS**: ПЗУ `#0004` — `DW` версия BCD (`#0111` = 1.11), `#0080` — строка патча, `#0100` — 3 строки по 24 («General Sound (tm) ROM», «Copyright 1997 Stinger», «Version 1.11»). Наш движок кладёт туда своё |
+| Свободные команды GS (таблица `COMTAB` / `COMTABH` в `main_ngs.a80`, сверка с `gs_prog.pdf`) | — | ПЗУ NeoGS 1.11 их молча игнорирует (только снимает флаг команды): `#1E #1F`, `#24..#29`, `#43 #44`, `#4A..#4F`, `#51..#5F`, `#6C..#7F`, `#B0..#EF`, `#F1 #F2`, `#F8 #F9`, `#FB..#FF`. В руководстве помечены «Зарезервированы»: `#B0..#F0`, `#F1 #F2`, `#F8 #F9`, `#FB..#FF`. Порты: `#xxBB`, `#xxB3`, `#xx33` (сброс и NMI), разбираются только младшие 8 бит адреса (`zxbus.v`) |
 
 Текст PDF (`gs_prog.pdf`, `ngspgm_01a.pdf`) вытаскивается `python` + `pypdf` (поставлен 2026-10-18).
 
