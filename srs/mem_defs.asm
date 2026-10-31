@@ -80,8 +80,13 @@ PAGE_WINSAVE  EQU #03                           ; что под окном
 PAGE_SPLASH   EQU #28                           ; заставка при старте (выкл): экран #28..#30 - страницы пула
 PAGE_SPLASH_PAL EQU PAGE_SPLASH+6               ;   её палитра (до заливки фона)
 
-PAGES_PER_SONG EQU PATTERNS_MAX+4   ; полный трек: паттерн = страница + инструменты + орнаменты + строки FX + таблицы и заголовки FX
-PAGE_INS1     EQU PAGE_POOL+PATTERNS_MAX ; инструменты и орнаменты трека 1 (пока место фиксировано)
+; Страницы трека от его начала в пуле: паттерн k = страница k, за паттернами:
+TRK_INS       EQU PATTERNS_MAX          ; инструменты и орнаменты
+TRK_ORN       EQU TRK_INS+1             ; орнаменты (п.40: зарезервирована)
+TRK_FX        EQU TRK_INS+2             ; строки FX
+TRK_FXT       EQU TRK_INS+3             ; таблицы и заголовки FX
+PAGES_PER_SONG EQU TRK_INS+4            ; полный трек
+PAGE_INS1     EQU PAGE_POOL+TRK_INS     ; инструменты трека 1
     ASSERT PAGES_COMPBUF*16384 >= COMPILED_MAX      ; откомпилированный влезает
     ASSERT PAGE_POOL_END-PAGE_POOL >= SONGS_MAX*PAGES_PER_SONG ; два полных трека влезают (158 >= 136)
     ASSERT PAGE_SPRITE%8 == 0                       ; блок графики спрайтов - с кратной 8
@@ -89,6 +94,12 @@ PAGE_INS1     EQU PAGE_POOL+PATTERNS_MAX ; инструменты и орнам�
 ; Свободно (никому не отдано) - хвост пула за двумя треками, одним куском.
 ; Распределение жёсткое: у каждого трека свои PAGES_PER_SONG страниц, без динамики
 FREE_PAGES      EQU PAGE_POOL_END-PAGE_POOL-SONGS_MAX*PAGES_PER_SONG
+
+; srs/spg.ini определений не видит, номера там числами: сменили здесь - ассемблер напомнит поправить там
+    ASSERT PAGE_CORE0 == #00 && PAGE_CORE2 == #02 && PAGE_TOOL_PATVIEW == #04 && PAGE_CONV == #06
+    ASSERT PAGE_PLAYER2 == #07 && PAGE_FONT == #11 && PAGE_FAT_CODE == #14 && PAGE_FAT_WORK == #15
+    ASSERT PAGE_DISK_APP == #18 && PAGE_PLAYER == #19 && PAGE_TOOL_DISK == #1A
+    ASSERT PAGE_TOOL_INSTR == #1B && PAGE_TOOL_OPT == #1C && PAGE_CMP == #1D
 
 ;------------------------------------------------------------------
 ; Стек живёт в коре (пейдж 0, окно #0000), чтобы не пропадал при
