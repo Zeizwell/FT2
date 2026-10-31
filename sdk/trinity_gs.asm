@@ -29,8 +29,18 @@ GSC_P_STAT_RES  equ #D5             ; EN: peak and late from zero -> 0      RU: 
 GSC_P_CURVE     equ #D6             ; EN: stage or #FF total -> 32 points   RU: ступень или #FF итог -> 32 точки
 GSC_P_VERSION   equ #D7             ; EN: -> protocol, firmware 2 bytes     RU: -> протокол, прошивка 2 байта
 
-;-------- EN: A = byte: put into #B3, send command E, wait until the card takes it. Spoils A, BC
-;         RU: A = байт: в #B3, команда E, ждём, пока карта возьмёт. Портит A, BC
+; --- STAT answer, offsets / Ответ STAT, смещения
+GSC_ST_LOAD     equ 0               ; EN: load, 2 bytes, 0.1 %              RU: нагрузка, 2 байта, 0.1 %
+GSC_ST_TOP      equ 2               ; EN: peak, 2 bytes, 0.1 %              RU: пик, 2 байта, 0.1 %
+GSC_ST_LATE     equ 4               ; EN: late blocks, 4 bytes              RU: опоздания, 4 байта
+GSC_ST_BLOCKS   equ 8               ; EN: blocks, 4 bytes                   RU: блоки, 4 байта
+GSC_ST_RATE     equ 12              ; EN: output rate, Hz, 4 bytes          RU: частота вывода, Гц, 4 байта
+GSC_ST_SYSK     equ 16              ; EN: clock, kHz, 4 bytes               RU: такт, кГц, 4 байта
+GSC_ST_MODE     equ 20              ; EN: mode, 1 byte                      RU: режим, 1 байт
+GSC_ST_DEV      equ 21              ; EN: device, 4 chars                   RU: устройство, 4 знака
+
+;-------- EN: A = byte: put into #B3, send command E, wait until the card takes it. C - taken, NC - no answer. Spoils A, BC
+;         RU: A = байт: в #B3, команда E, ждём, пока карта возьмёт. C - взяла, NC - ответа нет. Портит A, BC
 Gsc_Send
         out (GSC_PORT_DAT),a
         ld a,e
@@ -39,11 +49,14 @@ Gsc_Send
 .wait
         in a,(GSC_PORT_CMD)
         rrca
-        ret nc
+        jr nc,.taken
         dec bc
         ld a,b
         or c
         jr nz,.wait
+        ret                         ; EN: or c leaves NC    RU: or c оставил NC
+.taken
+        scf
         ret
 
 ;-------- EN: Wait for data and read it -> A. NC - no answer. Spoils BC
@@ -74,14 +87,15 @@ Gsc_Open
         ld a,(hl)
         inc hl
         call Gsc_Send
+        jr nc,.none
         dec d
         jr nz,.key
         call Gsc_Get
-        jr c,.done
-        xor a
-        ret
-.done
+        jr nc,.none
         or a
+        ret
+.none
+        xor a
         ret
 Gsc_Sign        db "TRINITY"
 Gsc_Sign_N      equ $-Gsc_Sign
@@ -109,6 +123,7 @@ Gsc_Packet
         ld a,(hl)
         inc hl
         call Gsc_Send
+        jr nc,.nosend
         dec d
         jr nz,.send
         pop de
@@ -135,5 +150,9 @@ Gsc_Packet
         ret
 .fail
         pop hl
+        or a
+        ret
+.nosend
+        pop de
         or a
         ret
