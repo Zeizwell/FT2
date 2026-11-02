@@ -3,19 +3,19 @@
 ## Драйвер
 
 - **Исходник:** `drivers/fat32/` — копия github.com/andrewinsidelazarev/FAT32-Driver-ZX-Evolution,
-  коммит `6e0de6a` (MIT, `drivers/fat32/LICENSE`).
+  коммит `cfb0fed` (2026-10-27, MIT, `drivers/fat32/LICENSE`).
   - Взяты `src/`, `include/`, `ports/`, README и VALIDATION автора.
   - Тесты и сборка на Python не взяты: Python у нас нет, собираем sjasmplus напрямую.
   - Наши правки в драйвере пока не нужны. Понадобятся — делаем прямо в этой копии.
 - **Сборка** (`build.bat`, до основной):
-  - `drivers/fat32/src/main.asm` → `build/fat32.bin` (код, 15979 байт из 16К);
-  - `ports/sdzc.asm` → `build/port_sdzc.bin` (порт SD Z-Controller `#57/#77`, 577 байт).
+  - `drivers/fat32/src/main.asm` → `build/fat32.bin` (код, 16156 байт из 16К) и `build/fat32-low.bin` (нижний код: проверки данных и кэши FILEX, 3410 байт);
+  - `ports/sdzc.asm` → `build/port_sdzc.bin` (порт SD Z-Controller `#57/#77`, 1280 байт, до `#3E00`).
 - **В SPG:**
 
   | Страница | Что | Окно на время вызова |
   |---|---|---|
   | `#14` | код драйвера (`fat32.bin`, входы `#4000 + номер×3`) | 1 |
-  | `#15` | рабочая память драйвера: нули + порт SD-ZC на `#3900` (`srs/fatwork.bin`, делает `main.asm`) | 0 |
+  | `#15` | рабочая память драйвера: нули, нижний код на `#2200`, порт SD-ZC на `#3900` (`srs/fatwork.bin`, делает `main.asm`) | 0 |
   | `#18` | наш переходник (`srs/disk.asm` → `srs/disk.bin`) | 2 |
 
 ## Как вызывать (`srs/diskcall.asm`, в коре)

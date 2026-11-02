@@ -140,11 +140,14 @@ tool_conv_end
     SAVEBIN     "srs/disk.bin",disk_start,disk_end-disk_start
     display     "disk adapter size",/d,disk_end-disk_start," bytes"
 
-    ; --- рабочая страница FAT32 (PAGE_FAT_WORK): нули + порт SD-ZC на #3900.
+    ; --- рабочая страница FAT32 (PAGE_FAT_WORK): нули, нижний код драйвера на #2200, порт SD-ZC на #3900.
     ;     Сам драйвер (PAGE_FAT_CODE) собирается отдельно: build.bat, drivers/fat32
     org #C000
 fatwork
-    ds          FAT_PORT_TABLE,0
+    ds          FAT_LOW_CODE,0
+    incbin      "drivers/fat32/build/fat32-low.bin"   ; проверки данных и кэши FILEX драйвера
+    ASSERT      $ <= fatwork+FAT_LOW_END
+    ds          fatwork+FAT_PORT_TABLE-$,0
     incbin      "drivers/fat32/build/port_sdzc.bin"
     ds          fatwork+#4000-$,0
 fatwork_end

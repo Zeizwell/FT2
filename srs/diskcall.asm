@@ -48,6 +48,8 @@ DK_CREATE       equ 72
 DK_APPEND       equ 76
 DK_CLOSE        equ 35
 FAT_PORT_TABLE  equ #3900           ; таблица порта SD-ZC в рабочей странице драйвера
+FAT_LOW_CODE    equ #2200           ; нижний код драйвера в рабочей странице (FAT32_LOW_CODE в drivers/fat32/src/main.asm)
+FAT_LOW_END     equ #3000           ; его граница (FAT32_LOW_END)
 
 Disk_Mount
         ld ix,DK_BIND               ; IXH = 0 - без имён
