@@ -1921,6 +1921,8 @@ Iv_Keys
         call Fld_Key
         pop bc
         jr c,.k
+        call Tool_Esc               ; Esc - закрыть вкладку
+        jr c,Iv_EscOut
         ld a,b
         cp KEY_TAB
         jr nz,.k
@@ -1939,6 +1941,10 @@ Iv_Keys
         ld hl,F_Edit
 .set    call Fld_Set_Focus
         jr .k
+Iv_EscOut                           ; Esc (и в FX): вкладку закрыть
+        ld a,1
+        ld (Iv_Exit),a
+        ret
 
 ; =========================================================================
 ; РЕДАКТОР СТРОК

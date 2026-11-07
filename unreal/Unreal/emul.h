@@ -237,7 +237,7 @@ struct CONFIG
       VOID_FUNC do_sound;
       u8 enabled, gsreset, dsprimary;
       u8 ay_chip, ay_scheme, ay_stereo, ay_vols, ay_samples;
-      u8 trinity;                        // ZX Trinity: timer effects (FT2 Trinity/doc/ay-ports-map.md, 5a)
+      u8 trinity;                        // ZX Trinity: timer effects (protocol - ZX Trinity SDK)
       unsigned ay_stereo_tab[6], ay_voltab[32];
    } sound;
 
@@ -248,7 +248,7 @@ struct CONFIG
       u8 mouse, mouseswap, kjoy, keymatrix, joymouse;
       u8 keybpcmode;
       char mousescale;
-      unsigned mousediv; // FT2: linear divider of PC mouse counts (0/1 - off, use mousescale)
+      unsigned mousediv; // linear divider of PC mouse counts (0/1 - off, use mousescale)
       u8 mousewheel; // enum MOUSE_WHEEL_MODE //0.36.6 from 0.35b2
       zxkeymap *active_zxk;
       unsigned JoyId;

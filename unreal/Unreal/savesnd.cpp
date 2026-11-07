@@ -47,7 +47,7 @@ void savesnddialog()
          *(unsigned*)(wavhdr+0x28) = fsize;
          fwrite(wavhdr, 1, sizeof wavhdr, savesnd);
          MessageBox(wnd, "WAV save done", "Save sound", MB_ICONINFORMATION);
-      } else if (savesndtype == 3) { // FT2 frame log - frames are written as they go
+      } else if (savesndtype == 3) { // AY frame log - frames are written as they go
       } else { // vtx
          savesndtype = 0;
          u8 *newb = (u8*)malloc(vtxbuffilled);
@@ -108,7 +108,7 @@ void savesnddialog()
       char sndsavename[0x200]; *sndsavename = 0;
 
       ofn.lStructSize = (WinVerMajor < 5) ? OPENFILENAME_SIZE_VERSION_400 : sizeof(OPENFILENAME);
-      ofn.lpstrFilter = "All sound (WAV)\0*.wav\0AY sound (VTX)\0*.vtx\0FT2 frame log (F2L)\0*.f2l\0";
+      ofn.lpstrFilter = "All sound (WAV)\0*.wav\0AY sound (VTX)\0*.vtx\0AY frame log (F2L)\0*.f2l\0";
       ofn.lpstrFile = sndsavename; ofn.nMaxFile = sizeof sndsavename;
       ofn.lpstrTitle = "Save Sound";
       ofn.Flags = OFN_PATHMUSTEXIST | OFN_HIDEREADONLY | OFN_NOCHANGEDIR;
@@ -123,7 +123,7 @@ void savesnddialog()
          }
          savesnd = fopen(ofn.lpstrFile, "wb");
          if (!savesnd) MessageBox(wnd, "Can't create file", 0, MB_ICONERROR);
-         else if (ofn.nFilterIndex == 3) { // FT2 frame log: "F2LG", version, record size, then records (sound.cpp)
+         else if (ofn.nFilterIndex == 3) { // AY frame log: "F2LG", version, record size, then records (sound.cpp)
             u8 h[8] = { 'F', '2', 'L', 'G', 2, 0, (u8)(2 * (14 + SNDCHIP::TRIN_LOG)), 0 };   // v2: record = 2 chips
             fwrite(h, 1, sizeof h, savesnd);
             savesndtype = 3;

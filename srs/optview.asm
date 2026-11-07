@@ -682,13 +682,20 @@ Ov_SaveDo
         ld (Ov_Dirty),a
         ret
 
-;-------- Клавиши: полям (здесь своих нет) - просто выбрать очередь
+;-------- Клавиши: полям (своих нет), Esc - закрыть вкладку
 Ov_Keys
 .k      call Key_Get
         ret z
         ld b,a
+        push bc
         call Fld_Key
-        jr .k
+        pop bc
+        jr c,.k
+        call Tool_Esc
+        jr nc,.k
+        ld a,1
+        ld (Ov_Exit),a
+        ret
 
 ; =========================================================================
 ; FT2.INI

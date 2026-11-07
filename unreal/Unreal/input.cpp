@@ -251,7 +251,7 @@ char K_INPUT::readdevices()
    mbuttons = 0xFF;
    msx_prev = msx, msy_prev = msy;
    kbdpc[VK_LMB] = kbdpc[VK_RMB] = kbdpc[VK_MMB] = kbdpc[VK_MWU] = kbdpc[VK_MWD] = 0;
-   static unsigned mouse_call = 0;      // FT2: frame number of this input read
+   static unsigned mouse_call = 0;      // frame number of this input read
    mouse_call++;
    if ((conf.fullscr || conf.lockmouse) && !nomouse)
    {
@@ -273,7 +273,7 @@ char K_INPUT::readdevices()
           md.rgbButtons[0] = md.rgbButtons[1];
           md.rgbButtons[1] = t;
       }
-      // FT2: movement comes from the WINDOWS CURSOR, not from DirectInput axes.
+      // movement comes from the WINDOWS CURSOR, not from DirectInput axes.
       // On some systems (remote desktop, VM, tablet, some mouse drivers) the mouse
       // is an "absolute" device: DirectInput lX/lY are a position >= 0 even in
       // relative mode, never a signed step - the cursor only ran down-right.
@@ -363,7 +363,7 @@ char K_INPUT::readdevices()
    static u8 kbdpc_prev[VK_MAX];
    if (nokb)
    {
-       // FT2: focus came back - keys held when it was lost are released in the
+       // focus came back - keys held when it was lost are released in the
        // PS/2 log too (before, prev was overwritten by zeros and the release was lost:
        // Alt after Alt+Tab, Ctrl/Shift after a screenshot hotkey stayed pressed)
        if (!dbgbreak && input.buffer.Enabled())
@@ -390,7 +390,7 @@ char K_INPUT::readdevices()
 
       if (!dbgbreak && input.buffer.Enabled()) // TODO: ������� � ������� ESC �������� � �����
       {
-         for (int i = 0; i < 256; i++)  // FT2: dik_scan has 256 keys; kbdpc beyond is mouse (VK_LMB...), not PS/2
+         for (int i = 0; i < 256; i++)  // dik_scan has 256 keys; kbdpc beyond is mouse (VK_LMB...), not PS/2
          {
             if ((kbdpc[i] & 0x80) != (kbdpc_prev[i] & 0x80) && dik_scan[i])
             {
@@ -434,7 +434,7 @@ u8 K_INPUT::aymouse_rd()
    return 0xC0 | (coord & 0x0F) | (mbuttons << 4);
 }
 
-// FT2: position inside the frame = prev + delta * t / frame, signed, 64 bit.
+// position inside the frame = prev + delta * t / frame, signed, 64 bit.
 // The original (t*msx + (frame-t)*msx_prev)/frame was computed in UNSIGNED
 // (cpu.t is unsigned): a negative position (mouse moved left/down from the start)
 // or a big one turned into garbage, and the cursor flew.

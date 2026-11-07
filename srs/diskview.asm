@@ -841,6 +841,8 @@ Dv_Keys
         call Fld_Key
         pop bc
         jr c,.k
+        call Tool_Esc               ; Esc - закрыть вкладку
+        jr c,.exit
         ld a,b
         cp KEY_TAB
         jr nz,.k
@@ -853,6 +855,9 @@ Dv_Keys
         ld hl,F_List
         call Fld_Set_Focus
         jr .k
+.exit   ld a,1
+        ld (Dv_Exit),a
+        ret
 
 ;-------- New: трек - пустой (как при старте), назад в вид паттерна
 Dv_NewSong

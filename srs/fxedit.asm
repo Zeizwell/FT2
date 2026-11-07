@@ -914,6 +914,8 @@ Fe_Keys
         call Fld_Key                ; полю в фокусе (строки, имя) и общим клавишам
         pop bc
         jr c,.k
+        call Tool_Esc               ; Esc - закрыть вкладку
+        jp c,Iv_EscOut
         ld a,b                      ; Tab - фокус: строки <-> имя
         cp KEY_TAB
         jr nz,.k

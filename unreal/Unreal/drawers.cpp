@@ -326,7 +326,7 @@ static void draw_tstx(int n)
 	u32 vptr = vid.vptr;						// address in videobuffer
 	u16 vcyc = vid.memvidcyc[vid.line];
 	u8 line = vid.ygctr & 7;					// symbol line (0-7)
-	// FT2: X offset in text mode, as in the FPGA (video_mode.v): cstart = gx_offs >> 2,
+	// X offset in text mode, as in the FPGA (video_mode.v): cstart = gx_offs >> 2,
 	// cnt_col counts 2 per symbol, so the line starts from symbol gx_offs >> 3
 	u32 xo = (comp.ts.g_xoffs >> 3) & 0x7F;
 

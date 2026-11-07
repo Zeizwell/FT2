@@ -7,6 +7,7 @@
 #include "saa1099.h"
 #include "sndcounter.h"
 #include "sound/dev_moonsound.h"
+#include "trincard.h"
 
 extern SNDRENDER sound;
 extern SNDCHIP ay[2];
@@ -67,6 +68,7 @@ void flush_snd_frame()
    if (conf.sound.ay_scheme)
    { // sound chip present
 
+      if (tc_on) tc_frame();   // ZX Trinity card: up to now, its chip registers -> ay[1]
       ay[0].end_frame(endframe);
       // if (conf.sound.ay_samples) mix_dig(ay[0]);
 
@@ -84,9 +86,9 @@ void flush_snd_frame()
          }
       }
 
-      if (savesndtype == 3)   // FT2 frame log: AY regs 14 (R13 = FF - not written) + ZX Trinity timers
+      if (savesndtype == 3)   // AY frame log: AY regs 14 (R13 = FF - not written) + ZX Trinity timers
       {
-         for (int c = 0; c < 2; c++) {   // both chips (TurboSound: #FF selects ay[1] in CHRV) - f2lcmp picks the sounding one
+         for (int c = 0; c < 2; c++) {   // both chips (TurboSound: #FF selects ay[1] in CHRV)
             u8 f[14 + SNDCHIP::TRIN_LOG];
             for (u8 r = 0; r < 14; r++) f[r] = ay[c].get_reg(r);
             if (!ay[c].get_r13_reloaded()) f[13] = 0xFF;

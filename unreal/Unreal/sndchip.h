@@ -78,8 +78,8 @@ class SNDCHIP : public SNDRENDER
    u8 get_r13_reloaded() { return r13_reloaded; }
    u8 get_reg(unsigned nreg) { return reg[nreg]; }
    unsigned get_env() { return env; }
-   // FT2 frame log (savesnd type 3, *.f2l): ZX Trinity timer state per channel - FX row 14, sweep phase 2,
-   // timer periods 3 x 2 (Mix, FM, Env FM) - for comparing with Bitphase exports (FT2 doc/formats/btp.md)
+   // AY frame log (savesnd type 3, *.f2l): ZX Trinity timer state per channel - FX row 14, sweep phase 2,
+   // timer periods 3 x 2 (Mix, FM, Env FM) - for comparing with Bitphase exports
    enum { TRIN_LOG = 3 * (14 + 2 + 6) };
    void trin_log(u8 *p);
 
@@ -108,7 +108,7 @@ class SNDCHIP : public SNDRENDER
    void flush(unsigned chiptick);
    void apply_regs(unsigned timestamp = 0);
 
-   // ZX Trinity: timer effects card (FT2 Trinity/doc/ay-ports-map.md 5a, doc/fx-row.md). Per chip: #C0 control
+   // ZX Trinity: timer effects card (protocol - ZX Trinity SDK). Per chip: #C0 control
    // (key "TRIN" opens, 0 closes, any write resyncs the stream; read 'T'), #C1 packet stream
    // (ROW / TABLE / RESET / INFO). Enabled by conf.sound.trinity
    enum { TRIN_ROW = 14, TRIN_TABS = 256, TRIN_STEPS = 16, TRIN_PKT = 19 };

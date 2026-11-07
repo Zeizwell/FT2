@@ -327,7 +327,7 @@ const SNDCHIP_PANTAB SNDR_PAN_CBA_S =
 { 10,100,  66,66,   100,10 };
 
 // =========================================================================
-// ZX Trinity: timer effects card (FT2 Trinity/doc/ay-ports-map.md 5a, doc/fx-row.md, Trinity/doc/bitphase-fx.md)
+// ZX Trinity: timer effects card (protocol - ZX Trinity SDK)
 // Per chip: #C0 control - key "TRIN" (4 writes) opens, 0 closes, any write resyncs the stream;
 // read #C0 - 'T' while open. #C1 - packet stream [code][data], applied when the last byte comes:
 //   ROW   (1): channel 0..2, FX row 14 bytes, sweep shape (table number), start phase, keep flag

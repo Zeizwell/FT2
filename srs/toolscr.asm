@@ -38,6 +38,19 @@ Tool_Head
         djnz .attr
         ret
 
+;-------- Esc во вкладке (Disk, Instr / Orn / FX, Setup, Help) - общая клавиша: закрыть вкладку, назад в вид
+; паттерна (основной цикл). Зовёт тулза, когда клавишу не взяло поле. B - клавиша -> CF = 1: Esc, SV_TOOL - вид паттерна
+Tool_Esc
+        ld a,b
+        cp KEY_ESC
+        jr z,.esc
+        or a                        ; не Esc: CF = 0
+        ret
+.esc    ld a,PAGE_TOOL_PATVIEW
+        ld (SV_TOOL),a
+        scf
+        ret
+
 ;-------- Строки TL_TOP..TL_LAST: пробелы цветом фона
 Tool_Clear
         ld a,(THEME_ATTR+CLR_BG)

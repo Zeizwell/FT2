@@ -1707,8 +1707,9 @@ St_Cur  cp 0
         or a
         ld a,0
         call nz,Fx_Out
+        ld de,#FFC0                 ; Fx_Out зовёт SDK (портит всё): D, E, порт - заново
+        ld bc,#FFFD
         ld a,#FE                    ; чип 2
-        ld b,d
         out (c),a
         ld hl,Pl_Regs2
         call Po_Chip
@@ -1717,7 +1718,7 @@ St_Cur  cp 0
         ld a,1
         call nz,Fx_Out
         ld a,#FF                    ; в конце выбран чип 1 (как после сброса)
-        ld b,d
+        ld bc,#FFFD                 ; порт - заново: Fx_Out зовёт SDK
         out (c),a
         ret
 
@@ -1909,6 +1910,8 @@ Fx_QN           db 0,0              ; байт в очереди чипа 1 / 2
 Fq_Ptr          dw 0                ; куда класть (очередь текущего чипа)
 Fq_Cnt          dw 0                ; её счётчик
 Fx_Rst          db 0                ; маска RESET (каналы карты) текущего чипа
+Fx_TBuf         db AYFX_P_TABLE,0   ; Fx_Tables: пакет TABLE - код, номер, байты таблицы
+                ds FXT_SIZE
 
 ;-------- Есть ли карта: на каждом чипе INFO (SDK Ayfx_InfoSend), опрос статуса, ответ "TRIN" (Ayfx_Detect)
 Fx_Detect
@@ -1926,19 +1929,33 @@ Fx_Detect
         out (c),a
         ret
 
-; A - чип -> A: 1 - карта есть. Опрос - до 256 чтений статуса (карта отвечает за микросекунды)
-.chip   ld bc,#FFFD
-        out (c),a
-        call Ayfx_InfoSend
+; A - чип -> A: 1 - карта есть. Опрос - до 256 чтений статуса (карта отвечает за микросекунды). SDK - API, портит
+; все регистры: перед каждым вызовом - порт и чип (Fx_Sel), D (чип) и E (счётчик) - push / pop вокруг вызова
+.chip   ld d,a                      ; D - чип, E - опросов осталось (0 = 256)
         ld e,0
-.wait   call Ayfx_SvcState
+        call Fx_Sel
+        push de
+        call Ayfx_InfoSend
+        pop de
+.wait   call Fx_Sel
+        push de
+        call Ayfx_SvcState
+        pop de
         cp AYFX_SVC_REPLY
-        jp z,Ayfx_Detect            ; ответ готов: "TRIN"?
+        jr z,.got
         cp AYFX_SVC_BUSY
         jr nz,.none                 ; #FF - карты нет, 0 - ответа нет (не наша)
         dec e
         jr nz,.wait
 .none   xor a                       ; занята дольше предела - не наша
+        ret
+.got    call Fx_Sel
+        jp Ayfx_Detect              ; ответ готов: "TRIN"?
+
+;-------- Порт и чип карты перед вызовом SDK: D - чип -> BC = #FFFD, в #FFFD - D. Портит A, BC
+Fx_Sel  ld bc,#FFFD
+        ld a,d
+        out (c),a
         ret
 
 ;-------- TurboSound есть? R0 чипа 1 = #AA, чипа 2 = #55; прочитать оба: #AA и #55 - чипов два (без TS выбор
@@ -2375,7 +2392,6 @@ Fx_Tables
         ret z
         ld a,(Pl_FxTPage)
         SETPAGE3 a
-        ld c,#FD
         ld a,(Fx_Card)
         or a
         ld a,#FF
@@ -2384,15 +2400,15 @@ Fx_Tables
         or a
         ld a,#FE
         call nz,.chip
-        ld b,#FF                    ; выбран чип 1
+        ld bc,#FFFD                 ; выбран чип 1
         ld a,#FF
         out (c),a
         RESTPAGE3
         ret
-.chip   ld b,#FF
-        out (c),a
-        call Ayfx_Key
-        call Ayfx_Stream
+
+; A - чип: каждая непустая таблица - пакет TABLE (Fx_TBuf) через SDK Ayfx_Send. SDK портит всё: перед вызовом -
+; порт и чип (Fx_Sel, D - чип), HL (таблица) и D - push / pop вокруг вызова
+.chip   ld d,a                      ; D - чип
         ld hl,#C000                ; таблица n - #C000 + n*16
 .t      push hl
         ld e,FXT_SIZE               ; пустая (нули) - не шлём
@@ -2404,9 +2420,6 @@ Fx_Tables
         or a                        ; A - все байты через OR
         pop hl
         jr z,.nx
-        ld b,#BF
-        ld a,AYFX_P_TABLE
-        out (c),a
         ld a,l                      ; номер = (HL - #C000) / 16
         rrca
         rrca
@@ -2421,27 +2434,31 @@ Fx_Tables
         add a,a
         add a,a
         or e
-        out (c),a
+        ld (Fx_TBuf+1),a            ; пакет: код, номер, байты таблицы
         push hl
-        ld e,FXT_SIZE
-.v      ld a,(hl)
-        out (c),a
-        inc hl
-        dec e
-        jr nz,.v
+        push de
+        ld de,Fx_TBuf+2
+        ld bc,FXT_SIZE
+        ldir
+        pop de
+        call Fx_Sel
+        push de
+        ld hl,Fx_TBuf
+        ld d,FXT_SIZE+2
+        call Ayfx_Send
+        pop de
         pop hl
-.nx     ld de,FXT_SIZE
-        add hl,de
+.nx     ld bc,FXT_SIZE              ; D - чип, не трогать
+        add hl,bc
         ld a,h
         cp #C0+high (FXT_MAX*FXT_SIZE)
         jr c,.t
-        jp Ayfx_Close
+        ret
     ASSERT FXT_MAX*FXT_SIZE == #1000
 
 ;-------- В начале тика (Pl_Out, после регистров чипа): очередь чипа A (0 / 1) - в карту: ключ, поток,
-; закрыть. Выбран этот чип; C = #FD; DE сохраняет
+; закрыть. Порт и чип ставит сам. Зовёт SDK - портит все регистры
 Fx_Out
-        push de
         ld e,a
         ld d,0
         ld hl,Fx_QN
@@ -2451,13 +2468,16 @@ Fx_Out
         jr z,.e
         ld (hl),0
         ld d,a                      ; D - байт
+        ld a,#FF                    ; чип: 0 - #FF, 1 - #FE
+        sub e
+        ld bc,#FFFD
+        out (c),a
         ld hl,Fx_Q1
         dec e
         jr nz,$+5
         ld hl,Fx_Q2
-        call Ayfx_Send
-.e      pop de
-        ret
+        jp Ayfx_Send
+.e      ret
 
 ;-------- Заглушенные каналы (Ch_Mute, коре): громкость их выхода - 0. Выход - по стерео (Po_Maps)
 Mu_Apply
