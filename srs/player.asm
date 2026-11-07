@@ -1910,7 +1910,7 @@ Fq_Ptr          dw 0                ; куда класть (очередь те
 Fq_Cnt          dw 0                ; её счётчик
 Fx_Rst          db 0                ; маска RESET (каналы карты) текущего чипа
 
-;-------- Есть ли карта: на каждом чипе ключ и чтение #C0 ('T'), потом закрыть
+;-------- Есть ли карта: на каждом чипе INFO (SDK Ayfx_InfoSend), опрос статуса, ответ "TRIN" (Ayfx_Detect)
 Fx_Detect
         ld a,#FF
         call .chip
@@ -1926,10 +1926,20 @@ Fx_Detect
         out (c),a
         ret
 
-; A - чип -> A: 1 - карта есть
+; A - чип -> A: 1 - карта есть. Опрос - до 256 чтений статуса (карта отвечает за микросекунды)
 .chip   ld bc,#FFFD
         out (c),a
-        jp Ayfx_Detect
+        call Ayfx_InfoSend
+        ld e,0
+.wait   call Ayfx_SvcState
+        cp AYFX_SVC_REPLY
+        jp z,Ayfx_Detect            ; ответ готов: "TRIN"?
+        cp AYFX_SVC_BUSY
+        jr nz,.none                 ; #FF - карты нет, 0 - ответа нет (не наша)
+        dec e
+        jr nz,.wait
+.none   xor a                       ; занята дольше предела - не наша
+        ret
 
 ;-------- TurboSound есть? R0 чипа 1 = #AA, чипа 2 = #55; прочитать оба: #AA и #55 - чипов два (без TS выбор
 ; #FE ничего не выбирает, обе записи - в один чип). Итог - Hw_Ts (коре)
