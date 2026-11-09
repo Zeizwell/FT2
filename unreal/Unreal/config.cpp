@@ -557,6 +557,7 @@ void load_config(const char *fname)
    #ifdef MOD_GSBASS
    if (!strnicmp(line, "BASS", 4)) conf.gs_type = 2;
    #endif
+   if (!strnicmp(line, "TRIN", 4)) conf.gs_type = 3;      // ZX Trinity RP-GS (trinity_gs.dll, trincard.h)
    conf.gs_ramsize = GetPrivateProfileInt(ngs, "RamSize", 2048, ininame);
 #endif
 

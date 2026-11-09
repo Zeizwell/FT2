@@ -4,6 +4,7 @@
 #include "gs.h"
 #include "gsz80.h"
 #include "vs1001.h"
+#include "trincard.h"
 
 #ifdef MOD_GS
 
@@ -34,6 +35,7 @@ void make_gs_volume(unsigned level)
 
 u8 in_gs(u8 port)
 {
+   if (conf.gs_type == 3) return tgs_in(port);   // RP-GS of ZX Trinity (trinity_gs.dll)
 
 #ifdef MOD_GSZ80
    if (conf.gs_type == 1) return z80gs::in_gs(port);
@@ -48,6 +50,7 @@ u8 in_gs(u8 port)
 
 void out_gs(u8 port, u8 byte)
 {
+   if (conf.gs_type == 3) { if (port != 0x33) tgs_out(port, byte); return; }   // #33: reset not modelled
 #ifdef MOD_GSZ80
    if (conf.gs_type == 1) { z80gs::out_gs(port, byte); return; }
 #endif
@@ -70,6 +73,7 @@ void reset_gs_sound()
 
 void reset_gs()
 {
+   if (conf.gs_type == 3) { tgs_reset(); return; }
 #ifdef MOD_GSZ80
    if (conf.gs_type == 1) { z80gs::reset(); return; }
 #endif

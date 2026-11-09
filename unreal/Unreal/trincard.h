@@ -8,3 +8,10 @@ void tc_init();                      // after the ini is read
 void tc_write(int a0, unsigned char v);
 unsigned char tc_read();
 void tc_frame();                     // end of frame: run the card up to now, its chip registers -> ay[1]
+
+// RP-GS of the card from trinity_gs.dll (Trinity firmware/rp-gs/test/emu.bat): GSType=TRIN in [SOUND] - ports #BB / #B3
+// go to it instead of the built-in GS. Sector gate disk - trinity_sd.img next to Unreal.exe. No sound yet
+void tgs_init();                     // after the ini is read; no DLL - GSType falls back to NONE
+u8 tgs_in(u8 port);
+void tgs_out(u8 port, u8 v);
+void tgs_reset();

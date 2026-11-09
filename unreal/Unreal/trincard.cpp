@@ -81,6 +81,41 @@ unsigned char tc_read()
    return f_read();
 }
 
+// ---- RP-GS (trinity_gs.dll)
+typedef int (*tgs_init_t)(const char *dir);
+typedef void (*tgs_out_t)(int port, int v);
+typedef int (*tgs_in_t)(int port);
+typedef void (*tgs_reset_t)(void);
+static tgs_out_t g_out;
+static tgs_in_t g_in;
+static tgs_reset_t g_reset;
+
+void tgs_init()
+{
+   if (conf.gs_type != 3) return;
+   conf.gs_type = 0;                 // no DLL - no GS at all
+   char path[MAX_PATH];
+   GetModuleFileName(0, path, sizeof path);
+   char *p = strrchr(path, '\\');
+   if (!p) return;
+   strcpy(p + 1, "trinity_gs.dll");
+   HMODULE h = LoadLibrary(path);
+   if (!h) return;
+   tgs_init_t f_init = (tgs_init_t)GetProcAddress(h, "tgs_init");
+   g_out = (tgs_out_t)GetProcAddress(h, "tgs_out");
+   g_in = (tgs_in_t)GetProcAddress(h, "tgs_in");
+   g_reset = (tgs_reset_t)GetProcAddress(h, "tgs_reset");
+   if (!f_init || !g_out || !g_in || !g_reset) return;
+   p[1] = 0;
+   if (!f_init(path)) return;
+   conf.gs_type = 3;
+}
+
+// Unreal resets the GS before tgs_init (init_gs): no DLL yet - nothing to do
+u8 tgs_in(u8 port) { return g_in ? (u8)g_in(port) : 0xFF; }
+void tgs_out(u8 port, u8 v) { if (g_out) g_out(port, v); }
+void tgs_reset() { if (g_reset) g_reset(); }
+
 // End of frame: the card up to now; its φM changed (ATARI - 4 MHz) - ay[1] on that clock.
 // The card chip is YM2203: its SSG runs at φM / 2 (ATARI: 2 MHz, as the Atari YM)
 void tc_frame()

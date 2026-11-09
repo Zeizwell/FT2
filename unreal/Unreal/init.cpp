@@ -104,6 +104,7 @@ void init_all(int argc, char **argv)
    init_visuals();
    applyconfig();
    tc_init();   // ZX Trinity card from trinity_card.dll (trincard.h)
+   tgs_init();  // its RP-GS from trinity_gs.dll, GSType=TRIN
    main_reset();
    autoload();
    init_bpx(bpx);
