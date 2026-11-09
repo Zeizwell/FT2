@@ -81,8 +81,8 @@ PAGE_SPLASH   EQU #28                           ; заставка при ста
 PAGE_SPLASH_PAL EQU PAGE_SPLASH+6               ;   её палитра (до заливки фона)
 
 ; Страницы трека от его начала в пуле: паттерн k = страница k, за паттернами:
-TRK_INS       EQU PATTERNS_MAX          ; инструменты и орнаменты
-TRK_ORN       EQU TRK_INS+1             ; орнаменты (п.40: зарезервирована)
+TRK_INS       EQU PATTERNS_MAX          ; инструменты
+TRK_ORN       EQU TRK_INS+1             ; орнаменты
 TRK_FX        EQU TRK_INS+2             ; строки FX
 TRK_FXT       EQU TRK_INS+3             ; таблицы и заголовки FX
 PAGES_PER_SONG EQU TRK_INS+4            ; полный трек

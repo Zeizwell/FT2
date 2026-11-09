@@ -8,7 +8,7 @@
 ;                или по пробелу (Fc_Split);
 ;   сэмплы 0..31 -> инструменты 1..32 (формат у нас тот же - копия; строк больше
 ;                64 - обрезаем);
-;   орнаменты 1..16 -> 1..16 (тот же формат), 0 и 17..32 - не берём (Pt_Lost);
+;   орнаменты 1..32 -> 1..32 (тот же формат), 0 - не берём;
 ;   ордер      - пары (паттерн, транспозиция): каждая пара - свой наш паттерн,
 ;                транспозиция прибавлена к нотам;
 ;   треки      - нота, сэмпл, громкость, огибающая (период - в заголовок чипа),
@@ -44,10 +44,7 @@ Ftc_Import
         ret nz
         call Song_Clear
         call Fc_Header
-        ld a,(Trk_Ins)
-        call Ins_Clear
-        ld a,(Trk_Ins)
-        ld (Ps_Page),a
+        call Ins_Clear              ; инструменты и орнаменты - пустые
         call Fc_Samples
         call Fc_Ornaments
         call Fc_Order
@@ -125,10 +122,12 @@ Fc_Put32
         ret
 
 ; =========================================================================
-; СЭМПЛЫ И ОРНАМЕНТЫ: блоки как у нас - копия (строк не больше 64)
+; СЭМПЛЫ И ОРНАМЕНТЫ: блоки как у нас - копия (строк не больше INS_ROWS_MAX)
 ; =========================================================================
 ;-------- Сэмплы 0..31 -> инструменты 1..32 (блок = номер сэмпла)
 Fc_Samples
+        ld a,(Trk_Ins)              ; блоки - в страницу инструментов
+        ld (Ps_Page),a
         xor a
         ld (Ps_K),a
 .k      ld a,(Ps_K)
@@ -141,19 +140,10 @@ Fc_Samples
         ld a,d
         or e
         jr z,.next
-        ld a,(Ps_K)                 ; блок: #8000 + k*384
-        ld l,a
-        ld h,0
-        ld b,h
-        ld c,l
-        add hl,hl
-        add hl,bc
-        ld h,l
-        ld l,0
-        srl h
-        rr l
-        set 7,h
-        ex de,hl                    ; HL - в модуле, DE - блок
+        ld h,d                      ; HL - в модуле
+        ld l,e
+        ld a,(Ps_K)                 ; блок k
+        call Imp_Blk                ; DE - блок
         ld a,INS_ROW_SIZE
         call Fc_Block
 .next   ld hl,Ps_K
@@ -163,8 +153,10 @@ Fc_Samples
         jr c,.k
         ret
 
-;-------- Орнаменты 1..16 -> наши 1..16 (блок номер-1); 17..32 - не влезают
+;-------- Орнаменты 1..32 -> наши 1..32 (блок номер-1)
 Fc_Ornaments
+        ld a,(Trk_Orn)              ; блоки - в страницу орнаментов
+        ld (Ps_Page),a
         ld a,1
         ld (Ps_K),a
 .k      ld a,(Ps_K)
@@ -177,12 +169,11 @@ Fc_Ornaments
         ld a,d
         or e
         jr z,.next
-        ld a,(Ps_K)                 ; блок: #8000 + ORN_BASE + (номер-1)*256
+        ld h,d                      ; HL - в модуле
+        ld l,e
+        ld a,(Ps_K)                 ; блок номер-1
         dec a
-        add a,#80+high ORN_BASE
-        ld h,a
-        ld l,0
-        ex de,hl
+        call Imp_Blk
         ld a,ORN_ROW_SIZE
         call Fc_Block
 .next   ld hl,Ps_K
@@ -193,7 +184,7 @@ Fc_Ornaments
         ret
 
 ;-------- Блок FTC: HL - в модуле (+0 копия конца, +1 цикл, +2 конец, строки),
-; DE - наш блок (окно 2), A - байт в строке. Строк больше 64 - обрезаем (Pt_Lost)
+; DE - наш блок (окно 2), A - байт в строке. Строк больше INS_ROWS_MAX - обрезаем (Pt_Lost)
 Fc_Size         db 0
 Fc_Block
         ld (Fc_Size),a
@@ -472,7 +463,7 @@ Fc_Row_Ch
         xor a
         ld (Fc_Porta),a
         jp .end
-.orn    sub #CC                     ; #CC..#EC: орнамент 0..32 (наши - 1..16)
+.orn    sub #CC                     ; #CC..#EC: орнамент 0..32 (наши - 1..32)
         jr z,.orn0
         cp ORNAMENTS_MAX+1
         jr c,.orns

@@ -28,6 +28,7 @@ PT_LOOP         equ 102
 PT_PATS         equ 103             ; 2 смещение таблицы паттернов (по 6 байт: A, B, C)
 PT_SAMPLES      equ 105             ; 32 x 2 смещения сэмплов 0..31
 PT_ORNS         equ 169             ; 16 x 2 смещения орнаментов 0..15
+PT_ORNS_N       equ 16              ; орнаментов в PT3 (наших - больше: остальные пустые)
 PT_ORDER        equ 201             ; номера паттернов x3, конец - #FF
 PT_TS_TAIL      equ 16              ; хвост TurboSound: "PT3!",размер1,"PT3!",размер2,"02TS"
 
@@ -35,7 +36,7 @@ PT_TS_TAIL      equ 16              ; хвост TurboSound: "PT3!",размер
 PL_ROWS         equ 0               ; паттерн длиннее 64 роу
 PL_PATS         equ 1               ; паттернов больше 64 (позиции обрезаны)
 PL_CMDS         equ 2               ; больше двух команд в клетке
-PL_LEN          equ 3               ; сэмпл / орнамент длиннее 64
+PL_LEN          equ 3               ; сэмпл / орнамент длиннее INS_ROWS_MAX (100)
 PL_INS          equ 4               ; TurboSound: сэмплам / орнаментам модуля 2 не хватило номеров
 
 PT_TS37_N       equ 98
@@ -54,8 +55,7 @@ Pt_Import
         call Pt_TS                  ; второй модуль?
         call Song_Clear             ; новый трек
         call Pt_Header
-        ld a,(Trk_Ins)              ; инструменты и орнаменты - пустые, потом PT3
-        call Ins_Clear
+        call Ins_Clear              ; инструменты и орнаменты - пустые
         call Pt_Samples
         call Pt_Ornaments
         call Pt_Order               ; ордер -> наши паттерны
@@ -184,13 +184,15 @@ Ph_Tune         db 0                ; SH_TUNING из модуля
 Ph_Ver          db 6                ; версия PT 3.x: x
 
 ; =========================================================================
-; СЭМПЛЫ И ОРНАМЕНТЫ -> страница инструментов текущего трека Trk_Ins (окно 2)
+; СЭМПЛЫ И ОРНАМЕНТЫ -> страницы инструментов (Trk_Ins) и орнаментов (Trk_Orn) текущего трека (окно 2)
 ; =========================================================================
 Ps_K            db 0                ; номер сэмпла / орнамента PT3
 Ps_Rows         db 0                ; строк осталось
 Ps_Dst          dw 0                ; куда строка (окно 2)
 
 Pt_Samples
+        ld a,(Trk_Ins)              ; блоки - в страницу инструментов
+        ld (Ps_Page),a
         xor a
         ld (Ps_K),a
 .k      ld a,(Ps_K)                 ; смещение сэмпла: 0 - нет
@@ -203,29 +205,14 @@ Pt_Samples
         ld a,d
         or e
         jr z,.next
-        ld a,(Ps_K)                 ; наш номер: 0 -> 32, блок (номер-1)*INS_BLOCK
+        ld h,d                      ; HL - сэмпл в модуле
+        ld l,e
+        ld a,(Ps_K)                 ; наш номер: 0 -> 32
         or a
         jr nz,$+4
         ld a,SAMPLES_MAX
         dec a
-        ld l,a
-        ld h,0
-        ld b,h
-        ld c,l
-        add hl,hl                   ; *384 = *256 + *128
-        add hl,bc
-        ld h,l
-        ld l,0
-        srl h
-        rr l
-        ld a,h
-        or #80
-        ld h,a
-        push de
-        ld a,(Trk_Ins)
-        ld (Ps_Page),a
-        pop de
-        ex de,hl                    ; HL - сэмпл в модуле, DE - блок
+        call Imp_Blk                ; DE - блок
         call Ps_Sample
 .next   ld hl,Ps_K
         inc (hl)
@@ -234,7 +221,17 @@ Pt_Samples
         jr c,.k
         ret
 
-Ps_Page         db 0
+Ps_Page         db 0                ; страница, куда пишем блок: Trk_Ins или Trk_Orn
+
+;-------- Блок инструмента или орнамента в окне 2: A - номер-1 -> DE = #8000 + A*512. Портит A
+Imp_Blk
+        add a,a
+        add a,#80
+        ld d,a
+        ld e,0
+        ret
+    ASSERT INS_BLOCK == 512 && ORN_BLOCK == 512
+    ASSERT INS_ROWS_MAX == ORN_ROWS_MAX       ; Ps_Head режет длину одним пределом
 
 ;-------- Сэмпл: HL - в модуле (loop, длина, строки по 4), DE - наш блок (окно 2)
 Ps_Sample
@@ -260,7 +257,7 @@ Ps_B0           db 0
 Ps_B1           db 0
 
 ; Заголовок блока по loop / длине модуля: HL - в модуле (-> строки), DE - блок.
-; Длина больше 64 - обрезаем (Pt_Lost). Ps_Rows - строк, Ps_Dst - первая строка
+; Длина больше INS_ROWS_MAX (100) - обрезаем (Pt_Lost). Ps_Rows - строк, Ps_Dst - первая строка
 Ph_Loop         db 0
 Ph_End          db 0
 
@@ -389,7 +386,7 @@ Ps_EAcc         db 0
 
 ;-------- Орнаменты 1..15 -> наши 1..15 (блок номер-1). 0 - пустой и у нас
 Pt_Ornaments
-        ld a,(Trk_Ins)
+        ld a,(Trk_Orn)              ; блоки - в страницу орнаментов
         ld (Ps_Page),a
         ld a,1
         ld (Ps_K),a
@@ -403,17 +400,16 @@ Pt_Ornaments
         ld a,d
         or e
         jr z,.next
-        ld a,(Ps_K)                 ; блок: #8000 + ORN_BASE + (номер-1)*256
+        ld h,d                      ; HL - орнамент в модуле
+        ld l,e
+        ld a,(Ps_K)                 ; блок номер-1
         dec a
-        add a,#80+high ORN_BASE
-        ld h,a
-        ld l,0
-        ex de,hl
+        call Imp_Blk
         call Po_Orn
 .next   ld hl,Ps_K
         inc (hl)
         ld a,(hl)
-        cp ORNAMENTS_MAX
+        cp PT_ORNS_N
         jr c,.k
         ret
 
@@ -1084,19 +1080,12 @@ Smp_Alloc
         ld a,c
         ret z                       ; нет сэмпла - номер всё равно наш (пустой)
         push bc
-        dec a                       ; блок: #8000 + (номер-1)*384
-        ld l,a
-        ld h,0
-        ld b,h
-        ld c,l
-        add hl,hl
-        add hl,bc
-        ld h,l
-        ld l,0
-        srl h
-        rr l
-        set 7,h
-        ex de,hl
+        ld h,d                      ; HL - сэмпл в модуле
+        ld l,e
+        dec a                       ; блок номер-1
+        call Imp_Blk
+        ld a,(Trk_Ins)
+        ld (Ps_Page),a
         call Ps_Sample
         pop bc
         ld a,c
@@ -1133,7 +1122,7 @@ Orn_Map or a
         pop hl
         ret
 
-; Орнамент E модуля 2 -> свободный номер 1..16, орнамент - туда. A - номер, 0 - нет
+; Орнамент E модуля 2 -> свободный номер 1..32, орнамент - туда. A - номер, 0 - нет
 Orn_Alloc
         ld hl,Or_Used+1
         ld c,1
@@ -1164,11 +1153,12 @@ Orn_Alloc
         ld a,c
         ret z
         push bc
-        dec a                       ; блок: #8000 + ORN_BASE + (номер-1)*256
-        add a,#80+high ORN_BASE
-        ld h,a
-        ld l,0
-        ex de,hl
+        ld h,d                      ; HL - орнамент в модуле
+        ld l,e
+        dec a                       ; блок номер-1
+        call Imp_Blk
+        ld a,(Trk_Orn)
+        ld (Ps_Page),a
         call Po_Orn
         pop bc
         ld a,c

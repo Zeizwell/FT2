@@ -61,10 +61,10 @@ Channel (16 bytes): +0 note (0 empty, 1..96 C-1..B-8, 97 off), +1 sample, +2 env
 +3 ornament + 1 (0 empty, 1 - none), +4 volume, +6 and +8 two commands (2 bytes each), the rest reserved.
 Command codes - sdk/plugin.asm (CMD_*), doc/commands.md.
 
-INST - instrument: number (1..32), loop row, last row, rows x 5 bytes (IR_* in the SDK), FX number (0 - none),
+INST - instrument: number (1..32), loop row, last row (0..99), rows x 5 bytes (IR_* in the SDK), FX number (0 - none),
 name (<=16, 0).
 
-ORNM - ornament: number (1..16), loop, last row, rows x 2 bytes, name.
+ORNM - ornament: number (1..32), loop, last row (0..99), rows x 2 bytes, name.
 
 FX16 - FX (doc/fx-row.md): number (1..32), header 5 bytes (last row, loop, sweep shape - table number, start
 phase, flags), rows 0..last x 16 bytes, name (<=16, 0). Written if it differs from a new track's. The old FXFX
@@ -134,10 +134,10 @@ PATT - паттерн (по блоку на непустой): номер (0..63), роу (1..64), записи роу.
 +3 орнамент + 1 (0 - пусто, 1 - без орнамента), +4 громкость, +6 и +8 две команды (по 2 байта), остальное -
 резерв. Коды команд - sdk/plugin.asm (CMD_*), doc/commands.md.
 
-INST - инструмент: номер (1..32), строка цикла, последняя строка, строки x 5 байт (IR_* в SDK), номер FX
+INST - инструмент: номер (1..32), строка цикла, последняя строка (0..99), строки x 5 байт (IR_* в SDK), номер FX
 (0 - нет), имя (<=16, 0).
 
-ORNM - орнамент: номер (1..16), цикл, последняя строка, строки x 2 байта, имя.
+ORNM - орнамент: номер (1..32), цикл, последняя строка (0..99), строки x 2 байта, имя.
 
 FX16 - FX (doc/fx-row.md): номер (1..32), заголовок 5 байт (последняя строка, цикл, форма свипа - номер
 таблицы, стартовая фаза, флаги), строки 0..последняя по 16 байт, имя (до 16 знаков, 0). Пишется, если FX не как у

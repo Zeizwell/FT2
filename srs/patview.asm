@@ -2382,7 +2382,7 @@ Pt_Chan
         ld (Cp_Val),a
         ld a,CH_ENVSHAPE
         jr Pt_Byte
-.orn    call Key_Sym                ; 3 - орнамент n (0..16) -> n+1
+.orn    call Key_Sym                ; 3 - орнамент n (0..W = 0..32) -> n+1
         ret nc
         cp ORNAMENTS_MAX+1
         ret nc

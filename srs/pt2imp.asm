@@ -19,6 +19,7 @@ P2_TEMPO        equ 0
 P2_LOOP         equ 2
 P2_SAMPLES      equ 3               ; 32 x 2 смещения сэмплов 0..31
 P2_ORNS         equ 67              ; 16 x 2 смещения орнаментов 0..15
+P2_ORNS_N       equ 16              ; орнаментов в PT2 (наших - больше: остальные пустые)
 P2_PATS         equ 99              ; 2 смещение таблицы паттернов (по 6 байт: A, B, C)
 P2_NAME         equ 101             ; 30 имя
 P2_ORDER        equ 131             ; номера паттернов, конец - 128 и больше
@@ -39,12 +40,11 @@ Pt2_Import
         ret nc
         call Song_Clear             ; новый трек
         call P2_Header
-        ld a,(Trk_Ins)              ; инструменты и орнаменты - пустые, потом PT2
-        call Ins_Clear
-        ld a,(Trk_Ins)
-        ld (Ps_Page),a
+        call Ins_Clear              ; инструменты и орнаменты - пустые
         call P2_Samples
         call P2_Ornaments
+        ld a,(Trk_Orn)              ; блоки - в страницу орнаментов
+        ld (Ps_Page),a
         call P2_Order
         call P2_Patterns
         jp Pt_End
@@ -96,6 +96,8 @@ P2_Header
 ; =========================================================================
 ;-------- Сэмплы 1..31 -> инструменты 1..31 (блок номер-1)
 P2_Samples
+        ld a,(Trk_Ins)              ; блоки - в страницу инструментов
+        ld (Ps_Page),a
         ld a,1
         ld (Ps_K),a
 .k      ld a,(Ps_K)
@@ -108,20 +110,11 @@ P2_Samples
         ld a,d
         or e
         jr z,.next
-        ld a,(Ps_K)                 ; блок: #8000 + (номер-1)*384
+        ld h,d                      ; HL - в модуле
+        ld l,e
+        ld a,(Ps_K)                 ; блок номер-1
         dec a
-        ld l,a
-        ld h,0
-        ld b,h
-        ld c,l
-        add hl,hl                   ; *384 = (*3)*128
-        add hl,bc
-        ld h,l
-        ld l,0
-        srl h
-        rr l
-        set 7,h
-        ex de,hl                    ; HL - в модуле, DE - блок
+        call Imp_Blk                ; DE - блок
         call P2_Sample
 .next   ld hl,Ps_K
         inc (hl)
@@ -228,18 +221,17 @@ P2_Ornaments
         ld a,d
         or e
         jr z,.next
-        ld a,(Ps_K)                 ; блок: #8000 + ORN_BASE + (номер-1)*256
+        ld h,d                      ; HL - в модуле
+        ld l,e
+        ld a,(Ps_K)                 ; блок номер-1
         dec a
-        add a,#80+high ORN_BASE
-        ld h,a
-        ld l,0
-        ex de,hl
+        call Imp_Blk
         call P2_Head                ; длина, цикл; строки - как у PT3 (по байту)
         call Po_Orn_Rows
 .next   ld hl,Ps_K
         inc (hl)
         ld a,(hl)
-        cp ORNAMENTS_MAX
+        cp P2_ORNS_N
         jr c,.k
         ret
 

@@ -51,6 +51,7 @@ Pc_ESum         db 0                ; PT: сумма смещений огиба
 Pl_PatPage      db 0                ; страница паттерна текущей позиции
 Pl_PatLen       db 64
 Pl_InsPage      db 0
+Pl_OrnPage      db 0                ; страница орнаментов: на чтение орнамента канал ставит её в окно 3
 Pl_FxPage       db 0                ; строки FX (SH_FX_PAGE)
 Pl_FxTPage      db 0                ; таблицы и заголовки FX (SH_FXT_PAGE)
 Pl_NoteTab      dw NoteT            ; таблица нот трека (NoteT - копия по SH_TUNING)
@@ -250,6 +251,8 @@ Pl_Song_Info
         ld (SV_PLAY_SPEED),a
         ld a,(#C000+SH_INS_PAGE)
         ld (Pl_InsPage),a
+        ld a,(#C000+SH_ORN_PAGE)
+        ld (Pl_OrnPage),a
         ld a,(#C000+SH_FX_PAGE)     ; страницы FX - из шапки трека
         ld (Pl_FxPage),a
         ld a,(#C000+SH_FXT_PAGE)
@@ -584,6 +587,7 @@ RiR     ld a,0
         ld a,m_n
         call Fx_Start
 RiEnd
+        SWAPPAGE 3,(Pl_OrnPage)     ; орнамент - со своей страницы (до ONote)
 RoG     jr RoEnd                    ; орнамент - со строки RoR
 RoB     ld hl,0                     ;   блок орнамента (старший 0 - нет)
 RoR     ld a,0
@@ -616,7 +620,9 @@ ONA     add a,0
         ld (ONA+1),a
         jr ONote
 ONone   xor a
-ONote
+ONote   ld e,a                      ; инструмент - снова его страница
+        SWAPPAGE 3,(Pl_InsPage)
+        ld a,e
 NT      add a,0                     ; нота 0..95
 ARS     add a,0                     ;   + арпеджио
         cp NOTE_COUNT               ;   за краями - край
@@ -1436,16 +1442,13 @@ CFDl    ld a,e                      ;   задержка ноты - при но�
         ret
 
 ;-------- Поля клетки: A - значение (не 0). HL целы
-RSmp    dec a                       ; сэмпл: блок #C000 + (n-1)*384
-        ld e,a
-        srl a                       ;   старший: #C0 + n + n/2
-        add a,e
+RSmp    dec a                       ; сэмпл: блок #C000 + (n-1)*512
+        add a,a
         add a,#C0
         ld (RiB+2),a
-        ld a,e
-        rrca                        ;   младший: нечётный - 128
-        and #80
+        xor a
         ld (RiB+1),a
+    ASSERT INS_BLOCK == 512
         ld a,1
         ld (Pr_NewIns),a
         ret
@@ -1462,15 +1465,17 @@ REOn    ld (REGS+13),a
         ld a,1
         ld (REGS+PR_R13W),a
         ret
-ROrn    sub 2                       ; орнамент: 1 - нет, 2..17 - блоки 0..15 (по 256)
+ROrn    sub 2                       ; орнамент: 1 - нет, 2..33 - блоки 0..31 (по 512, своя страница)
         jr c,RONo
-        add a,#C0+high ORN_BASE
+        add a,a
+        add a,#C0
         ld (RoB+2),a
         xor a
         ld (RoB+1),a
         inc a
         ld (Pr_NewOrn),a
         ret
+    ASSERT ORN_BLOCK == 512
 RONo    xor a
         ld (RoB+2),a
         ld (ONS+1),a
@@ -1597,7 +1602,7 @@ Pr_Ofs  or a
         ret
 
 ; =========================================================================
-; КАНАЛЫ -> регистры (страница инструментов в окне 3)
+; КАНАЛЫ -> регистры (страница инструментов в окне 3; орнамент канал читает, поставив свою)
 ; =========================================================================
 Pl_Channels
         ld a,(Pl_InsPage)

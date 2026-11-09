@@ -346,7 +346,7 @@ Cn_Count
 .call   jp (ix)
 
 ;-------- Пустой ли номер Cn_N: Z - пустой (как после очистки трека), NZ - есть что писать
-; Инструмент: одна строка "тон, шум выкл, громкость 15", без FX и имени (Ins_Clear)
+; Инструмент: одна строка "тон, шум выкл, громкость 15", без FX и имени (Ins_Clear; имя - в странице трека)
 Ins_Used
         call Ins_Addr
         ld a,(Trk_Ins)
@@ -358,13 +358,10 @@ Ins_Used
         or (ix+OH_ROWS+IR_TONE+1)
         or (ix+OH_ROWS+IR_ENV)
         ld b,a
-        ld hl,(Cn_Addr)             ; FX и первая буква имени
+        ld hl,(Cn_Addr)             ; FX
         ld de,INS_FX
         add hl,de
         ld a,(hl)
-        ld de,INS_NAME-INS_FX
-        add hl,de
-        or (hl)
         or b
         ld b,a
         ld a,(ix+OH_ROWS+IR_NOISE)
@@ -376,6 +373,14 @@ Ins_Used
         or b
         ld (Cn_Res),a
         RESTPAGE2
+        ld a,(SV_SONG_PAGE)         ; первая буква имени (страница трека)
+        SETPAGE2 a
+        call Insn_Addr
+        ld hl,(Cn_Addr)
+        ld a,(Cn_Res)
+        or (hl)
+        ld (Cn_Res),a
+        RESTPAGE2
         ld a,(Cn_Res)
         or a
         ret
@@ -385,7 +390,7 @@ Cn_Addr         dw 0
 ; Орнамент: нули (одна строка без сдвига), без имени
 Orn_Used
         call Orn_Addr
-        ld a,(Trk_Ins)
+        ld a,(Trk_Orn)
         jp Zero_Used
 ; FX (новый формат): заголовок не по умолчанию, имя или строки 0..последняя - не нули
 Fx_Used
@@ -495,29 +500,21 @@ Cn_RowSz        db 0
 Cn_NameOfs      dw 0
 
 ;-------- Адрес блока номера Cn_N в окне 2 -> Cn_Addr; для Zero_Used - размер строки и имя
-; инструмент: #8000 + n*384
+; инструмент: #8000 + n*512 (страница Trk_Ins)
 Ins_Addr
         ld a,(Cn_N)
-        ld l,a
-        ld h,0
-        add hl,hl                   ; *128
-        add hl,hl
-        add hl,hl
-        add hl,hl
-        add hl,hl
-        add hl,hl
-        add hl,hl
-        ld d,h
-        ld e,l
-        add hl,hl
-        add hl,de                   ; *384
-        set 7,h
+        add a,a
+        add a,#80
+        ld h,a
+        ld l,0
         ld (Cn_Addr),hl
         ret
-; орнамент: #8000 + ORN_BASE + n*256
+    ASSERT INS_BLOCK == 512
+; орнамент: #8000 + n*512 (страница Trk_Orn)
 Orn_Addr
         ld a,(Cn_N)
-        add a,#80+high ORN_BASE
+        add a,a
+        add a,#80
         ld h,a
         ld l,0
         ld (Cn_Addr),hl
@@ -526,6 +523,7 @@ Orn_Addr
         ld hl,ORN_NAME
         ld (Cn_NameOfs),hl
         ret
+    ASSERT ORN_BLOCK == 512
 ; FX: строки - #8000 + n*512 (страница Trk_Fx)
 Fxr_Addr
         ld a,(Cn_N)
@@ -551,19 +549,17 @@ Fxh_Addr
     ASSERT FXH_SIZE == 8
 ; FX: имя - #8000 + SONG_FX_NAMES + n*16 (страница трека)
 Fxn_Addr
-        ld a,(Cn_N)
-        ld l,a
-        ld h,0
-        add hl,hl
-        add hl,hl
-        add hl,hl
-        add hl,hl
         ld de,#8000+SONG_FX_NAMES
-        add hl,de
-        ld (Cn_Addr),hl
-        ret
+        jr N16_Addr
+; инструмент: имя - #8000 + SONG_INS_NAMES + n*16 (страница трека: в блок не влезло)
+Insn_Addr
+        ld de,#8000+SONG_INS_NAMES
+        jr N16_Addr
 ; таблица: #8000 + n*16 (страница Trk_FxT)
 Fxt_Addr
+        ld de,#8000
+; DE + Cn_N*16 -> Cn_Addr
+N16_Addr
         ld a,(Cn_N)
         ld l,a
         ld h,0
@@ -571,7 +567,7 @@ Fxt_Addr
         add hl,hl
         add hl,hl
         add hl,hl
-        set 7,h
+        add hl,de
         ld (Cn_Addr),hl
         ret
     ASSERT FXT_SIZE == 16
@@ -808,9 +804,11 @@ Ser_Inst
         add hl,de
         ld a,(hl)
         call Ob_Put
+        RESTPAGE2
+        ld a,(SV_SONG_PAGE)         ; имя - из страницы трека
+        SETPAGE2 a
+        call Insn_Addr
         ld hl,(Cn_Addr)
-        ld de,INS_NAME
-        add hl,de
         ld b,16
         call Put_Str
         RESTPAGE2
@@ -820,7 +818,7 @@ Ser_Inst
 ; ORNM / FXFX: номер, цикл, последняя строка, строки (Cn_RowSz байт), имя (Cn_NameOfs)
 Ser_Orn
         call Orn_Addr
-        ld a,(Trk_Ins)
+        ld a,(Trk_Orn)
         jr Ser_Rows
 Ser_Rows
         SETPAGE2 a
@@ -1259,9 +1257,11 @@ Ld_Inst
         add hl,de
         call In_Get
         ld (hl),a
+        RESTPAGE2
+        ld a,(SV_SONG_PAGE)         ; имя - в страницу трека
+        SETPAGE2 a
+        call Insn_Addr
         ld hl,(Cn_Addr)
-        ld de,INS_NAME
-        add hl,de
         ld b,16
         call Get_Str
         RESTPAGE2
@@ -1275,7 +1275,7 @@ Ld_Orn
         ret nc
         ld (Cn_N),a
         call Orn_Addr
-        ld a,(Trk_Ins)
+        ld a,(Trk_Orn)
         ld b,ORN_ROWS_MAX
         jp Ld_Rows
 ; FX16

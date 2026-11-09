@@ -33,13 +33,16 @@ Song_Clear
         ld (#8000+SH_STEP),a
         ld a,(Trk_Ins)
         ld (#8000+SH_INS_PAGE),a
+        ld a,(Trk_Orn)              ; орнаменты - своя страница
+        ld (#8000+SH_ORN_PAGE),a
         ld a,(Trk_Fx)               ; страницы FX - явно
         ld (#8000+SH_FX_PAGE),a
         ld a,(Trk_FxT)
         ld (#8000+SH_FXT_PAGE),a
-        ld hl,#8000+SONG_FX_NAMES   ; имена FX - пустые
+        ld hl,#8000+SONG_FX_NAMES   ; имена FX и инструментов (за ними) - пустые
         ld de,#8000+SONG_FX_NAMES+1
-        ld bc,FXS_MAX*16-1
+        ld bc,(FXS_MAX+SAMPLES_MAX)*16-1
+    ASSERT SONG_INS_NAMES == SONG_FX_NAMES+FXS_MAX*16
         ld (hl),0
         ldir
         RESTPAGE2
@@ -71,8 +74,8 @@ Txt_Free        db "Free: ",FREE_PAGES/10+"0",FREE_PAGES%10+"0"," pages",0
 ; трек n - страница PAGE_SONG1+n, паттерны - с PAGE_POOL+n*PAGES_PER_SONG,
 ; за ними страницы инструментов, орнаментов и FX. Портит AF, B
 Trk_Pat         db PAGE_POOL        ; паттерн k текущего трека - страница Trk_Pat+k
-Trk_Ins         db PAGE_INS1        ; его инструменты и орнаменты
-Trk_Orn         db PAGE_POOL+TRK_ORN      ; страница орнаментов (п.40: пока не используется - орнаменты в Trk_Ins)
+Trk_Ins         db PAGE_INS1        ; его инструменты
+Trk_Orn         db PAGE_POOL+TRK_ORN      ; его орнаменты
 Trk_Fx          db PAGE_POOL+TRK_FX      ; его FX и таблицы шагов (sdk: FX_*, TAB_*)
 Trk_FxT         db PAGE_POOL+TRK_FXT      ; его таблицы FX и заголовки FX (новый формат: FXT_*, FXH_*)
     ASSERT PAGE_SONG2 == PAGE_SONG1+1
@@ -133,7 +136,6 @@ Song_New
         ld (hl),0
         ldir
         RESTPAGE2
-        ld a,(Trk_Ins)
         jp Ins_Clear
 
 ;-------- Таблицы и заголовки FX нового трека (страница Trk_FxT): всё - нули, таблицы 0..5 -

@@ -14,8 +14,10 @@
 ; Клавиши редактора: стрелки, PgUp/PgDn, Home/End; hex-цифры - в числа; '-' / '=' -
 ; знак (у слайда - вниз / вверх); пробел - переключить флаг. Tab - редактор <-> Name.
 ;
-; Данные - прямо в странице инструментов трека (SH_INS_PAGE), она в окне 2 на всё
-; время работы. Экран рисуется из неё заново после каждой правки (Iv_Dirty).
+; Данные - прямо в страницах трека: инструменты (SH_INS_PAGE), орнаменты (SH_ORN_PAGE), FX (SH_FX_PAGE);
+; страница режима - в окне 2 на всё время работы. Имена инструментов (в блок не влезли, страница трека
+; SONG_INS_NAMES) - копия Iv_Names: берём на входе, кладём обратно на выходе (Iv_Leave).
+; Экран рисуется заново после каждой правки (Iv_Dirty).
 ; =========================================================================
     MODULE instrview
 
@@ -135,8 +137,14 @@ Iv_Start
         SETPAGE2 a
         ld a,(#8000+SH_INS_PAGE)
         ld (Iv_Page),a
-        ld a,(#8000+SH_FX_PAGE)     ; FX - своя страница
+        ld a,(#8000+SH_ORN_PAGE)    ; орнаменты и FX - свои страницы
+        ld (Iv_OrnPage),a
+        ld a,(#8000+SH_FX_PAGE)
         ld (Iv_FxPage),a
+        ld hl,#8000+SONG_INS_NAMES  ; имена инструментов - копия на время работы
+        ld de,Iv_Names
+        ld bc,SAMPLES_MAX*16
+        ldir
         RESTPAGE2
         ld a,(Iv_Page)              ; инструменты - в окно 2 на всё время работы
         SETPAGE2 a
@@ -192,13 +200,21 @@ Iv_Leave
         call nz,Prv_Stop
         call Tool_Clear             ; экран - под вид паттерна
         call Scr_End                ; показать, дальше - одна страница
+        ld a,(SV_SONG_PAGE)         ; имена инструментов - обратно в страницу трека
+        SWAPPAGE2 a
+        ld hl,Iv_Names
+        ld de,#8000+SONG_INS_NAMES
+        ld bc,SAMPLES_MAX*16
+        ldir
         RESTPAGE2
         RESTPAGE3
         ret
 
 ; --- состояние
-Iv_Page         db 0                ; страница инструментов и орнаментов трека
+Iv_Page         db 0                ; страница инструментов трека (SH_INS_PAGE)
+Iv_OrnPage      db 0                ; страница орнаментов (SH_ORN_PAGE)
 Iv_FxPage       db 0                ; страница строк FX (SH_FX_PAGE)
+Iv_Names        ds SAMPLES_MAX*16   ; имена инструментов (копия SONG_INS_NAMES)
 Iv_Mode         db 0                ; 0 - инструменты, 1 - орнаменты, 2 - FX
 Iv_Exit         db 0                ; 1 - выйти в коре
 Iv_Dirty        db 0                ; 1 - перерисовать экран
@@ -210,8 +226,9 @@ Ed_Row          db 0                ; курсор: строка
 Ed_Col          db 0                ;   колонка (номер в таблице колонок)
 Ed_Top          db 0                ; первая видимая строка
 Iv_Clip_Mode    db 0                ; буфер Copy: 0 - пуст, иначе режим+1
-Iv_Clip         ds FX_BLOCK         ; самый большой блок
-    ASSERT FX_BLOCK >= INS_BLOCK && FX_BLOCK >= ORN_BLOCK
+Iv_Clip         ds INS_BLOCK        ; самый большой блок
+Iv_Clip_Name    ds 16               ;   и имя (у инструмента оно не в блоке)
+    ASSERT INS_BLOCK >= ORN_BLOCK && INS_BLOCK >= FX_BLOCK
 
 ;-------- Режим A (0 - Instr, 1 - Orn, 2 - FX): номер этого режима, страница в окне 2, экран заново
 Iv_Set_Mode
@@ -227,12 +244,12 @@ Iv_Set_Mode
         call Hl_Add_A
         ld a,(hl)
         ld (Iv_Num),a
-        ld a,(Iv_Mode)              ; окно 2: FX - своя страница, иначе инструменты
-        cp 2
-        ld a,(Iv_FxPage)
-        jr z,$+5
-        ld a,(Iv_Page)
+        ld a,(Iv_Mode)              ; окно 2 - страница режима: инструменты, орнаменты, FX
+        ld hl,Iv_Page
+        call Hl_Add_A
+        ld a,(hl)
         SWAPPAGE2 a
+    ASSERT Iv_OrnPage == Iv_Page+1 && Iv_FxPage == Iv_Page+2
         xor a
         ld (Iv_LTop),a
         ld (Ed_Col),a
@@ -279,7 +296,7 @@ Hl_Add_A
         ld h,a
         ret
 
-;-------- A - сколько номеров в режиме (32 / 16 / 32)
+;-------- A - сколько номеров в режиме (32 / 32 / 32)
 Iv_Count
         ld a,(Iv_Mode)
         or a
@@ -298,27 +315,13 @@ Iv_Addr
         ld a,(Iv_Mode)
         cp 2
         jr z,.fx
-        or a
-        jr nz,.orn
-        ld h,0                      ; инструмент: #8000 + n*384 (n*128*3)
-        add hl,hl
-        add hl,hl
-        add hl,hl
-        add hl,hl
-        add hl,hl
-        add hl,hl
-        add hl,hl
-        ld d,h
-        ld e,l
-        add hl,hl
-        add hl,de
-        set 7,h
-        ret
-.orn    ld a,l                      ; орнамент: #8000 + ORN_BASE + n*256
-        add a,#80+high ORN_BASE
+        ld a,l                      ; инструмент, орнамент: #8000 + n*512 (у каждого своя страница)
+        add a,a
+        add a,#80
         ld h,a
         ld l,0
         ret
+    ASSERT INS_BLOCK == 512 && ORN_BLOCK == 512
 .fx     ld h,0                      ; FX: #8000 + n*448 = n*512 - n*64
         add hl,hl
         add hl,hl
@@ -380,24 +383,36 @@ Iv_Row_Addr
         ret
     ASSERT FXR_BLOCK == 512 && FXR_SIZE == 16
 
-;-------- DE - смещение имени в блоке режима. Портит A
-Name_Ofs
-        ld de,INS_NAME
+;-------- A - номер (0..) -> HL - его имя (16 знаков): инструмент - в Iv_Names, орнамент и FX - в блоке.
+; Портит A, DE
+Iv_Name_N
+        ld e,a
         ld a,(Iv_Mode)
         or a
-        ret z
+        jr nz,.blk
+        ld l,e                      ; инструмент: Iv_Names + n*16
+        ld h,a
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        ld de,Iv_Names
+        add hl,de
+        ret
+.blk    ld a,e
+        call Iv_Addr
         ld de,ORN_NAME
+        ld a,(Iv_Mode)
         dec a
-        ret z
+        jr z,$+5
         ld de,FX_NAME
+        add hl,de
         ret
 
 ;-------- HL - имя текущего (16 знаков). Портит A, DE
 Iv_Name_Addr
-        call Iv_Block
-        call Name_Ofs
-        add hl,de
-        ret
+        ld a,(Iv_Num)
+        jr Iv_Name_N
 
 ;-------- A - последняя строка текущего (длина-1)
 Iv_End
@@ -766,9 +781,7 @@ Iv_List_Row
         ld a,' '
         call PutCh
         ld a,(Li_Idx)               ; имя
-        call Iv_Addr
-        call Name_Ofs
-        add hl,de
+        call Iv_Name_N
         ld a,(Li_Row)
         ld d,a
         ld e,LI_NAME_X
@@ -3019,10 +3032,14 @@ Iv_Unloop
         ld (hl),a
         ret
 
-;-------- Copy / Paste: блок целиком через буфер
+;-------- Copy / Paste: блок целиком и имя через буфер
 Iv_Copy call Iv_Block
         ld de,Iv_Clip
         call Block_Size
+        ldir
+        call Iv_Name_Addr
+        ld de,Iv_Clip_Name
+        ld bc,16
         ldir
         ld a,(Iv_Mode)
         inc a
@@ -3038,6 +3055,11 @@ Iv_Paste
         ex de,hl
         ld hl,Iv_Clip
         call Block_Size
+        ldir
+        call Iv_Name_Addr
+        ex de,hl
+        ld hl,Iv_Clip_Name
+        ld bc,16
         ldir
         jp Ed_Clamp
 
@@ -3070,7 +3092,7 @@ Iv_Clone
 .n      inc c
         djnz .f
         ret                         ; свободных нет
-.got    ld a,c                      ; текущий -> в свободный C
+.got    ld a,c                      ; текущий -> в свободный C: блок и имя
         push af
         call Iv_Addr
         push hl
@@ -3079,11 +3101,20 @@ Iv_Clone
         call Block_Size
         ldir
         pop af
+        push af
+        call Iv_Name_N
+        ex de,hl
+        call Iv_Name_Addr
+        ld bc,16
+        ldir
+        pop af
         ld (Iv_Num),a
         jp Iv_Select
 
 ; Номер A свободен? Z - да. Портит всё, кроме C
+If_N            db 0
 Iv_Free
+        ld (If_N),a
         call Iv_Addr
         push hl
         pop ix
@@ -3112,10 +3143,8 @@ Iv_Free
         inc de
         inc hl
         djnz .c
-        push ix                     ; имя пустое
-        pop hl
-        call Name_Ofs
-        add hl,de
+        ld a,(If_N)                 ; имя пустое
+        call Iv_Name_N
         ld a,(hl)
         or a
         ret
@@ -3131,7 +3160,7 @@ Fx_Empty        ds FX_ROW_SIZE
 ; =========================================================================
 Prv_Note        db 37               ; последняя нота (C-4)
 Prv_Oct         db 4                ; октава пианино 1..8
-Prv_Orn         db 0                ; орнамент пробы на вкладке Instr: 0 - нет, 1..16
+Prv_Orn         db 0                ; орнамент пробы на вкладке Instr: 0 - нет, 1..32
 Prv_Vol         db 15               ; громкость 1..15
 Prv_Env         db 0                ; форма огибающей: 0 - выкл, 1..14
 Prv_Key         db 0                ; клавиша, которой играем (0 - нет)

@@ -105,7 +105,7 @@ The notes below are what is decided and how it works. Updated on request.
 ### Track and pattern
 
 - **Two tracks in memory** (Track 1 / 2 in the header). Load, save, instruments and preview act on the current one.
-- **Limits:** patterns 64, instruments 32, ornaments 16, FX 32, positions 256, rows 64. Compiled track ≤ 32K.
+- **Limits:** patterns 64, instruments 32 and ornaments 32 (100 rows each), FX 32, positions 256, rows 64. Compiled track ≤ 32K.
 - **Pattern** = one 16K page; a row - 256 bytes: data 0..111 (2 chips × 56), then the row's ready text.
 - **Chip:** header 8 bytes (envelope period 2, **envelope command** 2, noise 1, envelope note 1, reserved 2) + 3
   channels × 16 (note, sample, envelope shape, ornament, volume, reserved, 2 commands × 2 bytes, reserved 6).
@@ -252,7 +252,7 @@ RP2350 пишет их прямо в AY, плюс GS); описание — `Tri
 ### Трек и паттерн
 
 - **Два трека в памяти** (Track 1 / 2 в шапке). Загрузка, сохранение, инструменты и проба — в текущий.
-- **Лимиты:** паттернов 64, инструментов 32, орнаментов 16, FX 32, позиций 256, роу 64. Откомпилированный трек ≤ 32К.
+- **Лимиты:** паттернов 64, инструментов 32 и орнаментов 32 (по 100 строк), FX 32, позиций 256, роу 64. Откомпилированный трек ≤ 32К.
 - **Паттерн** — одна страница 16К; роу — 256 байт: данные 0..111 (2 чипа × 56), дальше готовый текст роу.
 - **Чип:** заголовок 8 байт (период огибающей 2, **команда огибающей** 2, шум 1, нота огибающей 1, резерв 2) + 3 канала
   по 16 (нота, сэмпл, форма огибающей, орнамент, громкость, резерв, 2 команды по 2 байта, резерв 6).

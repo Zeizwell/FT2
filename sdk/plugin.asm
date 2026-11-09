@@ -478,7 +478,7 @@ SH_FORMAT       equ SONG_HDR+#04    ; 1  версия формата
 SH_CHIPS        equ SONG_HDR+#05    ; 1  1 или 2 чипа
 SH_SPEED        equ SONG_HDR+#06    ; 1  начальная скорость
 SH_TUNING       equ SONG_HDR+#07    ; 1  таблица нот
-SH_INS_PAGE     equ SONG_HDR+#08    ; 1  страница инструментов и орнаментов (doc/instruments.md)
+SH_INS_PAGE     equ SONG_HDR+#08    ; 1  страница инструментов (doc/instruments.md)
 SH_STEP         equ SONG_HDR+#09    ; 1  шаг курсора при вводе (новый трек - 4)
 SH_DEVICE       equ SONG_HDR+#0A    ; 1  тип чипа: 0 AY, 1 YM, 2 AYX-32, 3 наша плата (чипов - SH_CHIPS)
 SH_STEREO       equ SONG_HDR+#0B    ; 1  стерео: 0..4 - ABC ACB BAC BCA CAB (как в VT)
@@ -490,6 +490,7 @@ SH_ENVMODE      equ SONG_HDR+#10    ; 1  огибающая: 0 FT - период
                                     ;    сэмплов всех каналов чипа складываются (как PT3)
 SH_FX_PAGE      equ SONG_HDR+#11    ; 1  страница строк FX (Trk_Fx) - явно, не от SH_INS_PAGE
 SH_FXT_PAGE     equ SONG_HDR+#12    ; 1  страница таблиц и заголовков FX (Trk_FxT)
+SH_ORN_PAGE     equ SONG_HDR+#13    ; 1  страница орнаментов (Trk_Orn) - своя, не от SH_INS_PAGE
 SH_NAME         equ SONG_HDR+#20    ; 32 имя трека
 SH_AUTHOR       equ SONG_HDR+#40    ; 32 автор
 SH_FILE         equ SONG_HDR+#60    ; 32 имя файла (последний Load / Save), 0 на конце
@@ -506,7 +507,7 @@ ORDER_MAX       equ 256
 ; и сыграть; длинную вещь - делить на несколько треков, а не раздувать лимиты.
 PATTERNS_MAX    equ 64              ; номера 0..63
 SAMPLES_MAX     equ 32              ; номера 1..32, 0 - текущий / нет
-ORNAMENTS_MAX   equ 16              ; номера 1..16 и 0 - пустой (как PT3; у FTC 32 - todo 40)
+ORNAMENTS_MAX   equ 32              ; номера 1..32 и 0 - пустой (как FTC)
 FXS_MAX         equ 32              ; номера 1..32, 0 - без FX
 
 PAT_CATALOG     equ #0300           ; по номеру паттерна, 2 байта
@@ -533,23 +534,23 @@ SONG_CAT_END    equ FX_CATALOG+(FXS_MAX+1)*SC_SIZE
 ; =========================================================================
 ; ИНСТРУМЕНТЫ И ОРНАМЕНТЫ - как в Fast Tracker (doc/formats/ftc.md, doc/instruments.md)
 ; =========================================================================
-; Все инструменты и орнаменты трека - ОДНА страница 16К: плеер ставит её в окно
-; один раз за тик. Блок = заголовок как в FTC + строки + хвост (FX, имя).
-;   инструмент n (0..31 = номер 1..32): #0000 + n*INS_BLOCK
-;   орнамент   n (0..15 = номер 1..16): ORN_BASE + n*ORN_BLOCK
+; У инструментов и у орнаментов трека - по своей странице 16К (SH_INS_PAGE, SH_ORN_PAGE).
+; Блок = заголовок как в FTC + строки + хвост. Блок 512 байт: адрес = n*512 (n = номер-1).
+;   инструмент n (0..31 = номер 1..32): n*INS_BLOCK, хвост - номер FX; имена - SONG_INS_NAMES
+;   орнамент   n (0..31 = номер 1..32): n*ORN_BLOCK, хвост - имя
 OH_LEN          equ 0               ; 1  конец (копия OH_END: длина для редактора/декомпилятора)
 OH_LOOP         equ 1               ; 1  строка цикла
 OH_END          equ 2               ; 1  последняя строка (длина-1)
 OH_ROWS         equ 3               ; строки
 
 ; --- инструмент (сэмпл): строка 5 байт, как в FTC, + ретриггер в свободном бите
-INS_ROWS_MAX    equ 64
+INS_ROWS_MAX    equ 100
 INS_ROW_SIZE    equ 5
-INS_BLOCK       equ 384             ; 3 + 64*5 = 323, дальше хвост
-INS_FX          equ 324             ; 1  номер FX (0 - без FX)
-INS_NAME        equ 336             ; 16 имя
+INS_BLOCK       equ 512             ; 3 + 100*5 = 503, дальше номер FX
+INS_FX          equ 503             ; 1  номер FX (0 - без FX)
     ASSERT OH_ROWS+INS_ROWS_MAX*INS_ROW_SIZE <= INS_FX
-    ASSERT INS_NAME+16 <= INS_BLOCK
+    ASSERT INS_FX < INS_BLOCK
+    ASSERT SAMPLES_MAX*INS_BLOCK == #4000
 ; строка:
 IR_NOISE        equ 0               ; 7 шум накоплением, 6 шум ВЫКЛ, 4..0 смещение шума
 IR_TONE         equ 1               ; 2 смещение тона 12 бит (младший первым); в старшем:
@@ -564,13 +565,13 @@ IRB_SLIDE       equ 5
 IRB_SLIDE_DOWN  equ 4
 
 ; --- орнамент: строка 2 байта, как имидж FTC
-ORN_ROWS_MAX    equ 64
+ORN_ROWS_MAX    equ 100
 ORN_ROW_SIZE    equ 2
-ORN_BLOCK       equ 256             ; 3 + 64*2 = 131, дальше имя
-ORN_NAME        equ 144             ; 16 имя
-ORN_BASE        equ SAMPLES_MAX*INS_BLOCK      ; #3000
+ORN_BLOCK       equ 512             ; 3 + 100*2 = 203, дальше имя
+ORN_NAME        equ 208             ; 16 имя
     ASSERT OH_ROWS+ORN_ROWS_MAX*ORN_ROW_SIZE <= ORN_NAME
-    ASSERT ORN_BASE+ORNAMENTS_MAX*ORN_BLOCK == #4000
+    ASSERT ORN_NAME+16 <= ORN_BLOCK
+    ASSERT ORNAMENTS_MAX*ORN_BLOCK == #4000
 ; строка:
 OR_NOISE        equ 0               ; 7 шум накоплением, 6 нота накоплением, 4..0 смещение шума
 OR_NOTE         equ 1               ; смещение ноты, полутоны со знаком
@@ -663,13 +664,15 @@ FXH_SAVED       equ 5               ; байт заголовка в файле 
 ; --- карта AY FX: константы и обмен - sdk/trinity_ay.asm (подключает плеер)
 
 SONG_FX_NAMES   equ #0800           ; имена FX (по 16), реворк FX
+SONG_INS_NAMES  equ #0A00           ; имена инструментов (по 16): в блок инструмента не влезли
 SONG_EDITSTATE  equ #1000           ; состояние редактора этого трека (курсор, позиция,
 SONG_EDITSTATE_SIZE equ #400        ; режим вида...) - ТОЛЬКО трекер, плагинам не трогать.
                                     ; При переключении треков всё возвращается как было.
                                     ; дальше до #3FFF резерв
     ASSERT SONG_CAT_END <= SONG_EDITSTATE
     ASSERT SONG_CAT_END <= SONG_FX_NAMES
-    ASSERT SONG_FX_NAMES+FXS_MAX*16 <= SONG_EDITSTATE
+    ASSERT SONG_FX_NAMES+FXS_MAX*16 <= SONG_INS_NAMES
+    ASSERT SONG_INS_NAMES+SAMPLES_MAX*16 <= SONG_EDITSTATE
 
     ASSERT ORD_POS+ORDER_MAX*ORD_SIZE <= PAT_CATALOG
     ASSERT SONG_CAT_END <= #4000

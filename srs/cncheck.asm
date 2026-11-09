@@ -14,12 +14,14 @@ CK_FX           equ 6
 CK_TAB          equ 7               ; номер - с 0
 CK_FXH          equ 8
 CK_FXN          equ 9
+CK_INSN         equ 10
 
 Ck_On           db 0                ; 1 - идёт Check: Dv_Loaded остаётся в диске
 Ck_Ok           db 0                ; 1 - файл загрузился
 Ck_Slot         db 0                ; текущий трек
 Ck_Song2        db 0                ; страницы второго слота
 Ck_Ins2         db 0
+Ck_Orn2         db 0
 Ck_Fx2          db 0
 Ck_FxT2         db 0
 Ck_Reg          db 0                ; что сравниваем (CK_*)
@@ -63,6 +65,8 @@ Dv_Check
         ld (Ck_Song2),a
         ld a,(Trk_Ins)
         ld (Ck_Ins2),a
+        ld a,(Trk_Orn)
+        ld (Ck_Orn2),a
         ld a,(Trk_Fx)
         ld (Ck_Fx2),a
         ld a,(Trk_FxT)
@@ -95,14 +99,21 @@ Ck_All
         call Ck_Head
         call Ck_Order
         call Ck_FxN
+        call Ck_InsN
         RESTPAGE3
         RESTPAGE2
         call Ck_Pats                ; каталог и роу паттернов
-        ld a,(Trk_Ins)              ; инструменты и орнаменты
+        ld a,(Trk_Ins)              ; инструменты
         SETPAGE2 a
         ld a,(Ck_Ins2)
         SETPAGE3 a
         call Ck_Ins
+        RESTPAGE3
+        RESTPAGE2
+        ld a,(Trk_Orn)              ; орнаменты
+        SETPAGE2 a
+        ld a,(Ck_Orn2)
+        SETPAGE3 a
         call Ck_Orn
         RESTPAGE3
         RESTPAGE2
@@ -254,7 +265,7 @@ Ck_Rows
         inc (hl)
         jr .r
 
-;-------- Инструменты: заголовок, строки 0..последняя, FX, имя
+;-------- Инструменты: заголовок, строки 0..последняя, FX (имена - Ck_InsN)
 Ck_Ins
         ld a,CK_INS
         ld (Ck_Reg),a
@@ -287,11 +298,6 @@ Ck_Ins
         add hl,de
         ld bc,1
         call Ck_Mem
-        ld hl,(Cn_Addr)
-        ld de,INS_NAME
-        add hl,de
-        ld b,16
-        call Ck_Str
         ld a,(Ck_N)
         inc a
         cp SAMPLES_MAX
@@ -399,18 +405,33 @@ Ck_FxH
 ;-------- Имена FX (страница трека)
 Ck_FxN
         ld a,CK_FXN
+        ld b,FXS_MAX
+        ld hl,Fxn_Addr
+        jr Ck_Names16
+
+;-------- Имена инструментов (страница трека)
+Ck_InsN
+        ld a,CK_INSN
+        ld b,SAMPLES_MAX
+        ld hl,Insn_Addr
+
+;-------- Имена по 16: A - что (CK_*), B - сколько, HL - адрес имени Cn_N (-> Cn_Addr)
+Ck_Names16
         ld (Ck_Reg),a
+        ld a,b
+        ld (.max+1),a
+        ld (.addr+1),hl
         xor a
 .n      ld (Ck_N),a
         ld (Cn_N),a
-        call Fxn_Addr
+.addr   call 0
         ld hl,(Cn_Addr)
         ld (Ck_Base),hl
         ld b,16
         call Ck_Str
         ld a,(Ck_N)
         inc a
-        cp FXS_MAX
+.max    cp 0
         jr c,.n
         ret
 
@@ -589,7 +610,7 @@ Ck_Hex
         inc de
         ret
 
-Ck_Names        dw Txt_CkHead,Txt_CkOrd,Txt_CkCat,Txt_CkPat,Txt_CkIns,Txt_CkOrn,Txt_CkFx,Txt_CkTab,Txt_CkFxH,Txt_CkFxN
+Ck_Names        dw Txt_CkHead,Txt_CkOrd,Txt_CkCat,Txt_CkPat,Txt_CkIns,Txt_CkOrn,Txt_CkFx,Txt_CkTab,Txt_CkFxH,Txt_CkFxN,Txt_CkInsN
 Txt_CkHead      db "head",0
 Txt_CkOrd       db "order",0
 Txt_CkCat       db "pat cat",0
@@ -600,6 +621,7 @@ Txt_CkFx        db "fx",0
 Txt_CkTab       db "table",0
 Txt_CkFxH       db "fx head",0
 Txt_CkFxN       db "fx name",0
+Txt_CkInsN      db "ins name",0
 Txt_CkRow       db " row ",0
 Txt_CkOff       db " +",0
 Txt_CkDiff      db "Diff ",0
