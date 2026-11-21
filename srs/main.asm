@@ -75,15 +75,6 @@ core_end
     display     "core size",/d,core_end-core_start," bytes"
 
 
-    org #c000
-maket
-
-    include     "srs/maket.asm"
-    org #f000
-maket_end
-    SAVEBIN     "srs/maket.bin",maket,maket_end-maket
-    display     "maket size",/d,maket_end-maket," bytes"
-
     ; --- тулзы: каждая со своим org #4000 и своим файлом, грузится spg в свою страницу
     org #4000
 tool_patview
@@ -93,14 +84,74 @@ tool_patview_end
     SAVEBIN     "srs/patview.bin",tool_patview,tool_patview_end-tool_patview
     display     "patview size",/d,tool_patview_end-tool_patview," bytes"
 
-    ; --- банк шрифтов (страница PAGE_FONTS): шрифты по слотам, в UI_GLYPH_SLOT - значки
+    ; --- тулза диска: каталог, загрузка и сохранение (страница PAGE_TOOL_DISK)
+    org #4000
+tool_disk
+    include     "srs/diskview.asm"
+tool_disk_end
+    ASSERT tool_disk_end <= #8000
+    SAVEBIN     "srs/diskview.bin",tool_disk,tool_disk_end-tool_disk
+    display     "diskview size",/d,tool_disk_end-tool_disk," bytes"
+
+    ; --- тулза инструментов и орнаментов (страница PAGE_TOOL_INSTR)
+    org #4000
+tool_instr
+    include     "srs/instrview.asm"
+tool_instr_end
+    ASSERT tool_instr_end <= #8000
+    SAVEBIN     "srs/instrview.bin",tool_instr,tool_instr_end-tool_instr
+    display     "instrview size",/d,tool_instr_end-tool_instr," bytes"
+
+    ; --- тулза настроек Setup (страница PAGE_TOOL_OPT)
+    org #4000
+tool_opt
+    include     "srs/optview.asm"
+tool_opt_end
+    ASSERT tool_opt_end <= #8000
+    SAVEBIN     "srs/optview.bin",tool_opt,tool_opt_end-tool_opt
+    display     "optview size",/d,tool_opt_end-tool_opt," bytes"
+
+    ; --- компаратор плеера (страница PAGE_CMP, работает в окне 3)
     org #C000
-fontbank
-    incbin      "srs/fonts/866_code.fnt"        ; шрифт 0
-    ds          fontbank+UI_GLYPH_SLOT*FONT_SIZE-$,0
-    include     "srs/fonts/ui_glyphs.asm"
-fontbank_end
-    SAVEBIN     "srs/fonts.bin",fontbank,fontbank_end-fontbank
+tool_cmp
+    include     "srs/cmpview.asm"
+tool_cmp_end
+    ASSERT tool_cmp_end <= #10000
+    SAVEBIN     "srs/cmpview.bin",tool_cmp,tool_cmp_end-tool_cmp
+    display     "cmpview size",/d,tool_cmp_end-tool_cmp," bytes"
+
+    ; --- плеер (страницы PAGE_PLAYER и PAGE_PLAYER2, окна 1 и 2 из IM1)
+    include     "srs/player.asm"
+    SAVEBIN     "srs/player.bin",player_start,player1_end-player_start
+    SAVEBIN     "srs/player2.bin",player2_start,player_end-player2_start
+    display     "player size",/d,player1_end-player_start," + ",/d,player_end-player2_start," bytes"
+
+    ; --- конвертеры: импорт PT3 / PT2 / FTC (страница PAGE_CONV, окно 1)
+    org #4000
+tool_conv
+    include     "srs/convview.asm"
+tool_conv_end
+    ASSERT tool_conv_end <= #8000
+    SAVEBIN     "srs/conv.bin",tool_conv,tool_conv_end-tool_conv
+    display     "conv size",/d,tool_conv_end-tool_conv," bytes"
+
+    ; --- диск: переходник к FAT32 (страница PAGE_DISK_APP, работает в окне 2)
+    include     "srs/disk.asm"
+    SAVEBIN     "srs/disk.bin",disk_start,disk_end-disk_start
+    display     "disk adapter size",/d,disk_end-disk_start," bytes"
+
+    ; --- рабочая страница FAT32 (PAGE_FAT_WORK): нули, нижний код драйвера на #2200, порт SD-ZC на #3900.
+    ;     Сам драйвер (PAGE_FAT_CODE) собирается отдельно: build.bat, drivers/fat32
+    org #C000
+fatwork
+    ds          FAT_LOW_CODE,0
+    incbin      "drivers/fat32/build/fat32-low.bin"   ; проверки данных и кэши FILEX драйвера
+    ASSERT      $ <= fatwork+FAT_LOW_END
+    ds          fatwork+FAT_PORT_TABLE-$,0
+    incbin      "drivers/fat32/build/port_sdzc.bin"
+    ds          fatwork+#4000-$,0
+fatwork_end
+    SAVEBIN     "srs/fatwork.bin",fatwork,fatwork_end-fatwork
 
     LABELSLIST  "tools/unreal/ft.l",3
     bplist      "tools/unreal/bpx.ini" unreal

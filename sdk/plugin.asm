@@ -96,12 +96,202 @@ SV_WORK_PAGE    equ SYS_VARS+#0B    ; 1  первая рабочая стран�
 SV_WORK_PAGES   equ SYS_VARS+#0C    ; 1  сколько рабочих страниц
 SV_DRAW_PAGE    equ SYS_VARS+#0D    ; 1  текстовая страница, в которую рисовать
                                     ;    (один буфер или задний из двух - решает коре)
-SV_FONT         equ SYS_VARS+#0E    ; 1  номер выбранного шрифта
+;                   SYS_VARS+#0E    ; 1  свободно (был номер шрифта)
 SV_PLAY_SONG    equ SYS_VARS+#0F    ; 1  страница трека, который играет плеер.
                                     ;    Открыто два трека сразу: можно слушать один
                                     ;    (SV_PLAY_SONG) и править другой (SV_SONG_PAGE).
 SV_SONG_NUM     equ SYS_VARS+#10    ; 1  номер редактируемого трека, 0..1
-                                    ; #11-#7F резерв
+SV_MOUSE_COL    equ SYS_VARS+#11    ; 1  мышь: колонка знакоместа 0..89 (обновляется каждый кадр)
+SV_MOUSE_ROW    equ SYS_VARS+#12    ; 1  мышь: строка знакоместа 0..35
+SV_MOUSE_BUT    equ SYS_VARS+#13    ; 1  мышь: кнопки, 0 - нажата: бит 0 левая, 1 правая, 2 средняя
+                                    ; Пиксели - только для спрайта стрелки, работать - в знакоместах.
+SV_FRAME_HOOK   equ SYS_VARS+#14    ; 2  адрес процедуры сборки экрана, которую IM1 вызывает
+; --- ввод (ведёт IM1; читать - через Key_Get / Mouse_Btn, см. srs/input.asm)
+SV_FRAMES       equ SYS_VARS+#16    ; 2  счётчик кадров (+1 в каждом IM1)
+SV_KB_DELAY     equ SYS_VARS+#18    ; 1  автоповтор клавиш: задержка, кадров
+SV_KB_RATE      equ SYS_VARS+#19    ; 1  автоповтор клавиш: период, кадров
+SV_MS_DELAY     equ SYS_VARS+#1A    ; 1  автоповтор кнопок мыши: задержка
+SV_MS_RATE      equ SYS_VARS+#1B    ; 1  автоповтор кнопок мыши: период
+SV_MS_DBL       equ SYS_VARS+#1C    ; 1  двойной клик: не дольше, кадров
+SV_KEY_MODS     equ SYS_VARS+#1D    ; 1  модификаторы сейчас: KM_*
+SV_KEY_HEAD     equ SYS_VARS+#1E    ; 1  очередь клавиш: куда пишет IM1 (0..15)
+SV_KEY_TAIL     equ SYS_VARS+#1F    ; 1  очередь клавиш: откуда читают (0..15)
+SV_MS_COUNT     equ SYS_VARS+#20    ; 12 события кнопок мыши - СЧЁТЧИКИ (IM1 только
+                                    ;    увеличивает): по 4 байта на кнопку (левая,
+                                    ;    правая, средняя): нажатий, отпусканий,
+                                    ;    повторов, двойных
+SV_FIELDS       equ SYS_VARS+#2C    ; 2  список полей верхнего уровня (его ставит редактор), 0 - нет
+SV_HOVER        equ SYS_VARS+#2E    ; 2  поле под мышью, 0 - нет
+SV_FOCUS        equ SYS_VARS+#30    ; 2  поле в фокусе (туда идёт клавиатура), 0 - нет
+SV_PRESSED      equ SYS_VARS+#32    ; 2  поле, на котором нажали левую кнопку (до отпускания)
+; --- плеер (doc/player.md). Команду и её параметры пишет основной цикл, остальное -
+;     только плеер (в IM1)
+SV_PLAY_CMD     equ SYS_VARS+#34    ; 1  команда PC_*, плеер берёт и обнуляет
+SV_PLAY_CPOS    equ SYS_VARS+#35    ; 1  команда: позиция
+SV_PLAY_CROW    equ SYS_VARS+#36    ; 1  команда: роу
+SV_PLAY_STATE   equ SYS_VARS+#37    ; 1  PS_*
+SV_PLAY_POS     equ SYS_VARS+#38    ; 1  что играет: позиция
+SV_PLAY_ROW     equ SYS_VARS+#39    ; 1  ... роу
+SV_PLAY_TICK    equ SYS_VARS+#3A    ; 1  тиков до следующей роу
+SV_PLAY_SPEED   equ SYS_VARS+#3B    ; 1  тиков на роу
+SV_PLAYER       equ SYS_VARS+#3C    ; 1  страница плеера, 0 - нет (IM1 не зовёт)
+                                    ;    (трек, который играет, - SV_PLAY_SONG выше)
+SV_TOOL         equ SYS_VARS+#3D    ; 1  страница экрана (тулзы), которую коре зовёт следующей:
+                                    ;    тулза ставит сюда другую и выходит - смена вкладки
+SV_SONG_NEW     equ SYS_VARS+#3E    ; 1  1 - трек в его странице сменился (загрузка).
+                                    ;    Вид паттерна перечитывает его при входе и обнуляет
+SV_TOOL_ARG     equ SYS_VARS+#3F    ; 1  параметр для тулзы из SV_TOOL (инструменты: 0 - Instr, 1 - Orn)
+OPT_LOAD        equ #FF             ;    Setup: при старте только прочитать /FT2/FT2.INI
+OPT_HELP        equ 1               ;    Setup: экран Help (клавиши), 0 - настройки
+PC_SONG         equ 1               ; команды: сонг с позиции CPOS, роу CROW
+PC_PATTERN      equ 2               ;   паттерн позиции CPOS по кругу с роу CROW
+PC_STOP         equ 3               ;   стоп и тишина
+PC_PREVIEW      equ 4               ;   проба: одна нота из Prv_Row (коре), пока не PC_STOP
+PS_STOP         equ 0               ; состояния
+PS_SONG         equ 1
+PS_PATTERN      equ 2
+PS_PREVIEW      equ 3               ; играет проба (канал A первого чипа)
+PLAYER_INIT     equ #4000           ; входы плеера (его страница - в окне 1, вторая - в окне 2)
+PLAYER_TICK     equ #4003
+SV_KEY_DOWN     equ SYS_VARS+#40    ; 32 карта нажатых: бит = код PS/2 (E0-коды +128)
+SV_KEY_Q        equ SYS_VARS+#60    ; 32 очередь клавиш: 16 x [код] [флаги KM_* | KF_REPEAT]
+
+KM_SHIFT        equ %00000001       ; модификаторы
+KM_CTRL         equ %00000010
+KM_ALT          equ %00000100
+KF_REPEAT       equ %10000000       ; в событии: автоповтор (иначе - нажатие)
+
+; --- Коды клавиш (PS/2 набор 2, E0-коды +#80) - одни на всех
+KEY_UP          equ #75+#80
+KEY_DOWN        equ #72+#80
+KEY_LEFT        equ #6B+#80
+KEY_RIGHT       equ #74+#80
+KEY_PGUP        equ #7D+#80
+KEY_PGDN        equ #7A+#80
+KEY_HOME        equ #6C+#80
+KEY_END         equ #69+#80
+KEY_ENTER       equ #5A
+KEY_BACK        equ #66
+KEY_TAB         equ #0D
+KEY_ESC         equ #76
+KEY_SPACE       equ #29
+KEY_MINUS       equ #4E             ; '-'
+KEY_PLUS        equ #55             ; '=' (+ без Shift)
+KEY_KP_MINUS    equ #7B
+KEY_KP_PLUS     equ #79
+KEY_F5          equ #03
+KEY_F6          equ #0B
+KEY_F7          equ #7F             ; F7 (#83) коре сводит в #7F
+KEY_F8          equ #0A
+KEY_E           equ #24
+KEY_T           equ #2C
+KEY_A           equ #1C             ; паттерн: off (как VT)
+KEY_K           equ #42             ;   стереть ноту
+KEY_DEL         equ #71+#80         ; Delete
+KEY_INS         equ #70+#80         ; Insert
+KEY_I           equ #43
+KEY_Y           equ #35
+KEY_N           equ #31
+KEY_Z           equ #1A
+KEY_C           equ #21
+KEY_X           equ #22
+KEY_V           equ #2A
+
+; --- Действия (бинды, doc/architecture.md): клавиши к ним - таблица Bind_Tab в коре
+; (умолчания - как VT, doc/trackers.md), тулзы перечисляют действия, а не клавиши.
+; Номера - только здесь; переназначение - правка Bind_Tab (потом - из INI)
+ACT_UP          equ 1               ; навигация
+ACT_DOWN        equ 2
+ACT_LEFT        equ 3
+ACT_RIGHT       equ 4
+ACT_PGUP        equ 5
+ACT_PGDN        equ 6
+ACT_HOME        equ 7
+ACT_END         equ 8
+ACT_NEXT        equ 9               ; следующий канал (Tab)
+ACT_PREV        equ 10              ; предыдущий (Shift+Tab)
+ACT_ENTER       equ 11              ; открыть / играть пробу
+ACT_DIR_UP      equ 12              ; диск: папка выше
+ACT_PLAY_SONG   equ 13              ; F5 - сонг с текущей позиции
+ACT_PLAY_START  equ 14              ; F6 - сонг с начала
+ACT_PLAY_ROW    equ 15              ; F7 - паттерн по кругу с текущей роу
+ACT_PLAY_PAT    equ 16              ; F8 - паттерн по кругу с начала
+ACT_STOP        equ 17              ; Esc
+ACT_ENV_OPEN    equ 18              ; Ctrl+E - колонка Env чипа
+ACT_ENV_NOTE    equ 19              ; Alt+E - период огибающей нотой
+ACT_TIMING      equ 20              ; Ctrl+T - полоса времени
+ACT_CLEAR       equ 21              ; Delete - поле / выделение - пусто
+ACT_AUTOSTEP    equ 22              ; Space - автошаг вкл / выкл
+ACT_OCT_1       equ 23              ; Numpad 1..8 - октава ввода (23..30)
+ACT_STEP_0      equ 31              ; Ctrl+0..9 - шаг (31..40)
+ACT_INS_TRK     equ 41              ; Insert - вставить строку трека (Instr / Orn - строку)
+ACT_INS_PAT     equ 42              ; Ctrl+I - вставить строку паттерна (Instr / Orn - строку)
+ACT_DEL_TRK     equ 43              ; Backspace - удалить строку трека (Instr / Orn - строку)
+ACT_DEL_PAT     equ 44              ; Ctrl+Backspace, Ctrl+Y - удалить строку паттерна
+ACT_UNDO        equ 45              ; Ctrl+Z - отмена (в пределах канала)
+ACT_REDO        equ 46              ; Ctrl+Shift+Z - повтор
+ACT_SEL_UP      equ 47              ; Shift+стрелки, PgUp / PgDn - выделение
+ACT_SEL_DOWN    equ 48
+ACT_SEL_LEFT    equ 49
+ACT_SEL_RIGHT   equ 50
+ACT_SEL_PGUP    equ 51
+ACT_SEL_PGDN    equ 52
+ACT_SEL_ALL     equ 53              ; Ctrl+A
+ACT_COPY        equ 54              ; Ctrl+C
+ACT_CUT         equ 55              ; Ctrl+X
+ACT_PASTE       equ 56              ; Ctrl+V
+ACT_TR_UP       equ 57              ; Numpad + - полутон вверх
+ACT_TR_DN       equ 58              ; Numpad - - вниз
+ACT_TR_OCT_UP   equ 59              ; Ctrl+Numpad + - октава вверх
+ACT_TR_OCT_DN   equ 60              ; Ctrl+Numpad - - вниз
+MB_LEFT         equ 0               ; номер кнопки мыши (смещение в SV_MS_COUNT / 4)
+MB_RIGHT        equ 1
+MB_MIDDLE       equ 2
+ME_PRESS        equ 0               ; смещение счётчика события у кнопки
+ME_RELEASE      equ 1
+ME_REPEAT       equ 2
+ME_DOUBLE       equ 3
+
+; --- ПОЛЯ (doc/architecture.md, п.2-3). Поле - прямоугольник экрана и его обработчик.
+; Список полей - записи подряд, конец - байт FLD_END. Дети - такой же список.
+FLD_X           equ 0               ; 1  колонка (знакоместа)
+FLD_Y           equ 1               ; 1  строка
+FLD_W           equ 2               ; 1  ширина
+FLD_H           equ 3               ; 1  высота
+FLD_FLAGS       equ 4               ; 1  FF_*
+FLD_PAGE        equ 5               ; 1  страница обработчика (окно 1), 0 - коре
+FLD_HANDLER     equ 6               ; 2  адрес обработчика
+FLD_KIDS        equ 8               ; 2  список дочерних полей, 0 - нет
+FLD_PARAM       equ 10              ; 2  что угодно для обработчика
+FLD_SIZE        equ 12
+FLD_END         equ #FF             ; конец списка (вместо FLD_X)
+FF_FOCUS        equ %00000001       ; поле берёт фокус по нажатию (клавиатура - ему)
+FF_HAND         equ %00000010       ; над полем курсор - лапка (кликабельное)
+FF_BTN          equ %01000000       ; кнопка (srs/button.asm): её рисует Bn_DrawList
+FF_SPIN         equ %10000000       ; поле числа nn[+][-] (srs/spin.asm): его кнопки рисует Sp_DrawList
+
+; События поля. Обработчик: A - событие, IX - поле, C - параметр:
+;   EV_KEY - B код клавиши, C флаги (KM_*, KF_REPEAT); EV_WHEEL - C дельта колеса.
+; Выход: CF=1 - событие съедено (для EV_KEY: дальше по контекстам не идёт).
+; Портить можно всё.
+EV_HOVER_IN     equ 1               ; мышь вошла в поле
+EV_HOVER_OUT    equ 2               ; вышла
+EV_PRESS        equ 3               ; левая нажата над полем
+EV_RELEASE      equ 4               ; левая отпущена (полю, где нажимали)
+EV_CLICK        equ 5               ; отпущена над тем же полем, где нажали
+EV_DOUBLE       equ 6               ; двойной клик
+EV_REPEAT       equ 7               ; левая держится: автоповтор (полю, где нажимали)
+EV_RCLICK       equ 8               ; правая нажата над полем
+EV_WHEEL        equ 9               ; колесо над полем
+EV_KEY          equ 10              ; клавиша (полю в фокусе)
+EV_FOCUS_IN     equ 11              ; поле получило фокус
+EV_FOCUS_OUT    equ 12              ; потеряло
+EV_OUTSIDE      equ 13              ; левая нажата мимо поля в фокусе (ему): строка ввода - закончить
+    ASSERT SV_KEY_Q+32 <= THEME_ATTR
+                                    ;    каждый кадр (после мыши и музыки), 0 - нет.
+                                    ;    Ставит активный редактор. В ней: только DMA через
+                                    ;    set_ports_int и короткая запись, страницы - SETPAGE/RESTPAGE.
+                                    ; #16-#7F резерв
 
 ; =========================================================================
 ; ЭКРАН (текстовый режим 90x36)
@@ -114,27 +304,27 @@ SCR_ROWS        equ 36
 SCR_ATTR        equ 128             ; смещение атрибутов в строке
 
 ; --- значки интерфейса в шрифте FT2 (коды 00-1F, остальное - CP866)
-; Кнопка - 2 знакоместа подряд: код и код+1. Шрифт для FT2 обязан иметь их по этим кодам.
+; Кнопка - 2 знакоместа подряд: код и код+1 (рамка 15x7).
+; У [+], [-], Unique и Clone есть нажатый вид: код+BTN_PRESSED - та же, сдвинута на точку
+; вниз-вправо. Шрифт для FT2 обязан иметь их по этим кодам.
 GLYPH_CHK_OFF   equ #01             ; галочка выключена
 GLYPH_CHK_ON    equ #07             ; галочка включена
-GLYPH_BTN_PLUS  equ #02             ; +  раскрыть          (#02-#03)
-GLYPH_BTN_MINUS equ #04             ; -  свернуть          (#04-#05)
-GLYPH_BTN_NEW   equ #08             ; N  новый паттерн     (#08-#09)
+GLYPH_BTN_PLUS  equ #02             ; [+] раскрыть         (#02-#03, нажатая #12-#13)
+GLYPH_BTN_MINUS equ #04             ; [-] свернуть         (#04-#05, нажатая #14-#15)
+BTN_PRESSED     equ #10             ; код нажатой кнопки = код + BTN_PRESSED
+GLYPH_BTN_UNIQUE equ #08            ; ордер: Make Unique   (#08-#09, нажатая #18-#19)
 GLYPH_BTN_PLAY  equ #0A             ; ▶  плей              (#0A-#0B)
 GLYPH_BTN_STOP  equ #0C             ; ■  стоп              (#0C-#0D)
-GLYPH_BTN_REC   equ #0E             ; ●  запись            (#0E-#0F)
-GLYPH_BTN_RES1  equ #12             ; резерв               (#12-#13)
-GLYPH_BTN_RES2  equ #14             ;                      (#14-#15)
-GLYPH_BTN_RES3  equ #16             ;                      (#16-#17)
+GLYPH_BTN_CLONE equ #0E             ; ордер: Clone         (#0E-#0F, нажатая #1E-#1F)
+GLYPH_BTN_RES1  equ #12             ; занято: нажатая [+]  (#12-#13)
+GLYPH_BTN_RES2  equ #14             ; занято: нажатая [-]  (#14-#15)
+GLYPH_VOL       equ #16             ; клетка полосы громкости
+GLYPH_DEL       equ #17             ; ×  удалить строку     (#17)
 GLYPH_BTN_RES4  equ #1C             ;                      (#1C-#1D)
 GLYPH_ARROW_R   equ #10             ; ►  (CP866, не трогаем)
 GLYPH_ARROW_L   equ #11             ; ◄
-GLYPH_UP        equ #18             ; ↑
-GLYPH_DOWN      equ #19             ; ↓
-GLYPH_RIGHT     equ #1A             ; →
-GLYPH_LEFT      equ #1B             ; ←
-GLYPH_TRI_UP    equ #1E             ; ▲
-GLYPH_TRI_DOWN  equ #1F             ; ▼
+GLYPH_SCR_UP    equ #1A             ; ▲ скролл вверх (пользователь нарисовал 2026-10-18, был →)
+GLYPH_SCR_DOWN  equ #1B             ; ▼ скролл вниз (был ←)
 ; #00 - конец строки, #06 - пока занят заливкой макета
 
 ; =========================================================================
@@ -174,6 +364,36 @@ CLR_ORD_CUR     equ 23              ; стрелки текущей позици
 CLR_PATNUM      equ 24              ; номера паттернов в ордер-листе
 CLR_EDIT_ROW    equ 25              ; строка редактирования: берётся только фон (paper),
                                     ; цвета символов остаются свои
+CLR_SEP         equ 26              ; внутренние разделители колонок (мягче рамки)
+CLR_SB_TRACK    equ 27              ; скроллбар: дорожка
+CLR_SB_THUMB    equ 28              ; скроллбар: ползунок
+CLR_HOVER       equ 29              ; поле под мышью (надпись, значение, кнопка)
+CLR_HEAD_BG     equ 30              ; полоса заголовков паттерна: фон
+CLR_HEAD_TEXT   equ 31              ;   подписи, заголовки колонок
+CLR_TOP_VALUE   equ 32              ; шапка: значения
+CLR_HEAD_LINE   equ 33              ;   рамки на её фоне
+CLR_HEAD_HI     equ 34              ;   выделенное: активная вкладка, заголовок в фокусе
+CLR_HEAD_BTN    equ 35              ;   кнопки [-][+] на её фоне
+CLR_TOP_BG      equ 36              ; шапка: фон (один на всю шапку, не как у полосы заголовков)
+CLR_TOP_TEXT    equ 37              ;   подписи, вкладки
+CLR_TOP_HI      equ 38              ;   выделенное: активная вкладка, выбранный трек
+CLR_TOP_BTN     equ 39              ;   кнопки [-][+]
+CLR_BAR         equ 40              ; строка 0 шапки: полоса, вкладки, Help, About
+CLR_BAR_TITLE   equ 41              ;   название программы
+CLR_OK          equ 42              ; сообщение "готово" (Saving... OK) - зелёный
+; --- редакторы инструментов, орнаментов, FX (общие)
+CLR_ED_CAP      equ 43              ; заголовки колонок
+CLR_ED_ROW      equ 44              ; номера строк
+CLR_ED_VAL      equ 45              ; значения
+CLR_ED_OFF      equ 46              ; выключено / не действует (---, Max / Min / Swp при Ln <> 2)
+CLR_ED_LOOP     equ 47              ; маркер цикла L
+CLR_ED_STEP     equ 48              ; FX: шаги таймера
+CLR_ED_TYPE     equ 49              ; FX: тип эффекта (SID, Buz, on)
+CLR_WIN_SHADOW  equ 50              ; тень окна (srs/window.asm)
+CLR_WIN_TEXT    equ 51              ; окно: рамка, заголовок, текст, фон (голубой фон окна)
+CLR_WIN_VALUE   equ 52              ;   значения
+CLR_WIN_HI      equ 53              ;   включённое / горящее (клетки полос, выбранный режим)
+CLR_WIN_INV     equ 54              ;   заголовок окна сплошной полосой (WF_INVERT)
 
 ; =========================================================================
 ; API (#3C00, по 3 байта на вход: jp ...)
@@ -198,9 +418,6 @@ API_DMA_WAIT    equ SYS_API+7*3     ; дождаться окончания DMA.
 API_FRAME_DONE  equ SYS_API+8*3     ; кадр нарисован в SV_DRAW_PAGE - показать.
                                     ; После вызова SV_DRAW_PAGE может смениться,
                                     ; перечитать перед следующим рисованием.
-API_SET_FONT    equ SYS_API+9*3     ; in: A - номер шрифта из банка. Портит всё, кроме IX,IY
-API_APPLY_GLYPHS equ SYS_API+10*3   ; положить значки интерфейса (GLYPH_*) поверх шрифта.
-                                    ; Вызывать после API_SET_FONT.
 
 ; =========================================================================
 ; ПЕРЕКЛЮЧЕНИЕ СТРАНИЦ
@@ -231,6 +448,17 @@ API_APPLY_GLYPHS equ SYS_API+10*3   ; положить значки интерф
     MACRO SETPAGE2 page
         SETPAGE 2,page
     ENDM
+; Сменить страницу окна, НЕ трогая стек: только внутри уже открытой пары SETPAGE..RESTPAGE
+; этого окна (RESTPAGE вернёт ту, что была до SETPAGE). Портит A, BC
+    MACRO SWAPPAGE win,page
+        ld a,page
+        ld (SV_PAGES+win),a
+        ld bc,#10AF+win*#100
+        out (c),a
+    ENDM
+    MACRO SWAPPAGE2 page
+        SWAPPAGE 2,page
+    ENDM
     MACRO SETPAGE3 page
         SETPAGE 3,page
     ENDM
@@ -250,13 +478,22 @@ SH_FORMAT       equ SONG_HDR+#04    ; 1  версия формата
 SH_CHIPS        equ SONG_HDR+#05    ; 1  1 или 2 чипа
 SH_SPEED        equ SONG_HDR+#06    ; 1  начальная скорость
 SH_TUNING       equ SONG_HDR+#07    ; 1  таблица нот
-                                    ; #08-#0B резерв
+SH_INS_PAGE     equ SONG_HDR+#08    ; 1  страница инструментов (doc/instruments.md)
+SH_STEP         equ SONG_HDR+#09    ; 1  шаг курсора при вводе (новый трек - 4)
+SH_DEVICE       equ SONG_HDR+#0A    ; 1  тип чипа: 0 AY, 1 YM, 2 AYX-32, 3 наша плата (чипов - SH_CHIPS)
+SH_STEREO       equ SONG_HDR+#0B    ; 1  стерео: 0..4 - ABC ACB BAC BCA CAB (как в VT)
 SH_PATTERNS     equ SONG_HDR+#0C    ; 1  число паттернов
 SH_SAMPLES      equ SONG_HDR+#0D    ; 1  число сэмплов (инструментов)
 SH_ORNAMENTS    equ SONG_HDR+#0E    ; 1  число орнаментов
 SH_FXS          equ SONG_HDR+#0F    ; 1  число FX
+SH_ENVMODE      equ SONG_HDR+#10    ; 1  огибающая: 0 FT - период ведёт канал с огибающей, 1 PT - смещения
+                                    ;    сэмплов всех каналов чипа складываются (как PT3)
+SH_FX_PAGE      equ SONG_HDR+#11    ; 1  страница строк FX (Trk_Fx) - явно, не от SH_INS_PAGE
+SH_FXT_PAGE     equ SONG_HDR+#12    ; 1  страница таблиц и заголовков FX (Trk_FxT)
+SH_ORN_PAGE     equ SONG_HDR+#13    ; 1  страница орнаментов (Trk_Orn) - своя, не от SH_INS_PAGE
 SH_NAME         equ SONG_HDR+#20    ; 32 имя трека
 SH_AUTHOR       equ SONG_HDR+#40    ; 32 автор
+SH_FILE         equ SONG_HDR+#60    ; 32 имя файла (последний Load / Save), 0 на конце
                                     ; #60-#FF резерв
 
 ORDER_LIST      equ #0100           ; ордер-лист
@@ -270,12 +507,12 @@ ORDER_MAX       equ 256
 ; и сыграть; длинную вещь - делить на несколько треков, а не раздувать лимиты.
 PATTERNS_MAX    equ 64              ; номера 0..63
 SAMPLES_MAX     equ 32              ; номера 1..32, 0 - текущий / нет
-ORNAMENTS_MAX   equ 16              ; номера 1..16, 0 - текущий / нет
+ORNAMENTS_MAX   equ 32              ; номера 1..32 и 0 - пустой (как FTC)
 FXS_MAX         equ 32              ; номера 1..32, 0 - без FX
 
 PAT_CATALOG     equ #0300           ; по номеру паттерна, 2 байта
 PC_PAGE         equ 0               ; страница, 0 - паттерна нет
-PC_SLOT         equ 1               ; смещение слота в полосе (L)
+PC_LEN          equ 1               ; длина паттерна в роу (1..64)
 PC_SIZE         equ 2
 
 ; Каталоги сэмплов, орнаментов и FX - по номеру, запись 0 не используется.
@@ -294,11 +531,148 @@ FX_CATALOG      equ ORN_CATALOG+(ORNAMENTS_MAX+1)*SC_SIZE
                                     ; !!! формат самих FX НЕ РЕШЁН
 SONG_CAT_END    equ FX_CATALOG+(FXS_MAX+1)*SC_SIZE
 
+; =========================================================================
+; ИНСТРУМЕНТЫ И ОРНАМЕНТЫ - как в Fast Tracker (doc/formats/ftc.md, doc/instruments.md)
+; =========================================================================
+; У инструментов и у орнаментов трека - по своей странице 16К (SH_INS_PAGE, SH_ORN_PAGE).
+; Блок = заголовок как в FTC + строки + хвост. Блок 512 байт: адрес = n*512 (n = номер-1).
+;   инструмент n (0..31 = номер 1..32): n*INS_BLOCK, хвост - номер FX; имена - SONG_INS_NAMES
+;   орнамент   n (0..31 = номер 1..32): n*ORN_BLOCK, хвост - имя
+OH_LEN          equ 0               ; 1  конец (копия OH_END: длина для редактора/декомпилятора)
+OH_LOOP         equ 1               ; 1  строка цикла
+OH_END          equ 2               ; 1  последняя строка (длина-1)
+OH_ROWS         equ 3               ; строки
+
+; --- инструмент (сэмпл): строка 5 байт, как в FTC, + ретриггер в свободном бите
+INS_ROWS_MAX    equ 100
+INS_ROW_SIZE    equ 5
+INS_BLOCK       equ 512             ; 3 + 100*5 = 503, дальше номер FX
+INS_FX          equ 503             ; 1  номер FX (0 - без FX)
+    ASSERT OH_ROWS+INS_ROWS_MAX*INS_ROW_SIZE <= INS_FX
+    ASSERT INS_FX < INS_BLOCK
+    ASSERT SAMPLES_MAX*INS_BLOCK == #4000
+; строка:
+IR_NOISE        equ 0               ; 7 шум накоплением, 6 шум ВЫКЛ, 4..0 смещение шума
+IR_TONE         equ 1               ; 2 смещение тона 12 бит (младший первым); в старшем:
+                                    ;   7 тон накоплением, 6 тон ВЫКЛ, 4 ретриггер огибающей
+IR_VOL          equ 3               ; 7 огибающая накоплением, 6 огибающая ВКЛ, 5 слайд
+                                    ;   громкости, 4 слайд вниз, 3..0 громкость
+IR_ENV          equ 4               ; смещение периода огибающей со знаком (вычитается)
+IRB_ACC         equ 7               ; биты (в байтах шума, старшем тона, громкости)
+IRB_OFF         equ 6               ; шум / тон выключен; у огибающей - ВКЛ
+IRB_RETRIG      equ 4               ; ретриггер (старший байт тона) - наше, в FTC свободен
+IRB_SLIDE       equ 5
+IRB_SLIDE_DOWN  equ 4
+
+; --- орнамент: строка 2 байта, как имидж FTC
+ORN_ROWS_MAX    equ 100
+ORN_ROW_SIZE    equ 2
+ORN_BLOCK       equ 512             ; 3 + 100*2 = 203, дальше имя
+ORN_NAME        equ 208             ; 16 имя
+    ASSERT OH_ROWS+ORN_ROWS_MAX*ORN_ROW_SIZE <= ORN_NAME
+    ASSERT ORN_NAME+16 <= ORN_BLOCK
+    ASSERT ORNAMENTS_MAX*ORN_BLOCK == #4000
+; строка:
+OR_NOISE        equ 0               ; 7 шум накоплением, 6 нота накоплением, 4..0 смещение шума
+OR_NOTE         equ 1               ; смещение ноты, полутоны со знаком
+
+; =========================================================================
+; FX - таймерные эффекты карты AY FX (doc/instruments.md, Trinity/doc/ay-ports-map.md п.5а)
+; =========================================================================
+; Все FX и таблицы трека - ОДНА страница 16К: следующая за страницей инструментов.
+; FX = строки по тику (как инструмент), строка = регистры канала карты #C3..#CE один в один.
+;   FX n      (0..31 = номер 1..32): #0000 + n*FX_BLOCK, заголовок OH_* + строки + имя
+;   таблица n (0..31 = номер 1..32): TAB_BASE + n*TAB_BLOCK
+FX_ROWS_MAX     equ 32
+FX_ROW_SIZE     equ 12
+FX_BLOCK        equ 448             ; 3 + 32*12 = 387, дальше имя
+FX_SWEEP        equ OH_ROWS+FX_ROWS_MAX*FX_ROW_SIZE ; 2 свип ШИМ на весь FX: форма (= регистр карты #BC), фаза (#BD)
+FX_NAME         equ 400             ; 16 имя
+    ASSERT FX_SWEEP+2 <= FX_NAME
+    ASSERT OH_ROWS+FX_ROWS_MAX*FX_ROW_SIZE <= FX_NAME
+    ASSERT FX_NAME+16 <= FX_BLOCK
+; строка (= регистры #C3..#CE):
+FR_FLAGS        equ 0               ; флаги (FXF_*)
+FR_PWM          equ 1               ; 7..4 скважность max, 3..0 min (16 ступеней 0..50%: n*50/15)
+FR_SWEEP        equ 2               ; свип ШИМ: 0 - выкл (скважность = max), 1..255 - частота (min -> max -> min)
+FR_MIX          equ 3               ; Mix (SID / Sync): FE_SEMI, FE_RAW, FE_TAB
+FR_FM           equ 6               ; FM: то же
+FR_EFM          equ 9               ; Env FM: то же
+FE_SEMI         equ 0               ;   частота таймера: детюн в полутонах, со знаком
+FE_RAW          equ 1               ;   детюн сырой, со знаком (к периоду)
+FE_TAB          equ 2               ;   таблица шагов (0 - стандартная)
+; флаги:
+FXF_MIX         equ %00000011       ; Mix: 0 выкл, FXF_SID, FXF_SYNC
+FXF_SID         equ 1
+FXF_SYNC        equ 2
+FXB_FM          equ 2               ; FM вкл
+FXB_EFM         equ 3               ; Env FM вкл
+FXB_FOLLOW      equ 4               ; таймеры идут за тоном канала (иначе база - TAKE)
+FXB_FMPER       equ 5               ; шаги FM - в единицах периода (иначе полутоны)
+FXB_EFMPER      equ 6               ; шаги Env FM - в единицах периода
+
+; --- таблица шагов таймера
+TAB_MAX         equ 32
+TAB_STEPS       equ 16
+TAB_BLOCK       equ 32
+TAB_BASE        equ FX_BLOCK*FXS_MAX            ; #3800
+TB_HEAD         equ 0               ; 3..0 длина-1 (1..16 шагов), 7..4 шаг цикла
+TB_STEPS        equ 1               ; шаги по байту: SID - громкость 0..15, Sync - форма,
+                                    ;   FM / Env FM - сдвиг со знаком
+    ASSERT TB_STEPS+TAB_STEPS <= TAB_BLOCK
+    ASSERT TAB_BASE+TAB_MAX*TAB_BLOCK <= #4000
+
+; =========================================================================
+; FX - НОВЫЙ ФОРМАТ (реворк, doc/fx-row.md). Старый выше - пока его читают плеер и старый
+; редактор FX (уйдёт вместе с ними).
+;   страница Trk_Fx  - только строки: FX n, строка r - n*FXR_BLOCK + r*FXR_SIZE
+;   страница Trk_FxT - таблицы (n*FXT_SIZE, #0000..#0FFF) и заголовки FX (FXH_BASE + n*FXH_SIZE)
+;   имена FX - в странице трека (SONG_FX_NAMES + n*16)
+; =========================================================================
+FXR_SIZE        equ 16              ; строка FX
+FXR_BLOCK       equ FX_ROWS_MAX*FXR_SIZE        ; 512 - все строки одного FX
+FXR_FLAGS       equ 0               ; 1..0 Mix: 0 выкл, 1 SID, 2 Sync; биты FXRB_*
+FXR_PWM         equ 1               ; 7..4 PWM max, 3..0 PWM min (ступени 0..15 = n*50/15 %)
+FXR_SWP         equ 2               ; скорость свипа: 0 - нет, 1..255 - прибавка к фазе за кадр
+FXR_MIX         equ 3               ; Mix: +0 детюн в полутонах, +1 детюн сырой (со знаком), +2 номер таблицы
+FXR_FM          equ 6               ; FM: так же
+FXR_EFM         equ 9               ; Env FM: так же
+FXR_LEN1        equ 12              ; 3..0 Mix длина-1, 7..4 FM длина-1 (1..16 шагов таблицы)
+FXR_LEN2        equ 13              ; 3..0 Env FM длина-1; 14, 15 - запас
+FXRB_FM         equ 2               ; FM вкл
+FXRB_EFM        equ 3               ; Env FM вкл
+FXRB_FMPER      equ 5               ; шаги FM - в единицах периода (0 - полутоны)
+FXRB_EFMPER     equ 6               ; шаги Env FM - в единицах периода
+FXR_MIXMASK     equ 3
+    ASSERT FXR_BLOCK*FXS_MAX == #4000
+
+FXT_MAX         equ 256             ; таблиц на трек (номера 0..255, все равноправные)
+FXT_SIZE        equ 16              ; 16 значений, без заголовка (длина - в строке FX)
+FXT_TRI         equ 1               ; пресет нового трека: 0 меандр SID (F 0), 1 треугольник,
+FXT_PRESETS     equ 6               ;   2 синус, 3 пила вверх, 4 пила вниз, 5 меандр (формы свипа)
+
+FXH_BASE        equ FXT_MAX*FXT_SIZE            ; #1000: заголовки FX
+FXH_SIZE        equ 8
+FXH_END         equ 0               ; последняя строка (длина-1)
+FXH_LOOP        equ 1               ; строка цикла
+FXH_SWSHAPE     equ 2               ; форма свипа - номер таблицы (16 точек кривой)
+FXH_SWPHASE     equ 3               ; стартовая фаза свипа 0..255 (на новой ноте)
+FXH_FLAGS       equ 4               ; бит 0 - не перезапускать свип на новой ноте
+FXH_SAVED       equ 5               ; байт заголовка в файле (FXH_END..FXH_FLAGS)
+    ASSERT FXH_BASE+FXS_MAX*FXH_SIZE <= #4000
+
+; --- карта AY FX: константы и обмен - sdk/trinity_ay.asm (подключает плеер)
+
+SONG_FX_NAMES   equ #0800           ; имена FX (по 16), реворк FX
+SONG_INS_NAMES  equ #0A00           ; имена инструментов (по 16): в блок инструмента не влезли
 SONG_EDITSTATE  equ #1000           ; состояние редактора этого трека (курсор, позиция,
 SONG_EDITSTATE_SIZE equ #400        ; режим вида...) - ТОЛЬКО трекер, плагинам не трогать.
                                     ; При переключении треков всё возвращается как было.
                                     ; дальше до #3FFF резерв
     ASSERT SONG_CAT_END <= SONG_EDITSTATE
+    ASSERT SONG_CAT_END <= SONG_FX_NAMES
+    ASSERT SONG_FX_NAMES+FXS_MAX*16 <= SONG_INS_NAMES
+    ASSERT SONG_INS_NAMES+SAMPLES_MAX*16 <= SONG_EDITSTATE
 
     ASSERT ORD_POS+ORDER_MAX*ORD_SIZE <= PAT_CATALOG
     ASSERT SONG_CAT_END <= #4000
@@ -306,9 +680,13 @@ SONG_EDITSTATE_SIZE equ #400        ; режим вида...) - ТОЛЬКО т�
 ; =========================================================================
 ; ПАТТЕРН
 ; =========================================================================
-; Строка паттерна = полоса 256 байт страницы, т.е. H = база окна + строка.
-; Паттерн занимает в полосе PAT_WIDTH байт со смещения PC_SLOT.
-; Следующая строка - inc h. 0 в любом поле = пусто / оставить текущее.
+; Паттерн = одна страница 16К. Роу = полоса 256 байт страницы, т.е.
+; H = база окна + роу, следующая роу - inc h. В полосе:
+;   L   0..111  данные: 2 чипа по CHIP_SIZE
+;   L 112..252  текст роу (готовый вид для экрана) - ТОЛЬКО трекер, плагинам не
+;               трогать: трекер перерисовывает его сам после записи в данные
+;   L 253..254  текст номера роу
+; 0 в любом поле данных = пусто / оставить текущее.
 
 PAT_ROWS_MAX    equ 64
 
@@ -316,43 +694,70 @@ PAT_ROWS_MAX    equ 64
 CH_NOTE         equ 0           ; 0 - пусто, 1..96 ноты, NOTE_CMD.. команды ноты
 CH_SAMPLE       equ 1
 CH_ENVSHAPE     equ 2
-CH_ORNAMENT     equ 3
+CH_ORNAMENT     equ 3           ; номер+1: 0 - пусто (не менять), 1 - орнамент 0 (пустой),
+                                ;   2..17 - орнаменты 1..16
 CH_VOLUME       equ 4
                                 ; +5 резерв
-CH_CMD          equ 6           ; 3 команды по CMD_SIZE: +6 +9 +12
-CH_CMDS         equ 3
-                                ; +15 резерв
+CH_CMD          equ 6           ; 2 команды по CMD_SIZE: +6 +8
+CH_CMDS         equ 2
+                                ; +10..+15 резерв
 CH_SIZE         equ 16
 
-; --- команда, 3 байта: [код] [параметр, 16 бит, младший байт первым]
-; код 0 - пусто, 1..255 - команды. Параметр - как нужно команде
-; (например задержка 4 бита + 12 бит значения, или 16 бит целиком).
-CMD_CODE        equ 0
-CMD_PARAM       equ 1
-CMD_SIZE        equ 3
+; --- команда, 2 байта. Что в них - решают плеер и компилятор, трекер их только
+; хранит и показывает (4 hex: первый байт, второй байт). 0,0 - пусто.
+CMD_SIZE        equ 2
+
+; Коды команд - ТОЛЬКО через эти имена (конвертеры, плеер): поменяли код здесь -
+; после пересборки все поняли. Раскладка - doc/commands.md. Два байта делятся по-разному:
+;   код 1..E: байт 0 = код<<4 | задержка (или X), байт 1 = параметр (или YZ) - 12 бит;
+;   код F:    байт 0 = #F0 | подкод (CMDX_*), байт 1 = параметр - 8 бит, ещё 16 команд.
+; Номера VT (1..6, 9..B) - как в VT / PT3.
+CMD_GLIS_DOWN   equ #1          ; частота вниз: задержка, шаг (период +шаг)
+CMD_GLIS_UP     equ #2          ; частота вверх
+CMD_PORTA       equ #3          ; портаменто к ноте: задержка, шаг
+CMD_SMP_OFS     equ #4          ; сэмпл с позиции: параметр - строка
+CMD_ORN_OFS     equ #5          ; орнамент с позиции
+CMD_ONOFF       equ #6          ; звук вкл / выкл: параметр - вкл<<4 | выкл (тиков)
+CMD_VOL_SLIDE   equ #7          ; слайд громкости: задержка, вверх<<4 | вниз
+CMD_VIBRATO     equ #8          ; вибрато: тиков на шаг, скорость<<4 | глубина (как Bitphase)
+CMD_ENV_DOWN    equ #9          ; частота огибающей вниз: задержка, шаг
+CMD_ENV_UP      equ #A          ; частота огибающей вверх
+CMD_SPEED       equ #B          ; скорость: параметр - тиков на роу
+CMD_ARP         equ #C          ; арпеджио: шагов, сдвиг1<<4 | сдвиг2 (полутоны)
+                                ; #D, #E - резерв (12 бит)
+CMD_EXT         equ #F          ; расширенные: подкод в младшем полубайте байта 0
+CMDX_RETRIG     equ #0          ;   ретриггер огибающей и тона (FT 500): параметр - 0
+CMDX_DETUNE     equ #1          ;   детюн: сдвиг периода со знаком
+CMDX_DELAY      equ #2          ;   задержка ноты: тиков
+                                ;   #3..#F - резерв (FX и прочее)
 
     ASSERT CH_CMD+CH_CMDS*CMD_SIZE <= CH_SIZE
 
 NOTE_EMPTY      equ 0
-NOTE_FIRST      equ 1           ; C-0, 12 нот x 8 октав
+NOTE_FIRST      equ 1           ; C-1 (как PT3/VT), 12 нот x 8 октав: C-1..B-8
 NOTE_COUNT      equ 12*8
 NOTE_LAST       equ NOTE_FIRST+NOTE_COUNT-1
 NOTE_CMD        equ NOTE_LAST+1
 NOTE_OFF        equ NOTE_CMD
 
 ; --- строка чипа: заголовок 8 байт + 3 канала
-CHIP_ENVPER     equ 0           ; 2 период огибающей
-CHIP_ENVCMD     equ 2           ; 3 команда огибающей, формат как у CMD_*
-CHIP_NOISE      equ 5           ; 1 шум
+CHIP_ENVPER     equ 0           ; 2 период огибающей (младший, старший)
+CHIP_ECMD       equ 2           ; 2 команда огибающей: как команда канала (CMD_*), цель - период огибающей
+                                ;   чипа (как колонка огибающей Bitphase; doc/commands.md)
+CHIP_NOISE      equ 4           ; 1 шум: 0 - пусто, шум 0 - #20 (плеер берёт биты 4..0)
+CHIP_ENVNOTE    equ 5           ; 1 период огибающей нотой: ставится при вводе
+                                ;   (0 - нет; бит 7 - нота неточная)
                                 ; +6..+7 резерв
 CHIP_HDR_SIZE   equ 8
 CHIP_CH_A       equ CHIP_HDR_SIZE
 CHIP_CH_B       equ CHIP_CH_A+CH_SIZE
 CHIP_CH_C       equ CHIP_CH_B+CH_SIZE
-CHIP_SIZE       equ 64
+CHIP_SIZE       equ CHIP_CH_C+CH_SIZE   ; 56
 
 CHIPS_MAX       equ 2
-PAT_WIDTH       equ CHIP_SIZE*CHIPS_MAX
+PAT_DATA_SIZE   equ CHIP_SIZE*CHIPS_MAX ; 112
+PAT_TEXT        equ PAT_DATA_SIZE       ; текст роу - сразу за данными
+    ASSERT CHIP_SIZE == 56
 
 ; =========================================================================
 ; СЭМПЛ, ОРНАМЕНТ

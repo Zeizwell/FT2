@@ -14,6 +14,8 @@ Init_Mouse_Sprite
         ld bc,#FFDF
         in a,(c)
         ld (MOUSE_dY),a
+        ld a,7                  ; кнопки отпущены
+        ld (MOUSE_BUT),a
         ld bc,#FADF             ; колесо: запоминаем стартовое значение счётчика
         in a,(c)
         and #F0
@@ -21,21 +23,12 @@ Init_Mouse_Sprite
         xor a
         ld (MOUSE_WHEEL),a
 
-        ld hl,MOUSE_SPRITE_DATA
-        ld de,#C000
-        ld b,#10
-.ll2    push de
-        ld c,8
-.ll1
-        ld a,(hl)
-        ld (de),a
-        inc hl
-        inc e
-        dec c
-        jr nz,.ll1
-        pop de
-        inc d
-        djnz .ll2
+        ld hl,MOUSE_SPRITE_DATA     ; стрелка и лапка - в конце страницы спрайтов (строки 48..63,
+        ld de,#C000+MOUSE_GFX_ROW*8*256+MOUSE_GFX_COL*4 ;   байты 240..255): начало - графике
+        call Mouse_Gfx_Copy         ;   кнопок
+        ld hl,MOUSE_HAND_DATA
+        ld de,#C000+MOUSE_GFX_ROW*8*256+MOUSE_GFX_COL*4+8
+        call Mouse_Gfx_Copy
         call Mouse_Scale
 
         ld hl, Sprite_init_table
@@ -48,6 +41,28 @@ Init_Mouse_Sprite
 
 
 
+
+; HL - картинка 16x16 (16 строк по 8 байт), DE - место в странице спрайтов (окно 3)
+Mouse_Gfx_Copy
+        ld b,16
+.r      push bc
+        push de
+        ld bc,8
+        ldir
+        pop de
+        inc d                       ; строка битмапа - 256 байт
+        pop bc
+        djnz .r
+        ret
+
+; Форма курсора (тайл в описателе стрелки): поле под мышью с флагом FF_HAND - лапка. Картинки - в
+; последних тайлах страницы спрайтов: ряд тайлов 6 (строки 48..63), колонки 60..63
+MOUSE_GFX_ROW    equ 6
+MOUSE_GFX_COL    equ 60
+MOUSE_TILE_ARROW equ (MOUSE_GFX_ROW*64+MOUSE_GFX_COL) & 255     ; младший байт номера тайла
+MOUSE_TILE_HAND  equ (MOUSE_GFX_ROW*64+MOUSE_GFX_COL+2) & 255
+MOUSE_TILE_HI    equ (MOUSE_GFX_ROW*64+MOUSE_GFX_COL) >> 8       ; старший - в байте палитры
+    ASSERT MOUSE_TILE_HI == (MOUSE_GFX_ROW*64+MOUSE_GFX_COL+3) >> 8
 Print_D push af
         RRCA
         RRCA
@@ -78,6 +93,10 @@ Sprite_init_table
                 db #FF                                                ;конец таблы
 ;------mouse sprite settings 
 
+MOUSE_SFILE_SLOT equ    84        ; стрелка - последняя запись SFILE (0..84): позже в списке - поверх (проверено);
+                                  ; записи с 0 - кнопки и прочая графика интерфейса
+                                  ; (кнопки транспорта - записи 0..4, srs/head.asm)
+    ASSERT MOUSE_SFILE_SLOT == 84   ; 85 записей SFILE
 MOUSE_Y_MASK    equ     %00100010 ; Флаги Y: ACT=1, размер 16 пикселей (#32)
 MOUSE_X_MASK    equ     %00000010 ; Флаги X: размер 16 пикселей (#02)
 
@@ -87,8 +106,8 @@ MOUSE_Y_POS     db #20          ; Позиция по Y (базовый стар
                 db MOUSE_Y_MASK ; Флаги Y: ACT=1, размер 16 пикселей (#32)      0 бит - 8бит координаты Y
 MOUSE_X_POS     db #20          ; Позиция по X (базовый старт по центру)
                 db MOUSE_X_MASK    ; Флаги X: размер 16 пикселей (#02)          0 бит - 8бит координаты X
-                db 0            ; Номер тайла на карте графики 
-                db #D0           ; Старшая тетрада — палитра 0, младшая — старший бит тайла D0- 13 палитра текст режима
+MOUSE_TILE      db MOUSE_TILE_ARROW ; Номер тайла на карте графики (стрелка / лапка)
+                db #D0 | MOUSE_TILE_HI ; палитра 13 (как у текста) | старшие биты номера тайла
               
               
 MOUSE_SAT_END  
@@ -97,8 +116,8 @@ Cursor_dma_table
                 defb    #1a, low MOUSE_SAT_BUFFER  ; Адрес источника в ОЗУ (младший байт)
                 defb    #1b, high MOUSE_SAT_BUFFER ; Адрес источника в ОЗУ (старший байт)
                 defb    #1c, PAGE_CORE0            ; Источник сидит в нашей базовой RAM (обычно 0)
-                defb    #1d, 0
-                defb    #1e, 2                     ; НАПРАВЛЯЕМ ТРАНЗАКЦИЮ СТРОГО В SFILE (SAT память)
+                defb    #1d, low (MOUSE_SFILE_SLOT*6)  ; запись стрелки в SFILE (последняя - поверх всех)
+                defb    #1e, high (MOUSE_SFILE_SLOT*6) ;   (адрес в SFILE - 9 бит)
                 defb    #1f, 0
                 defb    #26, (MOUSE_SAT_END - MOUSE_SAT_BUFFER) / 2-1 ; Длина транзакции (3 слова)
                 defb    #28, 0
@@ -114,7 +133,23 @@ Cursor_dma_table
 Read_Mouse:
 
         call MOUSE
-        
+
+        ; ЗНАКОМЕСТА для работы (пиксели - только для спрайта): X/4, Y/8.
+        ; Координата 9 бит: старший бит через перенос, дальше 8-битные сдвиги
+        ld a,(CUR_MX+2)
+        rra
+        ld a,(CUR_MX+1)
+        rra                     ; X/2 - влезает в байт
+        srl a                   ; X/4 = колонка 0..89
+        ld (SV_MOUSE_COL),a
+        ld a,(CUR_MY+2)
+        rra
+        ld a,(CUR_MY+1)
+        rra                     ; Y/2
+        srl a
+        srl a                   ; Y/8 = строка 0..35
+        ld (SV_MOUSE_ROW),a
+
         ; РАСКИДЫВАЕМ ГОТОВЫЕ ПИКСЕЛИ В БУФЕР DMA СПРАЙТА
         
         ld a, (CUR_MY+1)
@@ -157,7 +192,7 @@ MOUSE_PORTY     db      0
 MOUSE_dX        DB 0            ;тут содержится не приведенная дельта перемещения по оси X
 MOUSE_dY        DB 0            ;тут содержится не приведенная дельта перемещения по оси Y
 MOUSE_SPEED     DB 4            ;значение от 0 до 1 - 5 это 100%, шаг 26
-MOUSE_ACCEL     DB 14            ;кубическая акселерация мышки 0-8  
+MOUSE_ACCEL     DB 0             ;кубическая акселерация мышки 0-8, 0 - выкл (пока: будет настройкой трекера)
 MOUSE_ACC_TABLE DUP MOUSE_MAXSPEED, X
                 DW (X * X * X) / 16   ;x в кубе/128 x=1..MOUSE_MAXSPEED
                 EDUP  
@@ -168,7 +203,7 @@ CUR_MX          db 0            ;дробная часть 16.8
 CUR_MY          db 0            ;дробная часть 16.8
                 DW 100          ; Y 
                                 ; 24 битная координата
-MOUSE_BUT       DB 7            ; Кнопки
+MOUSE_BUT       equ SV_MOUSE_BUT    ; Кнопки - на фиксированном адресе, видны плагинам
 MOUSE_WHEEL_PORT DB #F0         ; прошлое значение счётчика колеса (#FADF, биты 7..4)
 MOUSE_WHEEL     DB 0            ; накопленная дельта колеса со знаком, забирает Mouse_Get_Wheel
 
@@ -448,6 +483,23 @@ MOUSE_SPRITE_DATA:
     db #00, #00, #00, #00, #00, #00, #00, #00   ; Пусто
     db #00, #00, #00, #00, #00, #00, #00, #00   ; Пусто
     db #00, #00, #00, #00, #00, #00, #00, #00   ; Пусто
+MOUSE_HAND_DATA:                    ; лапка: кончик пальца - в точке 1,0
+    db #04, #40, #00, #00, #00, #00, #00, #00   ; .44.............
+    db #4B, #B4, #00, #00, #00, #00, #00, #00   ; 4BB4............
+    db #4B, #B4, #00, #00, #00, #00, #00, #00   ; 4BB4............
+    db #4B, #B4, #44, #00, #00, #00, #00, #00   ; 4BB444..........
+    db #4B, #BB, #B4, #40, #00, #00, #00, #00   ; 4BBBB44.........
+    db #4B, #BB, #BB, #B4, #00, #00, #00, #00   ; 4BBBBBB4........
+    db #4B, #BB, #BB, #B4, #00, #00, #00, #00   ; 4BBBBBB4........
+    db #4B, #BB, #BB, #B4, #00, #00, #00, #00   ; 4BBBBBB4........
+    db #04, #BB, #BB, #40, #00, #00, #00, #00   ; .4BBBB4.........
+    db #04, #BB, #BB, #40, #00, #00, #00, #00   ; .4BBBB4.........
+    db #00, #44, #44, #00, #00, #00, #00, #00   ; ..4444..........
+    db #00, #00, #00, #00, #00, #00, #00, #00   ; ................
+    db #00, #00, #00, #00, #00, #00, #00, #00   ; ................
+    db #00, #00, #00, #00, #00, #00, #00, #00   ; ................
+    db #00, #00, #00, #00, #00, #00, #00, #00   ; ................
+    db #00, #00, #00, #00, #00, #00, #00, #00   ; ................
 
 
   display     "ACC TABLE",/d,MOUSE_ACC_TABLE 

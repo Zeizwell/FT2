@@ -1,0 +1,1912 @@
+; =========================================================================
+; РЕДАКТОР FX (реворк FX, doc/fx-row.md). Шаг 2: только отрисовка из данных, раскладка - как в
+; макете (srs/fxmaket.asm). Данные: строки - страница Trk_Fx, заголовки и таблицы - Trk_FxT,
+; имена - страница трека (SONG_FX_NAMES). Текущий FX - Iv_Num, подвкладка - Fx_Sub.
+; Окно 2 у тулзы занято страницей инструментов - чужие страницы ставим на время копии (Fe_Copy).
+; =========================================================================
+FE_LIST_ROWS    equ 4               ; список FX: строк (колонки 1..17, скролл - 18)
+FE_MID          equ 21              ; средний блок: имя, Len / Loop, свип, подвкладки
+FE_BTN          equ 62              ; кнопки
+FE_CAP          equ IV_TOP+6        ; заголовки колонок (под линией шапки)
+FE_ROW0         equ IV_TOP+7        ; первая строка FX
+FE_ROWS         equ TL_LAST-FE_ROW0     ; строк FX на экране (до нижней рамки - последняя строка)
+; колонки строки: Mix
+FE_RW           equ 2               ; номер строки (hex)
+FE_LP           equ 1               ; скобка цикла (как в инструменте: Loop_Char)
+FE_MIX          equ 5               ; ---, SID, Buz
+FE_MAX          equ 9               ; скважность max / min (4 знака)
+FE_MIN          equ 14
+FE_SWP          equ 19              ; скорость свипа (3)
+FE_SEMI         equ 23              ; детюн: полутоны, сырой (по 4)
+FE_DET          equ 29
+FE_LN           equ 35              ; длина (2)
+FE_STEPS        equ 39              ; шаги: hex-цифра и пробел
+; колонки строки: FM / Env FM
+FE_ON           equ 5               ; on / --
+FE_FSEMI        equ 8               ; детюн: полутоны, сырой (по 4)
+FE_FDET         equ 13
+FE_UNIT         equ 18              ; semi / per
+FE_FLN          equ 23              ; длина (2)
+FE_FSTEPS       equ 25              ; шаги по 4 знака: semi - "+12", per - "+0C"
+
+Fe_Hdr          ds FXH_SIZE         ; заголовок текущего FX
+Fe_Name         ds 17               ; имя (16 и 0)
+Fe_Row          ds FXR_SIZE         ; строка, которую рисуем
+Fe_Tab          ds FXT_SIZE         ; её таблица
+Fe_Len          dw 0
+Fe_LTop         db 0                ; список FX: первая видимая
+Fe_Rn           db 0                ; номер рисуемой строки
+Fe_Ln           db 0                ; её длина (шагов)
+Fe_Off          db 0                ; FM / Env FM: смещение полей в строке (FXR_FM / FXR_EFM)
+Fe_OnBit        db 0                ;   маска "вкл" в FXR_FLAGS
+Fe_PerBit       db 0                ;   маска "в единицах периода"
+
+;-------- Неизменное - один раз при входе в FX: рамка, заголовок, кнопки, черты блоков
+Fe_Frame
+        xor a                       ; общая рамка тулзы, внутри - пробелы
+        ld (Bx_X),a
+        ld a,90
+        ld (Bx_W),a
+        call Tool_Box
+        ld a,(THEME_ATTR+CLR_HEADER)
+        ld c,a
+        ld de,2+256*(IV_SCR_H+IV_TOP)
+        ld hl,Txt_FxmTitle
+        call PutStr
+        jp Fxm_Lines_Hd               ; кнопки рисует цикл тулзы (Bn_DrawList) каждый кадр
+
+;-------- Содержимое (по изменению, Iv_Dirty): список, средний блок, строки. Рамку не трогает
+Fe_Draw
+        call Fe_Load
+        call Fe_List
+        call Fe_Mid
+        ld ix,Fe_Fields             ; кнопки полей чисел (Len, Loop, Start - srs/spin.asm)
+        ld a,IV_SCR_H
+        call Sp_DrawList
+        call Fe_RowSb               ; скроллбар строк - на правой рамке
+        call Vsb_Draw
+        jp Fe_Rows
+
+;-------- A - страница, HL - откуда (окно 2), DE - куда, BC - сколько. SETPAGE портит BC
+Fe_Copy
+        ld (Fe_Len),bc
+        SETPAGE2 a
+        ld bc,(Fe_Len)
+        ldir
+        RESTPAGE2
+        ret
+
+;-------- Заголовок и имя текущего FX -> Fe_Hdr, Fe_Name
+Fe_Load
+        ld a,(Iv_Num)               ; заголовок: FXH_BASE + n*8
+        ld l,a
+        ld h,0
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        ld de,#8000+FXH_BASE
+        add hl,de
+        ld de,Fe_Hdr
+        ld bc,FXH_SIZE
+        ld a,(Trk_FxT)
+        call Fe_Copy
+        ld a,(Fe_Hdr+FXH_END)       ; строк не больше 32
+        and FX_ROWS_MAX-1
+        ld (Fe_Hdr+FXH_END),a
+        ld a,(Iv_Num)
+        ld de,Fe_Name
+; A - номер FX, DE - куда: имя (16 знаков) и 0
+Fe_Get_Name
+        ld l,a
+        ld h,0
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        push de
+        ld de,#8000+SONG_FX_NAMES
+        add hl,de
+        pop de
+        push de
+        ld bc,16
+        ld a,(SV_SONG_PAGE)
+        call Fe_Copy
+        pop hl
+        ld bc,16
+        add hl,bc
+        ld (hl),0
+        ret
+    ASSERT FXH_SIZE == 8
+
+;-------- A - строка текущего FX -> Fe_Row (адрес: n*512 + r*16)
+Fe_Get_Row
+        ld l,a
+        ld h,0
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        ld a,(Iv_Num)
+        add a,a
+        add a,#80
+        add a,h
+        ld h,a
+        ld de,Fe_Row
+        ld bc,FXR_SIZE
+        ld a,(Trk_Fx)
+        jp Fe_Copy
+    ASSERT FXR_BLOCK == 512
+
+;-------- A - номер таблицы -> Fe_Tab
+Fe_Get_Tab
+        ld l,a
+        ld h,0
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        set 7,h
+        ld de,Fe_Tab
+        ld bc,FXT_SIZE
+        ld a,(Trk_FxT)
+        jp Fe_Copy
+
+; =========================================================================
+; ШАПКА
+; =========================================================================
+;-------- Список FX: 4 строки "nn имя", текущий - цветом выделения; справа ^ █ v
+Fe_List
+        ld a,(Iv_Num)               ; текущий - в видимых строках
+        ld hl,Fe_LTop
+        cp (hl)
+        jr nc,.lo
+        ld (hl),a
+.lo     sub FE_LIST_ROWS-1
+        jr c,.ok
+        cp (hl)
+        jr c,.ok
+        ld (hl),a
+.ok     ld b,0                      ; строка списка
+.row    push bc
+        ld a,b
+        add a,IV_SCR_H+IV_TOP+1
+        ld d,a
+        ld e,1
+        ld a,(Fe_LTop)
+        add a,b
+        ld (Fe_Rn),a
+        ld hl,Iv_Num
+        cp (hl)
+        ld a,(THEME_ATTR+CLR_TEXT)
+        jr nz,$+5
+        ld a,(THEME_ATTR+CLR_SELECT)
+        ld c,a
+        ld a,(Fe_Rn)                ; номер 01..32
+        inc a
+        call Dec2
+        ld a,' '
+        call PutCh
+        push de
+        ld a,(Fe_Rn)                ; имя - 14 знаков
+        ld de,Fe_LName
+        call Fe_Get_Name
+        pop de
+        ld hl,Iv_Num               ; цвет - заново (SETPAGE в Fe_Get_Name портит C)
+        ld a,(Fe_Rn)
+        cp (hl)
+        ld a,(THEME_ATTR+CLR_TEXT)
+        jr nz,$+5
+        ld a,(THEME_ATTR+CLR_SELECT)
+        ld c,a
+        ld hl,Fe_LName
+        ld b,14
+        call Put_Name
+        pop bc
+        inc b
+        ld a,b
+        cp FE_LIST_ROWS
+        jr c,.row
+        call Fe_ListSb              ; скроллбар списка - стандарт (Vsb_Draw)
+        jp Vsb_Draw
+
+;-------- Скроллбар списка FX: колонка 18, строки шапки, 32 FX, видно 4
+Fe_ListSb
+        ld a,18
+        ld (Vsb_Col),a
+        ld a,IV_SCR_H+IV_TOP+1
+        ld (Vsb_Top),a
+        ld a,FE_LIST_ROWS
+        ld (Vsb_H),a
+        ld (Vsb_Vis),a
+        ld a,FXS_MAX
+        ld (Vsb_Total),a
+        ld a,(Fe_LTop)
+        ld (Vsb_First),a
+        ret
+
+;-------- Скроллбар строк FX: на правой рамке (как в Turbo Vision), строк - длина FX
+Fe_RowSb
+        ld a,89
+        ld (Vsb_Col),a
+        ld a,IV_SCR_H+FE_ROW0
+        ld (Vsb_Top),a
+        ld a,FE_ROWS
+        ld (Vsb_H),a
+        ld (Vsb_Vis),a
+        ld a,(Fe_Hdr+FXH_END)
+        inc a
+        ld (Vsb_Total),a
+        ld a,(Ed_Top)
+        ld (Vsb_First),a
+        ret
+
+;-------- Средний блок: Name, Len / Loop, свип, подвкладки
+Fe_Mid
+        ld a,(THEME_ATTR+CLR_HEADER)
+        ld c,a
+        ld de,FE_MID+256*(IV_SCR_H+IV_TOP+1)
+        ld hl,Txt_FeName
+        call PutStr
+        ld a,(THEME_ATTR+CLR_SELECT) ; имя - как в инструменте: фон поля ввода, в фокусе - курсор
+        ld c,a
+        push de
+        ld hl,Fe_Name
+        ld b,16
+        call Put_Name
+        pop de
+        ld hl,(SV_FOCUS)
+        push de
+        ld de,F_FeName
+        or a
+        sbc hl,de
+        pop de
+        call z,Ti_Cursor
+        ld a,(THEME_ATTR+CLR_HEADER) ; Len -nn+   Loop -nn+
+        ld c,a
+        ld de,FE_MID+256*(IV_SCR_H+IV_TOP+2)
+        ld hl,Txt_FeLen
+        call PutStr
+        ld a,(Fe_Hdr+FXH_END)
+        inc a
+        call Fe_Val2
+        ld hl,Txt_FeLoop
+        call PutStr
+        ld a,(Fe_Hdr+FXH_LOOP)
+        call Fe_Val2
+        ld de,FE_MID+256*(IV_SCR_H+IV_TOP+3)  ; Sweep: Tri  Start -nnn+  Kp
+        ld hl,Txt_FeSweep
+        call PutStr
+        ld a,(THEME_ATTR+CLR_TEXT)
+        ld c,a
+        ld a,(Fe_Hdr+FXH_SWSHAPE)
+        call Fe_Shape
+        ld a,(THEME_ATTR+CLR_HEADER)
+        ld c,a
+        ld hl,Txt_FeStart
+        call PutStr
+        ld a,(THEME_ATTR+CLR_TEXT)  ; число, за ним [+][-] (их рисует Sp_DrawList)
+        ld c,a
+        ld a,(Fe_Hdr+FXH_SWPHASE)
+        call Put_Dec3
+        ld a,(THEME_ATTR+CLR_HEADER)
+        ld c,a
+        ld a,e
+        add a,4+2
+        ld e,a
+        ld a,(Fe_Hdr+FXH_FLAGS)     ; Kp: включено - цветом выделения
+        rrca
+        ld a,(THEME_ATTR+CLR_HEAD_TEXT) ; как Kp в инструменте
+        jr nc,$+5
+        ld a,(THEME_ATTR+CLR_CURSOR)
+        ld c,a
+        ld hl,Txt_FeKp
+        call PutStr
+        ld de,FE_MID+256*(IV_SCR_H+IV_TOP+4)  ; [ Mix ]  [ FM ]  [ Env FM ]
+        ld hl,Txt_FeSubs
+        ld b,0
+.sub    ld a,(Fx_Sub)
+        cp b
+        ld a,(THEME_ATTR+CLR_BUTTON)
+        jr nz,$+5
+        ld a,(THEME_ATTR+CLR_CURSOR)
+        ld c,a
+        call PutStr
+        inc hl
+        inc e
+        inc e
+        inc b
+        ld a,b
+        cp 3
+        jr c,.sub
+        ret
+
+;-------- "nn[+][-]": A - число цветом значений, место под кнопки (их рисует Sp_DrawList); свой C - вернуть
+Fe_Val2
+        push bc
+        push af
+        ld a,(THEME_ATTR+CLR_TEXT)
+        ld c,a
+        pop af
+        call Dec2
+        pop bc
+        ld a,e
+        add a,4
+        ld e,a
+        ret
+
+;-------- Форма свипа A (номер таблицы): пресет 1..5 - имя, иначе "Tnn" (hex)
+Fe_Shape
+        or a
+        jr z,.t
+        cp FXT_PRESETS
+        jr nc,.t
+        dec a
+        ld l,a
+        add a,a
+        add a,l
+        ld hl,Txt_FeShapes
+        call Hl_Add_A
+        ld b,3
+.c      ld a,(hl)
+        call PutCh
+        inc hl
+        djnz .c
+        ret
+.t      push af
+        ld a,'T'
+        call PutCh
+        pop af
+        jp PutHex2
+
+;-------- Кнопки (справа): пока только надписи
+; =========================================================================
+; СТРОКИ FX
+; =========================================================================
+;-------- Заголовки колонок подвкладки и строки 0..последняя
+Fe_Rows
+        ld d,IV_SCR_H+FE_SCRATCH    ; заголовки - собрать в невидимой строке, потом на экран
+        call Fe_Clr_Row
+        ld a,(THEME_ATTR+CLR_HEADER)
+        ld c,a
+        ld de,FE_RW+256*(IV_SCR_H+FE_SCRATCH)
+        ld a,(Fx_Sub)               ; заголовки: Mix / FM / Env FM
+        ld hl,Txt_FeCapMix
+        or a
+        jr z,.cap
+        ld hl,Txt_FeCapFm
+        dec a
+        jr z,.cap
+        ld hl,Txt_FeCapEfm
+.cap    call PutStr
+        ld a,IV_SCR_H+FE_CAP
+        call Fe_Blit
+        ld a,(Fx_Sub)               ; FM / Env FM: где поля и биты
+        cp 2
+        ld a,FXR_FM
+        ld bc,(1<<FXRB_FMPER)*256+(1<<FXRB_FM)
+        jr nz,.fm
+        ld a,FXR_EFM
+        ld bc,(1<<FXRB_EFMPER)*256+(1<<FXRB_EFM)
+.fm     ld (Fe_Off),a
+        ld a,c
+        ld (Fe_OnBit),a
+        ld a,b
+        ld (Fe_PerBit),a
+        xor a                       ; строка экрана 0..FE_ROWS-1, строка FX - Ed_Top + она
+.row    ld (Fe_I),a
+        cp FE_ROWS                  ; все строки экрана
+        ret nc
+        ld d,IV_SCR_H+FE_SCRATCH    ; строка - в невидимой строке (пустая), готовая - на экран
+        call Fe_Clr_Row
+        ld a,(Ed_Top)
+        ld hl,Fe_I
+        add a,(hl)
+        ld (Fe_Rn),a                ; дальше последней строки FX - пусто
+        ld hl,Fe_Hdr+FXH_END
+        cp (hl)
+        jr z,.go
+        jr nc,.next
+.go     call Fe_Get_Row
+        ld d,IV_SCR_H+FE_SCRATCH
+        call Fe_Row_Head
+        ld a,(Fx_Sub)
+        or a
+        call z,Fe_Mix_Row
+        ld a,(Fx_Sub)
+        or a
+        call nz,Fe_Fm_Row
+        ld a,(Fe_Rn)                ; строка курсора - курсор поверх
+        ld hl,Ed_Row
+        cp (hl)
+        jr nz,.next
+        ld d,IV_SCR_H+FE_SCRATCH
+        call Fe_Cursor
+.next   ld a,(Fe_I)                 ; готовая строка - на экран одним переносом
+        add a,IV_SCR_H+FE_ROW0
+        call Fe_Blit
+        ld a,(Fe_I)
+        inc a
+        jr .row
+Fe_I            db 0                ; строка экрана
+
+FE_SCRATCH      equ 63              ; невидимая строка текстовой страницы: строка FX собирается здесь (без мигания)
+;-------- Строка FE_SCRATCH (колонки 1..88: знаки и атрибуты) -> строка экрана A
+Fe_Blit
+        ld d,a
+        ld e,1
+        ld hl,1+256*(IV_SCR_H+FE_SCRATCH)
+        ld bc,88
+        ldir
+        ld e,128+1
+        ld l,128+1
+        ld bc,88
+        ldir
+        ret
+
+;-------- Строка экрана D - пробелы (колонки 1..88)
+Fe_Clr_Row
+        ld e,1
+        ld a,(THEME_ATTR+CLR_BG)
+        ld c,a
+.c      ld a,' '
+        call PutCh
+        ld a,e
+        cp 89
+        jr c,.c
+        ret
+
+;-------- Скобка цикла (как в инструменте) и номер строки (hex). D - строка экрана
+Fe_Row_Head
+        ld a,(Fe_Hdr+FXH_LOOP)       ; Loop_Char ждёт [цикл, последняя]
+        ld (Fe_LE),a
+        ld a,(Fe_Hdr+FXH_END)
+        ld (Fe_LE+1),a
+        ld a,(Fe_Rn)
+        ld b,a
+        ld hl,Fe_LE
+        call Loop_Char
+        ld e,FE_LP
+        push af
+        ld a,(THEME_ATTR+CLR_LOOP)
+        ld c,a
+        pop af
+        call PutCh
+        ld a,(THEME_ATTR+CLR_ROW_NUM)
+        ld c,a
+        ld a,(Fe_Rn)
+        jp PutHex2
+Fe_LE           ds 2
+
+;-------- Строка Mix: тип, скважность max / min, свип, детюн, длина, шаги (hex)
+Fe_Mix_Row
+        ld e,FE_MIX
+        ld a,(Fe_Row+FXR_FLAGS)
+        and FXR_MIXMASK
+        ld (Fe_Dim),a               ; выключен - "---", поля тусклые (видны, как в инструменте)
+        jr nz,.on
+        inc a
+        ld (Fe_Dim),a
+        ld a,(THEME_ATTR+CLR_EMPTY)
+        ld c,a
+        ld hl,Txt_FeOff3
+        call PutStr
+        jr .fields
+.on     xor a
+        ld (Fe_Dim),a
+        ld a,(Fe_Row+FXR_FLAGS)
+        and FXR_MIXMASK
+        dec a                       ; SID / Buz / ???
+        ld l,a
+        add a,a
+        add a,l
+        ld hl,Txt_FeMix
+        call Hl_Add_A
+        ld a,(THEME_ATTR+CLR_INSTR)
+        ld c,a
+        ld b,3
+.t      ld a,(hl)
+        call PutCh
+        inc hl
+        djnz .t
+.fields
+        ld a,(Fe_Row+FXR_LEN1)      ; длина: 1..16
+        and 15
+        inc a
+        ld (Fe_Ln),a
+        cp 2                        ; PWM и свип - только при 2 шагах
+        ld a,(THEME_ATTR+CLR_PARAM)
+        jr z,$+5
+        ld a,(THEME_ATTR+CLR_EMPTY)
+        call Fe_DimC
+        ld e,FE_MAX
+        ld a,(Fe_Row+FXR_PWM)
+        rrca
+        rrca
+        rrca
+        rrca
+        and 15
+        call Put_Pct
+        ld e,FE_MIN
+        ld a,(Fe_Row+FXR_PWM)
+        and 15
+        call Put_Pct
+        ld e,FE_SWP
+        ld a,(Fe_Row+FXR_SWP)
+        call Put_D3Z
+        ld a,(THEME_ATTR+CLR_VOLUME)
+        call Fe_DimC
+        ld e,FE_SEMI
+        ld a,(Fe_Row+FXR_MIX)
+        call Put_S3
+        ld e,FE_DET
+        ld a,(Fe_Row+FXR_MIX+1)
+        call Put_S3
+        ld e,FE_LN
+        ld a,(Fe_Ln)
+        call Dec2
+        push de
+        ld a,(Fe_Row+FXR_MIX+2)     ; шаги - из таблицы
+        call Fe_Get_Tab
+        pop de
+        ld e,FE_STEPS
+        ld a,(THEME_ATTR+CLR_PARAM)
+        call Fe_DimC
+        ld hl,Fe_Tab
+        ld b,FXT_SIZE               ; все 16 шагов: за длиной - тускло
+.s      call Fe_Step_Clr
+        ld a,(hl)
+        and 15
+        call HexDigit
+        call PutCh
+        inc e
+        inc hl
+        djnz .s
+        ret
+
+;-------- Строка FM / Env FM (Fe_Off, Fe_OnBit, Fe_PerBit): вкл, детюн, единицы, длина, шаги
+Fe_Fm_Row
+        ld e,FE_ON
+        ld a,(Fe_OnBit)
+        ld hl,Fe_Row+FXR_FLAGS
+        and (hl)
+        ld a,0                      ; выключен - "--", поля тусклые
+        jr nz,$+3
+        inc a
+        ld (Fe_Dim),a
+        or a
+        ld a,(THEME_ATTR+CLR_INSTR)
+        ld c,a
+        ld hl,Txt_FeOn
+        jr z,.on
+        ld a,(THEME_ATTR+CLR_EMPTY)
+        ld c,a
+        ld hl,Txt_FeOff2
+.on     call PutStr
+        ld a,(THEME_ATTR+CLR_VOLUME)
+        call Fe_DimC
+        ld a,(Fe_Off)               ; детюн: полутоны, сырой
+        ld hl,Fe_Row
+        call Hl_Add_A
+        ld e,FE_FSEMI
+        ld a,(hl)
+        push hl
+        call Put_S3
+        pop hl
+        inc hl
+        ld e,FE_FDET
+        ld a,(hl)
+        push hl
+        call Put_S3
+        pop hl
+        inc hl
+        ld a,(hl)                   ; номер таблицы
+        ld (Fe_TabN),a
+        ld e,FE_UNIT                ; единицы шагов: semi / per
+        ld a,(Fe_PerBit)
+        ld hl,Fe_Row+FXR_FLAGS
+        and (hl)
+        ld (Fe_Per),a
+        ld hl,Txt_FeSemi
+        jr z,$+5
+        ld hl,Txt_FePer
+        call PutStr
+        ld a,(Fx_Sub)               ; длина: FM - LEN1 7..4, Env FM - LEN2 3..0
+        cp 2
+        ld a,(Fe_Row+FXR_LEN2)
+        jr z,.l
+        ld a,(Fe_Row+FXR_LEN1)
+        rrca
+        rrca
+        rrca
+        rrca
+.l      and 15
+        inc a
+        ld (Fe_Ln),a
+        ld e,FE_FLN
+        call Dec2
+        push de
+        ld a,(Fe_TabN)              ; шаги - из таблицы
+        call Fe_Get_Tab
+        pop de
+        ld e,FE_FSTEPS
+        ld a,(THEME_ATTR+CLR_PARAM)
+        call Fe_DimC
+        ld hl,Fe_Tab
+        ld b,FXT_SIZE               ; все 16 шагов: за длиной - тускло
+.s      call Fe_Step_Clr
+        push hl
+        push bc
+        ld a,(hl)
+        call Fe_Step2               ; " +12" (полутоны) / " +0C" (период)
+        pop bc
+        pop hl
+        inc hl
+        djnz .s
+        ret
+
+;-------- A - байт со знаком -> " +0C" (4 знака, hex)
+Fe_SHex
+        ld l,a
+        ld a,' '
+        call PutCh
+        ld a,l
+        ld h,'+'
+        or a
+        jp p,.p
+        ld h,'-'
+        neg
+.p      ld l,a
+        ld a,h
+        call PutCh
+        ld a,l
+        jp PutHex2
+
+Fe_TabN         db 0
+Fe_Per          db 0                ; не 0 - шаги в единицах периода
+Fe_LName        ds 17               ; имя для списка
+
+Txt_FeName      db "Name: ",0
+Txt_FeLen       db "Len ",0
+Txt_FeLoop      db "  Loop ",0
+Txt_FeSweep     db "Sweep: ",0
+Txt_FeStart     db "  Start ",0
+Txt_FeKp        db "Kp",0
+Txt_FeSubs      db "[ Mix ]",0,"[ FM ]",0,"[ Env FM ]",0
+Txt_FeShapes    db "TriSinUp Dn Sqr"   ; таблицы 1..5 пресета
+Txt_FeCapMix    db "Rw Mix  Max  Min Swp Semi   Det  Ln  Steps (hex)",0
+Txt_FeCapFm     db "Rw FM Semi  Det Unit Ln Steps (semi - dec, per - hex)",0
+Txt_FeCapEfm    db "Rw EF Semi  Det Unit Ln Steps (semi - dec, per - hex)",0
+Txt_FeMix       db "SIDBuz???"
+Txt_FeOff3      db "---",0
+Txt_FeOff2      db "--",0
+Txt_FeOn        db "on",0
+Txt_FeSemi      db "semi",0
+Txt_FePer       db "per ",0
+
+; =========================================================================
+; ПОЛЯ ШАПКИ FX (шаг 3а): выбор FX, Len / Loop, свип, Kp, подвкладки
+; =========================================================================
+;-------- Список: клик - выбрать, колесо - соседний
+Fe_ListEv
+        cp EV_WHEEL
+        jr z,Fe_Wheel
+        cp EV_PRESS
+        ret nz
+        ld a,(SV_MOUSE_ROW)         ; строка списка -> номер FX
+        sub IV_TOP+1
+        ret c
+        cp FE_LIST_ROWS
+        ret nc
+        ld hl,Fe_LTop
+        add a,(hl)
+        jr Fe_SetNum
+Fe_Wheel
+        ld a,c                      ; вниз (C < 0) - следующий
+        or a
+        jp m,Fe_Next
+Fe_Prev
+        ld a,(Iv_Num)
+        or a
+        ret z
+        dec a
+        jr Fe_SetNum
+Fe_Next
+        ld a,(Iv_Num)
+        inc a
+        cp FXS_MAX
+        ret nc
+Fe_SetNum
+        ld (Iv_Num),a
+        call Fe_Load                ; его заголовок (длина) - для курсора
+        call Ed_Clamp               ; курсор - в пределах строк этого FX
+Fe_Dirty
+        ld a,1
+        ld (Iv_Dirty),a
+        ret
+
+;-------- Скроллбар списка: ▲ / ▼ - соседний FX, дорожка выше / ниже ползунка - на 4, колесо - соседний
+Fe_ScrEv
+        cp EV_WHEEL
+        jp z,Fe_Wheel
+        cp EV_PRESS
+        jr z,.p
+        cp EV_REPEAT
+        ret nz
+.p      call Fe_ListSb
+        call Vsb_Calc
+        ld a,(SV_MOUSE_ROW)
+        call Vsb_Hit
+        or a
+        jp z,Fe_Prev
+        cp 4
+        jp z,Fe_Next
+        cp 2
+        ret z                       ; на ползунке - ничего
+        ld a,(Iv_Num)               ; выше - на 4 назад, ниже - на 4 вперёд
+        jr nc,.dn
+        sub FE_LIST_ROWS
+        jr nc,$+3
+        xor a
+        jp Fe_SetNum
+.dn     add a,FE_LIST_ROWS
+        cp FXS_MAX
+        jr c,$+4
+        ld a,FXS_MAX-1
+        jp Fe_SetNum
+
+;-------- Скроллбар строк FX (правая рамка): ▲ / ▼ - строка, дорожка - страница, колесо - строка
+Fe_RScrEv
+        cp EV_WHEEL
+        jr z,.wh
+        cp EV_PRESS
+        jr z,.p
+        cp EV_REPEAT
+        ret nz
+.p      call Fe_RowSb
+        call Vsb_Calc
+        ld a,(SV_MOUSE_ROW)
+        call Vsb_Hit
+        or a
+        jr z,.up
+        cp 4
+        jr z,.dn
+        cp 2
+        ret z
+        jr c,.pu
+        call Ed_PgDn
+        jp Iv_Changed
+.pu     call Ed_PgUp
+        jp Iv_Changed
+.up     call Ed_Up
+        jp Iv_Changed
+.dn     call Ed_Down
+        jp Iv_Changed
+.wh     bit 7,c
+        jr nz,.dn
+        jr .up
+
+;-------- Заголовок FX: 0 Len-, 1 Len+, 2 Loop-, 3 Loop+, 4 форма свипа, 5 Start-, 6 Start+, 7 Kp
+;-------- Поля чисел заголовка (srs/spin.asm): Len, Loop, Start - уменьшить / увеличить
+Fe_LenM xor a
+        jr Fe_Hdr_Do
+Fe_LenP ld a,1
+        jr Fe_Hdr_Do
+Fe_LoopM ld a,2
+        jr Fe_Hdr_Do
+Fe_LoopP ld a,3
+        jr Fe_Hdr_Do
+Fe_StM  ld a,5
+        jr Fe_Hdr_Do
+Fe_StP  ld a,6
+        jr Fe_Hdr_Do
+
+; Описания полей чисел: уменьшить, увеличить, знаков, цвет кнопок, после
+Sd_FeLen        dw Fe_LenM, Fe_LenP
+                db 2, CLR_BUTTON
+                dw Fe_Dirty
+Sd_FeLoop       dw Fe_LoopM, Fe_LoopP
+                db 2, CLR_BUTTON
+                dw Fe_Dirty
+Sd_FeSt         dw Fe_StM, Fe_StP
+                db 3, CLR_BUTTON
+                dw Fe_Dirty
+
+;-------- Клик по заголовку: форма свипа (4), Kp (7)
+Fe_HdrEv
+        cp EV_PRESS
+        ret nz
+        ld a,(ix+FLD_PARAM)
+; A - что: 0/1 Len -/+, 2/3 Loop -/+, 4 форма, 5/6 Start -/+, 7 Kp
+Fe_Hdr_Do
+        or a
+        jr z,.lenm
+        dec a
+        jr z,.lenp
+        dec a
+        jr z,.loopm
+        dec a
+        jr z,.loopp
+        dec a
+        jr z,.shape
+        dec a
+        jr z,.stm
+        dec a
+        jr z,.stp
+        ld a,(Fe_Hdr+FXH_FLAGS)     ; Kp - переключить
+        xor 1
+        ld (Fe_Hdr+FXH_FLAGS),a
+        jr Fe_Put_Hdr
+.lenm   ld a,(Fe_Hdr+FXH_END)       ; Len - (цикл - не дальше конца)
+        or a
+        ret z
+        dec a
+        ld (Fe_Hdr+FXH_END),a
+        ld hl,Fe_Hdr+FXH_LOOP
+        cp (hl)
+        jr nc,Fe_Put_Hdr
+        ld (hl),a
+        jr Fe_Put_Hdr
+.lenp   ld a,(Fe_Hdr+FXH_END)       ; Len +
+        cp FX_ROWS_MAX-1
+        ret nc
+        inc a
+        ld (Fe_Hdr+FXH_END),a
+        jr Fe_Put_Hdr
+.loopm  ld a,(Fe_Hdr+FXH_LOOP)      ; Loop -
+        or a
+        ret z
+        dec a
+        ld (Fe_Hdr+FXH_LOOP),a
+        jr Fe_Put_Hdr
+.loopp  ld a,(Fe_Hdr+FXH_LOOP)      ; Loop + (до конца)
+        ld hl,Fe_Hdr+FXH_END
+        cp (hl)
+        ret nc
+        inc a
+        ld (Fe_Hdr+FXH_LOOP),a
+        jr Fe_Put_Hdr
+.shape  ld a,(Fe_Hdr+FXH_SWSHAPE)   ; форма: Tri -> Sin -> Up -> Dn -> Sqr -> Tri
+        inc a
+        cp FXT_PRESETS
+        jr c,$+4
+        ld a,FXT_TRI
+        ld (Fe_Hdr+FXH_SWSHAPE),a
+        jr Fe_Put_Hdr
+.stm    ld a,(Fe_Hdr+FXH_SWPHASE)   ; Start -8 / +8 (по кругу 0..255)
+        sub 8
+        jr .st
+.stp    ld a,(Fe_Hdr+FXH_SWPHASE)
+        add a,8
+.st     ld (Fe_Hdr+FXH_SWPHASE),a
+; Fe_Hdr - в заголовок текущего FX (страница Trk_FxT), перерисовать
+Fe_Put_Hdr
+        ld a,(Iv_Num)
+        ld l,a
+        ld h,0
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        ld de,#8000+FXH_BASE
+        add hl,de
+        ex de,hl
+        ld hl,Fe_Hdr
+        ld bc,FXH_SIZE
+        ld a,(Trk_FxT)
+        call Fe_Copy
+        call Ed_Clamp               ; длина могла стать меньше - курсор в строки
+        jp Fe_Dirty
+
+;-------- Подвкладки Mix / FM / Env FM
+Fe_SubEv
+        cp EV_PRESS
+        ret nz
+        ld a,(ix+FLD_PARAM)
+        ld (Fx_Sub),a
+        call Ed_Clamp               ; колонка - в пределах подвкладки
+        jp Fe_Dirty
+
+;-------- Клавиши FX: всё - полю в фокусе (строки FX: Ed_Key), общие - как везде (Fld_Key)
+Fe_Keys
+.k      call Key_Get                ; A - код, C - флаги; Z - пусто
+        ret z
+        ld b,a
+        push bc
+        call Fld_Key                ; полю в фокусе (строки, имя) и общим клавишам
+        pop bc
+        jr c,.k
+        call Tool_Esc               ; Esc - закрыть вкладку
+        jp c,Iv_EscOut
+        ld a,b                      ; Tab - фокус: строки <-> имя
+        cp KEY_TAB
+        jr nz,.k
+        ld hl,(SV_FOCUS)
+        ld de,F_FeEdit
+        or a
+        sbc hl,de
+        ld hl,F_FeName
+        jr z,$+5
+        ld hl,F_FeEdit
+        call Fld_Set_Focus
+        jr .k
+Fe_First
+        xor a
+        jp Fe_SetNum
+Fe_Last
+        ld a,FXS_MAX-1
+        jp Fe_SetNum
+
+; =========================================================================
+; СТРОКИ FX: КУРСОР И ВВОД (шаг 3б) - общий движок редактора (Ed_Key, Ed_Type, Ed_Row / Ed_Col);
+; колонки нового формата - здесь. Колонка: экран (ПРАВЫЙ край поля, как у старых FX), вид, байт, параметр
+; =========================================================================
+Fe_Cols_Mix
+        db FE_MIX+2,  KD_MIX,  FXR_FLAGS, 0
+        db FE_MAX+3,  KD_PCT,  FXR_PWM, #10             ; max
+        db FE_MIN+3,  KD_PCT,  FXR_PWM, #01             ; min
+        db FE_SWP,    KD_UDIG, FXR_SWP, 100             ; свип: разряды
+        db FE_SWP+1,  KD_UDIG, FXR_SWP, 10
+        db FE_SWP+2,  KD_UDIG, FXR_SWP, 1
+        db FE_SEMI,   KD_SSGN, FXR_MIX, 0               ; детюн, полутоны: знак, разряды
+        db FE_SEMI+1, KD_SDIG, FXR_MIX, 100
+        db FE_SEMI+2, KD_SDIG, FXR_MIX, 10
+        db FE_SEMI+3, KD_SDIG, FXR_MIX, 1
+        db FE_DET,    KD_SSGN, FXR_MIX+1, 0             ; детюн сырой
+        db FE_DET+1,  KD_SDIG, FXR_MIX+1, 100
+        db FE_DET+2,  KD_SDIG, FXR_MIX+1, 10
+        db FE_DET+3,  KD_SDIG, FXR_MIX+1, 1
+        db FE_LN,     KD_LTEN, FXR_LEN1, #01            ; длина: десятки, единицы
+        db FE_LN+1,   KD_LONE, FXR_LEN1, #01
+        DUP 16, I                                       ; шаги: hex-цифра
+        db FE_STEPS+2*I, KD_STEP, FXR_MIX+2, I
+        EDUP
+FE_MIX_COLS     equ ($-Fe_Cols_Mix)/CL_SIZE
+    MACRO FE_FMCOLS fld,onb,perb,lenb,lenm
+        db FE_ON+1,    KD_BIT,  FXR_FLAGS, 1<<onb
+        db FE_FSEMI,   KD_SSGN, fld, 0
+        db FE_FSEMI+1, KD_SDIG, fld, 100
+        db FE_FSEMI+2, KD_SDIG, fld, 10
+        db FE_FSEMI+3, KD_SDIG, fld, 1
+        db FE_FDET,    KD_SSGN, fld+1, 0
+        db FE_FDET+1,  KD_SDIG, fld+1, 100
+        db FE_FDET+2,  KD_SDIG, fld+1, 10
+        db FE_FDET+3,  KD_SDIG, fld+1, 1
+        db FE_UNIT+3,  KD_BIT,  FXR_FLAGS, 1<<perb
+        db FE_FLN,     KD_LTEN, lenb, lenm
+        db FE_FLN+1,   KD_LONE, lenb, lenm
+        DUP 16, I                                       ; шаги: знак, 2 разряда (" +12" / " +0C")
+        db FE_FSTEPS+4*I+1, KD_STEP, fld+2, I*4+1
+        db FE_FSTEPS+4*I+2, KD_STEP, fld+2, I*4+2
+        db FE_FSTEPS+4*I+3, KD_STEP, fld+2, I*4+3
+        EDUP
+    ENDM
+Fe_Cols_Fm
+        FE_FMCOLS FXR_FM, FXRB_FM, FXRB_FMPER, FXR_LEN1, #10
+FE_FM_COLS      equ ($-Fe_Cols_Fm)/CL_SIZE
+Fe_Cols_Efm
+        FE_FMCOLS FXR_EFM, FXRB_EFM, FXRB_EFMPER, FXR_LEN2, #01
+    ASSERT ($-Fe_Cols_Efm)/CL_SIZE == FE_FM_COLS
+    ASSERT FXR_FLAGS == FR_FLAGS        ; Mix (KD_MIX) пишет FR_FLAGS: биты те же
+
+;-------- Поле строк: клавиши - общему редактору, колесо - строка, клик - строка и колонка;
+; клик по скобке / номеру - цикл сюда (как в инструменте)
+Fe_EditEv
+        cp EV_KEY
+        jp z,Ed_Key
+        cp EV_WHEEL
+        jr z,.wh
+        cp EV_FOCUS_IN
+        jp z,Iv_Changed
+        cp EV_PRESS
+        ret nz
+        ld a,(SV_MOUSE_ROW)         ; строка
+        sub FE_ROW0
+        ld hl,Ed_Top
+        add a,(hl)
+        ld b,a
+        call Iv_End
+        cp b
+        ret c                       ; за концом
+        ld a,b
+        ld (Ed_Row),a
+        ld a,(SV_MOUSE_COL)
+        cp FE_RW+2                  ; скобка и номер - цикл сюда
+        jr nc,.col
+        ld a,b
+        ld (Fe_Hdr+FXH_LOOP),a
+        jp Fe_Put_Hdr
+.col    ld c,a                      ; колонка: поле до 4 знаков левее правого края
+        call Iv_Cols
+        ld e,0
+.f      ld a,(hl)
+        sub c
+        cp 4
+        jr c,.hit
+        inc hl
+        inc hl
+        inc hl
+        inc hl
+        inc e
+        djnz .f
+        jp Iv_Changed
+.hit    ld a,e
+        ld (Ed_Col),a
+        inc hl                      ; флаг и Mix - переключить сразу (как в инструменте)
+        ld a,(hl)
+        cp KD_BIT
+        jr z,.tog
+        cp KD_MIX
+        jp nz,Iv_Changed
+.tog    call Ed_Toggle
+        jp Iv_Changed
+.wh     bit 7,c                     ; вниз - строка ниже
+        call nz,Ed_Down
+        bit 7,c
+        call z,Ed_Up
+        jp Iv_Changed
+
+;-------- Курсор: колонка Ed_Col строки D (экран) - цветом курсора, ширина - по виду колонки
+Fe_Cursor
+        push de
+        call Iv_Cur_Col             ; IY - колонка
+        pop de
+        ld a,(iy+1)                 ; ширина поля: Mix - 3, % - 4, on - 2, semi / per - 4, разряды и шаги - 1
+        ld b,3
+        cp KD_MIX
+        jr z,.w
+        ld b,4
+        cp KD_PCT
+        jr z,.w
+        cp KD_BIT
+        ld b,1
+        jr nz,.w
+        ld b,4
+        ld a,(iy+3)
+        and (1<<FXRB_FMPER)|(1<<FXRB_EFMPER)
+        jr nz,.w
+        ld b,2
+.w      ld a,(iy+0)                 ; левый край = правый - ширина + 1
+        sub b
+        inc a
+        or #80                      ; атрибуты
+        ld e,a
+        jp Cr_Set                   ; стандартный курсор (мигает по Cur_Blink)
+
+;-------- Цвет шага: B - сколько шагов осталось (16..1). Шаг в длине - CLR_PARAM, за ней - CLR_EMPTY. C - цвет
+Fe_Step_Clr
+        ld a,FXT_SIZE
+        sub b                       ; номер шага
+        push hl
+        ld hl,Fe_Ln
+        cp (hl)
+        pop hl
+        ld a,(THEME_ATTR+CLR_PARAM)
+        jr c,$+5
+        ld a,(THEME_ATTR+CLR_EMPTY)
+        jp Fe_DimC
+
+; =========================================================================
+; ШАГИ ТАЙМЕРА (шаг 4): ввод в шаг под курсором. Таблица строки - своя: если её номер
+; ещё у кого-то (другая строка, другой эффект, форма свипа) или это пресет - строка получает
+; копию в свободном номере (музыкант номеров не видит). Склеивать одинаковые - при компиляции.
+; Окно 2 - страница строк FX (Trk_Fx), таблицы - Trk_FxT (на время записи)
+; =========================================================================
+Fe_SMode        db 0                ; 0 - Mix (hex 0..15), 1 - полутоны (дес.), 2 - период (hex)
+Fe_T            db 0                ; номер таблицы строки
+Fe_SIdx         db 0                ; шаг
+Fe_SVal         db 0
+Fe_New          db 0
+Fe_K            db 0                ; клавиша
+
+;-------- Клавиша B: в шаг под курсором. CF - наша (Ed_Key перерисует), NC - не шаг / не наша
+Fe_StepKey
+        ld a,b                      ; клавиша - в память (Iv_Cur_Col портит B)
+        ld (Fe_K),a
+        call Iv_Cur_Col
+        ld a,(iy+1)
+        cp KD_STEP
+        jr z,.go
+        or a
+        ret
+.go     call Iv_Cur_Row             ; IX - строка
+        call Fe_Step_Get            ; Fe_SVal, Fe_SMode, Fe_SPos
+        ld a,(Fe_SMode)
+        or a
+        jr nz,Fe_StepFm
+        ld a,(Fe_K)                 ; Mix: hex-цифра - значение, +/- - на 1, Delete / Backspace - 0
+        cp KEY_DEL
+        jr z,.zero
+        cp KEY_BACK
+        jr z,.zero
+        cp KEY_MINUS
+        jr z,.minus
+        cp KEY_KP_MINUS
+        jr z,.minus
+        cp KEY_PLUS
+        jr z,.plus
+        cp KEY_KP_PLUS
+        jr z,.plus
+        call Hex_Key                ; не цифра - не наша (стрелки и т.п.)
+        ccf
+        ret nc
+        jr .put
+.zero   xor a
+        jr .put
+.minus  ld a,(Fe_SVal)
+        or a
+        jr z,.put
+        dec a
+        jr .put
+.plus   ld a,(Fe_SVal)
+        cp 15
+        jr nc,.put
+        inc a
+.put    call Fe_Step_Put
+        scf
+        ret
+
+;-------- Шаг FM / Env FM - как числа в инструменте: колонка знака (+ / - / пробел - наоборот) и 2 разряда
+; (полутоны - десятичные, до 99; период - hex, до 7F); Delete / Backspace - разряд 0
+Fe_StepFm
+        ld a,(Fe_K)
+        cp KEY_MINUS
+        jr z,.neg
+        cp KEY_KP_MINUS
+        jr z,.neg
+        cp KEY_PLUS
+        jr z,.pos
+        cp KEY_KP_PLUS
+        jr z,.pos
+        cp KEY_SPACE
+        jr z,.flip
+        ld b,0                      ; Delete / Backspace - как цифра 0
+        cp KEY_DEL
+        jr z,.dig
+        cp KEY_BACK
+        jr z,.dig
+        call Hex_Key
+        ccf
+        ret nc                      ; не цифра - не наша
+        ld b,a
+.dig    ld a,(Fe_SPos)              ; в колонке знака цифры не пишутся
+        cp 1
+        scf
+        ret z
+        ld a,(Fe_SMode)             ; основание: полутоны - 10, период - 16
+        dec a
+        ld c,10
+        jr z,$+4
+        ld c,16
+        ld a,b
+        cp c
+        ccf
+        ret c                       ; цифра не этого основания - съели
+        call Fe_Abs                 ; модуль -> старший (D), младший (E) разряды
+        ld d,-1
+.d      inc d
+        sub c
+        jr nc,.d
+        add a,c
+        ld e,a
+        ld a,(Fe_SPos)
+        cp 2
+        jr nz,.lo
+        ld d,b
+        jr .sum
+.lo     ld e,b
+.sum    ld a,d                      ; модуль = D * основание + E
+        ld h,0
+.m      or a
+        jr z,.add
+        ld l,a
+        ld a,h
+        add a,c
+        ld h,a
+        ld a,l
+        dec a
+        jr .m
+.add    ld a,h
+        add a,e
+        ld b,a
+        ld a,(Fe_SMode)             ; не больше 99 (полутоны) / 127 (период)
+        dec a
+        ld a,99
+        jr z,$+4
+        ld a,127
+        cp b
+        jr nc,$+3
+        ld b,a
+        ld a,(Fe_SVal)              ; знак - как был
+        or a
+        ld a,b
+        jp p,Fe_StepKey.put
+        neg
+        jp Fe_StepKey.put
+.neg    call Fe_Abs
+        neg
+        jp Fe_StepKey.put
+.pos    call Fe_Abs
+        jp Fe_StepKey.put
+.flip   ld a,(Fe_SVal)
+        neg
+        jp Fe_StepKey.put
+Fe_SPos         db 0                ; FM: колонка в шаге (1 - знак, 2 - старший, 3 - младший разряд)
+
+;-------- A = |Fe_SVal|
+Fe_Abs
+        ld a,(Fe_SVal)
+        or a
+        ret p
+        neg
+        ret
+
+;-------- Шаг под курсором (IX - строка, IY - колонка) -> Fe_T, Fe_SIdx, Fe_SVal, Fe_SMode
+Fe_Step_Get
+        ld a,(iy+3)                 ; Mix - номер шага; FM - шаг*4 + колонка
+        ld (Fe_SIdx),a
+        and 3
+        ld (Fe_SPos),a
+        ld a,(iy+2)                 ; байт строки - номер таблицы
+        push ix
+        pop hl
+        call Hl_Add_A
+        ld a,(hl)
+        ld (Fe_T),a
+        ld a,(iy+2)                 ; режим: Mix / полутоны / период
+        cp FXR_MIX+2
+        ld c,0
+        jr z,.m
+        cp FXR_FM+2
+        ld a,1<<FXRB_FMPER
+        jr z,$+4
+        ld a,1<<FXRB_EFMPER
+        and (ix+FXR_FLAGS)
+        ld c,1
+        jr z,.m
+        ld c,2
+.m      ld a,c
+        ld (Fe_SMode),a
+        or a                        ; FM: шаг = параметр / 4
+        jr z,.ix
+        ld a,(Fe_SIdx)
+        rrca
+        rrca
+        and 15
+        ld (Fe_SIdx),a
+.ix
+        call Fe_Tab_Addr            ; HL - шаг в странице таблиц
+        ld a,(Trk_FxT)
+        SETPAGE2 a
+        ld a,(hl)
+        ld (Fe_SVal),a
+        RESTPAGE2
+        ret
+
+;-------- HL = #8000 + Fe_T*16 + Fe_SIdx (страница таблиц - в окне 2). Портит A
+Fe_Tab_Addr
+        ld a,(Fe_T)
+        ld l,a
+        ld h,0
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        ld a,(Fe_SIdx)
+        or l
+        ld l,a
+        set 7,h
+        ret
+
+;-------- A - новое значение шага: таблица строки - своя (Fe_Own), записать
+Fe_Step_Put
+        ld (Fe_SVal),a
+        call Fe_Own
+        ret c                       ; свободных номеров нет - не пишем
+        call Fe_Tab_Addr
+        ld a,(Trk_FxT)
+        SETPAGE2 a
+        ld a,(Fe_SVal)
+        ld (hl),a
+        RESTPAGE2
+        ld a,(Fe_T)                 ; плеер - её в карту (если играет)
+        ld (Fx_TabDirty),a
+        ret
+
+;-------- Таблица Fe_T строки (IX, байт - IY+2) - только её: пресет или ещё чья-то - копия в
+; свободный номер, номер - в строку. CF - свободных нет
+Fe_Own
+        call Fe_Count
+        ld a,(Fe_T)
+        cp FXT_PRESETS
+        jr c,.copy                  ; пресет - не трогаем
+        ld l,a
+        ld h,high Fe_Cnt
+        ld a,(hl)
+        cp 2
+        ccf
+        ret nc                      ; только у этой строки - своя (CF = 0)
+.copy   ld hl,Fe_Cnt+FXT_PRESETS    ; свободный: никем не взят
+.f      ld a,(hl)
+        or a
+        jr z,.got
+        inc l
+        jr nz,.f
+        scf                         ; все заняты
+        ret
+.got    ld a,l
+        ld (Fe_New),a
+        ld a,(Trk_FxT)              ; копия: таблица Fe_T -> Fe_New
+        SETPAGE2 a
+        ld a,(Fe_T)
+        ld l,a
+        ld h,0
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        set 7,h
+        ld a,(Fe_New)
+        ld e,a
+        ld d,0
+        ex de,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        set 7,h
+        ex de,hl
+        ld bc,FXT_SIZE
+        ldir
+        RESTPAGE2
+        ld a,(Fe_New)               ; строке - новый номер
+        ld (Fe_T),a
+        ld c,a
+        ld a,(iy+2)
+        push ix
+        pop hl
+        call Hl_Add_A
+        ld (hl),c
+        or a
+        ret
+
+;-------- Сколько раз взят каждый номер таблицы -> Fe_Cnt (до 255): строки всех FX (Mix, FM, Env FM -
+; все 32 строки, и выключенные) и формы свипа. Окно 2 - страница строк FX
+Fe_Count
+        ld hl,Fe_Cnt
+.z      ld (hl),0
+        inc l
+        jr nz,.z
+        ld hl,#8000+FXR_MIX+2       ; строки: 32 FX * 32 = 1024 (4 раза по 256)
+        ld c,FXS_MAX*FX_ROWS_MAX/256
+        ld b,0
+.r      ld a,(hl)                   ; Mix
+        call .inc
+        ld de,FXR_FM-FXR_MIX
+        add hl,de
+        ld a,(hl)                   ; FM
+        call .inc
+        add hl,de
+        ld a,(hl)                   ; Env FM
+        call .inc
+        ld de,FXR_SIZE-2*(FXR_FM-FXR_MIX)
+        add hl,de
+        djnz .r
+        dec c
+        jr nz,.r
+        ld a,(Trk_FxT)              ; формы свипа - из заголовков
+        SETPAGE2 a
+        ld hl,#8000+FXH_BASE+FXH_SWSHAPE
+        ld b,FXS_MAX
+.h      ld a,(hl)
+        call .inc
+        ld de,FXH_SIZE
+        add hl,de
+        djnz .h
+        RESTPAGE2
+        ret
+.inc    push hl
+        ld l,a
+        ld h,high Fe_Cnt
+        ld a,(hl)
+        inc a
+        jr z,$+3
+        ld (hl),a
+        pop hl
+        ret
+    ASSERT FXR_EFM-FXR_FM == FXR_FM-FXR_MIX
+    ASSERT FXS_MAX*FX_ROWS_MAX == 1024
+
+        ALIGN 256
+Fe_Cnt          ds 256              ; счётчики номеров таблиц (на границе 256)
+
+; =========================================================================
+; СТРОКИ И КНОПКИ FX (шаг 5): вставка / удаление строк (клавиши как в инструменте - Row_Ins /
+; Row_Del зовут сюда), Clone / Copy / Paste / Clear / Unloop. Строки FX - в окне 2 (Trk_Fx)
+; =========================================================================
+;-------- Вставить: под строкой курсора - её копия (строки ниже - вниз), последняя +1
+Fe_Row_Ins
+        ld a,(Fe_Hdr+FXH_END)
+        cp FX_ROWS_MAX-1
+        ret nc                      ; уже 32
+        ld hl,Ed_Row                ; строк сдвигать: последняя - курсор + 1
+        sub (hl)
+        inc a
+        call Fe_Rows16              ; BC - байт
+        push bc
+        ld a,(Fe_Hdr+FXH_END)       ; с конца последней строки - на строку ниже
+        call Iv_Row_Addr
+        ld de,FXR_SIZE-1
+        add hl,de
+        ld d,h
+        ld e,l
+        ld a,FXR_SIZE
+        call Hl_Add_A
+        ex de,hl
+        pop bc
+        lddr
+        ld hl,Fe_Hdr+FXH_END        ; строк +1
+        inc (hl)
+        ld a,(Ed_Row)               ; цикл ниже курсора - за своей строкой
+        ld hl,Fe_Hdr+FXH_LOOP
+        cp (hl)
+        jr nc,.p
+        inc (hl)
+.p      jp Fe_Put_Hdr
+
+;-------- Удалить строку курсора: ниже - вверх, последняя - нули, строк -1
+Fe_Row_Del
+        ld a,(Fe_Hdr+FXH_END)
+        or a
+        ret z                       ; последняя строка не удаляется
+        ld hl,Ed_Row                ; сдвигать: последняя - курсор
+        sub (hl)
+        jr z,.last
+        call Fe_Rows16
+        push bc
+        ld a,(Ed_Row)
+        inc a
+        call Iv_Row_Addr            ; откуда - строка ниже
+        push hl
+        ld a,(Ed_Row)
+        call Iv_Row_Addr            ; куда - строка курсора
+        ex de,hl
+        pop hl
+        pop bc
+        ldir
+.last   ld a,(Fe_Hdr+FXH_END)       ; последняя - нули
+        call Iv_Row_Addr
+        ld b,FXR_SIZE
+.z      ld (hl),0
+        inc hl
+        djnz .z
+        ld hl,Fe_Hdr+FXH_END
+        dec (hl)
+        ld a,(Ed_Row)               ; цикл ниже курсора - за своей строкой, не за концом
+        ld hl,Fe_Hdr+FXH_LOOP
+        cp (hl)
+        jr nc,.e
+        dec (hl)
+.e      ld a,(Fe_Hdr+FXH_END)
+        cp (hl)
+        jr nc,.p
+        ld (hl),a
+.p      jp Fe_Put_Hdr
+
+;-------- BC = A * 16 (байт в A строках)
+Fe_Rows16
+        ld l,a
+        ld h,0
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        ld b,h
+        ld c,l
+        ret
+
+;-------- Кнопки справа: 0 Clone, 1 Copy, 2 Paste, 3 Clear, 4 Unloop (5 Save, 6 Load - позже)
+;-------- Clone: текущий -> в первый пустой FX, он и становится текущим
+Fe_Clone
+        ld c,0
+.f      ld a,(Iv_Num)
+        cp c
+        jr z,.n
+        ld a,c
+        push bc
+        call Fe_Free
+        pop bc
+        jr z,.got
+.n      inc c
+        ld a,c
+        cp FXS_MAX
+        jr c,.f
+        ret                         ; пустых нет
+.got    push bc
+        call Fe_CopyB               ; текущий - в буфер
+        pop bc
+        ld a,c
+        ld (Iv_Num),a
+        call Fe_Paste               ; буфер - в новый
+        ld a,(Iv_Num)
+        jp Fe_SetNum
+
+;-------- FX A пустой? (строки - нули, заголовок - как у нового, имени нет). Z - да
+Fe_Free
+        ld (Fe_FN),a
+        add a,a                     ; строки: #8000 + n*512, 512 байт
+        add a,#80
+        ld h,a
+        ld l,0
+        ld bc,FXR_BLOCK
+.r      ld a,(hl)
+        or a
+        ret nz
+        inc hl
+        dec bc
+        ld a,b
+        or c
+        jr nz,.r
+        ld a,(Fe_FN)                ; заголовок
+        call Fe_Hdr_Addr
+        ld de,Fe_Tmp
+        ld bc,FXH_SIZE
+        ld a,(Trk_FxT)
+        call Fe_Copy
+        ld hl,Fe_Tmp
+        ld a,(Fe_Tmp+FXH_SWSHAPE)
+        xor FXT_TRI
+        or (hl)
+        inc hl
+        or (hl)
+        ld hl,Fe_Tmp+FXH_SWPHASE
+        or (hl)
+        inc hl
+        or (hl)
+        ret nz
+        ld a,(Fe_FN)                ; имя
+        ld de,Fe_Tmp
+        call Fe_Get_Name
+        ld a,(Fe_Tmp)
+        or a
+        ret
+Fe_FN           db 0
+Fe_Tmp          ds 17
+
+;-------- A - номер FX -> HL - его заголовок (#8000 + FXH_BASE + n*8, страница Trk_FxT)
+Fe_Hdr_Addr
+        ld l,a
+        ld h,0
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        ld de,#8000+FXH_BASE
+        add hl,de
+        ret
+
+;-------- Copy: строки, заголовок и имя текущего - в буфер
+Fe_CopyB
+        ld a,(Iv_Num)               ; строки
+        add a,a
+        add a,#80
+        ld h,a
+        ld l,0
+        ld de,Fe_Clip
+        ld bc,FXR_BLOCK
+        ldir
+        ld hl,Fe_Hdr                ; заголовок
+        ld de,Fe_Clip+FXR_BLOCK
+        ld bc,FXH_SIZE
+        ldir
+        ld hl,Fe_Name               ; имя
+        ld de,Fe_Clip+FXR_BLOCK+FXH_SIZE
+        ld bc,16
+        ldir
+        ld a,1
+        ld (Fe_ClipOk),a
+        ret
+
+;-------- Paste: буфер - в текущий (строки, заголовок, имя)
+Fe_Paste
+        ld a,(Fe_ClipOk)
+        or a
+        ret z
+        ld a,(Iv_Num)
+        add a,a
+        add a,#80
+        ld d,a
+        ld e,0
+        ld hl,Fe_Clip
+        ld bc,FXR_BLOCK
+        ldir
+        ld hl,Fe_Clip+FXR_BLOCK
+        ld de,Fe_Hdr
+        ld bc,FXH_SIZE
+        ldir
+        ld hl,Fe_Clip+FXR_BLOCK+FXH_SIZE
+        ld de,Fe_Name
+        ld bc,16
+        ldir
+        call Fe_Put_Name
+        jp Fe_Put_Hdr
+
+;-------- Имя Fe_Name - в страницу трека (SONG_FX_NAMES + n*16)
+Fe_Put_Name
+        ld a,(Iv_Num)
+        ld l,a
+        ld h,0
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        add hl,hl
+        ld de,#8000+SONG_FX_NAMES
+        add hl,de
+        ex de,hl
+        ld hl,Fe_Name
+        ld bc,16
+        ld a,(SV_SONG_PAGE)
+        jp Fe_Copy
+
+;-------- Clear: строки - нули, заголовок - как у нового (имя остаётся)
+Fe_Clear
+        ld a,(Iv_Num)
+        add a,a
+        add a,#80
+        ld h,a
+        ld l,0
+        ld d,h
+        ld e,1
+        ld (hl),0
+        ld bc,FXR_BLOCK-1
+        ldir
+        ld hl,Fe_Hdr
+        ld b,FXH_SIZE
+.z      ld (hl),0
+        inc hl
+        djnz .z
+        ld a,FXT_TRI
+        ld (Fe_Hdr+FXH_SWSHAPE),a
+        xor a
+        ld (Ed_Row),a
+        jp Fe_Put_Hdr
+
+;-------- Unloop: в конец - пустая строка (эффекты выкл), цикл - на неё: FX доиграл и молчит
+Fe_Unloop
+        ld a,(Fe_Hdr+FXH_END)
+        cp FX_ROWS_MAX-1
+        ret nc
+        inc a
+        ld (Fe_Hdr+FXH_END),a
+        ld (Fe_Hdr+FXH_LOOP),a
+        call Iv_Row_Addr
+        ld b,FXR_SIZE
+.z      ld (hl),0
+        inc hl
+        djnz .z
+        jp Fe_Put_Hdr
+
+Fe_ClipOk       db 0                ; 1 - в буфере FX
+Fe_Clip         ds FXR_BLOCK+FXH_SIZE+16
+
+;-------- Имя FX: стандартная строка ввода (Ti_*, коре), 16 знаков; правка - в страницу трека,
+; Enter / Esc - к строкам
+Fe_NameEv
+        ld (Fe_NEv),a
+        ld hl,Fe_Name
+        ld a,16
+        call Ti_Set
+        ld a,(Fe_NEv)
+        cp EV_FOCUS_IN
+        jr z,.in
+        cp EV_FOCUS_OUT
+        jr z,.redraw
+        cp EV_PRESS
+        jr z,.click
+        cp EV_OUTSIDE               ; клик мимо - ввод закончен
+        jr z,.done
+        cp EV_KEY
+        ret nz
+        call Ti_Key
+        ret nc                      ; не наша
+        cp TI_MOVE
+        jr z,.redraw
+        cp TI_EDIT
+        jr nz,.done
+        call Fe_Put_Name            ; в страницу трека
+        jr .redraw
+.done   ld hl,F_FeEdit
+        call Fld_Set_Focus
+        jr .redraw
+.in     ld hl,Fe_Name
+        ld a,16
+        call Ti_Begin
+        jr .redraw
+.click  ld a,(SV_MOUSE_COL)         ; курсор - на знак под мышью
+        sub (ix+FLD_X)
+        call Ti_Click
+.redraw call Iv_Changed
+        scf                         ; событие - наше
+        ret
+Fe_NEv          db 0
+
+;-------- Разряды чисел FX - как в инструменте / орнаменте: у каждого разряда своя колонка курсора,
+; цифра заменяет разряд под курсором (не "вдвигается")
+; A - число 0..255, B - цифра, C - вес разряда (100 / 10 / 1) -> HL - число с замененным разрядом
+Dig_Rep
+        ld d,-1                     ; сотни
+.h      inc d
+        sub 100
+        jr nc,.h
+        add a,100
+        ld e,-1                     ; десятки, A - единицы
+.t      inc e
+        sub 10
+        jr nc,.t
+        add a,10
+        ld l,a
+        ld a,c                      ; заменить разряд
+        cp 100
+        jr nz,.nt
+        ld d,b
+        jr .sum
+.nt     cp 10
+        jr nz,.nu
+        ld e,b
+        jr .sum
+.nu     ld l,b
+.sum    ld a,e                      ; HL = сотни*100 + десятки*10 + единицы
+        add a,a
+        ld h,a
+        add a,a
+        add a,a
+        add a,h
+        add a,l
+        ld l,a
+        ld h,0
+        ld a,d
+        or a
+        ret z
+        ld de,100
+.m      add hl,de
+        dec a
+        jr nz,.m
+        ret
+
+;-------- Цифра B в разряд (iy+3: 100 / 10 / 1) байта со знаком (iy+2): модуль до 127, знак тот же
+Ty_SDig ld a,b
+        cp 10
+        ret nc                      ; A..F - не наши (CF = 0)
+        call Fx_Fld
+        ld a,(hl)
+        ld (Td_Sgn),a
+        or a
+        jp p,.p
+        neg
+.p      push hl
+        ld c,(iy+3)
+        call Dig_Rep
+        ld a,h                      ; больше 127 - 127
+        or a
+        jr nz,.max
+        ld a,l
+        cp 128
+        jr c,.ok
+.max    ld a,127
+.ok     ld b,a
+        pop hl
+        ld a,(Td_Sgn)
+        or a
+        ld a,b
+        jp p,.s
+        neg
+.s      ld (hl),a
+        scf
+        ret
+Td_Sgn  db 0
+
+;-------- Цифра B в разряд (iy+3) байта без знака (iy+2): до 255
+Ty_UDig ld a,b
+        cp 10
+        ret nc
+        call Fx_Fld
+        ld a,(hl)
+        push hl
+        ld c,(iy+3)
+        call Dig_Rep
+        ld a,h
+        or a
+        ld a,l
+        jr z,$+4
+        ld a,255
+        pop hl
+        ld (hl),a
+        scf
+        ret
+
+;-------- Цифра B в длину 1..16 (полубайт - длина-1, iy+3: #10 / #01): KD_LTEN - десятки, KD_LONE - единицы
+Ty_LDig ld a,b
+        cp 10
+        ret nc
+        ld a,(iy+1)
+        cp KD_LTEN
+        ld c,10
+        jr z,$+4
+        ld c,1
+        call Pct_Get                ; полубайт (HL - байт)
+        inc a                       ; длина
+        push hl
+        call Dig_Rep
+        ld a,l                      ; 1..16
+        cp 17
+        jr c,$+4
+        ld a,16
+        or a
+        jr nz,$+3
+        inc a
+        dec a                       ; -> полубайт
+        pop hl
+        jp Ty_Pct.put
+
+;-------- A - 0..255 -> 3 цифры с нулями ("024"), как тон в инструменте
+Put_D3Z
+        ld b,'0'-1
+.h      inc b
+        sub 100
+        jr nc,.h
+        add a,100
+        ld l,a
+        ld a,b
+        call PutCh
+        ld a,l
+        ld b,'0'-1
+.t      inc b
+        sub 10
+        jr nc,.t
+        add a,10+'0'
+        ld l,a
+        ld a,b
+        call PutCh
+        ld a,l
+        jp PutCh
+
+;-------- A - байт со знаком -> знак и 3 цифры ("+012", "-128")
+Put_S3
+        ld l,'+'
+        or a
+        jp p,.p
+        ld l,'-'
+        neg
+.p      push af
+        ld a,l
+        call PutCh
+        pop af
+        jp Put_D3Z
+
+;-------- Шаг FM / Env FM: A - со знаком -> " +12" (полутоны, 2 цифры) / " +0C" (период, hex)
+Fe_Step2
+        ld l,a
+        ld a,' '
+        call PutCh
+        ld a,l
+        ld h,'+'
+        or a
+        jp p,.p
+        ld h,'-'
+        neg
+.p      ld l,a
+        ld a,h
+        call PutCh
+        ld a,(Fe_Per)
+        or a
+        ld a,l
+        jp nz,PutHex2
+        jp Dec2
+
+;-------- C = цвет A; эффект строки выключен (Fe_Dim) - тусклый
+Fe_DimC
+        ld c,a
+        ld a,(Fe_Dim)
+        or a
+        ret z
+        ld a,(THEME_ATTR+CLR_EMPTY)
+        ld c,a
+        ret
+Fe_Dim          db 0                ; 1 - эффект строки выключен: поля тусклые
