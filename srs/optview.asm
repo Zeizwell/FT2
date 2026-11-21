@@ -1012,7 +1012,7 @@ Key_MSpeed      db "mouse_speed=",0
 Key_MAccel      db "mouse_accel=",0
 Key_CBlink      db "cursor_blink=",0
 Key_Load        db "load=",0
-Txt_IniHead     db "; Fast Tracker 2.01b settings",13,10,0
+Txt_IniHead     db "; Fast Tracker 2.02b settings",13,10,0
 Txt_Save        db " Save ",0
 Txt_Saved       db "Saved \\FT2\\FT2.INI",0
 Txt_DiskErr     db "Disk error",0

@@ -57,7 +57,7 @@ Theme_Default
             db #E0      ; CLR_TOP_HI      активное (вкладка, трек, Step, Env as Note, Auto Env): фон темнее #9, буква как у подписей
             db #70      ; CLR_TOP_BTN     кнопки [-][+]: как подписи шапки
             db #2F      ; CLR_BAR         строка 0 шапки: тёмная полоса #1, вкладки и Help / About - светлые #E
-            db #2F      ; CLR_BAR_TITLE   название "Fast Tracker 2.01b" (и версия): светло-голубой #2
+            db #2F      ; CLR_BAR_TITLE   название "Fast Tracker 2.02b" (и версия): светло-голубой #2
             db #0B      ; CLR_OK          "готово": зелёный #B
             db #07      ; CLR_ED_CAP      редакторы: заголовки колонок (как CLR_HEADER)
             db #06      ; CLR_ED_ROW      номера строк (как номера роу)

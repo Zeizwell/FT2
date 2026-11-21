@@ -703,7 +703,7 @@ Win_AboutEv
 Win_About_D
         db WIN_CENTER, WIN_CENTER, 34, 10, WF_CONTEXT|WF_INVERT
         db "About",0
-        db CLR_WIN_TEXT,"FAST TRACKER 2.01b",0
+        db CLR_WIN_TEXT,"FAST TRACKER 2.02b",0
         db CLR_WIN_TEXT,"by Orion/DR",0
         db CLR_WIN_TEXT," ",0
         db CLR_WIN_TEXT,"Big thanks to Pator (Bitphase)",0

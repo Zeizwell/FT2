@@ -1,6 +1,6 @@
 ; =========================================================================
 ; ШАПКА (строки 0..VIEW_LINE-1 над паттерном), один свой фон CLR_TOP_BG
-;   строка 0: тёмная полоса (CLR_BAR): "Fast Tracker 2.01b", Instr Orn FX | кнопки
+;   строка 0: тёмная полоса (CLR_BAR): "Fast Tracker 2.02b", Instr Orn FX | кнопки
 ;             транспорта (спрайты 16x16, строки 0..1) | Disk Setup, Help About - справа
 ;   строка 1: File: имя файла | (кнопки) | Chip:, Tune:
 ;   строка 2: Song: имя, By: автор, Track: 1 2
@@ -19,7 +19,7 @@ HD_SCR_H        equ SCR_BASE_H+HD_BUF_LINE
 HD_W            equ 90              ; ширина шапки
 ; --- строка 0
 HD_TABS_Y       equ 0
-HD_TITLE_X      equ 1               ; название "Fast Tracker 2.01b"
+HD_TITLE_X      equ 1               ; название "Fast Tracker 2.02b"
 HD_TABS_X       equ 21              ; вкладки (вид паттерна - базовое окно, своей вкладки нет):
 HD_TAB_INSTR    equ HD_TABS_X       ;   редакторы - слева, у названия
 HD_TAB_ORN      equ HD_TABS_X+6
@@ -214,7 +214,7 @@ Head_Draw
 
 ; Надписи: строка, колонка, роль цвета, текст, 0. Конец - #FF
 Hd_Static
-        db HD_TABS_Y,HD_TITLE_X,CLR_BAR_TITLE,"Fast Tracker 2.01b",0
+        db HD_TABS_Y,HD_TITLE_X,CLR_BAR_TITLE,"Fast Tracker 2.02b",0
         db HD_TABS_Y,HD_TAB_INSTR,CLR_BAR,"Instr",0
         db HD_TABS_Y,HD_TAB_ORN,CLR_BAR,"Orn",0
         db HD_TABS_Y,HD_TAB_FX,CLR_BAR,"FX",0

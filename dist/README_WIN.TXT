@@ -1,4 +1,4 @@
-FAST TRACKER 2.01b - AY tracker for ZX Evolution (TS-Config)
+FAST TRACKER 2.02b - AY tracker for ZX Evolution (TS-Config)
 =============================================================
 English first, Russian below. README.TXT / FT2FMT.TXT - CP866 (for the Spectrum),
 README_WIN.TXT / FT2FMT_WIN.TXT - UTF-8 (for Windows).
@@ -27,7 +27,7 @@ INSTALL AND RUN
 
 SCREEN
 ------
-Top row: Fast Tracker 2.01b, tabs Instr Orn FX, transport buttons, 3ch / 6ch and
+Top row: Fast Tracker 2.02b, tabs Instr Orn FX, transport buttons, 3ch / 6ch and
 stereo, Disk Setup, Help About. Below - the track header:
   File, Chip, Tune      - file, chip type, note table (1.75 / 1.77 MHz);
   Song, By, Track 1 2   - name, author, which of the two tracks in memory is edited;
@@ -100,8 +100,8 @@ FT2 file format - FT2FMT.TXT.
 
 LIMITS
 ------
-Patterns 64, rows per pattern 64, positions 256, instruments 32 (up to 64 rows),
-ornaments 16, FX 32, two tracks in memory, 1 or 2 chips (3 / 6 channels).
+Patterns 64, rows per pattern 64, positions 256, instruments 32 and ornaments 32
+(up to 100 rows each), FX 32, two tracks in memory, 1 or 2 chips (3 / 6 channels).
 
 
 NOT YET
@@ -126,7 +126,7 @@ Sources: github.com/Zeizwell/FT2
 РУССКИЙ
 =============================================================
 
-FAST TRACKER 2.01b - AY-трекер для ZX Evolution (TS-Config)
+FAST TRACKER 2.02b - AY-трекер для ZX Evolution (TS-Config)
 
 Рабочая сборка (work in progress). Многое уже работает, но это ещё не готовый
 трекер. Наследник Fast Tracker для ZX Spectrum. Интерфейс - в духе Bitphase и
@@ -153,7 +153,7 @@ FastTracker 2 на ПК: текстовый режим 90x36, мышь, клав
 
 ЭКРАН
 -----
-Верхняя строка: Fast Tracker 2.01b, вкладки Instr Orn FX, кнопки транспорта,
+Верхняя строка: Fast Tracker 2.02b, вкладки Instr Orn FX, кнопки транспорта,
 3ch / 6ch и стерео, Disk Setup, Help About. Ниже - шапка трека:
   File, Chip, Tune      - файл, тип чипа, таблица нот (1.75 / 1.77 МГц);
   Song, By, Track 1 2   - имя, автор, какой из двух треков в памяти правим;
@@ -226,8 +226,8 @@ PT3-модули грузятся с PT).
 
 ЛИМИТЫ
 ------
-Паттернов 64, строк в паттерне 64, позиций 256, инструментов 32 (строк до 64),
-орнаментов 16, FX 32, два трека в памяти, 1 или 2 чипа (3 / 6 каналов).
+Паттернов 64, строк в паттерне 64, позиций 256, инструментов 32 и орнаментов 32
+(по 100 строк), FX 32, два трека в памяти, 1 или 2 чипа (3 / 6 каналов).
 
 
 ЧЕГО ПОКА НЕТ
