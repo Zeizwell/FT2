@@ -15,53 +15,117 @@ Successor of Fast Tracker for the ZX Spectrum. Author: Orion/DR. **Status: beta*
 - **Import PT3 (TurboSound), PT2, FTC** with a report of what did not fit, and side-by-side compare with the original player.
 - **Two tracks in memory**; the song is edited as one sheet — patterns stitched by the order.
 
-### Song
+### Technical info
 
-| | |
-|---|---|
-| Channels | 6: TurboSound (2 × AY / YM) or 3 on one chip |
-| Stereo | ABC, ACB, BAC, BCA, CAB |
-| Tracks in memory | 2 |
-| Patterns | 64 × up to 64 rows |
-| Order | 256 positions, loop position; shown as one sheet |
-| Channel fields | note C-1..B-8, instrument, envelope shape 1..14, ornament, volume 0..F, 2 commands |
-| Chip column | envelope period (or as a note), envelope command, noise |
-| Commands | codes 1..E and F with sub-codes: portamento, glide, vibrato, arpeggio, volume and envelope slides, on / off, retrigger, speed |
-| Note tables | 1.75 MHz, 1.7734 MHz |
-| Envelope mode | FT (Fast Tracker 1.15) or PT (Pro Tracker 3) |
-| Name / author | 32 + 32 characters |
-| Compiled track | up to 32K |
+```
+Tracks in memory:                                                2
+Channels:                                      3 or 6 (TurboSound)
+Stereo:                                        ABC ACB BAC BCA CAB
+Patterns:                                                       64
+Rows per pattern:                                          1 to 64
+Positions:                                                     256
+Speed:                                                    1 to 255
+Instruments:                                                    32
+Max instrument length:                                         100
+Ornaments:                                                      32
+Max ornament length:                                           100
+FX (ZX Trinity):                                                32
+Max FX length:                                                  32
+FX tables:                                                256 x 16
+Note tables:                                     1.75 / 1.7734 MHz
+Envelope mode:                                      FT 1.15 / PT 3
+Name / author:                                       32 + 32 chars
+Compiled track:                                        up to 32768
+```
+
+### Pattern field
+
+```
+Channel (x6):
+  Note:                                            C-1 .. B-8, off
+  Instrument:                                                1..32
+  Envelope shape:                                       1..14, off
+  Ornament:                                            1..32, none
+  Volume:                                                     0..F
+  Commands:                          2 (4 hex: code, delay, param)
+Chip ENV column (x2):
+  Envelope period:                             16 bit or as a note
+  Envelope command:                    1 (4 hex): 1 - up, 2 - down
+  Noise:                                                    00..1F
+```
+
+### Channel commands
+
+```
+  1 / 2   glide down / up               delay, step
+  3       portamento to note            delay, step
+  4 / 5   sample / ornament from row    row
+  6       sound on / off                on, off
+  7       volume slide                  delay, up, down
+  8       vibrato                       ticks/step, speed, depth
+  9 / A   envelope slide down / up      delay, step
+  B       speed                         ticks per row
+  C       arpeggio                      ticks/step, shift 1, shift 2
+  F0      envelope and tone retrigger
+  F1      detune                        period offset +/-
+  F2      note delay                    ticks
+```
 
 ### Instruments, ornaments, FX
 
-| | |
-|---|---|
-| Instruments | 32 × up to 100 rows, loop; row: tone offset 12 bit, noise offset, envelope offset, volume 0..F, accumulation of tone / noise / envelope, volume slide, envelope retrigger; linked FX |
-| Ornaments | 32 × up to 100 rows, loop; row: note offset ±, noise offset, accumulation |
-| FX (ZX Trinity) | 32 × up to 32 rows, loop; per row: Mix (SID / Sync), FM, Env FM — each with own timer, table and length 1..16; detune in semitones and raw; PWM 16 steps 0..50 %; sweep 256 phases, shape by table |
-| FX tables | 256 × 16 values |
+```
+Instrument row:
+  Tone offset:                       12 bit +/-, accumulation, off
+  Noise offset:                             +/-, accumulation, off
+  Envelope offset:                           +/-, accumulation, on
+  Volume:                                    0..F, slide up / down
+  Envelope retrigger:                                          yes
+  Linked FX:                                                 0..32
+Ornament row:
+  Note offset:                         semitones +/-, accumulation
+  Noise offset:                                  +/-, accumulation
+FX row (ZX Trinity):
+  Mix:                             SID / Sync, own timer and table
+  FM:                             tone period, own timer and table
+  Env FM:                        envelope period, own timer, table
+  Table length:                                        1..16 steps
+  Detune:                                        semitones and raw
+  PWM:                                            16 steps 0..50 %
+  Sweep:                                256 phases, shape by table
+```
 
 ### Disk and files
 
-| | |
-|---|---|
-| Catalog | SD card (FAT32), long names, up to 640 files |
-| Load | FT2, PT3 (TurboSound), PT2, FTC; report of what did not fit |
-| Save | FT2 — own block format with CRC-16 ([spec](doc/formats/ft2.md)) |
-| Export | PSG (chip 1 registers per frame) |
-| Check | compares an FT2 file with the track in memory |
-| Compare | imported module played by our player and the original one, frames that differ are shown |
+```
+Storage:                                            SD card, FAT32
+Long names:                                                    yes
+Files in catalog:                                        up to 640
+Load:                              FT2, PT3 (TurboSound), PT2, FTC
+Import report:                                    what did not fit
+Save:                                      FT2, blocks with CRC-16
+Export:                                     PSG, chip 1, per frame
+Check:                                 FT2 file vs track in memory
+Compare:                         ours vs original player, by frame
+```
+
+FT2 file format: [spec](doc/formats/ft2.md)
 
 ### Interface
 
-| | |
-|---|---|
-| Screen | text 90×36, the whole interface redrawn every frame (50 fps) |
-| Mouse | Kempston with wheel: 16.8 fixed-point precision, fractional speed, cubic acceleration 0..8 |
-| Keyboard | PS/2 (PC), Ctrl / Alt / Shift combinations |
-| Editing | selection, clipboard, transpose, undo / redo |
-| Themes | 6 colour themes; settings saved to `\FT2\FT2.INI` only by Save |
-| Help | keys and pattern commands, built from the real key bindings |
+```
+Screen:                                               text 90 x 36
+Redraw:                                       whole screen, 50 fps
+Mouse:                                             Kempston, wheel
+Mouse precision:                                  16.8 fixed point
+Mouse speed:                                            fractional
+Mouse acceleration:                                    cubic, 0..8
+Keyboard:                                 PS/2, Ctrl / Alt / Shift
+Editing:                           selection, clipboard, transpose
+Undo / redo:                                                   yes
+Colour themes:                                                   6
+Settings:                                    FT2.INI, by Save only
+Help:                              keys, commands, from real binds
+```
 
 ### Requirements and install
 
@@ -110,53 +174,117 @@ Instrument library on disk; PT3 export; import STC, ASC, SQT, PSC, PT1, GTR, Vor
 - **Импорт PT3 (TurboSound), PT2, FTC** с отчётом, что не влезло, и сравнение с оригинальным плеером рядом.
 - **Два трека в памяти**; песня правится одним листом — паттерны сшиты по ордеру.
 
-### Песня
+### Техническая инфа
 
-| | |
-|---|---|
-| Каналы | 6: TurboSound (2 × AY / YM) или 3 на одном чипе |
-| Стерео | ABC, ACB, BAC, BCA, CAB |
-| Треков в памяти | 2 |
-| Паттерны | 64 × до 64 строк |
-| Ордер | 256 позиций, позиция цикла; показывается одним листом |
-| Поля канала | нота C-1..B-8, инструмент, форма огибающей 1..14, орнамент, громкость 0..F, 2 команды |
-| Колонка чипа | период огибающей (или нотой), команда огибающей, шум |
-| Команды | коды 1..E и F с подкодами: портаменто, глисс, вибрато, арпеджио, слайды громкости и огибающей, вкл / выкл, ретриггер, скорость |
-| Таблицы нот | 1.75 МГц, 1.7734 МГц |
-| Огибающая | FT (Fast Tracker 1.15) или PT (Pro Tracker 3) |
-| Имя / автор | 32 + 32 знака |
-| Откомпилированный трек | до 32К |
+```
+Треков в памяти:                                                 2
+Каналов:                                      3 или 6 (TurboSound)
+Стерео:                                        ABC ACB BAC BCA CAB
+Паттернов:                                                      64
+Строк в паттерне:                                       от 1 до 64
+Позиций:                                                       256
+Скорость:                                              от 1 до 255
+Инструментов:                                                   32
+Максимальная длина инструмента:                                100
+Орнаментов:                                                     32
+Максимальная длина орнамента:                                  100
+FX (ZX Trinity):                                                32
+Максимальная длина FX:                                          32
+Таблиц FX:                                               256 по 16
+Таблицы нот:                                     1.75 / 1.7734 МГц
+Огибающая:                                          FT 1.15 / PT 3
+Имя / автор:                                         32 + 32 знака
+Откомпилированный трек:                                   до 32768
+```
+
+### Поле паттерна
+
+```
+Канал (x6):
+  Нота:                                           C-1 .. B-8, выкл
+  Инструмент:                                                1..32
+  Форма огибающей:                                     1..14, выкл
+  Орнамент:                                   1..32, без орнамента
+  Громкость:                                                  0..F
+  Команд:                       2 (4 hex: код, задержка, параметр)
+Колонка чипа ENV (x2):
+  Период огибающей:                               16 бит или нотой
+  Команда огибающей:                1 (4 hex): 1 - вверх, 2 - вниз
+  Шум:                                                      00..1F
+```
+
+### Команды канала
+
+```
+  1 / 2   глисс вниз / вверх            задержка, шаг
+  3       портаменто к ноте             задержка, шаг
+  4 / 5   сэмпл / орнамент с позиции    строка
+  6       звук вкл / выкл               вкл, выкл
+  7       слайд громкости               задержка, вверх, вниз
+  8       вибрато                       тиков/шаг, скорость, глубина
+  9 / A   слайд огибающей вниз / вверх  задержка, шаг
+  B       скорость                      тиков на строку
+  C       арпеджио                      тиков/шаг, сдвиг 1, сдвиг 2
+  F0      ретриггер огибающей и тона
+  F1      детюн                         сдвиг периода +/-
+  F2      задержка ноты                 тиков
+```
 
 ### Инструменты, орнаменты, FX
 
-| | |
-|---|---|
-| Инструменты | 32 × до 100 строк, петля; строка: смещение тона 12 бит, шума, огибающей, громкость 0..F, накопление тона / шума / огибающей, слайд громкости, ретриггер огибающей; привязка FX |
-| Орнаменты | 32 × до 100 строк, петля; строка: смещение ноты ±, смещение шума, накопление |
-| FX (ZX Trinity) | 32 × до 32 строк, петля; в строке: Mix (SID / Sync), FM, Env FM — у каждого свой таймер, таблица и длина 1..16; детюн в полутонах и сырой; ШИМ 16 ступеней 0..50 %; свип 256 фаз, форма — таблицей |
-| Таблицы FX | 256 × 16 значений |
+```
+Строка инструмента:
+  Смещение тона:                      12 бит +/-, накопление, выкл
+  Смещение шума:                             +/-, накопление, выкл
+  Смещение огибающей:                         +/-, накопление, вкл
+  Громкость:                              0..F, слайд вверх / вниз
+  Ретриггер огибающей:                                        есть
+  Привязка FX:                                               0..32
+Строка орнамента:
+  Смещение ноты:                          полутоны +/-, накопление
+  Смещение шума:                                   +/-, накопление
+Строка FX (ZX Trinity):
+  Mix:                           SID / Sync, свой таймер и таблица
+  FM:                            период тона, свой таймер, таблица
+  Env FM:                        период огибающей, таймер, таблица
+  Длина таблицы:                                       1..16 шагов
+  Детюн:                                          полутоны и сырой
+  ШИМ:                                         16 ступеней 0..50 %
+  Свип:                                    256 фаз, форма таблицей
+```
 
 ### Диск и файлы
 
-| | |
-|---|---|
-| Каталог | SD-карта (FAT32), длинные имена, до 640 файлов |
-| Загрузка | FT2, PT3 (TurboSound), PT2, FTC; отчёт, что не влезло |
-| Сохранение | FT2 — свой блочный формат с CRC-16 ([описание](doc/formats/ft2.md)) |
-| Экспорт | PSG (регистры чипа 1 по кадрам) |
-| Check | сравнение файла FT2 с треком в памяти |
-| Compare | импортированный модуль играют наш и оригинальный плеер, показаны кадры с расхождением |
+```
+Носитель:                                          SD-карта, FAT32
+Длинные имена:                                                есть
+Файлов в каталоге:                                          до 640
+Загрузка:                          FT2, PT3 (TurboSound), PT2, FTC
+Отчёт импорта:                                       что не влезло
+Сохранение:                                    FT2, блоки с CRC-16
+Экспорт:                                     PSG, чип 1, по кадрам
+Check:                              файл FT2 против трека в памяти
+Compare:                       наш и оригинальный плеер, по кадрам
+```
+
+Формат файла FT2: [описание](doc/formats/ft2.md)
 
 ### Интерфейс
 
-| | |
-|---|---|
-| Экран | текст 90×36, весь интерфейс перерисовывается каждый кадр (50 кадров/с) |
-| Мышь | Kempston с колесом: точность 16.8, дробная скорость, кубическая акселерация 0..8 |
-| Клавиатура | PS/2 (PC), сочетания Ctrl / Alt / Shift |
-| Правка | выделение, буфер обмена, транспонирование, отмена / повтор |
-| Темы | 6 цветовых тем; настройки в `\FT2\FT2.INI` — только кнопкой Save |
-| Help | клавиши и команды паттерна, строится из настоящих биндов |
+```
+Экран:                                               текст 90 x 36
+Перерисовка:                               весь экран, 50 кадров/с
+Мышь:                                             Kempston, колесо
+Точность мыши:                           16.8, фиксированная точка
+Скорость мыши:                                             дробная
+Акселерация мыши:                                 кубическая, 0..8
+Клавиатура:                               PS/2, Ctrl / Alt / Shift
+Правка:                         выделение, буфер, транспонирование
+Отмена / повтор:                                              есть
+Цветовых тем:                                                    6
+Настройки:                            FT2.INI, только кнопкой Save
+Help:                                  клавиши, команды, из биндов
+```
 
 ### Что нужно и установка
 
