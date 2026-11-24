@@ -6,62 +6,68 @@ English first, Russian below. / Сначала английский, ниже р
 
 ## English
 
-**Fast Tracker 2** is an AY / YM tracker for **ZX Evolution** with the **TS-Config** firmware, written in Z80 assembler.
-It is the successor of Fast Tracker for the ZX Spectrum, with an interface in the spirit of Bitphase and FastTracker 2
-on the PC: text mode 90×36, mouse, PC keyboard. Author: Orion/DR.
+**6-channel AY / YM tracker for ZX Evolution (TS-Config).** Z80 assembler. Text mode 90×36, mouse, PC keyboard.
+Successor of Fast Tracker for the ZX Spectrum. Author: Orion/DR. **Status: beta** — [Releases](https://github.com/Zeizwell/FT2/releases).
 
-**Status: beta.** A lot works already, but this is not a finished tracker yet. Releases are on the
-[Releases](https://github.com/Zeizwell/FT2/releases) page. The archive has the `FT2` folder, `README.TXT` and the format
-description `FT2FMT.TXT`.
+**Key points**
+- **ZX Trinity timer effects** on real AY chips: SID, Sync, FM, Env FM, PWM with sweep — own editor, heard while editing.
+- **Player checked frame by frame** against the original players: PT3 / PT2 — Bulba's player, FTC — Fast Tracker 1.15.
+- **Import PT3 (TurboSound), PT2, FTC** with a report of what did not fit, and side-by-side compare with the original player.
+- **Two tracks in memory**; the song is edited as one sheet — patterns stitched by the order.
 
-Big thanks to **Pator**, the author of **Bitphase**: a great deal of FT2 is taken from it - the interface, the pattern
-commands, the envelope column, the timer effects (FX), the instrument model. Bitphase is the reference our player is
-checked against.
+### Song
 
-### What it can do
+| | |
+|---|---|
+| Channels | 6: TurboSound (2 × AY / YM) or 3 on one chip |
+| Stereo | ABC, ACB, BAC, BCA, CAB |
+| Tracks in memory | 2 |
+| Patterns | 64 × up to 64 rows |
+| Order | 256 positions, loop position; shown as one sheet |
+| Channel fields | note C-1..B-8, instrument, envelope shape 1..14, ornament, volume 0..F, 2 commands |
+| Chip column | envelope period (or as a note), envelope command, noise |
+| Commands | codes 1..E and F with sub-codes: portamento, glide, vibrato, arpeggio, volume and envelope slides, on / off, retrigger, speed |
+| Note tables | 1.75 MHz, 1.7734 MHz |
+| Envelope mode | FT (Fast Tracker 1.15) or PT (Pro Tracker 3) |
+| Name / author | 32 + 32 characters |
+| Compiled track | up to 32K |
 
-- **6 channels:** one AY (3 channels) or TurboSound (two chips). Stereo layouts ABC ACB BAC BCA CAB, as in Vortex Tracker.
-- **Two tracks in memory**, switched from the header (Track 1 / 2).
-- **Pattern editor:**
-  - input as in Vortex Tracker;
-  - selection, clipboard, transpose, undo / redo;
-  - an envelope column per chip (period, noise, envelope command);
-  - "Env as Note" - enter the envelope period as a note.
-- **Instruments and ornaments** in the Fast Tracker model: 32 instruments and 32 ornaments, up to 100 rows each. Rows
-  have loops, and a note preview sits under the editor.
-- **FX - timer effects** of the ZX Trinity card: SID, Sync-buzzer, FM, Env FM, PWM with sweep shapes. 32 FX, each with
-  its own editor. An edit is heard at once.
-- **Player:**
-  - all pattern commands (`doc/commands.md`): portamento, glide, vibrato, arpeggio, volume and envelope slides,
-    on / off, retrigger, speed;
-  - two track modes, FT (Fast Tracker 1.15) and PT (Pro Tracker 3);
-  - note tables 1.75 MHz and 1.7734 MHz.
-- **Disk:**
-  - SD card catalog with long names, up to 640 files;
-  - loads FT2, PT3 (with TurboSound), PT2 and FTC;
-  - saves FT2 (own format, `doc/formats/ft2.md`);
-  - PSG export (chip 1 registers per frame);
-  - after an import, a message says what did not fit;
-  - Check: compares an FT2 file with the track in memory.
-- **Compare:** after a PT3 / PT2 / FTC import, plays the module with our player and with the original player side by
-  side and shows the frames where they differ.
-- **Setup:** 6 colour themes, mouse speed and acceleration. Settings go to `\FT2\FT2.INI`, and only when you press Save.
-- **Help:** keys and pattern commands, built from the real key bindings.
+### Instruments, ornaments, FX
 
-### What you need
+| | |
+|---|---|
+| Instruments | 32 × up to 100 rows, loop; row: tone offset 12 bit, noise offset, envelope offset, volume 0..F, accumulation of tone / noise / envelope, volume slide, envelope retrigger; linked FX |
+| Ornaments | 32 × up to 100 rows, loop; row: note offset ±, noise offset, accumulation |
+| FX (ZX Trinity) | 32 × up to 32 rows, loop; per row: Mix (SID / Sync), FM, Env FM — each with own timer, table and length 1..16; detune in semitones and raw; PWM 16 steps 0..50 %; sweep 256 phases, shape by table |
+| FX tables | 256 × 16 values |
 
-- ZX Evolution with TS-Config (it also runs in the Unreal Speccy emulator; Xpeccy has the best mouse).
-- An SD card with FAT32 (Z-Controller / SD-ZC).
-- A PS/2 (PC) keyboard and a Kempston mouse with a wheel.
-- AY / YM; for 6 channels - TurboSound (chips selected by `#FF` / `#FE`).
-- Optional: the **ZX Trinity** card for the timer effects. Without it FT2 plays a plain AY / TurboSound, and FX are
-  silent.
+### Disk and files
 
-### Install and run
+| | |
+|---|---|
+| Catalog | SD card (FAT32), long names, up to 640 files |
+| Load | FT2, PT3 (TurboSound), PT2, FTC; report of what did not fit |
+| Save | FT2 — own block format with CRC-16 ([spec](doc/formats/ft2.md)) |
+| Export | PSG (chip 1 registers per frame) |
+| Check | compares an FT2 file with the track in memory |
+| Compare | imported module played by our player and the original one, frames that differ are shown |
 
-1. Copy the `FT2` folder to the root of the SD card.
-2. Run `\FT2\FT2B.SPG`.
-3. In `FT2.INI`, `load=` names a track to load at start (path from the card root).
+### Interface
+
+| | |
+|---|---|
+| Screen | text 90×36, the whole interface redrawn every frame (50 fps) |
+| Mouse | Kempston with wheel: 16.8 fixed-point precision, fractional speed, cubic acceleration 0..8 |
+| Keyboard | PS/2 (PC), Ctrl / Alt / Shift combinations |
+| Editing | selection, clipboard, transpose, undo / redo |
+| Themes | 6 colour themes; settings saved to `\FT2\FT2.INI` only by Save |
+| Help | keys and pattern commands, built from the real key bindings |
+
+### Requirements and install
+
+- ZX Evolution with TS-Config (also Unreal Speccy, Xpeccy); SD card FAT32 (Z-Controller); PS/2 keyboard; Kempston mouse with wheel.
+- AY / YM; 6 channels — TurboSound (`#FF` / `#FE`). Optional: **ZX Trinity** card for FX (without it FX are silent).
+- Copy the `FT2` folder to the SD root, run `\FT2\FT2B.SPG`. `load=` in `FT2.INI` — a track to load at start.
 
 ### Main keys
 
@@ -69,130 +75,119 @@ checked against.
 |---|---|
 | F5 / F6 | play the song from the position / from the start |
 | F7 / F8 | play the pattern from the row / the whole pattern in a loop |
-| Esc | stop; in tools - back to the pattern |
+| Esc | stop; in tabs - back to the pattern |
 | Z..M, Q..P | notes (Shift - an octave higher); A - off, K - erase |
-| 0-9, A-F | digits into fields; Delete - clear |
 | Insert / Backspace | insert / delete a track row (Ctrl+I / Ctrl+Y - pattern row) |
 | Shift + arrows / click | selection; Ctrl+A - all; Ctrl+C X V - copy, cut, paste |
 | Num + / - | transpose (with Ctrl - by an octave) |
 | Ctrl+Z / Ctrl+Shift+Z | undo / redo |
-| Ctrl+E | the chip's envelope column; Alt+E - envelope as a note |
-| Ctrl+T | time band (how much of the frame each part takes) |
+| Ctrl+E / Alt+E | envelope column / envelope as a note |
 | Mouse | click - cursor and buttons, wheel - rows (Ctrl / Shift - channels), right click - menu |
 
-The full list is in the Help tab and in `dist/README_WIN.TXT`.
-
-### Limits
-
-Patterns 64, rows per pattern 64, positions 256, instruments 32 and ornaments 32 (100 rows each), FX 32, two tracks,
-compiled track up to 32K.
+Full list — Help tab and `README.TXT`.
 
 ### Not done yet
 
-- an instrument library on the disk;
-- PT3 export, and loading other formats (STC, ASC, SQT, PSC, PT1, GTR, Vortex Tracker text);
-- the rest of the envelope column commands (portamento, vibrato, arpeggio, on / off, detune, auto-envelope);
-- FX commands E1..E5 in the pattern;
-- a separate cursor for each track; the pattern view and windows rework (`doc/todo.md`).
+Instrument library on disk; PT3 export; import STC, ASC, SQT, PSC, PT1, GTR, Vortex Tracker text; envelope column commands (portamento, vibrato, arpeggio, on / off, detune, auto-envelope); FX commands E1..E5 in the pattern; separate cursor per track.
 
-### Authors and licenses
+### Credits and licenses
 
-- Fast Tracker 2 - Orion/DR.
-- FAT32 driver - [andrewinsidelazarev/FAT32-Driver-ZX-Evolution](https://github.com/andrewinsidelazarev/FAT32-Driver-ZX-Evolution) (MIT).
-- Fonts Toshiba TxL1 / TxL2, Compaq Thin - The Ultimate Oldschool PC Font Pack, int10h.org (CC BY-SA 4.0).
+- Fast Tracker 2 — Orion/DR.
+- Thanks to **Pator**, the author of **Bitphase**: the interface, pattern commands, envelope column and timer effects (FX) are largely taken from it.
+- FAT32 driver — [andrewinsidelazarev/FAT32-Driver-ZX-Evolution](https://github.com/andrewinsidelazarev/FAT32-Driver-ZX-Evolution) (MIT).
+- Fonts Toshiba TxL1 / TxL2, Compaq Thin — The Ultimate Oldschool PC Font Pack, int10h.org (CC BY-SA 4.0).
 
 ---
 
 ## Русский
 
-**Fast Tracker 2** — AY / YM-трекер для **ZX Evolution** с прошивкой **TS-Config**, написан на ассемблере Z80. Это
-наследник Fast Tracker для ZX Spectrum. Интерфейс — в духе Bitphase и FastTracker 2 на ПК: текстовый режим 90×36,
-мышь, клавиатура PC. Автор — Orion/DR.
+**6-канальный AY / YM-трекер для ZX Evolution (TS-Config).** Ассемблер Z80. Текстовый режим 90×36, мышь, клавиатура PC.
+Наследник Fast Tracker для ZX Spectrum. Автор — Orion/DR. **Состояние: бета** — [Releases](https://github.com/Zeizwell/FT2/releases).
 
-**Состояние: бета.** Многое уже работает, но это ещё не готовый трекер. Релизы — на странице
-[Releases](https://github.com/Zeizwell/FT2/releases). В архиве — папка `FT2`, `README.TXT` и описание формата `FT2FMT.TXT`.
+**Главное**
+- **Таймерные эффекты ZX Trinity** на настоящих AY: SID, Sync, FM, Env FM, ШИМ со свипом — свой редактор, слышно во время правки.
+- **Плеер сверен покадрово** с оригинальными плеерами: PT3 / PT2 — плеер Бульбы, FTC — Fast Tracker 1.15.
+- **Импорт PT3 (TurboSound), PT2, FTC** с отчётом, что не влезло, и сравнение с оригинальным плеером рядом.
+- **Два трека в памяти**; песня правится одним листом — паттерны сшиты по ордеру.
 
-Огромное спасибо **Pator**, автору **Bitphase**: очень многое в FT2 взято из него — интерфейс, команды паттерна,
-колонка огибающей, таймерные эффекты (FX), модель инструментов. По Bitphase сверяется наш плеер.
+### Песня
 
-### Что умеет
+| | |
+|---|---|
+| Каналы | 6: TurboSound (2 × AY / YM) или 3 на одном чипе |
+| Стерео | ABC, ACB, BAC, BCA, CAB |
+| Треков в памяти | 2 |
+| Паттерны | 64 × до 64 строк |
+| Ордер | 256 позиций, позиция цикла; показывается одним листом |
+| Поля канала | нота C-1..B-8, инструмент, форма огибающей 1..14, орнамент, громкость 0..F, 2 команды |
+| Колонка чипа | период огибающей (или нотой), команда огибающей, шум |
+| Команды | коды 1..E и F с подкодами: портаменто, глисс, вибрато, арпеджио, слайды громкости и огибающей, вкл / выкл, ретриггер, скорость |
+| Таблицы нот | 1.75 МГц, 1.7734 МГц |
+| Огибающая | FT (Fast Tracker 1.15) или PT (Pro Tracker 3) |
+| Имя / автор | 32 + 32 знака |
+| Откомпилированный трек | до 32К |
 
-- **6 каналов:** один AY (3 канала) или TurboSound (два чипа). Стерео — ABC ACB BAC BCA CAB, как в Vortex Tracker.
-- **Два трека в памяти**, переключаются в шапке (Track 1 / 2).
-- **Редактор паттерна:**
-  - ввод как в Vortex Tracker;
-  - выделение, буфер обмена, транспонирование, отмена и повтор;
-  - колонка огибающей у каждого чипа (период, шум, команда огибающей);
-  - «Env as Note» — период огибающей вводится нотой.
-- **Инструменты и орнаменты** по модели Fast Tracker: 32 инструмента и 32 орнамента, до 100 строк в каждом. У строк есть
-  петли, под редактором — проба ноты.
-- **FX — таймерные эффекты** карты ZX Trinity: SID, Sync-buzzer, FM, Env FM, ШИМ с формами свипа. 32 FX, у каждого свой
-  редактор. Правка слышна сразу.
-- **Плеер:**
-  - все команды паттерна (`doc/commands.md`): портаменто, глисс, вибрато, арпеджио, слайды громкости и огибающей,
-    вкл / выкл, ретриггер, скорость;
-  - два режима трека — FT (Fast Tracker 1.15) и PT (Pro Tracker 3);
-  - таблицы нот 1.75 МГц и 1.7734 МГц.
-- **Диск:**
-  - каталог SD-карты с длинными именами, до 640 файлов;
-  - загрузка FT2, PT3 (с TurboSound), PT2 и FTC;
-  - сохранение FT2 (свой формат, `doc/formats/ft2.md`);
-  - экспорт PSG (регистры чипа 1 по кадрам);
-  - после импорта сообщение говорит, что не влезло;
-  - Check — сравнение файла FT2 с треком в памяти.
-- **Compare:** после импорта PT3 / PT2 / FTC модуль играется нашим плеером и оригинальным рядом, видно кадры, где они
-  расходятся.
-- **Setup:** 6 цветовых тем, скорость и ускорение мыши. Настройки пишутся в `\FT2\FT2.INI` — только кнопкой Save.
-- **Help:** клавиши и команды паттерна, строится из настоящих биндов.
+### Инструменты, орнаменты, FX
 
-### Что нужно
+| | |
+|---|---|
+| Инструменты | 32 × до 100 строк, петля; строка: смещение тона 12 бит, шума, огибающей, громкость 0..F, накопление тона / шума / огибающей, слайд громкости, ретриггер огибающей; привязка FX |
+| Орнаменты | 32 × до 100 строк, петля; строка: смещение ноты ±, смещение шума, накопление |
+| FX (ZX Trinity) | 32 × до 32 строк, петля; в строке: Mix (SID / Sync), FM, Env FM — у каждого свой таймер, таблица и длина 1..16; детюн в полутонах и сырой; ШИМ 16 ступеней 0..50 %; свип 256 фаз, форма — таблицей |
+| Таблицы FX | 256 × 16 значений |
 
-- ZX Evolution с TS-Config (работает и в эмуляторе Unreal Speccy; лучшая мышь — в Xpeccy).
-- SD-карта с FAT32 (Z-Controller / SD-ZC).
-- Клавиатура PS/2 (PC) и мышь Kempston с колесом.
-- AY / YM; для 6 каналов — TurboSound (чипы выбираются `#FF` / `#FE`).
-- По желанию — карта **ZX Trinity** для таймерных эффектов. Без неё FT2 играет на обычном AY / TurboSound, а FX молчат.
+### Диск и файлы
 
-### Установка и запуск
+| | |
+|---|---|
+| Каталог | SD-карта (FAT32), длинные имена, до 640 файлов |
+| Загрузка | FT2, PT3 (TurboSound), PT2, FTC; отчёт, что не влезло |
+| Сохранение | FT2 — свой блочный формат с CRC-16 ([описание](doc/formats/ft2.md)) |
+| Экспорт | PSG (регистры чипа 1 по кадрам) |
+| Check | сравнение файла FT2 с треком в памяти |
+| Compare | импортированный модуль играют наш и оригинальный плеер, показаны кадры с расхождением |
 
-1. Скопировать папку `FT2` в корень SD-карты.
-2. Запустить `\FT2\FT2B.SPG`.
-3. В `FT2.INI` строка `load=` задаёт трек, который грузится при старте (путь от корня карты).
+### Интерфейс
+
+| | |
+|---|---|
+| Экран | текст 90×36, весь интерфейс перерисовывается каждый кадр (50 кадров/с) |
+| Мышь | Kempston с колесом: точность 16.8, дробная скорость, кубическая акселерация 0..8 |
+| Клавиатура | PS/2 (PC), сочетания Ctrl / Alt / Shift |
+| Правка | выделение, буфер обмена, транспонирование, отмена / повтор |
+| Темы | 6 цветовых тем; настройки в `\FT2\FT2.INI` — только кнопкой Save |
+| Help | клавиши и команды паттерна, строится из настоящих биндов |
+
+### Что нужно и установка
+
+- ZX Evolution с TS-Config (а также Unreal Speccy, Xpeccy); SD-карта FAT32 (Z-Controller); клавиатура PS/2; мышь Kempston с колесом.
+- AY / YM; 6 каналов — TurboSound (`#FF` / `#FE`). По желанию — карта **ZX Trinity** для FX (без неё FX молчат).
+- Папку `FT2` — в корень SD-карты, запуск `\FT2\FT2B.SPG`. `load=` в `FT2.INI` — трек, который грузится при старте.
 
 ### Главные клавиши
 
 | Клавиша | Действие |
 |---|---|
-| F5 / F6 | сонг с позиции / с начала |
-| F7 / F8 | паттерн с роу / паттерн по кругу |
-| Esc | стоп; в тулзах — назад к паттерну |
+| F5 / F6 | песня с позиции / с начала |
+| F7 / F8 | паттерн со строки / паттерн по кругу |
+| Esc | стоп; во вкладках — назад к паттерну |
 | Z..M, Q..P | ноты (Shift — октавой выше); A — выкл, K — стереть |
-| 0-9, A-F | цифры в поля; Delete — очистить |
-| Insert / Backspace | вставить / удалить роу трека (Ctrl+I / Ctrl+Y — роу паттерна) |
+| Insert / Backspace | вставить / удалить строку трека (Ctrl+I / Ctrl+Y — строку паттерна) |
 | Shift + стрелки / клик | выделение; Ctrl+A — всё; Ctrl+C X V — копировать, вырезать, вставить |
 | Num + / - | транспонирование (с Ctrl — на октаву) |
 | Ctrl+Z / Ctrl+Shift+Z | отмена / повтор |
-| Ctrl+E | колонка огибающей чипа; Alt+E — огибающая нотой |
-| Ctrl+T | полоса времени (сколько кадра занимает каждая часть) |
-| Мышь | клик — курсор и кнопки, колесо — роу (Ctrl / Shift — каналы), правая кнопка — меню |
+| Ctrl+E / Alt+E | колонка огибающей / огибающая нотой |
+| Мышь | клик — курсор и кнопки, колесо — строки (Ctrl / Shift — каналы), правая кнопка — меню |
 
-Полный список — во вкладке Help и в `dist/README_WIN.TXT`.
-
-### Лимиты
-
-Паттернов 64, роу в паттерне 64, позиций 256, инструментов 32 и орнаментов 32 (по 100 строк), FX 32, два трека,
-откомпилированный трек — до 32К.
+Полный список — вкладка Help и `README.TXT`.
 
 ### Ещё не сделано
 
-- библиотека инструментов на диске;
-- экспорт в PT3, загрузка остальных форматов (STC, ASC, SQT, PSC, PT1, GTR, текст Vortex Tracker);
-- остальные команды колонки огибающей (портаменто, вибрато, арпеджио, вкл / выкл, детюн, автоогибающая);
-- команды FX E1..E5 в паттерне;
-- свой курсор у каждого трека; реворк вида паттерна и окон (`doc/todo.md`).
+Библиотека инструментов на диске; экспорт в PT3; импорт STC, ASC, SQT, PSC, PT1, GTR, текста Vortex Tracker; команды колонки огибающей (портаменто, вибрато, арпеджио, вкл / выкл, детюн, автоогибающая); команды FX E1..E5 в паттерне; свой курсор у каждого трека.
 
 ### Авторы и лицензии
 
 - Fast Tracker 2 — Orion/DR.
+- Спасибо **Pator**, автору **Bitphase**: интерфейс, команды паттерна, колонка огибающей и таймерные эффекты (FX) во многом взяты из него.
 - FAT32-драйвер — [andrewinsidelazarev/FAT32-Driver-ZX-Evolution](https://github.com/andrewinsidelazarev/FAT32-Driver-ZX-Evolution) (MIT).
 - Шрифты Toshiba TxL1 / TxL2, Compaq Thin — The Ultimate Oldschool PC Font Pack, int10h.org (CC BY-SA 4.0).
