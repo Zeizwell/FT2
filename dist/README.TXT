@@ -98,10 +98,55 @@ If something did not fit the limits, a message after loading says what.
 FT2 file format - FT2FMT.TXT.
 
 
-LIMITS
-------
-Patterns 64, rows per pattern 64, positions 256, instruments 32 and ornaments 32
-(up to 100 rows each), FX 32, two tracks in memory, 1 or 2 chips (3 / 6 channels).
+TECHNICAL INFO
+--------------
+Tracks in memory:                                              2
+Channels:                                    3 or 6 (TurboSound)
+Patterns:                                                     64
+Rows per pattern:                                        1 to 64
+Positions:                                                   256
+Speed:                                                  1 to 255
+Instruments:                                                  32
+Ornaments:                                                    32
+Max instrument length:                                       100
+Max ornament length:                                         100
+FX:                                                           32
+Max FX length:                                                32
+FX tables:                                              256 x 16
+Commands per channel row:                                      2
+Notes:                                                C-1 .. B-8
+Compiled track length:                               up to 32768
+
+
+PATTERN FIELD
+-------------
+Channel (x6):
+  Note:                                            C-1 .. B-8, off
+  Instrument:                                                1..32
+  Envelope shape:                                       1..14, off
+  Ornament:                                            1..32, none
+  Volume:                                                     0..F
+  Commands:                          2 (4 hex: code, delay, param)
+Chip ENV column (x2):
+  Envelope period:                             16 bit or as a note
+  Envelope command:                    1 (4 hex): 1 - up, 2 - down
+  Noise:                                                    00..1F
+
+
+CHANNEL COMMANDS
+----------------
+  1 / 2   glide down / up               delay, step
+  3       portamento to note            delay, step
+  4 / 5   sample / ornament from row    row
+  6       sound on / off                on, off
+  7       volume slide                  delay, up, down
+  8       vibrato                       ticks/step, speed, depth
+  9 / A   envelope slide down / up      delay, step
+  B       speed                         ticks per row
+  C       arpeggio                      ticks/step, shift 1, shift 2
+  F0      envelope and tone retrigger
+  F1      detune                        period offset +/-
+  F2      note delay                    ticks
 
 
 NOT YET
@@ -224,10 +269,55 @@ PT3-модули грузятся с PT).
 Формат файла FT2 - FT2FMT.TXT.
 
 
-ЛИМИТЫ
-------
-Паттернов 64, строк в паттерне 64, позиций 256, инструментов 32 и орнаментов 32
-(по 100 строк), FX 32, два трека в памяти, 1 или 2 чипа (3 / 6 каналов).
+ТЕХНИЧЕСКАЯ ИНФА
+----------------
+Треков в памяти:                                               2
+Каналов:                                    3 или 6 (TurboSound)
+Паттернов:                                                    64
+Строк в паттерне:                                     от 1 до 64
+Позиций:                                                     256
+Скорость:                                            от 1 до 255
+Инструментов:                                                 32
+Орнаментов:                                                   32
+Максимальная длина инструмента:                              100
+Максимальная длина орнамента:                                100
+FX:                                                           32
+Максимальная длина FX:                                        32
+Таблиц FX:                                             256 по 16
+Команд в строке канала:                                        2
+Ноты:                                                 C-1 .. B-8
+Длина откомпилированного трека:                         до 32768
+
+
+ПОЛЕ ПАТТЕРНА
+-------------
+Канал (x6):
+  Нота:                                           C-1 .. B-8, выкл
+  Инструмент:                                                1..32
+  Форма огибающей:                                     1..14, выкл
+  Орнамент:                                   1..32, без орнамента
+  Громкость:                                                  0..F
+  Команд:                       2 (4 hex: код, задержка, параметр)
+Колонка чипа ENV (x2):
+  Период огибающей:                               16 бит или нотой
+  Команда огибающей:                1 (4 hex): 1 - вверх, 2 - вниз
+  Шум:                                                      00..1F
+
+
+КОМАНДЫ КАНАЛА
+--------------
+  1 / 2   глисс вниз / вверх            задержка, шаг
+  3       портаменто к ноте             задержка, шаг
+  4 / 5   сэмпл / орнамент с позиции    строка
+  6       звук вкл / выкл               вкл, выкл
+  7       слайд громкости               задержка, вверх, вниз
+  8       вибрато                       тиков/шаг, скорость, глубина
+  9 / A   слайд огибающей вниз / вверх  задержка, шаг
+  B       скорость                      тиков на строку
+  C       арпеджио                      тиков/шаг, сдвиг 1, сдвиг 2
+  F0      ретриггер огибающей и тона
+  F1      детюн                         сдвиг периода +/-
+  F2      задержка ноты                 тиков
 
 
 ЧЕГО ПОКА НЕТ
